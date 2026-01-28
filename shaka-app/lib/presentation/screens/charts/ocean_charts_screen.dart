@@ -51,6 +51,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   // UI state
   bool _showLegend = true;
   String _baseMap = 'dark';
+  
+  // Version counter to force map rebuilds
+  int _mapVersion = 0;
 
   @override
   void initState() {
@@ -94,11 +97,11 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   }
 
   /// Build the list of tile layers based on enabled layers
-  List<TileLayer> _buildTileLayers() {
-    final layers = <TileLayer>[];
+  List<Widget> _buildTileLayers() {
+    final layers = <Widget>[];
 
-    // Base map layer
-    layers.add(_buildBaseMapLayer());
+    // Base map layer(s)
+    layers.addAll(_buildBaseMapLayers());
 
     // Add enabled ocean data layers
     for (var state in _layerStates.values) {
@@ -110,29 +113,59 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
     return layers;
   }
 
-  TileLayer _buildBaseMapLayer() {
-    String urlTemplate;
+  /// Build base map layers (some styles need multiple layers)
+  List<TileLayer> _buildBaseMapLayers() {
+    final layers = <TileLayer>[];
+    
     switch (_baseMap) {
       case 'satellite':
-        // Using ESRI World Imagery (free)
-        urlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        // ESRI World Imagery - high resolution satellite (crisp at all zooms)
+        layers.add(TileLayer(
+          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          userAgentPackageName: 'com.shaka.app',
+          maxZoom: 19,
+          tileProvider: CachedTileProvider(),
+          tileSize: 256,
+        ));
+        // Add labels overlay for better context
+        layers.add(TileLayer(
+          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          userAgentPackageName: 'com.shaka.app',
+          maxZoom: 19,
+          tileProvider: CachedTileProvider(),
+        ));
         break;
+        
       case 'nautical':
-        // OpenSeaMap nautical layer over OSM
-        urlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        // Use CartoDB Voyager (cleaner than raw OSM) as base
+        layers.add(TileLayer(
+          urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          userAgentPackageName: 'com.shaka.app',
+          maxZoom: 19,
+          tileProvider: CachedTileProvider(),
+        ));
+        // OpenSeaMap overlay for nautical features (buoys, channels, etc.)
+        layers.add(TileLayer(
+          urlTemplate: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.shaka.app',
+          maxZoom: 18,
+          tileProvider: CachedTileProvider(),
+        ));
         break;
+        
       case 'dark':
       default:
-        // CartoDB Dark Matter - perfect for ocean visualization
-        urlTemplate = 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}@2x.png';
+        // CartoDB Dark Matter - very crisp, good contrast for ocean data overlays
+        // Using @2x for retina quality
+        layers.add(TileLayer(
+          urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}@2x.png',
+          userAgentPackageName: 'com.shaka.app',
+          maxZoom: 20,
+          tileProvider: CachedTileProvider(),
+        ));
     }
-
-    return TileLayer(
-      urlTemplate: urlTemplate,
-      userAgentPackageName: 'com.shaka.app',
-      maxZoom: 18,
-      tileProvider: CachedTileProvider(),
-    );
+    
+    return layers;
   }
 
   TileLayer _buildOceanTileLayer(LayerState state) {
@@ -247,19 +280,27 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
         onLayerToggle: (layerId, enabled) {
           setState(() {
             _layerStates[layerId] = _layerStates[layerId]!.copyWith(enabled: enabled);
+            _mapVersion++; // Force map rebuild
           });
           if (enabled) _fetchFeatureData(_center);
         },
         onOpacityChange: (layerId, opacity) {
           setState(() {
             _layerStates[layerId] = _layerStates[layerId]!.copyWith(opacity: opacity);
+            _mapVersion++; // Force map rebuild
           });
         },
         onBaseMapChange: (baseMap) {
-          setState(() => _baseMap = baseMap);
+          setState(() {
+            _baseMap = baseMap;
+            _mapVersion++; // Force map rebuild
+          });
         },
         onDateChange: (date) {
-          setState(() => _selectedDate = date);
+          setState(() {
+            _selectedDate = date;
+            _mapVersion++; // Force map rebuild
+          });
           _fetchFeatureData(_center);
         },
       ),
@@ -274,9 +315,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Full-screen map
+          // Full-screen map - use version counter to force rebuilds
           FlutterMap(
-            key: ValueKey('map_${_baseMap}_${_selectedDate.millisecondsSinceEpoch}_${_layerStates.values.where((s) => s.enabled).map((s) => '${s.layer.id}_${s.opacity}').join('_')}'),
+            key: ValueKey('map_v$_mapVersion'),
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _center,

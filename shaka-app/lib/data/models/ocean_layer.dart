@@ -111,20 +111,21 @@ class OceanLayer {
     updateFrequency: Duration(hours: 6),
   );
 
-  // Wind - hourly scatterometer + model data
+  // Wind - 6-hourly from global analysis/forecast 10m wind
   static const wind = OceanLayer(
     id: 'wind',
-    name: 'Wind Speed',
+    name: 'Wind Speed (10m)',
     shortName: 'WIND',
-    wmtsLayer: 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207/wind_speed',
-    style: 'vectorStyle:solidAndVector,cmap:speed',
+    // Global Ocean Wind L4 NRT - 6-hourly blended scatterometer + model
+    wmtsLayer: 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202311/wind_speed',
+    style: 'cmap:tempo',
     unit: 'm/s',
     icon: Icons.air,
     color: Color(0xFF607D8B),
     minValue: 0,
     maxValue: 25,
-    description: 'Surface wind speed and direction',
-    updateFrequency: Duration(hours: 1),
+    description: 'Surface wind speed at 10m height',
+    updateFrequency: Duration(hours: 6),
   );
 
   // Wave Height - 3-hourly forecast

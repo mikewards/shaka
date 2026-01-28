@@ -30,80 +30,116 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   late String _baseMap;
   late DateTime _selectedDate;
   double _globalOpacity = 0.8;
+  // Track layer states locally for immediate UI feedback
+  late Map<String, bool> _localLayerEnabled;
 
   @override
   void initState() {
     super.initState();
     _baseMap = widget.baseMap;
     _selectedDate = widget.selectedDate;
+    _localLayerEnabled = {
+      for (var entry in widget.layerStates.entries) entry.key: entry.value.enabled
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
       decoration: const BoxDecoration(
         color: Color(0xFF0D0D0D),
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 8, bottom: 16),
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 16),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
 
-          // Base map chips
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _buildChip('Dark', _baseMap == 'dark', () => _setBaseMap('dark')),
-                const SizedBox(width: 8),
-                _buildChip('Satellite', _baseMap == 'satellite', () => _setBaseMap('satellite')),
-                const SizedBox(width: 8),
-                _buildChip('Nautical', _baseMap == 'nautical', () => _setBaseMap('nautical')),
-              ],
+            // DATE SELECTOR AT TOP
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildDateSelector(),
             ),
-          ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-          // Layer toggles
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: widget.layerStates.values.map((state) {
-                return _buildLayerRow(state);
-              }).toList(),
+            // Base map chips
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _buildChip('Dark', _baseMap == 'dark', () => _setBaseMap('dark')),
+                  const SizedBox(width: 8),
+                  _buildChip('Satellite', _baseMap == 'satellite', () => _setBaseMap('satellite')),
+                  const SizedBox(width: 8),
+                  _buildChip('Nautical', _baseMap == 'nautical', () => _setBaseMap('nautical')),
+                ],
+              ),
             ),
-          ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-          // Date selector
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildDateSelector(),
-          ),
+            // Global opacity
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildOpacityRow(),
+            ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Global opacity
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildOpacityRow(),
-          ),
+            // Section divider
+            Container(
+              height: 1,
+              color: Colors.white10,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+            ),
 
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 8),
+
+            // Section header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'DATA LAYERS',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ),
+
+            // Layer toggles
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: widget.layerStates.values.map((state) {
+                  return _buildLayerRow(state);
+                }).toList(),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -137,15 +173,24 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   }
 
   Widget _buildLayerRow(LayerState state) {
-    final enabled = state.enabled;
+    // Use local state for immediate UI feedback
+    final enabled = _localLayerEnabled[state.layer.id] ?? state.enabled;
     
     return GestureDetector(
       onTap: () {
-        widget.onLayerToggle(state.layer.id, !enabled);
+        final newEnabled = !enabled;
+        // Update local state immediately for instant UI feedback
+        setState(() {
+          _localLayerEnabled[state.layer.id] = newEnabled;
+        });
+        // Notify parent
+        widget.onLayerToggle(state.layer.id, newEnabled);
         // Apply global opacity when enabling
-        if (!enabled) {
+        if (newEnabled) {
           widget.onOpacityChange(state.layer.id, _globalOpacity);
         }
+        // Close the sheet to force map rebuild
+        Navigator.of(context).pop();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -156,15 +201,35 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
         ),
         child: Row(
           children: [
+            // Layer icon
+            Icon(
+              state.layer.icon,
+              color: enabled ? state.layer.color : Colors.white24,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
             // Layer name
             Expanded(
-              child: Text(
-                state.layer.name,
-                style: TextStyle(
-                  color: enabled ? Colors.white : Colors.white38,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.layer.name,
+                    style: TextStyle(
+                      color: enabled ? Colors.white : Colors.white54,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  if (enabled)
+                    Text(
+                      state.layer.description,
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
               ),
             ),
             // Pill toggle
