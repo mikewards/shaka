@@ -31,12 +31,13 @@ class OceanLayer {
   });
 
   /// Pre-defined ocean layers from Copernicus Marine Service
+  /// Updated Jan 2026 with current dataset versions
   static const sst = OceanLayer(
     id: 'sst',
     name: 'Sea Surface Temperature',
     shortName: 'SST',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i_202406/thetao',
-    style: 'cmap:thermal,range:10/30',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i_202406',
+    style: 'cmap:thermal',
     unit: '°F',
     icon: Icons.thermostat,
     color: Color(0xFFFF6B35),
@@ -50,8 +51,8 @@ class OceanLayer {
     id: 'chl',
     name: 'Chlorophyll-a',
     shortName: 'CHL',
-    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D_202411/CHL',
-    style: 'cmap:viridis,logScale',
+    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D_202411',
+    style: 'cmap:viridis',
     unit: 'mg/m³',
     icon: Icons.grass,
     color: Color(0xFF4CAF50),
@@ -65,7 +66,7 @@ class OceanLayer {
     id: 'zsd',
     name: 'Water Visibility',
     shortName: 'VIS',
-    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-transp_nrt_l3-multi-4km_P1D_202311/ZSD',
+    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-transp_nrt_l3-multi-4km_P1D_202311',
     style: 'cmap:viridis',
     unit: 'm',
     icon: Icons.visibility,
@@ -80,8 +81,9 @@ class OceanLayer {
     id: 'ssh',
     name: 'Sea Surface Height',
     shortName: 'SSH',
-    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202311/adt',
-    style: 'cmap:balance,range:-0.5/0.5',
+    // Updated to 0.125deg_202506 - the 0.25deg_202311 dataset ended Nov 2024
+    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506',
+    style: 'cmap:balance',
     unit: 'm',
     icon: Icons.waves,
     color: Color(0xFF9C27B0),
@@ -95,8 +97,8 @@ class OceanLayer {
     id: 'cur',
     name: 'Ocean Currents',
     shortName: 'CUR',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i_202406/sea_water_velocity',
-    style: 'vectorStyle:solidAndVector,cmap:speed',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i_202406',
+    style: 'cmap:speed',
     unit: 'm/s',
     icon: Icons.air,
     color: Color(0xFF00BCD4),
@@ -106,8 +108,23 @@ class OceanLayer {
     updateFrequency: Duration(hours: 6),
   );
 
+  static const bathymetry = OceanLayer(
+    id: 'bathy',
+    name: 'Bathymetry',
+    shortName: 'DEPTH',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_static_202211--ext--bathy',
+    style: 'cmap:deep',
+    unit: 'm',
+    icon: Icons.terrain,
+    color: Color(0xFF795548),
+    minValue: 0,
+    maxValue: 6000,
+    description: 'Ocean floor depth and underwater topography',
+    updateFrequency: Duration(days: 365), // Static dataset
+  );
+
   /// All available layers
-  static const List<OceanLayer> all = [sst, chlorophyll, visibility, seaHeight, currents];
+  static const List<OceanLayer> all = [sst, chlorophyll, visibility, seaHeight, currents, bathymetry];
 
   /// Get layer by ID
   static OceanLayer? byId(String id) {
