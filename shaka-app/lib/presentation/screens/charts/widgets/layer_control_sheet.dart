@@ -268,49 +268,69 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   Widget _buildDateSelector() {
     final now = DateTime.now();
     final minDate = now.subtract(const Duration(days: 14));
-    final maxDate = now;
+    // NRT data has ~24h processing delay, so max available is yesterday
+    final maxDate = now.subtract(const Duration(days: 1));
+    final isAtMax = _selectedDate.year == maxDate.year && 
+                    _selectedDate.month == maxDate.month && 
+                    _selectedDate.day == maxDate.day;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
       children: [
-        GestureDetector(
-          onTap: _selectedDate.isAfter(minDate)
-              ? () {
-                  final newDate = _selectedDate.subtract(const Duration(days: 1));
-                  setState(() => _selectedDate = newDate);
-                  widget.onDateChange(newDate);
-                }
-              : null,
-          child: Icon(
-            Icons.chevron_left,
-            color: _selectedDate.isAfter(minDate) ? Colors.white : Colors.white24,
-            size: 28,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          _formatDate(_selectedDate),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(width: 16),
-        GestureDetector(
-          onTap: _selectedDate.isBefore(maxDate)
-              ? () {
-                  final newDate = _selectedDate.add(const Duration(days: 1));
-                  setState(() => _selectedDate = newDate);
-                  widget.onDateChange(newDate);
-                }
-              : null,
-          child: Icon(
-            Icons.chevron_right,
-            color: _selectedDate.isBefore(maxDate) ? Colors.white : Colors.white24,
-            size: 28,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: _selectedDate.isAfter(minDate)
+                  ? () {
+                      final newDate = _selectedDate.subtract(const Duration(days: 1));
+                      setState(() => _selectedDate = newDate);
+                      widget.onDateChange(newDate);
+                    }
+                  : null,
+              child: Icon(
+                Icons.chevron_left,
+                color: _selectedDate.isAfter(minDate) ? Colors.white : Colors.white24,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              children: [
+                Text(
+                  _formatDate(_selectedDate),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                if (isAtMax)
+                  Text(
+                    'Latest available',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: _selectedDate.isBefore(maxDate)
+                  ? () {
+                      final newDate = _selectedDate.add(const Duration(days: 1));
+                      setState(() => _selectedDate = newDate);
+                      widget.onDateChange(newDate);
+                    }
+                  : null,
+              child: Icon(
+                Icons.chevron_right,
+                color: _selectedDate.isBefore(maxDate) ? Colors.white : Colors.white24,
+                size: 28,
+              ),
+            ),
+          ],
         ),
       ],
     );
