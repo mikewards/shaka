@@ -8,6 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'dart:io' as io show gzip;
 
 /// Saved ocean chart snapshot
 class SavedSnapshot {
@@ -87,7 +88,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   double _zoom = 6.0;
   DateTime _dataDate = DateTime.now().subtract(const Duration(days: 1));
   
-  // Layer states - controlled via JavaScript injection into Copernicus viewer
+  // Layer states
   final Map<String, bool> _layerStates = {
     'sst': true,       // Sea Surface Temperature (default on)
     'chl': false,      // Chlorophyll
@@ -97,49 +98,70 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     'sal': false,      // Salinity
   };
   
-  // Layer info with Copernicus product search terms
+  // Layer info with Copernicus product/dataset/variable paths
+  // These are used to construct the layers URL parameter
   static const Map<String, Map<String, dynamic>> _layerInfo = {
     'sst': {
       'name': 'Sea Surface Temp',
       'icon': Icons.thermostat,
       'color': Color(0xFFFF6B35),
       'desc': 'Water temperature',
-      'searchTerm': 'temperature', // Used to find layer in Copernicus UI
+      'product': 'SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001',
+      'dataset': 'cmems_obs-sst_glo_phy-sst_nrt_diurnal-oi-0.25deg_P1D-m',
+      'variable': 'analysed_sst',
+      'colormap': 'thermal',
     },
     'chl': {
       'name': 'Chlorophyll',
       'icon': Icons.grass,
       'color': Color(0xFF4CAF50),
       'desc': 'Phytoplankton / bait',
-      'searchTerm': 'chlorophyll',
+      'product': 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101',
+      'dataset': 'cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D',
+      'variable': 'CHL',
+      'colormap': 'algae',
     },
     'waves': {
       'name': 'Wave Height',
       'icon': Icons.waves,
       'color': Color(0xFF3F51B5),
       'desc': 'Significant wave height',
-      'searchTerm': 'wave',
+      'product': 'GLOBAL_ANALYSISFORECAST_WAV_001_027',
+      'dataset': 'cmems_mod_glo_wav_anfc_0.083deg_PT3H-i',
+      'variable': 'VHM0',
+      'colormap': 'amp',
     },
     'wind': {
       'name': 'Wind',
       'icon': Icons.air,
       'color': Color(0xFF607D8B),
       'desc': 'Surface wind speed',
-      'searchTerm': 'wind',
+      'product': 'WIND_GLO_PHY_L4_NRT_012_004',
+      'dataset': 'cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H',
+      'variable': 'wind',
+      'colormap': 'speed',
+      'vectorStyle': 'solidAndVector',
     },
     'cur': {
       'name': 'Currents',
       'icon': Icons.sync_alt,
       'color': Color(0xFF00BCD4),
       'desc': 'Current speed/direction',
-      'searchTerm': 'current',
+      'product': 'GLOBAL_ANALYSISFORECAST_PHY_001_024',
+      'dataset': 'cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i',
+      'variable': 'sea_water_velocity',
+      'colormap': 'speed',
+      'vectorStyle': 'solidAndVector',
     },
     'sal': {
       'name': 'Salinity',
       'icon': Icons.water_drop,
       'color': Color(0xFF009688),
       'desc': 'Sea water salinity',
-      'searchTerm': 'salinity',
+      'product': 'GLOBAL_ANALYSISFORECAST_PHY_001_024',
+      'dataset': 'cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m',
+      'variable': 'so',
+      'colormap': 'haline',
     },
   };
 
@@ -366,12 +388,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   }
 
   String _buildCopernicusUrl() {
-    // Build Copernicus MyOcean Viewer URL
     final timestamp = _dataDate.millisecondsSinceEpoch;
     
-    // The viewer loads with its default layer (usually SST)
-    // Users can add/remove layers using the Copernicus layer panel
-    return 'https://data.marine.copernicus.eu/viewer/expert?'
+    // Build layers parameter with enabled layers
+    final layersParam = _buildLayersParam();
+    
+    var url = 'https://data.marine.copernicus.eu/viewer/expert?'
         'view=viewer'
         '&crs=epsg%3A4326'
         '&t=$timestamp'
@@ -379,6 +401,59 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         '&center=${_centerLon}%2C${_centerLat}'
         '&zoom=${_zoom.toStringAsFixed(1)}'
         '&basemap=dark';
+    
+    if (layersParam.isNotEmpty) {
+      url += '&layers=$layersParam';
+    }
+    
+    return url;
+  }
+
+  /// Build the layers URL parameter (gzip compressed, base64 encoded JSON)
+  String _buildLayersParam() {
+    final enabledLayers = _layerStates.entries
+        .where((e) => e.value)
+        .map((e) => e.key)
+        .toList();
+    
+    if (enabledLayers.isEmpty) return '';
+    
+    // Build layer configurations
+    final layerConfigs = <Map<String, dynamic>>[];
+    
+    for (final layerId in enabledLayers) {
+      final info = _layerInfo[layerId];
+      if (info == null) continue;
+      
+      final layerConfig = {
+        'id': '${info['product']}/${info['dataset']}/${info['variable']}',
+        'visible': true,
+        'opacity': 1.0,
+        'colormap': info['colormap'] ?? 'thermal',
+      };
+      
+      // Add vector style for wind/currents
+      if (info['vectorStyle'] != null) {
+        layerConfig['vectorStyle'] = info['vectorStyle'];
+      }
+      
+      layerConfigs.add(layerConfig);
+    }
+    
+    // Encode as JSON, gzip, then base64
+    try {
+      final jsonStr = jsonEncode(layerConfigs);
+      final compressed = io.gzip.encode(utf8.encode(jsonStr));
+      final base64Str = base64Encode(compressed);
+      // URL encode the base64 string (replace + with -, / with _, remove =)
+      return base64Str
+          .replaceAll('+', '-')
+          .replaceAll('/', '_')
+          .replaceAll('=', '');
+    } catch (e) {
+      debugPrint('Error encoding layers: $e');
+      return '';
+    }
   }
 
   Future<void> _loadSavedSnapshots() async {
@@ -608,22 +683,22 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                         trailing: Switch(
                           value: isEnabled,
                           activeColor: info['color'] as Color,
-                          onChanged: (value) async {
+                          onChanged: (value) {
                             setModalState(() {
                               _layerStates[id] = value;
                             });
                             setState(() {});
-                            // Try to toggle layer via JavaScript
-                            await _toggleLayerViaJS(id, value);
+                            // Reload with new layer configuration
+                            _reloadViewerWithNewDate();
                           },
                         ),
-                        onTap: () async {
+                        onTap: () {
                           final newValue = !isEnabled;
                           setModalState(() {
                             _layerStates[id] = newValue;
                           });
                           setState(() {});
-                          await _toggleLayerViaJS(id, newValue);
+                          _reloadViewerWithNewDate();
                         },
                       );
                     },
@@ -677,51 +752,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       final url = _buildCopernicusUrl();
       _controller!.loadRequest(Uri.parse(url));
     }
-  }
-
-  /// Toggle a layer via JavaScript injection
-  Future<void> _toggleLayerViaJS(String layerId, bool enable) async {
-    if (_controller == null) return;
-    
-    final searchTerm = _layerInfo[layerId]?['searchTerm'] as String? ?? layerId;
-    
-    // JavaScript to find and toggle layer in Copernicus viewer
-    final jsCode = '''
-      (function() {
-        // Try to find layer controls and toggle them
-        // This is experimental - Copernicus UI structure may vary
-        
-        function findAndToggleLayer(searchTerm, shouldEnable) {
-          // Look for layer items containing the search term
-          var allElements = document.querySelectorAll('*');
-          var found = false;
-          
-          allElements.forEach(function(el) {
-            var text = (el.innerText || el.textContent || '').toLowerCase();
-            if (text.includes(searchTerm.toLowerCase())) {
-              // Look for a toggle/switch/checkbox nearby
-              var parent = el.closest('[role="listitem"], [class*="layer"], [class*="Layer"], li, div');
-              if (parent) {
-                var toggle = parent.querySelector('input[type="checkbox"], [role="switch"], [class*="switch"], [class*="Switch"], [class*="toggle"], [class*="Toggle"]');
-                if (toggle) {
-                  var isChecked = toggle.checked || toggle.getAttribute('aria-checked') === 'true' || toggle.classList.contains('checked');
-                  if ((shouldEnable && !isChecked) || (!shouldEnable && isChecked)) {
-                    toggle.click();
-                    found = true;
-                  }
-                }
-              }
-            }
-          });
-          
-          return found;
-        }
-        
-        findAndToggleLayer('$searchTerm', $enable);
-      })();
-    ''';
-    
-    await _controller!.runJavaScript(jsCode);
   }
 
   void _showSavedSnapshots() {
