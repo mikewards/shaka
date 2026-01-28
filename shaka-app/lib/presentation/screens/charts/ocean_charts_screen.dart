@@ -125,31 +125,34 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   List<TileLayer> _buildBaseMapLayers() {
     final layers = <TileLayer>[];
     
+    // All base maps support zooming up to 18 for crisp land detail
     switch (_baseMap) {
       case 'satellite':
-        // ESRI World Imagery - high resolution satellite (crisp at all zooms)
+        // ESRI World Imagery - high resolution satellite
         layers.add(TileLayer(
           urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
           userAgentPackageName: 'com.shaka.app',
-          maxZoom: 19,
+          maxZoom: 18,
+          minZoom: 2,
           tileProvider: CachedTileProvider(),
-          tileSize: 256,
         ));
         // Add labels overlay for better context
         layers.add(TileLayer(
           urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
           userAgentPackageName: 'com.shaka.app',
-          maxZoom: 19,
+          maxZoom: 18,
+          minZoom: 2,
           tileProvider: CachedTileProvider(),
         ));
         break;
         
       case 'nautical':
-        // Use CartoDB Voyager (cleaner than raw OSM) as base
+        // OpenStreetMap standard - high resolution and detailed
         layers.add(TileLayer(
-          urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.shaka.app',
-          maxZoom: 19,
+          maxZoom: 18,
+          minZoom: 2,
           tileProvider: CachedTileProvider(),
         ));
         // OpenSeaMap overlay for nautical features (buoys, channels, etc.)
@@ -157,18 +160,20 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
           urlTemplate: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.shaka.app',
           maxZoom: 18,
+          minZoom: 2,
           tileProvider: CachedTileProvider(),
         ));
         break;
         
       case 'dark':
       default:
-        // CartoDB Dark Matter - very crisp, good contrast for ocean data overlays
-        // Using @2x for retina quality
+        // CartoDB Dark Matter with retina tiles for HiDPI displays
         layers.add(TileLayer(
-          urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}@2x.png',
+          urlTemplate: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
           userAgentPackageName: 'com.shaka.app',
-          maxZoom: 20,
+          maxZoom: 18,
+          minZoom: 2,
+          retinaMode: true,
           tileProvider: CachedTileProvider(),
         ));
     }
@@ -191,7 +196,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
           crs: const Epsg3857(),
         ),
         userAgentPackageName: 'com.shaka.app',
-        maxZoom: 12,
+        maxZoom: 18, // Let flutter_map handle zoom > data resolution
+        minZoom: 2,
+        maxNativeZoom: 10, // Bathymetry data max resolution
         tileProvider: CachedTileProvider(),
         tileBuilder: (context, tileWidget, tile) {
           return Opacity(opacity: state.opacity, child: tileWidget);
@@ -201,16 +208,18 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
     }
 
     // Standard Copernicus WMTS layers with caching
-    // Using @2x tilematrixset - server returns 512x512 tiles at standard coordinates
-    // This gives sharp rendering on HiDPI displays
+    // maxNativeZoom limits actual tile requests, beyond that tiles are upscaled
+    // This prevents crashes when zooming beyond data resolution
     return TileLayer(
       urlTemplate: CopernicusWMTSService.buildLayerTileUrl(
         state.layer,
         time: timeStr,
       ),
       userAgentPackageName: 'com.shaka.app',
-      maxZoom: 10, // Copernicus data is ~4-14km resolution, higher zoom shows no more detail
-      minZoom: 3,
+      maxZoom: 18, // Allow map to zoom this far
+      minZoom: 2,
+      maxNativeZoom: 10, // Copernicus data only goes to zoom 10
+      minNativeZoom: 3,
       tileProvider: CachedTileProvider(),
       tileBuilder: (context, tileWidget, tile) {
         return Opacity(opacity: state.opacity, child: tileWidget);
@@ -412,7 +421,7 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
               initialCenter: _center,
               initialZoom: _zoom,
               minZoom: 2,
-              maxZoom: 12,
+              maxZoom: 18, // Allow zooming in for detailed base map
               onPositionChanged: _onMapMove,
               onMapEvent: (event) {
                 if (event is MapEventMoveEnd) {
@@ -476,50 +485,52 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   }
 
   Widget _buildBottomToolbar() {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 12,
-        bottom: MediaQuery.of(context).padding.bottom + 12,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            Colors.black.withOpacity(0.9),
-            Colors.black.withOpacity(0.0),
-          ],
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [
+              Colors.black.withOpacity(0.9),
+              Colors.black.withOpacity(0.0),
+            ],
+          ),
         ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _ToolbarButton(
-              icon: Icons.layers,
-              label: 'Layers',
-              onTap: _openLayerControls,
+            Expanded(
+              child: _ToolbarButton(
+                icon: Icons.layers,
+                label: 'Layers',
+                onTap: _openLayerControls,
+              ),
             ),
-            const SizedBox(width: 8),
-            _ToolbarButton(
-              icon: Icons.calendar_today,
-              label: _formatDate(_selectedDate),
-              onTap: _openLayerControls,
+            const SizedBox(width: 6),
+            Expanded(
+              child: _ToolbarButton(
+                icon: Icons.calendar_today,
+                label: _formatDate(_selectedDate),
+                onTap: _openLayerControls,
+              ),
             ),
-            const SizedBox(width: 8),
-            _ToolbarButton(
-              icon: _showLegend ? Icons.legend_toggle : Icons.legend_toggle_outlined,
-              label: 'Legend',
-              onTap: () => setState(() => _showLegend = !_showLegend),
+            const SizedBox(width: 6),
+            Expanded(
+              child: _ToolbarButton(
+                icon: _showLegend ? Icons.legend_toggle : Icons.legend_toggle_outlined,
+                label: 'Legend',
+                onTap: () => setState(() => _showLegend = !_showLegend),
+              ),
             ),
-            const SizedBox(width: 8),
-            _ToolbarButton(
-              icon: Icons.download_for_offline,
-              label: 'Offline',
-              onTap: _openOfflineMenu,
+            const SizedBox(width: 6),
+            Expanded(
+              child: _ToolbarButton(
+                icon: Icons.download_for_offline,
+                label: 'Offline',
+                onTap: _openOfflineMenu,
+              ),
             ),
           ],
         ),
@@ -551,23 +562,28 @@ class _ToolbarButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white24),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ],
