@@ -29,7 +29,7 @@ fun Application.configureRouting() {
                 call.respond(mapOf(
                     "status" to "ok", 
                     "service" to "shaka-api",
-                    "realtimeSatelliteAvailable" to copernicusClient.isRealTimeAvailable(),
+                    "realtimeSatelliteAvailable" to copernicusClient.isDirectAccessAvailable(),
                     "cache" to cacheStats
                 ))
             }
@@ -78,8 +78,8 @@ fun Application.configureRouting() {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "id required"))
                 val date = call.parameters["date"] ?: java.time.LocalDate.now().toString()
 
-                // Check if real-time satellite is available
-                if (!copernicusClient.isRealTimeAvailable()) {
+                // Check if direct Sentinel-3 access is available
+                if (!copernicusClient.isDirectAccessAvailable()) {
                     return@get call.respond(
                         HttpStatusCode.ServiceUnavailable,
                         mapOf(

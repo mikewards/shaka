@@ -16,23 +16,22 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
- * Client for water quality data with REAL-TIME visibility prediction.
+ * Client for water quality data - ACTUAL MEASURED DATA ONLY.
  * 
- * Visibility is PREDICTED in real-time from current conditions:
- * - Tide stage (incoming = clean, outgoing = murky)
- * - Swell height (larger swell = more stirring)
- * - Wind speed (wind churn = reduced clarity)
- * - Recent rainfall (runoff = sediment)
- * - Current strength (transport = variable)
- * - Chlorophyll (background plankton levels)
+ * Data source: Copernicus Marine Service L3 NRT
+ * Product: OCEANCOLOUR_GLO_BGC_L3_NRT_009_101
  * 
- * This matches how professional apps like VizFinder work.
- * Conditions that change in 2 hours (tide, wind) are reflected immediately!
+ * This provides REAL satellite measurements:
+ * - ZSD (Secchi disk depth) = underwater visibility in meters
+ * - CHL (Chlorophyll-a) = plankton concentration in mg/m³
  * 
- * Data sources:
- * - SST: NOAA ERDDAP / Open-Meteo (real-time)
- * - Chlorophyll: NOAA VIIRS (background levels)
- * - Tide/Swell/Wind: Real-time from ocean data
+ * NO ESTIMATES. If satellite data unavailable (clouds), we say so honestly.
+ * 
+ * Update frequency: Daily at 22:00 UTC
+ * Resolution: 4km global coverage
+ * Latency: ~1 day (yesterday's satellite pass)
+ * 
+ * @see https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/description
  */
 class CopernicusClient(
     private val clientId: String = System.getenv("COPERNICUS_CLIENT_ID") ?: "",
@@ -41,7 +40,6 @@ class CopernicusClient(
     private val logger = LoggerFactory.getLogger(CopernicusClient::class.java)
     private val noaaClient = NOAAClient()
     private val wmtsClient = CopernicusWMTSClient()
-    private val visibilityPredictor = VisibilityPredictor()
     
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -62,10 +60,10 @@ class CopernicusClient(
     }
 
     /**
-     * Get water quality data - REAL visibility from Copernicus WMTS.
+     * Get water quality data - ACTUAL MEASUREMENTS ONLY from Copernicus L3 NRT.
      * 
-     * Visibility is REAL measured data (Secchi disk depth), NOT calculated!
-     * Updated daily, gap-free (cloud gaps interpolated), 4km resolution.
+     * NO ESTIMATES. Returns null values if satellite data unavailable.
+     * This is honest - clouds/land mask mean no data, not fake data.
      */
     suspend fun getWaterQuality(lat: Double, lon: Double, date: String): WaterQuality {
         // Check cache first
@@ -74,50 +72,59 @@ class CopernicusClient(
             return it 
         }
         
-        // Fetch SST from NOAA (fast) - always returns a value
+        // Fetch SST from NOAA (fast) - this actually returns real data
         val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
         
-        // PRIMARY: Get REAL visibility from Copernicus WMTS (Secchi disk depth)
-        // This is actual measured underwater visibility, NOT calculated from chlorophyll!
-        var visibility = try {
+        // Get REAL visibility from Copernicus L3 NRT (Secchi disk depth)
+        val visibilityResult = try {
             wmtsClient.getLatestVisibility(lat, lon)
         } catch (e: Exception) {
-            logger.warn("Copernicus WMTS visibility fetch failed: ${e.message}")
-            null
+            logger.warn("Copernicus visibility fetch failed: ${e.message}")
+            CopernicusWMTSClient.VisibilityResult(
+                visibilityM = null,
+                date = date,
+                dataSource = "Error: ${e.message}",
+                isActualMeasurement = false
+            )
         }
         
-        var dataSource = if (visibility != null) {
-            "Copernicus ZSD (Real visibility)"
-        } else {
-            "Calculated from chlorophyll"
-        }
-        
-        // Get chlorophyll for additional context (fish activity indicator)
-        var chlorophyll = try {
-            noaaClient.getChlorophyll(lat, lon, date)
+        // Get REAL chlorophyll from Copernicus L3 NRT
+        val chlorophyllResult = try {
+            wmtsClient.getLatestChlorophyll(lat, lon)
         } catch (e: Exception) {
-            null
+            logger.warn("Copernicus chlorophyll fetch failed: ${e.message}")
+            CopernicusWMTSClient.ChlorophyllResult(
+                chlorophyllMgM3 = null,
+                date = date,
+                dataSource = "Error: ${e.message}",
+                isActualMeasurement = false
+            )
         }
         
-        // If no real chlorophyll, estimate from visibility or use regional average
-        if (chlorophyll == null) {
-            chlorophyll = if (visibility != null) {
-                // Estimate chlorophyll from visibility using inverse Secchi relationship
-                // Higher visibility = lower chlorophyll
-                estimateChlorophyllFromVisibility(visibility)
+        val visibility = visibilityResult.visibilityM
+        val chlorophyll = chlorophyllResult.chlorophyllMgM3
+        
+        // Build data source string - be clear about what's real vs unavailable
+        val dataSource = buildString {
+            if (visibilityResult.isActualMeasurement) {
+                append("Visibility: Copernicus L3 NRT (${visibilityResult.date})")
             } else {
-                getRegionalChlorophyllClimatology(lat, lon)
+                append("Visibility: Unavailable (${visibilityResult.dataSource})")
+            }
+            append(" | ")
+            if (chlorophyllResult.isActualMeasurement) {
+                append("Chlorophyll: Copernicus L3 NRT (${chlorophyllResult.date})")
+            } else {
+                append("Chlorophyll: Unavailable")
             }
         }
         
-        // If no real visibility from WMTS, calculate from chlorophyll
-        if (visibility == null) {
-            val turbidity = calculateTurbidity(chlorophyll, lat, lon)
-            visibility = calculateVisibility(chlorophyll, turbidity)
-            logger.warn("No real visibility data, calculated from chlorophyll: ${String.format("%.1f", visibility)}m")
+        // Calculate turbidity from chlorophyll if we have it (this is a physical relationship, not an estimate)
+        val turbidity = if (chlorophyll != null) {
+            calculateTurbidity(chlorophyll, lat, lon)
+        } else {
+            null
         }
-        
-        val turbidity = calculateTurbidity(chlorophyll, lat, lon)
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
@@ -129,8 +136,6 @@ class CopernicusClient(
         
         // Cache the result
         OceanDataCache.putWaterQuality(lat, lon, date, result)
-        
-        logger.info("Water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m, SST=${String.format("%.1f", sst)}°C")
         
         return result
     }
@@ -193,55 +198,9 @@ class CopernicusClient(
     }
 
     /**
-     * Check if real-time satellite data is available (credentials configured).
+     * Check if Copernicus Sentinel-3 direct access is available (credentials configured).
      */
-    fun isRealTimeAvailable(): Boolean = clientId.isNotBlank() && clientSecret.isNotBlank()
-
-    /**
-     * Predict REAL-TIME visibility using current oceanographic conditions.
-     * 
-     * This is the key method for accurate, current visibility - NOT stale satellite data!
-     * Uses the same approach as professional apps like VizFinder and DiveViz.
-     * 
-     * @param tideStage Current tide stage (incoming/outgoing/high/low)
-     * @param tideHeight Current tide height in meters
-     * @param swellHeightM Current swell height in meters
-     * @param windSpeedKmh Current wind speed in km/h
-     * @param recentRainfallMm Rainfall in last 24 hours
-     * @param currentVelocityMs Current velocity in m/s
-     * @param chlorophyll Chlorophyll concentration (background level)
-     * @param depthM Typical dive depth at location
-     * 
-     * @return VisibilityPrediction with current visibility in meters and confidence
-     */
-    fun predictRealTimeVisibility(
-        tideStage: VisibilityPredictor.TideStage,
-        tideHeight: Double,
-        swellHeightM: Double,
-        windSpeedKmh: Double,
-        recentRainfallMm: Double,
-        currentVelocityMs: Double,
-        chlorophyll: Double?,
-        depthM: Double = 15.0,
-        bottomType: VisibilityPredictor.BottomType = VisibilityPredictor.BottomType.ROCKY,
-        isNearRiver: Boolean = false
-    ): VisibilityPredictor.VisibilityPrediction {
-        
-        val input = VisibilityPredictor.VisibilityInput(
-            tideStage = tideStage,
-            tideHeightM = tideHeight,
-            swellHeightM = swellHeightM,
-            windSpeedKmh = windSpeedKmh,
-            recentRainfallMm = recentRainfallMm,
-            currentVelocityMs = currentVelocityMs,
-            chlorophyllMgM3 = chlorophyll,
-            isNearRiver = isNearRiver,
-            bottomType = bottomType,
-            depthM = depthM
-        )
-        
-        return visibilityPredictor.predictVisibility(input)
-    }
+    fun isDirectAccessAvailable(): Boolean = clientId.isNotBlank() && clientSecret.isNotBlank()
 
     /**
      * Authenticate with Copernicus Data Space using OAuth2 client credentials.
