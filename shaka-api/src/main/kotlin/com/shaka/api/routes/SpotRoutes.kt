@@ -18,8 +18,13 @@ fun Application.configureRouting() {
 
     routing {
         route("/v1") {
-            // Health check
+            // Health check - keep simple for Railway healthcheck
             get("/health") {
+                call.respond(mapOf("status" to "ok", "service" to "shaka-api"))
+            }
+            
+            // Detailed health with cache stats
+            get("/health/detailed") {
                 val cacheStats = OceanDataCache.getStats()
                 call.respond(mapOf(
                     "status" to "ok", 
