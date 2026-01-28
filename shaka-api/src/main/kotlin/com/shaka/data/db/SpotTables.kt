@@ -39,7 +39,7 @@ object SpotsTable : UUIDTable("spots") {
  */
 object ReportsTable : UUIDTable("reports") {
     val spotId: Column<UUID?> = uuid("spot_id").references(SpotsTable.id).nullable()
-    val source: Column<String> = varchar("source", 100)
+    val reportSource: Column<String> = varchar("source", 100)
     val sourceUrl: Column<String?> = text("source_url").nullable()
     val reportDate: Column<LocalDateTime> = datetime("report_date")
     val visibilityM: Column<Double?> = double("visibility_m").nullable()

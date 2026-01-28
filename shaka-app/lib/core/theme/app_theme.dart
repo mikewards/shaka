@@ -18,16 +18,15 @@ class AppTheme {
       primaryColor: AppColors.oceanBlue,
       scaffoldBackgroundColor: AppColors.background,
       
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.oceanBlue,
         secondary: AppColors.coral,
         surface: AppColors.surface,
-        background: AppColors.background,
+        surfaceContainerHighest: AppColors.background,
         error: AppColors.error,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: AppColors.textPrimary,
-        onBackground: AppColors.textPrimary,
       ),
 
       // App Bar
@@ -184,7 +183,7 @@ class AppTheme {
       ),
 
       // Card
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         color: AppColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
