@@ -41,3 +41,6 @@ shaka-api/out/
 
 # Logs
 *.log
+
+# Docker
+postgres_data/

@@ -48,6 +48,14 @@ dependencies {
     // Cache
     implementation("io.lettuce:lettuce-core:6.3.1.RELEASE")
 
+    // Database
+    implementation("org.postgresql:postgresql:42.7.1")
+    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("org.jetbrains.exposed:exposed-core:0.46.0")
+    implementation("org.jetbrains.exposed:exposed-dao:0.46.0")
+    implementation("org.jetbrains.exposed:exposed-jdbc:0.46.0")
+    implementation("org.jetbrains.exposed:exposed-java-time:0.46.0")
+
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlinVersion")

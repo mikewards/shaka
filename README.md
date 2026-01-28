@@ -1,85 +1,72 @@
-# Shaka
+Shaka
+=====
 
-Find the best spearfishing spots based on weather, ocean conditions, and fish patterns.
+Spearfishing spot finder. Ranks locations by weather, ocean conditions, and fish patterns.
 
-## Features
+Download
+--------
 
-- Search spots by location and date (up to 30 days forecast)
-- Shaka Score - confidence-weighted ranking of dive conditions
-- Weather, swell, visibility, and fish activity analysis
-- Gear recommendations based on conditions
-- Risk assessment - what could go wrong
-- Access info - shore dive vs boat, directions, parking
+Coming soon to iOS and Android.
 
-## Architecture
+Usage
+-----
+
+Search for spots by location and date:
 
 ```
-shaka/
-├── shaka-app/     # Flutter mobile app (iOS + Android)
-└── shaka-api/     # Kotlin backend (Ktor)
+GET /v1/spots/search?lat=21.3&lon=-157.8&date=2026-02-15&radius=50
 ```
 
-## Data Sources
+Response includes ranked spots with Shaka Score (0-100), conditions breakdown, gear recommendations, and access info.
 
-- Open-Meteo: Weather and marine forecasts
-- Copernicus Marine: Satellite ocean data (chlorophyll, turbidity)
-- NOAA: Tides and currents
-- Community: Reddit, fishing forums, local reports
+Building
+--------
 
-## Running Locally
+### API
 
-### Backend
-
-```bash
+```
 cd shaka-api
 ./gradlew run
 ```
 
-API runs at http://localhost:8080
+Runs at `http://localhost:8080`.
 
-### Mobile App
+### Mobile
 
-Requires Flutter SDK installed.
+Requires [Flutter](https://flutter.dev/docs/get-started/install).
 
-```bash
+```
 cd shaka-app
 flutter pub get
 flutter run
 ```
 
-## API Endpoints
+Architecture
+------------
 
 ```
-GET /v1/spots/search?lat=21.3&lon=-157.8&date=2026-02-15&radius=50
-GET /v1/spots/{id}?date=2026-02-15
-GET /v1/forecast/{spotId}?days=7
-GET /v1/reports/{region}
+shaka/
+├── shaka-api/     Kotlin backend (Ktor)
+└── shaka-app/     Flutter mobile app
 ```
 
-## Scoring Algorithm
+**Data sources:** Open-Meteo (weather), Copernicus Marine (satellite), NOAA (tides), community reports.
 
-The Shaka Score (0-100) is a weighted average of:
+**Scoring factors:** Visibility (25%), weather (20%), swell (20%), fish activity (15%), accessibility (10%), safety (10%). Confidence decays with forecast distance.
 
-- Visibility (25%): Water clarity from satellite and historical data
-- Weather (20%): Wind, rain, cloud cover
-- Swell (20%): Wave height and period
-- Fish Activity (15%): Migration patterns, moon phase, recent sightings
-- Accessibility (10%): Shore vs boat, parking, permits
-- Safety (10%): Currents, hazards, shark risk
+License
+-------
 
-Confidence decreases with forecast distance:
-- Same day: 95%
-- 3 days: 85%
-- 7 days: 70%
-- 14 days: 50%
-- 30 days: 30%
+    Copyright 2026 Ward
 
-## Tech Stack
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
 
-- Mobile: Flutter, Dart, BLoC, flutter_map
-- Backend: Kotlin, Ktor, kotlinx.serialization
-- APIs: Open-Meteo, Copernicus Marine, NOAA
+       http://www.apache.org/licenses/LICENSE-2.0
 
-## License
-
-MIT
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
