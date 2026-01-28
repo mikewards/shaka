@@ -2,15 +2,8 @@
 FROM gradle:8.5-jdk17 AS build
 WORKDIR /app
 
-# Copy gradle files first for better caching
-COPY build.gradle.kts settings.gradle.kts gradle.properties ./
-COPY gradle ./gradle
-
-# Download dependencies
-RUN gradle dependencies --no-daemon || true
-
-# Copy source code
-COPY src ./src
+# Copy all project files
+COPY . .
 
 # Build the application
 RUN gradle shadowJar --no-daemon
