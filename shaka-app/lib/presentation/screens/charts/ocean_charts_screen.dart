@@ -105,17 +105,35 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   }
 
   /// Build the list of tile layers based on enabled layers
+  /// 
+  /// IMPORTANT: Copernicus WMTS tiles are pre-rendered at ~4-14km grid resolution.
+  /// Grid cells that overlap coastlines show data over land. To properly mask:
+  /// 1. We put ocean data on a dark background
+  /// 2. We reduce ocean data opacity so land shows through from base layer
+  /// 3. Base map labels go on top for context
   List<Widget> _buildTileLayers() {
     final layers = <Widget>[];
 
-    // Base map layer(s)
+    // Base map layer(s) - includes both land and ocean styling
     layers.addAll(_buildBaseMapLayers());
 
-    // Add enabled ocean data layers
+    // Ocean data layers - with reduced opacity so base map shows through
     for (var state in _layerStates.values) {
       if (state.enabled) {
         layers.add(_buildOceanTileLayer(state));
       }
+    }
+
+    // Add labels on top for better visibility (dark mode only)
+    if (_baseMap == 'dark') {
+      layers.add(TileLayer(
+        urlTemplate: 'https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png',
+        userAgentPackageName: 'com.shaka.app',
+        maxZoom: 18,
+        minZoom: 2,
+        retinaMode: true,
+        tileProvider: CachedTileProvider(),
+      ));
     }
 
     return layers;
@@ -210,6 +228,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
     // Standard Copernicus WMTS layers with caching
     // maxNativeZoom limits actual tile requests, beyond that tiles are upscaled
     // This prevents crashes when zooming beyond data resolution
+    // 
+    // NOTE: Ocean data is semi-transparent to allow land to show through from base map
+    // This is a workaround for the coarse land masking in WMTS tiles (~4-14km grid)
     return TileLayer(
       urlTemplate: CopernicusWMTSService.buildLayerTileUrl(
         state.layer,
@@ -222,7 +243,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
       minNativeZoom: 3,
       tileProvider: CachedTileProvider(),
       tileBuilder: (context, tileWidget, tile) {
-        return Opacity(opacity: state.opacity, child: tileWidget);
+        // Apply user opacity, capped at 0.85 so land always shows through
+        final effectiveOpacity = (state.opacity * 0.85).clamp(0.0, 0.85);
+        return Opacity(opacity: effectiveOpacity, child: tileWidget);
       },
       errorTileCallback: (tile, error, stackTrace) {
         // Silently handle missing tiles (e.g., over land)
