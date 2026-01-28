@@ -6,14 +6,27 @@ import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.SpotDatabase
+import com.shaka.data.client.VisibilityPredictor
 import com.shaka.model.*
 import com.shaka.scoring.ShakaScorer
+import org.slf4j.LoggerFactory
 
 /**
  * Service for searching and retrieving spearfishing spots.
+ * 
+ * Uses REAL-TIME visibility prediction based on current conditions:
+ * - Tide stage (incoming = cleaner water, outgoing = runoff)
+ * - Swell height (big swell = stirs sediment)
+ * - Wind speed (high wind = reduced clarity)
+ * - Recent rainfall (runoff = murky)
+ * - Current strength (transport = variable)
+ * 
+ * This gives visibility that reflects conditions RIGHT NOW,
+ * not 2-day-old satellite data!
  */
 class SpotService {
 
+    private val logger = LoggerFactory.getLogger(SpotService::class.java)
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
     private val tidesClient = NOAATidesClient()
@@ -42,7 +55,7 @@ class SpotService {
             data
         }
         
-        // Fetch water quality (chlorophyll, visibility, SST) - already cached internally
+        // Fetch water quality (chlorophyll, SST) - cached internally
         val waterQuality = copernicus.getWaterQuality(lat, lon, date)
         
         // Fetch tide data (with caching)
@@ -51,6 +64,23 @@ class SpotService {
             OceanDataCache.putTide(lat, lon, date, data)
             data
         }
+
+        // REAL-TIME VISIBILITY PREDICTION using current conditions!
+        // This replaces stale satellite data with predictions based on right-now conditions
+        val tideStage = parseTideStage(tideData.tideState)
+        val visibilityPrediction = copernicus.predictRealTimeVisibility(
+            tideStage = tideStage,
+            tideHeight = tideData.currentHeight,
+            swellHeightM = ocean.swellHeight,
+            windSpeedKmh = weather.windSpeed * 1.852, // Convert knots to km/h
+            recentRainfallMm = weather.precipitation * 24, // Estimate 24h rainfall from current rate
+            currentVelocityMs = 0.2, // Default moderate current
+            chlorophyll = waterQuality.chlorophyllA,
+            depthM = 15.0
+        )
+        
+        logger.info("Real-time visibility for ($lat, $lon): ${String.format("%.1f", visibilityPrediction.visibilityM)}m " +
+                   "(${visibilityPrediction.category.label}) - ${visibilityPrediction.dataSource}")
 
         // Get community sightings count for the region
         val regionReports = try {
@@ -90,7 +120,8 @@ class SpotService {
                 confidence = score.confidence,
                 access = spot.access,
                 conditions = SpotConditions(
-                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory})",
+                    // Use REAL-TIME predicted visibility instead of stale satellite data!
+                    visibility = "${visibilityPrediction.visibilityM.toInt()}m (${visibilityPrediction.category.label})",
                     waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = "${weather.windSpeed.toInt()} knots",
@@ -144,6 +175,22 @@ class SpotService {
             data
         }
 
+        // REAL-TIME VISIBILITY PREDICTION using current conditions!
+        val tideStage = parseTideStage(tideData.tideState)
+        val visibilityPrediction = copernicus.predictRealTimeVisibility(
+            tideStage = tideStage,
+            tideHeight = tideData.currentHeight,
+            swellHeightM = ocean.swellHeight,
+            windSpeedKmh = weather.windSpeed * 1.852, // Convert knots to km/h
+            recentRainfallMm = weather.precipitation * 24, // Estimate 24h rainfall
+            currentVelocityMs = 0.2,
+            chlorophyll = waterQuality.chlorophyllA,
+            depthM = spot.depth.toDouble()
+        )
+        
+        logger.info("Real-time visibility for ${spot.name}: ${String.format("%.1f", visibilityPrediction.visibilityM)}m " +
+                   "(${visibilityPrediction.category.label})")
+
         // Get community reports for the spot's region
         val region = inferRegionFromSpotId(spotId)
         val communityReports = try {
@@ -177,7 +224,7 @@ class SpotService {
         return SpotDetail(
             id = spot.id,
             name = spot.name,
-            description = "${spot.description}\n\nWater Quality: ${waterQuality.dataSource}",
+            description = "${spot.description}\n\nVisibility: ${visibilityPrediction.dataSource}",
             coordinates = spot.coordinates,
             score = score,
             access = AccessInfo(
@@ -188,12 +235,13 @@ class SpotService {
                 boatLaunchNearby = spot.access == "boat"
             ),
             conditions = SpotConditions(
-                visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory}) - Chl: ${String.format("%.2f", waterQuality.chlorophyllA ?: 0.1)} mg/m³",
+                // REAL-TIME predicted visibility based on current conditions!
+                visibility = "${visibilityPrediction.visibilityM.toInt()}m (${visibilityPrediction.category.label})",
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = "${weather.windSpeed.toInt()} knots",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                currentStrength = "Turbidity: ${String.format("%.1f", waterQuality.turbidity ?: 0.5)} NTU (${waterQuality.turbidityCategory})"
+                currentStrength = visibilityPrediction.recommendation
             ),
             forecast = forecast,
             expectedFish = spot.commonFish.map { fish ->
@@ -448,5 +496,26 @@ class SpotService {
         if (risks.isEmpty()) risks += "No significant risks identified"
 
         return risks
+    }
+
+    /**
+     * Parse tide state string to TideStage enum for visibility prediction.
+     * Tide stage significantly affects water clarity:
+     * - INCOMING: Cleaner ocean water flowing in = better visibility
+     * - OUTGOING: Runoff and sediment washing out = worse visibility
+     * - HIGH: Stable, typically good visibility
+     * - LOW: Stable but may expose sediment
+     */
+    private fun parseTideStage(tideState: String): VisibilityPredictor.TideStage {
+        val state = tideState.lowercase()
+        return when {
+            state.contains("rising") || state.contains("incoming") || state.contains("flood") -> 
+                VisibilityPredictor.TideStage.INCOMING
+            state.contains("falling") || state.contains("outgoing") || state.contains("ebb") -> 
+                VisibilityPredictor.TideStage.OUTGOING
+            state.contains("high") -> VisibilityPredictor.TideStage.HIGH
+            state.contains("low") -> VisibilityPredictor.TideStage.LOW
+            else -> VisibilityPredictor.TideStage.HIGH  // Default to high (neutral)
+        }
     }
 }

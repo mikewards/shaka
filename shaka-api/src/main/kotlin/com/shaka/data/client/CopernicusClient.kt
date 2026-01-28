@@ -16,22 +16,23 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
- * Client for water quality data - combines multiple sources for best performance.
+ * Client for water quality data with REAL-TIME visibility prediction.
  * 
- * PRIMARY: Copernicus WMTS for REAL visibility (ZSD - Secchi disk depth)
- * - Actual measured underwater visibility in meters
- * - Gap-free daily data (cloud gaps interpolated)
- * - 4km resolution, global coverage
- * - 1-2 day latency
+ * Visibility is PREDICTED in real-time from current conditions:
+ * - Tide stage (incoming = clean, outgoing = murky)
+ * - Swell height (larger swell = more stirring)
+ * - Wind speed (wind churn = reduced clarity)
+ * - Recent rainfall (runoff = sediment)
+ * - Current strength (transport = variable)
+ * - Chlorophyll (background plankton levels)
  * 
- * SECONDARY: NOAA for SST and chlorophyll
- * - SST from NOAA ERDDAP
- * - Chlorophyll from NOAA VIIRS satellite
+ * This matches how professional apps like VizFinder work.
+ * Conditions that change in 2 hours (tide, wind) are reflected immediately!
  * 
- * Data interpretation:
- * - Visibility (ZSD): Actual Secchi disk depth in meters
- * - Chlorophyll-a: 0.1-0.5 mg/m³ = clear, 1-5 = productive, >10 = bloom
- * - Turbidity (NTU): <1 = clear, 1-5 = moderate, >5 = murky
+ * Data sources:
+ * - SST: NOAA ERDDAP / Open-Meteo (real-time)
+ * - Chlorophyll: NOAA VIIRS (background levels)
+ * - Tide/Swell/Wind: Real-time from ocean data
  */
 class CopernicusClient(
     private val clientId: String = System.getenv("COPERNICUS_CLIENT_ID") ?: "",
@@ -40,6 +41,7 @@ class CopernicusClient(
     private val logger = LoggerFactory.getLogger(CopernicusClient::class.java)
     private val noaaClient = NOAAClient()
     private val wmtsClient = CopernicusWMTSClient()
+    private val visibilityPredictor = VisibilityPredictor()
     
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -194,6 +196,52 @@ class CopernicusClient(
      * Check if real-time satellite data is available (credentials configured).
      */
     fun isRealTimeAvailable(): Boolean = clientId.isNotBlank() && clientSecret.isNotBlank()
+
+    /**
+     * Predict REAL-TIME visibility using current oceanographic conditions.
+     * 
+     * This is the key method for accurate, current visibility - NOT stale satellite data!
+     * Uses the same approach as professional apps like VizFinder and DiveViz.
+     * 
+     * @param tideStage Current tide stage (incoming/outgoing/high/low)
+     * @param tideHeight Current tide height in meters
+     * @param swellHeightM Current swell height in meters
+     * @param windSpeedKmh Current wind speed in km/h
+     * @param recentRainfallMm Rainfall in last 24 hours
+     * @param currentVelocityMs Current velocity in m/s
+     * @param chlorophyll Chlorophyll concentration (background level)
+     * @param depthM Typical dive depth at location
+     * 
+     * @return VisibilityPrediction with current visibility in meters and confidence
+     */
+    fun predictRealTimeVisibility(
+        tideStage: VisibilityPredictor.TideStage,
+        tideHeight: Double,
+        swellHeightM: Double,
+        windSpeedKmh: Double,
+        recentRainfallMm: Double,
+        currentVelocityMs: Double,
+        chlorophyll: Double?,
+        depthM: Double = 15.0,
+        bottomType: VisibilityPredictor.BottomType = VisibilityPredictor.BottomType.ROCKY,
+        isNearRiver: Boolean = false
+    ): VisibilityPredictor.VisibilityPrediction {
+        
+        val input = VisibilityPredictor.VisibilityInput(
+            tideStage = tideStage,
+            tideHeightM = tideHeight,
+            swellHeightM = swellHeightM,
+            windSpeedKmh = windSpeedKmh,
+            recentRainfallMm = recentRainfallMm,
+            currentVelocityMs = currentVelocityMs,
+            chlorophyllMgM3 = chlorophyll,
+            isNearRiver = isNearRiver,
+            bottomType = bottomType,
+            depthM = depthM
+        )
+        
+        return visibilityPredictor.predictVisibility(input)
+    }
 
     /**
      * Authenticate with Copernicus Data Space using OAuth2 client credentials.
