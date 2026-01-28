@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "1.9.22"
     kotlin("plugin.serialization") version "1.9.22"
     id("io.ktor.plugin") version "2.3.7"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     application
 }
 
@@ -63,4 +64,19 @@ dependencies {
 
 kotlin {
     jvmToolchain(17)
+}
+
+tasks.shadowJar {
+    archiveBaseName.set("shaka-api")
+    archiveClassifier.set("all")
+    archiveVersion.set("")
+    manifest {
+        attributes["Main-Class"] = "com.shaka.ApplicationKt"
+    }
+}
+
+ktor {
+    fatJar {
+        archiveFileName.set("shaka-api-all.jar")
+    }
 }
