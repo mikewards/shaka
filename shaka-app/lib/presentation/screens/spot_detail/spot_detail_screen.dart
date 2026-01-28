@@ -205,6 +205,30 @@ class _SpotDetailScreenState extends State<SpotDetailScreen> {
                 const SectionHeader(title: 'CONDITIONS'),
                 const SizedBox(height: 14),
                 ConditionsCard(conditions: spot.conditions),
+                
+                const SizedBox(height: 16),
+                
+                // Ocean Charts button
+                OutlinedButton.icon(
+                  onPressed: () => context.push(
+                    '/charts',
+                    extra: {
+                      'lat': spot.coordinates.lat,
+                      'lon': spot.coordinates.lon,
+                      'layer': 'sst',
+                    },
+                  ),
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('View Ocean Charts'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.oceanBlue,
+                    side: const BorderSide(color: AppColors.oceanBlue),
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
 
                 const SizedBox(height: 32),
 

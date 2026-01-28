@@ -8,6 +8,7 @@ import 'presentation/bloc/search_bloc.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/results/results_screen.dart';
 import 'presentation/screens/spot_detail/spot_detail_screen.dart';
+import 'presentation/screens/charts/ocean_charts_screen.dart';
 import 'package:go_router/go_router.dart';
 
 void main() {
@@ -75,6 +76,17 @@ final _router = GoRouter(
         return SpotDetailScreen(
           spotId: spotId,
           date: extra?['date'] ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/charts',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return OceanChartsScreen(
+          initialLat: extra?['lat'],
+          initialLon: extra?['lon'],
+          initialLayer: extra?['layer'],
         );
       },
     ),

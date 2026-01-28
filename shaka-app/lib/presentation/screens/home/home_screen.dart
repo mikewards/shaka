@@ -99,7 +99,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              const Spacer(flex: 2),
+              const Spacer(flex: 1),
+
+              // Ocean Charts link
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => context.push('/charts'),
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Ocean Charts'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.oceanBlue,
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 1),
             ],
           ),
         ),
