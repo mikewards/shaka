@@ -18,7 +18,7 @@ class ForecastService {
      * Generate forecast for a spot for the specified number of days.
      */
     suspend fun getForecast(spotId: String, days: Int): List<DayForecast> {
-        val spot = spotDb.getSpot(spotId) ?: return emptyList()
+        val spot = spotDb.findSpotById(spotId) ?: return emptyList()
         val forecasts = mutableListOf<DayForecast>()
 
         val today = LocalDate.now()

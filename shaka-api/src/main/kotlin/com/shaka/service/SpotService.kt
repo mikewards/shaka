@@ -22,7 +22,7 @@ class SpotService {
      */
     suspend fun searchSpots(lat: Double, lon: Double, radiusKm: Int, date: String): SearchResponse {
         // Get spots from database within radius
-        val nearbySpots = spotDb.getSpotsNear(lat, lon, radiusKm)
+        val nearbySpots = spotDb.findNearbySpots(lat, lon, radiusKm.toDouble())
 
         // Fetch weather and ocean data for the area
         val weather = openMeteo.getWeather(lat, lon, date)
@@ -80,7 +80,7 @@ class SpotService {
      * Get detailed information for a specific spot.
      */
     suspend fun getSpotDetail(spotId: String, date: String): SpotDetail? {
-        val spot = spotDb.getSpot(spotId) ?: return null
+        val spot = spotDb.findSpotById(spotId) ?: return null
 
         val weather = openMeteo.getWeather(spot.coordinates.lat, spot.coordinates.lon, date)
         val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, date)
