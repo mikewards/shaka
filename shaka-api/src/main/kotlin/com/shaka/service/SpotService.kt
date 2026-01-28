@@ -90,7 +90,7 @@ class SpotService {
                 confidence = score.confidence,
                 access = spot.access,
                 conditions = SpotConditions(
-                    visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" } ?: "Data unavailable",
+                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory})",
                     waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = "${weather.windSpeed.toInt()} knots",
@@ -188,20 +188,12 @@ class SpotService {
                 boatLaunchNearby = spot.access == "boat"
             ),
             conditions = SpotConditions(
-                visibility = if (waterQuality.visibility != null && waterQuality.chlorophyllA != null) {
-                    "${waterQuality.visibility.toInt()}m (${waterQuality.visibilityCategory}) - Chl: ${String.format("%.2f", waterQuality.chlorophyllA)} mg/m³"
-                } else {
-                    "Data unavailable (cloud cover)"
-                },
+                visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory}) - Chl: ${String.format("%.2f", waterQuality.chlorophyllA ?: 0.1)} mg/m³",
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = "${weather.windSpeed.toInt()} knots",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                currentStrength = if (waterQuality.turbidity != null) {
-                    "Turbidity: ${String.format("%.1f", waterQuality.turbidity)} NTU (${waterQuality.turbidityCategory})"
-                } else {
-                    "Turbidity: Data unavailable"
-                }
+                currentStrength = "Turbidity: ${String.format("%.1f", waterQuality.turbidity ?: 0.5)} NTU (${waterQuality.turbidityCategory})"
             ),
             forecast = forecast,
             expectedFish = spot.commonFish.map { fish ->

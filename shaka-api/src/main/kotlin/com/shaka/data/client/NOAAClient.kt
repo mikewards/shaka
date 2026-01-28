@@ -109,6 +109,8 @@ class NOAAClient {
      * Query VIIRS chlorophyll dataset from NOAA NESDIS.
      * Near Real-Time daily chlorophyll from S-NPP VIIRS, ~4km resolution.
      * Data source: https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSchlaDaily
+     * 
+     * NOTE: Satellite data has 3-4 day latency. Uses "(last)" to get most recent available.
      */
     private suspend fun getVIIRSChlorophyll(lat: Double, lon: Double, date: String): Double? {
         return try {
@@ -118,8 +120,8 @@ class NOAAClient {
             val lonMin = lon - 0.1
             val lonMax = lon + 0.1
             
-            // ERDDAP format: variable[(time)][(altitude)][(lat_min):(lat_max)][(lon_min):(lon_max)]
-            val url = "$VIIRS_CHL_URL?chlor_a[(${date}T12:00:00Z)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            // Use "(last)" to get most recent available data (satellite has 3-4 day latency)
+            val url = "$VIIRS_CHL_URL?chlor_a[(last)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             logger.debug("Fetching VIIRS chlorophyll: $url")
             val response: String = client.get(url).bodyAsText()
@@ -138,6 +140,7 @@ class NOAAClient {
     /**
      * Query NOAA-20 VIIRS chlorophyll as backup.
      * Near Real-Time daily chlorophyll from NOAA-20, ~4km resolution.
+     * Uses "(last)" to get most recent available data.
      */
     private suspend fun getNOAA20Chlorophyll(lat: Double, lon: Double, date: String): Double? {
         return try {
@@ -146,7 +149,8 @@ class NOAAClient {
             val lonMin = lon - 0.1
             val lonMax = lon + 0.1
             
-            val url = "$NOAA20_CHL_URL?chlor_a[(${date}T12:00:00Z)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            // Use "(last)" to get most recent available data
+            val url = "$NOAA20_CHL_URL?chlor_a[(last)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             logger.debug("Fetching NOAA-20 chlorophyll: $url")
             val response: String = client.get(url).bodyAsText()

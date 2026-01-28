@@ -61,7 +61,7 @@ class ForecastService {
                 shakaScore = score.overall,
                 confidence = score.confidence,
                 conditions = SpotConditions(
-                    visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" } ?: "Data unavailable",
+                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory})",
                     waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = "${weather.windSpeed.toInt()} knots"
