@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+*.pem
+
+# Flutter
+shaka-app/.dart_tool/
+shaka-app/.packages
+shaka-app/.pub-cache/
+shaka-app/.pub/
+shaka-app/build/
+shaka-app/.flutter-plugins
+shaka-app/.flutter-plugins-dependencies
+shaka-app/ios/Pods/
+shaka-app/ios/.symlinks/
+shaka-app/android/.gradle/
+shaka-app/android/local.properties
+shaka-app/android/app/debug/
+shaka-app/android/app/profile/
+shaka-app/android/app/release/
+
+# Kotlin backend
+shaka-api/build/
+shaka-api/.gradle/
+shaka-api/out/
+
+# Environment
+.env
+.env.local
+*.local
+
+# Logs
+*.log
