@@ -6,6 +6,7 @@ import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/spot_card.dart';
 import '../../widgets/shaka_score_badge.dart';
+import 'map_view.dart';
 
 class ResultsScreen extends StatefulWidget {
   final double lat;
@@ -121,37 +122,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Widget _buildMapView(List<SpotSummary> spots) {
-    // Placeholder for map view - would use flutter_map
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.map,
-            size: 64,
-            color: AppColors.textMuted,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Map View',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${spots.length} spots found',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 24),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _isMapView = false;
-              });
-            },
-            child: const Text('View as List'),
-          ),
-        ],
-      ),
+    return MapView(
+      spots: spots,
+      centerLat: widget.lat,
+      centerLon: widget.lon,
+      onSpotTap: (spot) {
+        context.push(
+          '/spot/${spot.id}',
+          extra: {'date': widget.date},
+        );
+      },
     );
   }
 

@@ -1,6 +1,8 @@
 package com.shaka.service
 
+import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.OpenMeteoClient
+import com.shaka.data.client.RedditClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.scoring.ShakaScorer
@@ -11,6 +13,8 @@ import com.shaka.scoring.ShakaScorer
 class SpotService {
 
     private val openMeteo = OpenMeteoClient()
+    private val copernicus = CopernicusClient()
+    private val reddit = RedditClient()
     private val spotDb = SpotDatabase
 
     /**
@@ -23,6 +27,7 @@ class SpotService {
         // Fetch weather and ocean data for the area
         val weather = openMeteo.getWeather(lat, lon, date)
         val ocean = openMeteo.getMarineData(lat, lon, date)
+        val waterQuality = copernicus.getWaterQuality(lat, lon, date)
 
         // Score each spot
         val scoredSpots = nearbySpots.map { spot ->
@@ -30,7 +35,7 @@ class SpotService {
                 targetDate = date,
                 weather = weather,
                 ocean = ocean,
-                waterQuality = null, // TODO: Integrate Copernicus
+                waterQuality = waterQuality,
                 moonPhase = getMoonPhase(date),
                 seasonalMultiplier = getSeasonalMultiplier(spot.id, date),
                 recentSightings = 3, // TODO: Get from community data
@@ -50,7 +55,7 @@ class SpotService {
                 confidence = score.confidence,
                 access = spot.access,
                 conditions = SpotConditions(
-                    visibility = "${(score.breakdown.visibility / 5)}m",
+                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m",
                     waterTemp = "${ocean.waterTemperature.toInt()}C",
                     swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft",
                     wind = "${weather.windSpeed.toInt()} knots",
@@ -139,16 +144,13 @@ class SpotService {
     /**
      * Get community reports for a region.
      */
-    fun getCommunityReports(region: String): List<CommunityReport> {
-        // TODO: Implement Reddit/forum scraping
-        return listOf(
-            CommunityReport(
-                source = "r/spearfishing",
-                date = "2026-01-25",
-                summary = "Great visibility reported at north shore spots, 20m+",
-                url = "https://reddit.com/r/spearfishing"
-            )
-        )
+    suspend fun getCommunityReports(region: String): List<CommunityReport> {
+        return try {
+            reddit.getReportsForRegion(region)
+        } catch (e: Exception) {
+            // Return empty list if Reddit fetch fails
+            emptyList()
+        }
     }
 
     private fun getMoonPhase(date: String): Double {
