@@ -144,6 +144,200 @@ object SpotDatabase {
             commonFish = listOf("Wahoo", "Mahi Mahi", "Yellowfin Tuna", "Marlin"),
             directions = "Boat from Nassau or Andros",
             parking = "Marina facilities"
+        ),
+        SpotRecord(
+            id = "bahamas-grand-cay",
+            name = "Grand Cay",
+            description = "Remote Bahamas destination known for hogfish, grouper, and pristine reef systems.",
+            coordinates = Coordinates(27.2167, -78.3167),
+            access = "boat",
+            depth = 25,
+            commonFish = listOf("Hogfish", "Nassau Grouper", "Mutton Snapper", "Black Grouper"),
+            directions = "Boat from West End, Grand Bahama",
+            parking = "Marina at departure point"
+        ),
+
+        // French Polynesia
+        SpotRecord(
+            id = "tahiti-fakarava",
+            name = "Fakarava South Pass",
+            description = "UNESCO biosphere reserve with incredible shark aggregations and pelagic action.",
+            coordinates = Coordinates(-16.4500, -145.4500),
+            access = "boat",
+            depth = 35,
+            commonFish = listOf("Dogtooth Tuna", "Bluefin Trevally", "Napoleon Wrasse", "Wahoo"),
+            directions = "Boat from Fakarava village",
+            parking = "Dive operator pickup"
+        ),
+        SpotRecord(
+            id = "tahiti-rangiroa",
+            name = "Rangiroa Tiputa Pass",
+            description = "World-famous pass dive with dolphins, sharks, and massive fish schools.",
+            coordinates = Coordinates(-14.9500, -147.6167),
+            access = "boat",
+            depth = 40,
+            commonFish = listOf("Mahi Mahi", "Yellowfin Tuna", "Giant Trevally", "Barracuda"),
+            directions = "Boat from Avatoru village",
+            parking = "Dive operator facilities"
+        ),
+        SpotRecord(
+            id = "tahiti-moorea",
+            name = "Moorea Outer Reef",
+            description = "Beautiful reef system with excellent visibility and diverse species.",
+            coordinates = Coordinates(-17.5333, -149.8333),
+            access = "boat",
+            depth = 20,
+            commonFish = listOf("Parrotfish", "Surgeonfish", "Unicornfish", "Grouper"),
+            directions = "Boat from Moorea ferry terminal",
+            parking = "Resort or marina"
+        ),
+
+        // Mediterranean - Italy
+        SpotRecord(
+            id = "italy-sardinia-capo-caccia",
+            name = "Capo Caccia",
+            description = "Dramatic cliffs and caves with excellent grouper and dentex hunting.",
+            coordinates = Coordinates(40.5667, 8.1667),
+            access = "boat",
+            depth = 30,
+            commonFish = listOf("Grouper", "Dentex", "Amberjack", "Sea Bream"),
+            directions = "Boat from Alghero",
+            parking = "Alghero marina"
+        ),
+        SpotRecord(
+            id = "italy-sicily-ustica",
+            name = "Ustica Island",
+            description = "Marine protected area with exceptional visibility and Mediterranean species.",
+            coordinates = Coordinates(38.7000, 13.1833),
+            access = "boat",
+            depth = 35,
+            commonFish = listOf("Amberjack", "Dentex", "Grouper", "Barracuda"),
+            directions = "Ferry from Palermo",
+            parking = "Ustica port"
+        ),
+
+        // Mediterranean - France
+        SpotRecord(
+            id = "france-corsica-scandola",
+            name = "Scandola Reserve",
+            description = "UNESCO World Heritage site with pristine Mediterranean waters.",
+            coordinates = Coordinates(42.3667, 8.5500),
+            access = "boat",
+            depth = 25,
+            commonFish = listOf("Dentex", "Grouper", "Sea Bass", "Bream"),
+            directions = "Boat from Porto or Calvi",
+            parking = "Marina facilities"
+        ),
+        SpotRecord(
+            id = "france-marseille-riou",
+            name = "Riou Island",
+            description = "Offshore island with caves, walls, and excellent spearfishing.",
+            coordinates = Coordinates(43.1833, 5.3833),
+            access = "boat",
+            depth = 30,
+            commonFish = listOf("Sea Bass", "Dentex", "Grouper", "Bream"),
+            directions = "Boat from Marseille Vieux-Port",
+            parking = "Marseille marina"
+        ),
+
+        // UK
+        SpotRecord(
+            id = "uk-plymouth-breakwater",
+            name = "Plymouth Breakwater",
+            description = "Historic structure creating reef habitat with bass and pollock.",
+            coordinates = Coordinates(50.3333, -4.1500),
+            access = "boat",
+            depth = 15,
+            commonFish = listOf("Bass", "Pollock", "Wrasse", "Mackerel"),
+            directions = "Boat from Plymouth marina",
+            parking = "Queen Anne's Battery"
+        ),
+        SpotRecord(
+            id = "uk-cornwall-manacles",
+            name = "The Manacles",
+            description = "Notorious reef system with excellent marine life and challenging conditions.",
+            coordinates = Coordinates(50.0500, -5.0333),
+            access = "boat",
+            depth = 20,
+            commonFish = listOf("Bass", "Pollock", "Bream", "Wrasse"),
+            directions = "Boat from Falmouth or Helford",
+            parking = "Falmouth marina"
+        ),
+
+        // Australia
+        SpotRecord(
+            id = "australia-ningaloo",
+            name = "Ningaloo Reef",
+            description = "World Heritage fringing reef with incredible coral trout and Spanish mackerel.",
+            coordinates = Coordinates(-22.6833, 113.6667),
+            access = "shore",
+            depth = 15,
+            commonFish = listOf("Coral Trout", "Spanish Mackerel", "Giant Trevally", "Red Emperor"),
+            directions = "Access from Exmouth or Coral Bay",
+            parking = "Beach access points"
+        ),
+        SpotRecord(
+            id = "australia-montague-island",
+            name = "Montague Island",
+            description = "NSW south coast island with kingfish, jewfish, and seal colonies.",
+            coordinates = Coordinates(-36.2500, 150.2333),
+            access = "boat",
+            depth = 25,
+            commonFish = listOf("Kingfish", "Jewfish", "Blue Groper", "Snapper"),
+            directions = "Boat from Narooma",
+            parking = "Narooma boat ramp"
+        ),
+
+        // New Zealand
+        SpotRecord(
+            id = "nz-poor-knights",
+            name = "Poor Knights Islands",
+            description = "Marine reserve with subtropical fish at world's best temperate dive site.",
+            coordinates = Coordinates(-35.4667, 174.7333),
+            access = "boat",
+            depth = 30,
+            commonFish = listOf("Kingfish", "Snapper", "Blue Maomao", "Trevally"),
+            directions = "Boat from Tutukaka",
+            parking = "Tutukaka marina"
+        ),
+
+        // Mozambique
+        SpotRecord(
+            id = "mozambique-bazaruto",
+            name = "Bazaruto Archipelago",
+            description = "Remote African paradise with giant kingfish and pristine reefs.",
+            coordinates = Coordinates(-21.6500, 35.4667),
+            access = "boat",
+            depth = 30,
+            commonFish = listOf("Giant Kingfish", "Dogtooth Tuna", "Wahoo", "Sailfish"),
+            directions = "Boat from Vilankulo",
+            parking = "Resort facilities"
+        ),
+
+        // Indonesia
+        SpotRecord(
+            id = "indonesia-raja-ampat",
+            name = "Raja Ampat",
+            description = "Epicenter of marine biodiversity with exceptional diving and spearfishing.",
+            coordinates = Coordinates(-0.5000, 130.5000),
+            access = "boat",
+            depth = 25,
+            commonFish = listOf("Giant Trevally", "Dogtooth Tuna", "Spanish Mackerel", "Barramundi Cod"),
+            directions = "Boat from Sorong",
+            parking = "Liveaboard or resort"
+        ),
+
+        // Portugal - Azores
+        SpotRecord(
+            id = "azores-pico",
+            name = "Pico Island",
+            description = "Atlantic volcanic island with blue water pelagics and excellent visibility.",
+            coordinates = Coordinates(38.4667, -28.2500),
+            access = "boat",
+            depth = 35,
+            commonFish = listOf("Yellowfin Tuna", "Wahoo", "Amberjack", "Almaco Jack"),
+            directions = "Boat from Madalena harbor",
+            parking = "Madalena marina"
         )
     )
 

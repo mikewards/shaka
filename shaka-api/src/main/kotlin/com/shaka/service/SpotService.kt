@@ -1,8 +1,8 @@
 package com.shaka.service
 
+import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.OpenMeteoClient
-import com.shaka.data.client.RedditClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.scoring.ShakaScorer
@@ -14,7 +14,7 @@ class SpotService {
 
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
-    private val reddit = RedditClient()
+    private val community = CommunityClient()
     private val spotDb = SpotDatabase
 
     /**
@@ -142,13 +142,13 @@ class SpotService {
     }
 
     /**
-     * Get community reports for a region.
+     * Get community reports for a region from multiple sources.
+     * Sources include Reddit, DeeperBlue, Spearfisherman.com, regional blogs.
      */
     suspend fun getCommunityReports(region: String): List<CommunityReport> {
         return try {
-            reddit.getReportsForRegion(region)
+            community.getReportsForRegion(region)
         } catch (e: Exception) {
-            // Return empty list if Reddit fetch fails
             emptyList()
         }
     }
