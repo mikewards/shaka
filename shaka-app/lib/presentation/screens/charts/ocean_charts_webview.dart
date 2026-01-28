@@ -126,7 +126,11 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) => setState(() => _isLoading = true),
-          onPageFinished: (_) => setState(() => _isLoading = false),
+          onPageFinished: (_) {
+            setState(() => _isLoading = false);
+            // Inject CSS/JS to customize the viewer after page loads
+            _injectCustomizations();
+          },
           onWebResourceError: (error) {
             debugPrint('WebView error: ${error.description}');
           },
@@ -137,11 +141,134 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     setState(() {});
   }
 
+  /// Inject CSS and JavaScript to customize the Copernicus Viewer
+  /// Hides unnecessary UI elements for a cleaner, more immersive experience
+  Future<void> _injectCustomizations() async {
+    if (_controller == null) return;
+    
+    // CSS to hide UI elements we don't need
+    const customCSS = '''
+      /* Hide the left sidebar/panel */
+      .sidebar, .left-panel, [class*="sidebar"], [class*="Sidebar"],
+      [class*="left-panel"], [class*="LeftPanel"] {
+        display: none !important;
+      }
+      
+      /* Hide the top header/navbar */
+      header, .header, .navbar, .top-bar, [class*="header"], [class*="Header"],
+      [class*="navbar"], [class*="Navbar"], [class*="topbar"], [class*="TopBar"] {
+        display: none !important;
+      }
+      
+      /* Hide search boxes */
+      .search, .search-box, [class*="search"], [class*="Search"] {
+        display: none !important;
+      }
+      
+      /* Hide cookie banners and popups */
+      .cookie, .cookie-banner, [class*="cookie"], [class*="Cookie"],
+      .popup, .modal-backdrop, [class*="popup"], [class*="Popup"],
+      .consent, [class*="consent"], [class*="Consent"] {
+        display: none !important;
+      }
+      
+      /* Hide help/info buttons that clutter the UI */
+      .help-button, [class*="help-button"], [class*="HelpButton"],
+      .info-button, [class*="info-button"], [class*="InfoButton"] {
+        display: none !important;
+      }
+      
+      /* Hide any floating action buttons except essential controls */
+      .fab:not(.map-control):not(.zoom-control),
+      [class*="floating-action"]:not([class*="zoom"]):not([class*="layer"]) {
+        display: none !important;
+      }
+      
+      /* Make the map container fullscreen */
+      .map-container, .map, [class*="map-container"], [class*="MapContainer"],
+      .leaflet-container, .maplibregl-map, .mapboxgl-map {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 1 !important;
+      }
+      
+      /* Hide the Copernicus logo/branding (optional - keep if you want attribution) */
+      .logo, .branding, [class*="logo"], [class*="Logo"],
+      [class*="branding"], [class*="Branding"] {
+        opacity: 0.3 !important;
+        pointer-events: none !important;
+      }
+      
+      /* Style the layer control to be less intrusive */
+      .layer-control, [class*="layer-control"], [class*="LayerControl"] {
+        background: rgba(0, 0, 0, 0.7) !important;
+        border-radius: 8px !important;
+      }
+      
+      /* Hide timeline/time controls (we handle date in our UI) */
+      .timeline, .time-control, .time-slider,
+      [class*="timeline"], [class*="Timeline"],
+      [class*="time-control"], [class*="TimeControl"],
+      [class*="time-slider"], [class*="TimeSlider"] {
+        display: none !important;
+      }
+    ''';
+    
+    // JavaScript to inject the CSS and perform additional cleanup
+    final jsCode = '''
+      (function() {
+        // Inject custom CSS
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.innerHTML = `$customCSS`;
+        document.head.appendChild(style);
+        
+        // Additional cleanup after a delay (for dynamically loaded elements)
+        setTimeout(function() {
+          // Try to close any open modals/popups
+          var closeButtons = document.querySelectorAll('[aria-label="Close"], .close, .close-button, [class*="close"]');
+          closeButtons.forEach(function(btn) {
+            try { btn.click(); } catch(e) {}
+          });
+          
+          // Accept cookies if prompted
+          var acceptButtons = document.querySelectorAll('[class*="accept"], [class*="Accept"], button[class*="cookie"]');
+          acceptButtons.forEach(function(btn) {
+            if (btn.innerText && (btn.innerText.toLowerCase().includes('accept') || btn.innerText.toLowerCase().includes('ok'))) {
+              try { btn.click(); } catch(e) {}
+            }
+          });
+        }, 2000);
+        
+        // Re-apply CSS periodically for dynamically loaded content
+        setInterval(function() {
+          var existingStyle = document.getElementById('shaka-custom-style');
+          if (!existingStyle) {
+            var style = document.createElement('style');
+            style.id = 'shaka-custom-style';
+            style.type = 'text/css';
+            style.innerHTML = `$customCSS`;
+            document.head.appendChild(style);
+          }
+        }, 3000);
+      })();
+    ''';
+    
+    await _controller!.runJavaScript(jsCode);
+  }
+
   String _buildCopernicusUrl() {
-    // Build Copernicus MyOcean Viewer URL with default layers
-    // SST layer enabled by default
+    // Build Copernicus MyOcean Viewer URL
+    // Using expert view with dark basemap for best contrast with ocean data
     final timestamp = _dataDate.millisecondsSinceEpoch;
     
+    // Start with a cleaner URL - the viewer will load with default SST layer
+    // The expert view gives more control and cleaner interface
     return 'https://data.marine.copernicus.eu/viewer/expert?'
         'view=viewer'
         '&crs=epsg%3A4326'
@@ -150,6 +277,10 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         '&center=${_centerLon}%2C${_centerLat}'
         '&zoom=${_zoom.toStringAsFixed(1)}'
         '&basemap=dark';
+    
+    // Note: To pre-configure specific layers, you can add a &layers= parameter
+    // with a base64-encoded layer configuration. The format is complex and
+    // changes based on the Copernicus API, so we let the viewer handle defaults.
   }
 
   Future<void> _loadSavedSnapshots() async {
