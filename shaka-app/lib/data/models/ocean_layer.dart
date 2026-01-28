@@ -31,12 +31,13 @@ class OceanLayer {
   });
 
   /// Pre-defined ocean layers from Copernicus Marine Service
-  /// Updated Jan 2026 with current dataset versions
+  /// Updated Jan 28, 2026 with current dataset versions
+  /// Layer format: PRODUCT_ID/DATASET_ID/VARIABLE_ID
   static const sst = OceanLayer(
     id: 'sst',
     name: 'Sea Surface Temperature',
     shortName: 'SST',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i_202406',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i_202406/thetao',
     style: 'cmap:thermal',
     unit: '°F',
     icon: Icons.thermostat,
@@ -51,8 +52,8 @@ class OceanLayer {
     id: 'chl',
     name: 'Chlorophyll-a',
     shortName: 'CHL',
-    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D_202411',
-    style: 'cmap:viridis',
+    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D_202411/CHL',
+    style: 'cmap:viridis,logScale',
     unit: 'mg/m³',
     icon: Icons.grass,
     color: Color(0xFF4CAF50),
@@ -66,7 +67,7 @@ class OceanLayer {
     id: 'zsd',
     name: 'Water Visibility',
     shortName: 'VIS',
-    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-transp_nrt_l3-multi-4km_P1D_202311',
+    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-transp_nrt_l3-multi-4km_P1D_202311/ZSD',
     style: 'cmap:viridis',
     unit: 'm',
     icon: Icons.visibility,
@@ -82,7 +83,7 @@ class OceanLayer {
     name: 'Sea Surface Height',
     shortName: 'SSH',
     // Updated to 0.125deg_202506 - the 0.25deg_202311 dataset ended Nov 2024
-    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506',
+    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506/adt',
     style: 'cmap:balance',
     unit: 'm',
     icon: Icons.waves,
@@ -97,8 +98,8 @@ class OceanLayer {
     id: 'cur',
     name: 'Ocean Currents',
     shortName: 'CUR',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i_202406',
-    style: 'cmap:speed',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i_202406/sea_water_velocity',
+    style: 'vectorStyle:solidAndVector,cmap:speed',
     unit: 'm/s',
     icon: Icons.air,
     color: Color(0xFF00BCD4),
@@ -112,7 +113,7 @@ class OceanLayer {
     id: 'bathy',
     name: 'Bathymetry',
     shortName: 'DEPTH',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_static_202211--ext--bathy',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_static_202211/deptho',
     style: 'cmap:deep',
     unit: 'm',
     icon: Icons.terrain,

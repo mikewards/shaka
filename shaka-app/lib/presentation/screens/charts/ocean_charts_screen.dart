@@ -44,7 +44,8 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   bool _isLoadingFeatures = false;
 
   // Selected date for time travel
-  DateTime _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+  // Default to today - Copernicus NRT data is available same-day
+  DateTime _selectedDate = DateTime.now();
 
   // UI state
   bool _showLegend = true;

@@ -179,7 +179,8 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   Widget _buildTimeScrubber() {
     final now = DateTime.now();
     final minDate = now.subtract(const Duration(days: 14));
-    final maxDate = now.subtract(const Duration(days: 1));
+    // Allow today - Copernicus NRT data is available same-day
+    final maxDate = now;
     
     final days = maxDate.difference(minDate).inDays;
     final currentDay = _selectedDate.difference(minDate).inDays;
