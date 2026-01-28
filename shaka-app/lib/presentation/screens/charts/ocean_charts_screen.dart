@@ -9,6 +9,8 @@ import 'widgets/floating_data_bar.dart';
 import 'widgets/layer_control_sheet.dart';
 import 'widgets/chart_legend.dart';
 import 'widgets/point_data_card.dart';
+import 'widgets/download_region_sheet.dart';
+import 'widgets/offline_regions_sheet.dart';
 
 /// Full-screen immersive ocean charts page
 /// Displays oceanographic data overlays (SST, chlorophyll, visibility, etc.)
@@ -318,6 +320,82 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
     );
   }
 
+  /// Open offline download menu
+  void _openOfflineMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0D0D0D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 16),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download, color: Colors.white),
+              title: const Text('Download This Area', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Save for offline use', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _openDownloadSheet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.offline_pin, color: Colors.white),
+              title: const Text('Manage Offline Regions', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('View and delete saved data', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _openOfflineRegionsSheet();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Open download region sheet
+  void _openDownloadSheet() {
+    // Get current visible bounds from the map
+    final bounds = _mapController.camera.visibleBounds;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DownloadRegionSheet(
+        bounds: bounds,
+        dataDate: _selectedDate,
+        layerStates: _layerStates,
+      ),
+    );
+  }
+
+  /// Open offline regions management sheet
+  void _openOfflineRegionsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => const OfflineRegionsSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabledLayers = _layerStates.values.where((s) => s.enabled).toList();
@@ -434,14 +512,9 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
             onTap: () => setState(() => _showLegend = !_showLegend),
           ),
           _ToolbarButton(
-            icon: Icons.share,
-            label: 'Share',
-            onTap: () {
-              // TODO: Implement share
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share coming soon!')),
-              );
-            },
+            icon: Icons.download_for_offline,
+            label: 'Offline',
+            onTap: _openOfflineMenu,
           ),
         ],
       ),
