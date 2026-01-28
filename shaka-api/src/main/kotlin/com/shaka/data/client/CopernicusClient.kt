@@ -18,20 +18,20 @@ import org.slf4j.LoggerFactory
 /**
  * Client for water quality data - combines multiple sources for best performance.
  * 
- * Default (fast) path:
- * - SST from NOAA ERDDAP (~2-3s)
- * - Chlorophyll from NOAA VIIRS (~2-3s)
- * - Results cached for 12 hours
+ * PRIMARY: Copernicus WMTS for REAL visibility (ZSD - Secchi disk depth)
+ * - Actual measured underwater visibility in meters
+ * - Gap-free daily data (cloud gaps interpolated)
+ * - 4km resolution, global coverage
+ * - 1-2 day latency
  * 
- * Optional real-time satellite path:
- * - Chlorophyll from Copernicus Sentinel-3 OLCI (~30-60s)
- * - Processes latest satellite pass for most current data
- * - Requires COPERNICUS_CLIENT_ID and COPERNICUS_CLIENT_SECRET env vars
+ * SECONDARY: NOAA for SST and chlorophyll
+ * - SST from NOAA ERDDAP
+ * - Chlorophyll from NOAA VIIRS satellite
  * 
  * Data interpretation:
+ * - Visibility (ZSD): Actual Secchi disk depth in meters
  * - Chlorophyll-a: 0.1-0.5 mg/m³ = clear, 1-5 = productive, >10 = bloom
  * - Turbidity (NTU): <1 = clear, 1-5 = moderate, >5 = murky
- * - Visibility: Estimated from Secchi depth relationships
  */
 class CopernicusClient(
     private val clientId: String = System.getenv("COPERNICUS_CLIENT_ID") ?: "",
@@ -39,6 +39,7 @@ class CopernicusClient(
 ) {
     private val logger = LoggerFactory.getLogger(CopernicusClient::class.java)
     private val noaaClient = NOAAClient()
+    private val wmtsClient = CopernicusWMTSClient()
     
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -59,10 +60,10 @@ class CopernicusClient(
     }
 
     /**
-     * Get water quality data using FAST path (NOAA ERDDAP).
-     * Typical response time: 2-5 seconds (first call), <1 second (cached).
+     * Get water quality data - REAL visibility from Copernicus WMTS.
      * 
-     * Uses caching with 12-hour TTL for chlorophyll/visibility data.
+     * Visibility is REAL measured data (Secchi disk depth), NOT calculated!
+     * Updated daily, gap-free (cloud gaps interpolated), 4km resolution.
      */
     suspend fun getWaterQuality(lat: Double, lon: Double, date: String): WaterQuality {
         // Check cache first
@@ -71,29 +72,50 @@ class CopernicusClient(
             return it 
         }
         
-        // Fetch SST from NOAA (fast) - always returns a value now
+        // Fetch SST from NOAA (fast) - always returns a value
         val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
         
-        // Fetch chlorophyll from NOAA VIIRS satellite
-        // Note: Satellite data often unavailable near coastlines due to land interference
-        var chlorophyll = try {
-            noaaClient.getChlorophyll(lat, lon, date)
+        // PRIMARY: Get REAL visibility from Copernicus WMTS (Secchi disk depth)
+        // This is actual measured underwater visibility, NOT calculated from chlorophyll!
+        var visibility = try {
+            wmtsClient.getLatestVisibility(lat, lon)
         } catch (e: Exception) {
-            logger.warn("NOAA chlorophyll fetch failed: ${e.message}")
+            logger.warn("Copernicus WMTS visibility fetch failed: ${e.message}")
             null
         }
         
-        // If satellite data unavailable (common near coasts), use regional climatological average
-        // These are based on published oceanographic research, not random values
-        var dataSource = "NOAA VIIRS Satellite"
+        var dataSource = if (visibility != null) {
+            "Copernicus ZSD (Real visibility)"
+        } else {
+            "Calculated from chlorophyll"
+        }
+        
+        // Get chlorophyll for additional context (fish activity indicator)
+        var chlorophyll = try {
+            noaaClient.getChlorophyll(lat, lon, date)
+        } catch (e: Exception) {
+            null
+        }
+        
+        // If no real chlorophyll, estimate from visibility or use regional average
         if (chlorophyll == null) {
-            chlorophyll = getRegionalChlorophyllClimatology(lat, lon)
-            dataSource = "Regional climatology (satellite obstructed)"
-            logger.info("Using climatological chlorophyll for ($lat, $lon): ${String.format("%.2f", chlorophyll)} mg/m³")
+            chlorophyll = if (visibility != null) {
+                // Estimate chlorophyll from visibility using inverse Secchi relationship
+                // Higher visibility = lower chlorophyll
+                estimateChlorophyllFromVisibility(visibility)
+            } else {
+                getRegionalChlorophyllClimatology(lat, lon)
+            }
+        }
+        
+        // If no real visibility from WMTS, calculate from chlorophyll
+        if (visibility == null) {
+            val turbidity = calculateTurbidity(chlorophyll, lat, lon)
+            visibility = calculateVisibility(chlorophyll, turbidity)
+            logger.warn("No real visibility data, calculated from chlorophyll: ${String.format("%.1f", visibility)}m")
         }
         
         val turbidity = calculateTurbidity(chlorophyll, lat, lon)
-        val visibility = calculateVisibility(chlorophyll, turbidity)
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
@@ -286,6 +308,7 @@ class CopernicusClient(
 
     /**
      * Calculate visibility from chlorophyll and turbidity using Secchi depth relationships.
+     * Only used as fallback when real WMTS visibility is unavailable.
      */
     fun calculateVisibility(chlorophyll: Double, turbidity: Double): Double {
         val kd = 0.027 * Math.pow(chlorophyll.coerceAtLeast(0.1), 0.6) + 
@@ -293,6 +316,26 @@ class CopernicusClient(
                  0.04
         val secchiDepth = 1.7 / kd
         return (secchiDepth * 2.7).coerceIn(1.0, 45.0)
+    }
+
+    /**
+     * Estimate chlorophyll from real visibility data using inverse Secchi relationship.
+     * This is used when we have real visibility but no chlorophyll satellite data.
+     * 
+     * The relationship: visibility ≈ 1.7/Kd where Kd ≈ 0.04 + 0.027*Chl^0.6
+     * Solving for Chl: Chl ≈ ((1.7/visibility - 0.04) / 0.027)^(1/0.6)
+     */
+    private fun estimateChlorophyllFromVisibility(visibilityM: Double): Double {
+        // Inverse Secchi-chlorophyll relationship
+        val secchiDepth = visibilityM / 2.7  // Convert visibility to Secchi depth
+        val kd = 1.7 / secchiDepth
+        val chlComponent = (kd - 0.04) / 0.027
+        
+        return if (chlComponent > 0) {
+            Math.pow(chlComponent, 1.0 / 0.6).coerceIn(0.05, 30.0)
+        } else {
+            0.1  // Very clear water
+        }
     }
 
     /**
