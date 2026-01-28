@@ -10,15 +10,18 @@ import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 /**
  * Client for Open-Meteo weather and marine APIs.
  * Free, no API key required.
  * 
  * Weather: https://api.open-meteo.com/v1/forecast
- * Marine: https://marine-api.open-meteo.com/v1/marine
+ * Marine: https://marine-api.open-meteo.com/v1/marine (includes real SST data!)
  */
 class OpenMeteoClient {
+
+    private val logger = LoggerFactory.getLogger(OpenMeteoClient::class.java)
 
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -69,6 +72,7 @@ class OpenMeteoClient {
 
     /**
      * Get marine/ocean data for a location and date.
+     * Now includes REAL sea surface temperature from Open-Meteo!
      */
     suspend fun getMarineData(lat: Double, lon: Double, date: String): OceanData {
         return try {
@@ -77,29 +81,39 @@ class OpenMeteoClient {
                 parameter("longitude", lon)
                 parameter("start_date", date)
                 parameter("end_date", date)
-                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_direction,ocean_current_velocity")
+                // Added sea_surface_temperature - this is REAL SST data!
+                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_direction,ocean_current_velocity,sea_surface_temperature")
                 parameter("daily", "wave_height_max,wave_period_max")
                 parameter("timezone", "auto")
             }.body()
 
             // Get midday values
             val idx = 12.coerceAtMost((response.hourly.wave_height?.size ?: 1) - 1)
+            
+            // Get REAL SST from Open-Meteo
+            val sst = response.hourly.sea_surface_temperature?.getOrNull(idx)
+            if (sst != null) {
+                logger.info("Open-Meteo SST for ($lat, $lon): ${String.format("%.1f", sst)}°C / ${String.format("%.0f", sst * 9/5 + 32)}°F")
+            } else {
+                logger.warn("Open-Meteo SST unavailable for ($lat, $lon)")
+            }
 
             OceanData(
                 waveHeight = response.hourly.wave_height?.getOrNull(idx) ?: 1.0,
                 wavePeriod = response.hourly.wave_period?.getOrNull(idx) ?: 8.0,
                 waveDirection = response.hourly.wave_direction?.getOrNull(idx)?.toInt() ?: 0,
-                waterTemperature = 24.0, // Marine API doesn't have SST, would need Copernicus
+                waterTemperature = sst ?: 20.0, // Real SST, fallback only if API fails
                 swellHeight = response.hourly.swell_wave_height?.getOrNull(idx) ?: 0.5,
                 swellDirection = response.hourly.swell_wave_direction?.getOrNull(idx)?.toInt() ?: 0
             )
         } catch (e: Exception) {
+            logger.error("Open-Meteo Marine API failed: ${e.message}")
             // Return default values if API fails
             OceanData(
                 waveHeight = 1.0,
                 wavePeriod = 8.0,
                 waveDirection = 270,
-                waterTemperature = 24.0,
+                waterTemperature = 18.0, // Conservative fallback
                 swellHeight = 0.5,
                 swellDirection = 270
             )
@@ -134,5 +148,6 @@ data class OpenMeteoHourlyMarine(
     val wave_direction: List<Double>? = null,
     val swell_wave_height: List<Double>? = null,
     val swell_wave_direction: List<Double>? = null,
-    val ocean_current_velocity: List<Double>? = null
+    val ocean_current_velocity: List<Double>? = null,
+    val sea_surface_temperature: List<Double>? = null  // Real SST data!
 )

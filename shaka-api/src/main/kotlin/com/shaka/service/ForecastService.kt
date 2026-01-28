@@ -37,7 +37,7 @@ class ForecastService {
             val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, dateStr)
             val waterQuality = copernicus.getWaterQuality(spot.coordinates.lat, spot.coordinates.lon, dateStr)
 
-            // Use real SST from water quality data
+            // Use real SST - prefer NOAA, fallback to Open-Meteo (both real data!)
             val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
 
             val score = ShakaScorer.generateScore(

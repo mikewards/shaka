@@ -79,7 +79,7 @@ class SpotService {
                 sharkRisk = "low"
             )
 
-            // Use real SST from water quality data (NOAA/Copernicus) instead of hardcoded value
+            // Use real SST - prefer NOAA satellite data, fallback to Open-Meteo (both are real now!)
             val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
             
             SpotSummary(
@@ -168,7 +168,7 @@ class SpotService {
             sharkRisk = "low"
         )
         
-        // Use real SST from water quality data (NOAA/Copernicus)
+        // Use real SST - prefer NOAA satellite data, fallback to Open-Meteo
         val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
 
         // Generate 7-day forecast
