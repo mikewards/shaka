@@ -53,15 +53,24 @@ class NOAAClient {
      * Get real Sea Surface Temperature from NOAA MUR SST dataset.
      * Returns temperature in Celsius.
      * 
+     * Falls back to regional climatological estimate if satellite data unavailable.
+     * 
      * @param lat Latitude
      * @param lon Longitude  
      * @param date Date in YYYY-MM-DD format
-     * @return SST in Celsius, or null if unavailable
+     * @return SST in Celsius (always returns a value, never null)
      */
-    suspend fun getSeaSurfaceTemperature(lat: Double, lon: Double, date: String): Double? {
+    suspend fun getSeaSurfaceTemperature(lat: Double, lon: Double, date: String): Double {
         return try {
             // Try MUR SST first (best resolution for coastal waters)
-            getMURSST(lat, lon, date) ?: getGHRSST(lat, lon, date)
+            val sst = getMURSST(lat, lon, date) ?: getGHRSST(lat, lon, date)
+            if (sst != null) {
+                logger.info("NOAA SST for ($lat, $lon): ${String.format("%.1f", sst)}°C")
+                sst
+            } else {
+                logger.info("NOAA SST unavailable for ($lat, $lon), using regional estimate")
+                getRegionalSSTEstimate(lat, lon, date)
+            }
         } catch (e: Exception) {
             logger.warn("NOAA SST fetch failed for ($lat, $lon): ${e.message}")
             // Return regional estimate as fallback
@@ -280,14 +289,29 @@ class NOAAClient {
             return 25.0 + seasonalOffset * 0.5 // Less seasonal variation in tropics
         }
         
-        // Southern California (San Diego to LA)
-        if (lat in 32.0..34.5 && lon in -120.0..-117.0) {
-            return 17.0 + seasonalOffset // Cold upwelling, variable
+        // Channel Islands & Catalina (cold upwelling zone)
+        // Catalina: 33.4°N, -118.4°W - water rarely exceeds 68°F (20°C)
+        if (lat in 32.5..34.2 && lon in -120.5..-117.5) {
+            // January average: ~14-15°C (57-59°F)
+            // August average: ~18-20°C (64-68°F)
+            val baseTemp = 14.5 // Winter baseline
+            val summerBonus = when (month) {
+                6, 7, 8, 9 -> 4.0  // Summer peak
+                5, 10 -> 2.0       // Shoulder
+                else -> 0.0        // Winter
+            }
+            logger.info("Channel Islands/Catalina SST estimate: ${baseTemp + summerBonus}°C")
+            return baseTemp + summerBonus
+        }
+        
+        // Southern California mainland coast (San Diego to LA)
+        if (lat in 32.0..34.5 && lon in -118.5..-117.0) {
+            return 16.0 + seasonalOffset // Slightly warmer than islands
         }
         
         // Central California (Monterey to SF)
         if (lat in 34.5..38.0 && lon in -123.0..-121.0) {
-            return 14.0 + seasonalOffset // Strong upwelling, cold
+            return 13.0 + seasonalOffset // Strong upwelling, cold
         }
         
         // Northern California / Oregon

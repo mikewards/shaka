@@ -71,13 +71,8 @@ class CopernicusClient(
             return it 
         }
         
-        // Fetch SST from NOAA (fast)
-        val sst = try {
-            noaaClient.getSeaSurfaceTemperature(lat, lon, date)
-        } catch (e: Exception) {
-            logger.warn("NOAA SST failed, using estimate: ${e.message}")
-            noaaClient.getRegionalSSTEstimate(lat, lon, date)
-        }
+        // Fetch SST from NOAA (fast) - always returns a value now
+        val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
         
         // Fetch chlorophyll from NOAA VIIRS (fast)
         val chlorophyll = try {
@@ -103,7 +98,7 @@ class CopernicusClient(
         // Cache the result
         OceanDataCache.putWaterQuality(lat, lon, date, result)
         
-        logger.info("Water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m, SST=${sst?.let { String.format("%.1f", it) }}°C")
+        logger.info("Water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m, SST=${String.format("%.1f", sst)}°C")
         
         return result
     }
@@ -126,11 +121,7 @@ class CopernicusClient(
         logger.info("Fetching REAL-TIME satellite data for ($lat, $lon) - this may take 30-60 seconds...")
         
         // Always get fresh SST from NOAA (fast, doesn't need Copernicus)
-        val sst = try {
-            noaaClient.getSeaSurfaceTemperature(lat, lon, date)
-        } catch (e: Exception) {
-            noaaClient.getRegionalSSTEstimate(lat, lon, date)
-        }
+        val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
         
         // Authenticate with Copernicus
         ensureAuthenticated()
