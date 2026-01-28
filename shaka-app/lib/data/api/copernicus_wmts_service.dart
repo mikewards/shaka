@@ -150,8 +150,13 @@ class CopernicusWMTSService {
   }
 
   /// Format a DateTime for WMTS time parameter
+  /// Copernicus uses UTC timestamps exclusively
+  /// For daily data, we use noon UTC to avoid edge cases
   static String formatTime(DateTime date) {
-    return '${date.toUtc().toIso8601String().split('.')[0]}Z';
+    final utc = date.toUtc();
+    // Use noon UTC for the selected date to be safely within the day's data range
+    final noonUtc = DateTime.utc(utc.year, utc.month, utc.day, 12, 0, 0);
+    return '${noonUtc.toIso8601String().split('.')[0]}Z';
   }
 }
 

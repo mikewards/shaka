@@ -44,9 +44,10 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   Map<String, FeatureInfo?> _featureData = {};
   bool _isLoadingFeatures = false;
 
-  // Selected date for time travel
-  // Default to yesterday - Copernicus NRT data has ~24h processing delay
-  DateTime _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+  // Selected date for time travel (stored as UTC)
+  // Default to yesterday UTC - Copernicus NRT data has ~24h processing delay
+  // All Copernicus data uses UTC timestamps
+  late DateTime _selectedDate;
 
   // UI state
   bool _showLegend = true;
@@ -58,6 +59,11 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize selected date to yesterday UTC (Copernicus NRT has ~24h delay)
+    // All dates are stored and compared in UTC to match Copernicus timestamps
+    final nowUtc = DateTime.now().toUtc();
+    _selectedDate = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day - 1);
 
     // Initialize layer states - SST enabled by default
     _layerStates = {
@@ -438,9 +444,10 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   }
 
   String _formatDate(DateTime date) {
+    final utc = date.toUtc();
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}';
+    return '${months[utc.month - 1]} ${utc.day} UTC';
   }
 }
 

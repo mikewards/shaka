@@ -266,30 +266,50 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   }
 
   Widget _buildDateSelector() {
-    final now = DateTime.now();
-    final minDate = now.subtract(const Duration(days: 14));
-    // NRT data has ~24h processing delay, so max available is yesterday
-    final maxDate = now.subtract(const Duration(days: 1));
-    final isAtMax = _selectedDate.year == maxDate.year && 
-                    _selectedDate.month == maxDate.month && 
-                    _selectedDate.day == maxDate.day;
+    // All dates in UTC to match Copernicus data timestamps
+    final nowUtc = DateTime.now().toUtc();
+    final minDate = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day - 14);
+    // NRT data has ~24h processing delay, so max available is yesterday UTC
+    final maxDate = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day - 1);
+    
+    // Ensure selected date is also compared in UTC
+    final selectedUtc = _selectedDate.toUtc();
+    final isAtMax = selectedUtc.year == maxDate.year && 
+                    selectedUtc.month == maxDate.month && 
+                    selectedUtc.day == maxDate.day;
+    final isAtMin = selectedUtc.year == minDate.year && 
+                    selectedUtc.month == minDate.month && 
+                    selectedUtc.day == minDate.day;
 
     return Column(
       children: [
+        // UTC label
+        Text(
+          'DATA DATE (UTC)',
+          style: TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: _selectedDate.isAfter(minDate)
+              onTap: !isAtMin
                   ? () {
-                      final newDate = _selectedDate.subtract(const Duration(days: 1));
+                      // Create new UTC date for previous day
+                      final newDate = DateTime.utc(
+                        selectedUtc.year, selectedUtc.month, selectedUtc.day - 1);
                       setState(() => _selectedDate = newDate);
                       widget.onDateChange(newDate);
                     }
                   : null,
               child: Icon(
                 Icons.chevron_left,
-                color: _selectedDate.isAfter(minDate) ? Colors.white : Colors.white24,
+                color: !isAtMin ? Colors.white : Colors.white24,
                 size: 28,
               ),
             ),
@@ -297,7 +317,7 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
             Column(
               children: [
                 Text(
-                  _formatDate(_selectedDate),
+                  _formatDateUtc(_selectedDate),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -309,7 +329,7 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
                   Text(
                     'Latest available',
                     style: TextStyle(
-                      color: Colors.white38,
+                      color: Colors.green.shade300,
                       fontSize: 11,
                     ),
                   ),
@@ -317,16 +337,18 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
             ),
             const SizedBox(width: 16),
             GestureDetector(
-              onTap: _selectedDate.isBefore(maxDate)
+              onTap: !isAtMax
                   ? () {
-                      final newDate = _selectedDate.add(const Duration(days: 1));
+                      // Create new UTC date for next day
+                      final newDate = DateTime.utc(
+                        selectedUtc.year, selectedUtc.month, selectedUtc.day + 1);
                       setState(() => _selectedDate = newDate);
                       widget.onDateChange(newDate);
                     }
                   : null,
               child: Icon(
                 Icons.chevron_right,
-                color: _selectedDate.isBefore(maxDate) ? Colors.white : Colors.white24,
+                color: !isAtMax ? Colors.white : Colors.white24,
                 size: 28,
               ),
             ),
@@ -334,6 +356,13 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
         ),
       ],
     );
+  }
+
+  String _formatDateUtc(DateTime date) {
+    final utc = date.toUtc();
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[utc.month - 1]} ${utc.day}, ${utc.year}';
   }
 
   Widget _buildOpacityRow() {

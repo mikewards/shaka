@@ -230,9 +230,10 @@ class _PointDataCardState extends State<PointDataCard> {
   }
 
   String _formatDate(DateTime date) {
+    final utc = date.toUtc();
     final months = ['January', 'February', 'March', 'April', 'May', 'June',
                     'July', 'August', 'September', 'October', 'November', 'December'];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return '${months[utc.month - 1]} ${utc.day}, ${utc.year} (UTC)';
   }
 }
 
