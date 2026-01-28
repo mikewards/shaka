@@ -40,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Find your\ndive',
+                'Find your dive',
                 style: Theme.of(context).textTheme.displayMedium,
               ),
               
@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: BreathingWidget(
                   enabled: _canSearch,
                   child: ShakaButton(
-                    label: 'Begin',
+                    label: 'Go',
                     onPressed: _canSearch ? _onSearch : null,
                     isExpanded: true,
                     isHero: true,

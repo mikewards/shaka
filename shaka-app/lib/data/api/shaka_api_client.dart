@@ -25,7 +25,7 @@ class ShakaApiClient {
     required double lat,
     required double lon,
     required String date,
-    int radiusKm = 50,
+    int radiusKm = 160,  // ~100 miles
   }) async {
     try {
       final response = await _dio.get(

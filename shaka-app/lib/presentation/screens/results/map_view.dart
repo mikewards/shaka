@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/spot_models.dart';
 import '../../widgets/shaka_score_badge.dart';
@@ -24,54 +23,61 @@ class MapView extends StatefulWidget {
 }
 
 class _MapViewState extends State<MapView> {
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
   SpotSummary? _selectedSpot;
+  Set<Marker> _markers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _buildMarkers();
+  }
+
+  void _buildMarkers() {
+    _markers = widget.spots.map((spot) {
+      final color = _getMarkerHue(spot.shakaScore);
+      return Marker(
+        markerId: MarkerId(spot.id),
+        position: LatLng(spot.coordinates.lat, spot.coordinates.lon),
+        icon: BitmapDescriptor.defaultMarkerWithHue(color),
+        onTap: () {
+          setState(() {
+            _selectedSpot = spot;
+          });
+        },
+      );
+    }).toSet();
+  }
+
+  double _getMarkerHue(int score) {
+    if (score >= 80) return BitmapDescriptor.hueGreen;
+    if (score >= 60) return BitmapDescriptor.hueCyan;
+    if (score >= 40) return BitmapDescriptor.hueYellow;
+    return BitmapDescriptor.hueRed;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: LatLng(widget.centerLat, widget.centerLon),
-            initialZoom: 10,
-            onTap: (_, __) {
-              setState(() {
-                _selectedSpot = null;
-              });
-            },
+        GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: LatLng(widget.centerLat, widget.centerLon),
+            zoom: 10,
           ),
-          children: [
-            // Base map layer (OpenStreetMap)
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.shaka.app',
-              tileBuilder: _darkTileBuilder,
-            ),
-
-            // Spot markers
-            MarkerLayer(
-              markers: widget.spots.map((spot) {
-                return Marker(
-                  point: LatLng(spot.coordinates.lat, spot.coordinates.lon),
-                  width: 40,
-                  height: 40,
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedSpot = spot;
-                      });
-                    },
-                    child: _SpotMarker(
-                      score: spot.shakaScore,
-                      isSelected: _selectedSpot?.id == spot.id,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+          onMapCreated: (controller) {
+            _mapController = controller;
+          },
+          markers: _markers,
+          onTap: (_) {
+            setState(() {
+              _selectedSpot = null;
+            });
+          },
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: true,
+          mapToolbarEnabled: false,
         ),
 
         // Selected spot preview card
@@ -98,69 +104,6 @@ class _MapViewState extends State<MapView> {
           child: _Legend(),
         ),
       ],
-    );
-  }
-
-  // Custom tile builder for ocean-themed map
-  Widget _darkTileBuilder(
-    BuildContext context,
-    Widget tileWidget,
-    TileImage tile,
-  ) {
-    return ColorFiltered(
-      colorFilter: const ColorFilter.matrix([
-        0.9, 0, 0, 0, 0,
-        0, 0.9, 0, 0, 0,
-        0, 0, 1.1, 0, 0,
-        0, 0, 0, 1, 0,
-      ]),
-      child: tileWidget,
-    );
-  }
-}
-
-class _SpotMarker extends StatelessWidget {
-  final int score;
-  final bool isSelected;
-
-  const _SpotMarker({
-    required this.score,
-    this.isSelected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = AppColors.getScoreColor(score);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: isSelected ? 44 : 36,
-      height: isSelected ? 44 : 36,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white,
-          width: isSelected ? 3 : 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.4),
-            blurRadius: isSelected ? 12 : 8,
-            spreadRadius: isSelected ? 2 : 0,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          '$score',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: isSelected ? 14 : 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -213,21 +156,11 @@ class _SpotPreviewCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(
-                        spot.access == 'shore'
-                            ? Icons.beach_access
-                            : Icons.directions_boat,
-                        size: 14,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
                         spot.access.toUpperCase(),
                         style: Theme.of(context).textTheme.labelSmall,
                       ),
                       const SizedBox(width: 12),
-                      Icon(Icons.visibility, size: 14, color: AppColors.textMuted),
-                      const SizedBox(width: 4),
                       Text(
                         spot.conditions.visibility,
                         style: Theme.of(context).textTheme.labelSmall,
@@ -240,16 +173,16 @@ class _SpotPreviewCard extends StatelessWidget {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: onClose,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                GestureDetector(
+                  onTap: onClose,
+                  child: const Icon(Icons.close, size: 20, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 8),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textMuted,
+                Text(
+                  '>',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
