@@ -1,7 +1,9 @@
 package com.shaka.service
 
+import com.shaka.data.cache.OceanDataCache
 import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
+import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
@@ -14,6 +16,7 @@ class SpotService {
 
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
+    private val tidesClient = NOAATidesClient()
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val spotDb = SpotDatabase
@@ -25,10 +28,29 @@ class SpotService {
         // Get spots from database within radius
         val nearbySpots = spotDb.findNearbySpots(lat, lon, radiusKm.toDouble())
 
-        // Fetch weather and ocean data for the area
-        val weather = openMeteo.getWeather(lat, lon, date)
-        val ocean = openMeteo.getMarineData(lat, lon, date)
+        // Fetch weather data (with caching)
+        val weather = OceanDataCache.getWeather(lat, lon, date) ?: run {
+            val data = openMeteo.getWeather(lat, lon, date)
+            OceanDataCache.putWeather(lat, lon, date, data)
+            data
+        }
+        
+        // Fetch ocean/swell data (with caching)
+        val ocean = OceanDataCache.getOcean(lat, lon, date) ?: run {
+            val data = openMeteo.getMarineData(lat, lon, date)
+            OceanDataCache.putOcean(lat, lon, date, data)
+            data
+        }
+        
+        // Fetch water quality (chlorophyll, visibility, SST) - already cached internally
         val waterQuality = copernicus.getWaterQuality(lat, lon, date)
+        
+        // Fetch tide data (with caching)
+        val tideData = OceanDataCache.getTide(lat, lon, date) ?: run {
+            val data = tidesClient.getTideData(lat, lon, date)
+            OceanDataCache.putTide(lat, lon, date, data)
+            data
+        }
 
         // Get community sightings count for the region
         val regionReports = try {
@@ -72,13 +94,13 @@ class SpotService {
                     waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = "${weather.windSpeed.toInt()} knots",
-                    tideState = "rising",
-                    currentStrength = "moderate"
+                    tideState = tideData.tideState,
+                    currentStrength = "Next high: ${tideData.nextHighTide}"
                 ),
                 expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(actualSST, spot.depth),
                 risks = generateRisks(weather, ocean),
-                bestTimeOfDay = "6am-10am"
+                bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date))
             )
         }.sortedByDescending { it.shakaScore }
 
@@ -95,10 +117,32 @@ class SpotService {
      */
     suspend fun getSpotDetail(spotId: String, date: String): SpotDetail? {
         val spot = spotDb.findSpotById(spotId) ?: return null
+        val lat = spot.coordinates.lat
+        val lon = spot.coordinates.lon
 
-        val weather = openMeteo.getWeather(spot.coordinates.lat, spot.coordinates.lon, date)
-        val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, date)
-        val waterQuality = copernicus.getWaterQuality(spot.coordinates.lat, spot.coordinates.lon, date)
+        // Fetch weather data (with caching)
+        val weather = OceanDataCache.getWeather(lat, lon, date) ?: run {
+            val data = openMeteo.getWeather(lat, lon, date)
+            OceanDataCache.putWeather(lat, lon, date, data)
+            data
+        }
+        
+        // Fetch ocean/swell data (with caching)
+        val ocean = OceanDataCache.getOcean(lat, lon, date) ?: run {
+            val data = openMeteo.getMarineData(lat, lon, date)
+            OceanDataCache.putOcean(lat, lon, date, data)
+            data
+        }
+        
+        // Fetch water quality - already cached internally
+        val waterQuality = copernicus.getWaterQuality(lat, lon, date)
+        
+        // Fetch tide data (with caching)
+        val tideData = OceanDataCache.getTide(lat, lon, date) ?: run {
+            val data = tidesClient.getTideData(lat, lon, date)
+            OceanDataCache.putTide(lat, lon, date, data)
+            data
+        }
 
         // Get community reports for the spot's region
         val region = inferRegionFromSpotId(spotId)
@@ -148,7 +192,7 @@ class SpotService {
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = "${weather.windSpeed.toInt()} knots",
-                tideState = "rising",
+                tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                 currentStrength = "Turbidity: ${String.format("%.1f", waterQuality.turbidity ?: 0.0)} NTU (${waterQuality.turbidityCategory})"
             ),
             forecast = forecast,

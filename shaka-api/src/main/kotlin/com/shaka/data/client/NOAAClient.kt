@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory
  * 
  * Data sources:
  * - NOAA CoastWatch ERDDAP: Sea Surface Temperature (SST)
+ * - NOAA CoastWatch VIIRS: Chlorophyll-a concentration
  * - Uses Multi-scale Ultra-high Resolution (MUR) SST Analysis
  * 
  * API: https://coastwatch.pfeg.noaa.gov/erddap/griddap/
@@ -39,6 +40,13 @@ class NOAAClient {
         
         // NOAA GHRSST Level 4 (alternative, global coverage)
         private const val GHRSST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nceiPH53sstd1day.json"
+        
+        // NOAA CoastWatch VIIRS Chlorophyll-a (daily, ~750m resolution)
+        // Science Quality chlorophyll from NOAA NESDIS
+        private const val VIIRS_CHL_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nesdisVHNSQchlaDaily.json"
+        
+        // Alternative: MODIS Aqua chlorophyll (backup)
+        private const val MODIS_CHL_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1chla1day.json"
     }
 
     /**
@@ -58,6 +66,106 @@ class NOAAClient {
             logger.warn("NOAA SST fetch failed for ($lat, $lon): ${e.message}")
             // Return regional estimate as fallback
             getRegionalSSTEstimate(lat, lon, date)
+        }
+    }
+
+    /**
+     * Get chlorophyll-a concentration from NOAA VIIRS satellite data.
+     * Returns chlorophyll in mg/m³.
+     * 
+     * Chlorophyll-a interpretation:
+     * - 0.1-0.3 mg/m³: Very clear (oligotrophic, like Hawaii)
+     * - 0.3-1.0 mg/m³: Clear to moderate
+     * - 1.0-5.0 mg/m³: Productive coastal waters
+     * - >5.0 mg/m³: High productivity / potential bloom
+     * 
+     * @param lat Latitude
+     * @param lon Longitude  
+     * @param date Date in YYYY-MM-DD format
+     * @return Chlorophyll-a in mg/m³, or null if unavailable
+     */
+    suspend fun getChlorophyll(lat: Double, lon: Double, date: String): Double? {
+        return try {
+            // Try VIIRS first (most current)
+            getVIIRSChlorophyll(lat, lon, date) ?: getMODISChlorophyll(lat, lon, date)
+        } catch (e: Exception) {
+            logger.warn("NOAA Chlorophyll fetch failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Query VIIRS chlorophyll dataset from NOAA NESDIS.
+     * Science Quality daily chlorophyll, ~750m resolution.
+     */
+    private suspend fun getVIIRSChlorophyll(lat: Double, lon: Double, date: String): Double? {
+        return try {
+            // Query a small area around the point
+            val latMin = lat - 0.1
+            val latMax = lat + 0.1
+            val lonMin = lon - 0.1
+            val lonMax = lon + 0.1
+            
+            // VIIRS uses date format without time
+            val url = "$VIIRS_CHL_URL?chlor_a[($date)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            
+            logger.debug("Fetching VIIRS chlorophyll: $url")
+            val response: String = client.get(url).bodyAsText()
+            
+            parseChlorophyllFromERDDAP(response)
+        } catch (e: Exception) {
+            logger.debug("VIIRS chlorophyll unavailable: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Query MODIS Aqua chlorophyll as backup.
+     * Daily chlorophyll, ~4km resolution.
+     */
+    private suspend fun getMODISChlorophyll(lat: Double, lon: Double, date: String): Double? {
+        return try {
+            val latMin = lat - 0.1
+            val latMax = lat + 0.1
+            val lonMin = lon - 0.1
+            val lonMax = lon + 0.1
+            
+            val url = "$MODIS_CHL_URL?chlorophyll[($date)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            
+            logger.debug("Fetching MODIS chlorophyll: $url")
+            val response: String = client.get(url).bodyAsText()
+            
+            parseChlorophyllFromERDDAP(response)
+        } catch (e: Exception) {
+            logger.debug("MODIS chlorophyll unavailable: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Parse chlorophyll value from ERDDAP JSON response.
+     */
+    private fun parseChlorophyllFromERDDAP(jsonResponse: String): Double? {
+        return try {
+            // ERDDAP JSON format has data in "table" -> "rows" array
+            val regex = """"rows"\s*:\s*\[\s*\[([^\]]+)\]""".toRegex()
+            val match = regex.find(jsonResponse)
+            
+            if (match != null) {
+                val rowData = match.groupValues[1]
+                // Chlorophyll is typically the last value
+                val values = rowData.split(",").map { it.trim().replace("\"", "") }
+                val chlValue = values.lastOrNull()?.toDoubleOrNull()
+                
+                if (chlValue != null && chlValue > 0 && chlValue < 100) {
+                    logger.debug("Parsed chlorophyll: $chlValue mg/m³")
+                    return chlValue
+                }
+            }
+            null
+        } catch (e: Exception) {
+            logger.debug("Chlorophyll parsing failed: ${e.message}")
+            null
         }
     }
 
