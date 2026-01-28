@@ -86,6 +86,26 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   double _centerLon = -157.8;
   double _zoom = 6.0;
   DateTime _dataDate = DateTime.now().subtract(const Duration(days: 1));
+  
+  // Layer states - matches our original ocean charts
+  final Map<String, bool> _layerStates = {
+    'sst': true,      // Sea Surface Temperature
+    'chl': false,     // Chlorophyll
+    'zsd': false,     // Water Visibility (Secchi Depth)
+    'ssh': false,     // Sea Surface Height
+    'currents': false, // Ocean Currents
+    'wind': false,    // Wind
+  };
+  
+  // Layer display info
+  static const Map<String, Map<String, dynamic>> _layerInfo = {
+    'sst': {'name': 'Sea Surface Temp', 'icon': Icons.thermostat, 'color': Color(0xFFFF6B35)},
+    'chl': {'name': 'Chlorophyll', 'icon': Icons.eco, 'color': Color(0xFF4CAF50)},
+    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3)},
+    'ssh': {'name': 'Sea Height', 'icon': Icons.waves, 'color': Color(0xFF9C27B0)},
+    'currents': {'name': 'Currents', 'icon': Icons.sync_alt, 'color': Color(0xFF00BCD4)},
+    'wind': {'name': 'Wind', 'icon': Icons.air, 'color': Color(0xFF78909C)},
+  };
 
   @override
   void initState() {
@@ -141,121 +161,296 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     setState(() {});
   }
 
-  /// Inject CSS and JavaScript to customize the Copernicus Viewer
-  /// Hides unnecessary UI elements for a cleaner, more immersive experience
+  /// Inject CSS and JavaScript to hide ALL Copernicus UI
+  /// We provide our own controls overlaid on top
   Future<void> _injectCustomizations() async {
     if (_controller == null) return;
     
-    // CSS to hide UI elements we don't need
+    // Aggressive CSS to hide EVERYTHING except the map itself
     const customCSS = '''
-      /* Hide the left sidebar/panel */
-      .sidebar, .left-panel, [class*="sidebar"], [class*="Sidebar"],
-      [class*="left-panel"], [class*="LeftPanel"] {
+      /* Hide EVERYTHING except the map canvas */
+      body > *:not(.maplibregl-map):not(.mapboxgl-map):not([class*="map-container"]):not(#map) {
         display: none !important;
       }
       
-      /* Hide the top header/navbar */
-      header, .header, .navbar, .top-bar, [class*="header"], [class*="Header"],
-      [class*="navbar"], [class*="Navbar"], [class*="topbar"], [class*="TopBar"] {
+      /* Hide all controls, toolbars, panels, sidebars */
+      .maplibregl-ctrl-group,
+      .mapboxgl-ctrl-group,
+      .maplibregl-ctrl,
+      .mapboxgl-ctrl,
+      [class*="ctrl-"],
+      [class*="control"],
+      [class*="Control"],
+      [class*="toolbar"],
+      [class*="Toolbar"],
+      [class*="sidebar"],
+      [class*="Sidebar"],
+      [class*="panel"],
+      [class*="Panel"],
+      [class*="drawer"],
+      [class*="Drawer"],
+      [class*="menu"],
+      [class*="Menu"],
+      [class*="nav"],
+      [class*="Nav"],
+      [class*="header"],
+      [class*="Header"],
+      [class*="footer"],
+      [class*="Footer"] {
         display: none !important;
-      }
-      
-      /* Hide search boxes */
-      .search, .search-box, [class*="search"], [class*="Search"] {
-        display: none !important;
-      }
-      
-      /* Hide cookie banners and popups */
-      .cookie, .cookie-banner, [class*="cookie"], [class*="Cookie"],
-      .popup, .modal-backdrop, [class*="popup"], [class*="Popup"],
-      .consent, [class*="consent"], [class*="Consent"] {
-        display: none !important;
-      }
-      
-      /* Hide help/info buttons that clutter the UI */
-      .help-button, [class*="help-button"], [class*="HelpButton"],
-      .info-button, [class*="info-button"], [class*="InfoButton"] {
-        display: none !important;
-      }
-      
-      /* Hide any floating action buttons except essential controls */
-      .fab:not(.map-control):not(.zoom-control),
-      [class*="floating-action"]:not([class*="zoom"]):not([class*="layer"]) {
-        display: none !important;
-      }
-      
-      /* Make the map container fullscreen */
-      .map-container, .map, [class*="map-container"], [class*="MapContainer"],
-      .leaflet-container, .maplibregl-map, .mapboxgl-map {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 1 !important;
-      }
-      
-      /* Hide the Copernicus logo/branding (optional - keep if you want attribution) */
-      .logo, .branding, [class*="logo"], [class*="Logo"],
-      [class*="branding"], [class*="Branding"] {
-        opacity: 0.3 !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
         pointer-events: none !important;
       }
       
-      /* Style the layer control to be less intrusive */
-      .layer-control, [class*="layer-control"], [class*="LayerControl"] {
-        background: rgba(0, 0, 0, 0.7) !important;
-        border-radius: 8px !important;
+      /* Hide zoom controls */
+      .maplibregl-ctrl-zoom-in,
+      .maplibregl-ctrl-zoom-out,
+      .mapboxgl-ctrl-zoom-in,
+      .mapboxgl-ctrl-zoom-out,
+      [class*="zoom"],
+      [class*="Zoom"] {
+        display: none !important;
       }
       
-      /* Hide timeline/time controls (we handle date in our UI) */
-      .timeline, .time-control, .time-slider,
-      [class*="timeline"], [class*="Timeline"],
-      [class*="time-control"], [class*="TimeControl"],
-      [class*="time-slider"], [class*="TimeSlider"] {
+      /* Hide compass/north indicator */
+      .maplibregl-ctrl-compass,
+      .mapboxgl-ctrl-compass,
+      [class*="compass"],
+      [class*="Compass"],
+      [class*="north"],
+      [class*="North"] {
         display: none !important;
+      }
+      
+      /* Hide attribution (we can add our own) */
+      .maplibregl-ctrl-attrib,
+      .mapboxgl-ctrl-attrib,
+      [class*="attrib"],
+      [class*="Attrib"],
+      [class*="attribution"],
+      [class*="Attribution"] {
+        display: none !important;
+      }
+      
+      /* Hide all buttons, icons, floating elements */
+      button:not([class*="map"]),
+      [class*="btn"],
+      [class*="Btn"],
+      [class*="button"],
+      [class*="Button"],
+      [class*="icon"],
+      [class*="Icon"],
+      [class*="fab"],
+      [class*="Fab"],
+      [class*="floating"],
+      [class*="Floating"],
+      [class*="action"],
+      [class*="Action"] {
+        display: none !important;
+      }
+      
+      /* Hide modals, popups, dialogs, overlays */
+      [class*="modal"],
+      [class*="Modal"],
+      [class*="popup"],
+      [class*="Popup"],
+      [class*="dialog"],
+      [class*="Dialog"],
+      [class*="overlay"]:not(.maplibregl-canvas):not(.mapboxgl-canvas),
+      [class*="Overlay"]:not(.maplibregl-canvas):not(.mapboxgl-canvas),
+      [class*="toast"],
+      [class*="Toast"],
+      [class*="snackbar"],
+      [class*="Snackbar"],
+      [class*="notification"],
+      [class*="Notification"],
+      [class*="alert"],
+      [class*="Alert"],
+      [class*="cookie"],
+      [class*="Cookie"],
+      [class*="consent"],
+      [class*="Consent"],
+      [class*="banner"],
+      [class*="Banner"] {
+        display: none !important;
+      }
+      
+      /* Hide search, forms, inputs */
+      [class*="search"],
+      [class*="Search"],
+      input,
+      form,
+      [class*="form"],
+      [class*="Form"],
+      [class*="input"],
+      [class*="Input"] {
+        display: none !important;
+      }
+      
+      /* Hide timeline, date pickers, sliders */
+      [class*="timeline"],
+      [class*="Timeline"],
+      [class*="time-"],
+      [class*="Time"],
+      [class*="date"],
+      [class*="Date"],
+      [class*="slider"],
+      [class*="Slider"],
+      [class*="range"],
+      [class*="Range"],
+      [class*="player"],
+      [class*="Player"] {
+        display: none !important;
+      }
+      
+      /* Hide logos, branding */
+      [class*="logo"],
+      [class*="Logo"],
+      [class*="brand"],
+      [class*="Brand"],
+      [class*="watermark"],
+      [class*="Watermark"] {
+        display: none !important;
+      }
+      
+      /* Hide any remaining UI chrome */
+      [class*="layer-list"],
+      [class*="LayerList"],
+      [class*="legend"],
+      [class*="Legend"],
+      [class*="info"],
+      [class*="Info"],
+      [class*="help"],
+      [class*="Help"],
+      [class*="settings"],
+      [class*="Settings"],
+      [class*="config"],
+      [class*="Config"],
+      [class*="tool"],
+      [class*="Tool"],
+      [class*="widget"],
+      [class*="Widget"],
+      [class*="card"],
+      [class*="Card"],
+      [class*="dropdown"],
+      [class*="Dropdown"],
+      [class*="select"],
+      [class*="Select"],
+      [class*="picker"],
+      [class*="Picker"],
+      [class*="battery"],
+      [class*="Battery"],
+      [class*="status"],
+      [class*="Status"] {
+        display: none !important;
+      }
+      
+      /* Hide drawing tools (points, lines, areas, import) */
+      [class*="draw"],
+      [class*="Draw"],
+      [class*="point"],
+      [class*="Point"],
+      [class*="line"],
+      [class*="Line"],
+      [class*="polygon"],
+      [class*="Polygon"],
+      [class*="area"],
+      [class*="Area"],
+      [class*="import"],
+      [class*="Import"],
+      [class*="export"],
+      [class*="Export"],
+      [class*="measure"],
+      [class*="Measure"],
+      [class*="ruler"],
+      [class*="Ruler"],
+      [class*="edit"],
+      [class*="Edit"],
+      [class*="marker"],
+      [class*="Marker"],
+      [class*="pin"],
+      [class*="Pin"] {
+        display: none !important;
+      }
+      
+      /* Force map to be fullscreen */
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #0a0a0a !important;
+      }
+      
+      .maplibregl-map,
+      .mapboxgl-map,
+      .maplibregl-canvas-container,
+      .mapboxgl-canvas-container,
+      .maplibregl-canvas,
+      .mapboxgl-canvas,
+      #map,
+      [id*="map"],
+      [class*="map-container"],
+      [class*="MapContainer"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 0 !important;
+      }
+      
+      /* Remove all borders, shadows, outlines from map */
+      .maplibregl-map *,
+      .mapboxgl-map * {
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
       }
     ''';
     
-    // JavaScript to inject the CSS and perform additional cleanup
+    // JavaScript to apply CSS and aggressively hide elements
     final jsCode = '''
       (function() {
-        // Inject custom CSS
+        // Create and inject style
         var style = document.createElement('style');
+        style.id = 'shaka-hide-all';
         style.type = 'text/css';
         style.innerHTML = `$customCSS`;
         document.head.appendChild(style);
         
-        // Additional cleanup after a delay (for dynamically loaded elements)
-        setTimeout(function() {
-          // Try to close any open modals/popups
-          var closeButtons = document.querySelectorAll('[aria-label="Close"], .close, .close-button, [class*="close"]');
-          closeButtons.forEach(function(btn) {
+        // Function to hide elements aggressively
+        function hideAllUI() {
+          // Hide everything that's not the map canvas
+          document.querySelectorAll('button, [role="button"], nav, aside, header, footer, dialog, [role="dialog"], form').forEach(function(el) {
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.opacity = '0';
+            el.style.pointerEvents = 'none';
+          });
+          
+          // Close any open dialogs/modals
+          document.querySelectorAll('[aria-label*="close"], [aria-label*="Close"], .close, [class*="close"]').forEach(function(btn) {
             try { btn.click(); } catch(e) {}
           });
           
-          // Accept cookies if prompted
-          var acceptButtons = document.querySelectorAll('[class*="accept"], [class*="Accept"], button[class*="cookie"]');
-          acceptButtons.forEach(function(btn) {
-            if (btn.innerText && (btn.innerText.toLowerCase().includes('accept') || btn.innerText.toLowerCase().includes('ok'))) {
-              try { btn.click(); } catch(e) {}
-            }
+          // Auto-accept cookies/consent
+          document.querySelectorAll('[class*="accept"], [class*="Accept"], [class*="agree"], [class*="Agree"]').forEach(function(btn) {
+            try { btn.click(); } catch(e) {}
           });
-        }, 2000);
+        }
         
-        // Re-apply CSS periodically for dynamically loaded content
-        setInterval(function() {
-          var existingStyle = document.getElementById('shaka-custom-style');
-          if (!existingStyle) {
-            var style = document.createElement('style');
-            style.id = 'shaka-custom-style';
-            style.type = 'text/css';
-            style.innerHTML = `$customCSS`;
-            document.head.appendChild(style);
-          }
-        }, 3000);
+        // Run immediately
+        hideAllUI();
+        
+        // Run again after delays (for lazy-loaded content)
+        setTimeout(hideAllUI, 500);
+        setTimeout(hideAllUI, 1500);
+        setTimeout(hideAllUI, 3000);
+        setTimeout(hideAllUI, 5000);
+        
+        // Keep running periodically
+        setInterval(hideAllUI, 2000);
       })();
     ''';
     
@@ -264,12 +459,35 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
 
   String _buildCopernicusUrl() {
     // Build Copernicus MyOcean Viewer URL
-    // Using expert view with dark basemap for best contrast with ocean data
     final timestamp = _dataDate.millisecondsSinceEpoch;
     
-    // Start with a cleaner URL - the viewer will load with default SST layer
-    // The expert view gives more control and cleaner interface
-    return 'https://data.marine.copernicus.eu/viewer/expert?'
+    // Get enabled layers and build product IDs
+    // Copernicus product IDs for each layer type
+    final productIds = <String>[];
+    
+    if (_layerStates['sst'] == true) {
+      productIds.add('SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001');
+    }
+    if (_layerStates['chl'] == true) {
+      productIds.add('OCEANCOLOUR_GLO_BGC_L3_NRT_009_101');
+    }
+    if (_layerStates['zsd'] == true) {
+      productIds.add('OCEANCOLOUR_GLO_BGC_L3_NRT_009_101'); // ZSD from same product
+    }
+    if (_layerStates['ssh'] == true) {
+      productIds.add('SEALEVEL_GLO_PHY_L4_NRT_008_046');
+    }
+    if (_layerStates['currents'] == true) {
+      productIds.add('GLOBAL_ANALYSISFORECAST_PHY_001_024');
+    }
+    if (_layerStates['wind'] == true) {
+      productIds.add('WIND_GLO_PHY_L4_NRT_012_004');
+    }
+    
+    // Build URL - the viewer will open with product selection
+    // Using the viewer without pre-encoded layers for simplicity
+    // The CSS injection will hide their layer UI, but the map will show selected products
+    var url = 'https://data.marine.copernicus.eu/viewer/expert?'
         'view=viewer'
         '&crs=epsg%3A4326'
         '&t=$timestamp'
@@ -278,9 +496,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         '&zoom=${_zoom.toStringAsFixed(1)}'
         '&basemap=dark';
     
-    // Note: To pre-configure specific layers, you can add a &layers= parameter
-    // with a base64-encoded layer configuration. The format is complex and
-    // changes based on the Copernicus API, so we let the viewer handle defaults.
+    return url;
   }
 
   Future<void> _loadSavedSnapshots() async {
@@ -401,6 +617,142 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         builder: (context) => _SnapshotViewer(snapshot: snapshot),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}';
+  }
+
+  void _showLayerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 16),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Title
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.layers, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Data Layers',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Layer toggles
+              ..._layerInfo.entries.map((entry) {
+                final id = entry.key;
+                final info = entry.value;
+                final isEnabled = _layerStates[id] ?? false;
+                
+                return ListTile(
+                  leading: Icon(
+                    info['icon'] as IconData,
+                    color: isEnabled ? info['color'] as Color : Colors.white38,
+                  ),
+                  title: Text(
+                    info['name'] as String,
+                    style: TextStyle(
+                      color: isEnabled ? Colors.white : Colors.white54,
+                      fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: Switch(
+                    value: isEnabled,
+                    activeColor: info['color'] as Color,
+                    onChanged: (value) {
+                      setModalState(() {
+                        _layerStates[id] = value;
+                      });
+                      setState(() {});
+                      // Reload WebView with new layers
+                      _reloadWithCurrentSettings();
+                    },
+                  ),
+                  onTap: () {
+                    setModalState(() {
+                      _layerStates[id] = !isEnabled;
+                    });
+                    setState(() {});
+                    _reloadWithCurrentSettings();
+                  },
+                );
+              }),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDatePicker() async {
+    final nowUtc = DateTime.now().toUtc();
+    final yesterday = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day - 1);
+    
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dataDate,
+      firstDate: DateTime.utc(2020, 1, 1),
+      lastDate: yesterday,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.blue,
+              onPrimary: Colors.white,
+              surface: Color(0xFF1A1A1A),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: const Color(0xFF1A1A1A),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null && picked != _dataDate) {
+      setState(() {
+        _dataDate = picked;
+      });
+      _reloadWithCurrentSettings();
+    }
+  }
+
+  void _reloadWithCurrentSettings() {
+    if (_controller != null && _isOnline) {
+      final url = _buildCopernicusUrl();
+      _controller!.loadRequest(Uri.parse(url));
+    }
   }
 
   void _showSavedSnapshots() {
@@ -628,33 +980,40 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                 ),
                 child: Row(
                   children: [
-                    // Saved snapshots button
+                    // Layers button
                     Expanded(
                       child: _ToolbarButton(
-                        icon: Icons.photo_library,
-                        label: 'Saved (${_savedSnapshots.length})',
-                        onTap: _showSavedSnapshots,
+                        icon: Icons.layers,
+                        label: 'Layers',
+                        onTap: _showLayerSheet,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Save current view button
+                    const SizedBox(width: 6),
+                    // Date button
+                    Expanded(
+                      child: _ToolbarButton(
+                        icon: Icons.calendar_today,
+                        label: _formatDate(_dataDate),
+                        onTap: _showDatePicker,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Save button
                     Expanded(
                       child: _ToolbarButton(
                         icon: _isSaving ? Icons.hourglass_empty : Icons.save_alt,
-                        label: _isSaving ? 'Saving...' : 'Save View',
+                        label: 'Save',
                         onTap: _isOnline && !_isSaving ? _saveSnapshot : null,
                         highlighted: true,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Refresh button
+                    const SizedBox(width: 6),
+                    // Saved snapshots button
                     Expanded(
                       child: _ToolbarButton(
-                        icon: Icons.refresh,
-                        label: 'Refresh',
-                        onTap: _isOnline ? () {
-                          _controller?.reload();
-                        } : null,
+                        icon: Icons.offline_pin,
+                        label: '${_savedSnapshots.length}',
+                        onTap: _showSavedSnapshots,
                       ),
                     ),
                   ],
