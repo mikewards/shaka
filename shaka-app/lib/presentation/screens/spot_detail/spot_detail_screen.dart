@@ -25,13 +25,21 @@ class SpotDetailScreen extends StatefulWidget {
 }
 
 class _SpotDetailScreenState extends State<SpotDetailScreen> {
+  bool _hasLoaded = false;
+
   @override
   void initState() {
     super.initState();
-    _loadSpotDetail();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasLoaded) {
+        _hasLoaded = true;
+        _loadSpotDetail();
+      }
+    });
   }
 
   void _loadSpotDetail() {
+    debugPrint('🔍 Loading spot detail: ${widget.spotId}');
     context.read<SearchBloc>().add(LoadSpotDetail(
       spotId: widget.spotId,
       date: widget.date,
@@ -43,11 +51,25 @@ class _SpotDetailScreenState extends State<SpotDetailScreen> {
     return Scaffold(
       body: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
+          debugPrint('🔄 SpotDetailState: ${state.runtimeType}');
+          
           if (state is SpotDetailLoading) {
-            return const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.oceanBlue,
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.oceanBlue,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Loading spot details...',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
             );
           }
@@ -161,6 +183,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen> {
                       score: spot.score.overall,
                       confidence: spot.score.confidence,
                       size: ShakaScoreSize.large,
+                      showLabel: true,
                     ),
                   ],
                 ),

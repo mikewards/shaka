@@ -29,14 +29,22 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   bool _isMapView = false;
+  bool _hasLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSpots();
+    // Delay to ensure context is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasLoaded) {
+        _hasLoaded = true;
+        _loadSpots();
+      }
+    });
   }
 
   void _loadSpots() {
+    debugPrint('🔍 Loading spots: lat=${widget.lat}, lon=${widget.lon}, date=${widget.date}');
     context.read<SearchBloc>().add(SearchSpots(
       lat: widget.lat,
       lon: widget.lon,
@@ -98,11 +106,32 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ),
       body: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
+          debugPrint('🔄 SearchState: ${state.runtimeType}');
+          
           if (state is SearchLoading) {
-            return const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.oceanBlue,
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.oceanBlue,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Finding dive spots...',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This may take a moment',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
             );
           }

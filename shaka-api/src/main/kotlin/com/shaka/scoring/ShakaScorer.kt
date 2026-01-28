@@ -164,19 +164,26 @@ object ShakaScorer {
 
     /**
      * Calculate overall Shaka Score from all components.
+     * 
+     * Weights:
+     * - Visibility: 25% (most important for spearfishing)
+     * - Weather: 20% (affects surface conditions and comfort)
+     * - Swell: 15% (affects underwater visibility and safety)
+     * - Fish Activity: 15% (moon phase, season, recent sightings)
+     * - Accessibility: 10% (ease of entry)
+     * - Safety: 15% (currents, hazards, shark risk)
      */
     fun calculateOverall(breakdown: ScoreBreakdown): Int {
-        // Weighted average
-        val weights = mapOf(
-            breakdown.visibility to 0.25,
-            breakdown.weather to 0.20,
-            breakdown.swell to 0.20,
-            breakdown.fishActivity to 0.15,
-            breakdown.accessibility to 0.10,
-            breakdown.safety to 0.10
-        )
-
-        return weights.entries.sumOf { (score, weight) -> (score * weight).toInt() }
+        // Direct weighted calculation (NOT using map to avoid key collision!)
+        val weightedSum = 
+            breakdown.visibility * 0.25 +
+            breakdown.weather * 0.20 +
+            breakdown.swell * 0.15 +
+            breakdown.fishActivity * 0.15 +
+            breakdown.accessibility * 0.10 +
+            breakdown.safety * 0.15
+        
+        return weightedSum.toInt()
     }
 
     /**

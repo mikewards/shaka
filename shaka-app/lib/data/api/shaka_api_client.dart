@@ -27,6 +27,8 @@ class ShakaApiClient {
     required String date,
     int radiusKm = 160,  // ~100 miles
   }) async {
+    final stopwatch = Stopwatch()..start();
+    print('🌊 API: Searching spots at ($lat, $lon) radius=$radiusKm date=$date');
     try {
       final response = await _dio.get(
         '/spots/search',
@@ -37,8 +39,12 @@ class ShakaApiClient {
           'date': date,
         },
       );
+      stopwatch.stop();
+      print('✅ API: Search completed in ${stopwatch.elapsedMilliseconds}ms');
       return SearchResponse.fromJson(response.data);
     } on DioException catch (e) {
+      stopwatch.stop();
+      print('❌ API: Search failed after ${stopwatch.elapsedMilliseconds}ms - ${e.type}: ${e.message}');
       throw _handleError(e);
     }
   }
