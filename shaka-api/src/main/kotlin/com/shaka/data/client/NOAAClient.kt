@@ -36,17 +36,19 @@ class NOAAClient {
 
     companion object {
         // NOAA CoastWatch ERDDAP - MUR SST (0.01° resolution, daily)
+        // Updated URL: pfeg.noaa.gov now redirects to coastwatch.noaa.gov
         private const val MUR_SST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.json"
         
         // NOAA GHRSST Level 4 (alternative, global coverage)
         private const val GHRSST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nceiPH53sstd1day.json"
         
-        // NOAA CoastWatch VIIRS Chlorophyll-a (daily, ~750m resolution)
-        // Science Quality chlorophyll from NOAA NESDIS
-        private const val VIIRS_CHL_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nesdisVHNSQchlaDaily.json"
+        // NOAA CoastWatch VIIRS Chlorophyll-a (daily, ~4km resolution)
+        // Near Real-Time data from NOAA-20 VIIRS satellite
+        // Updated to use new coastwatch.noaa.gov endpoint (old pfeg redirects)
+        private const val VIIRS_CHL_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSchlaDaily.json"
         
-        // Alternative: MODIS Aqua chlorophyll (backup)
-        private const val MODIS_CHL_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/erdMH1chla1day.json"
+        // Alternative: NOAA-20 VIIRS chlorophyll (newer satellite)
+        private const val NOAA20_CHL_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwN20VIIRSchlaDaily.json"
     }
 
     /**
@@ -95,8 +97,8 @@ class NOAAClient {
      */
     suspend fun getChlorophyll(lat: Double, lon: Double, date: String): Double? {
         return try {
-            // Try VIIRS first (most current)
-            getVIIRSChlorophyll(lat, lon, date) ?: getMODISChlorophyll(lat, lon, date)
+            // Try S-NPP VIIRS first, then NOAA-20 VIIRS as backup
+            getVIIRSChlorophyll(lat, lon, date) ?: getNOAA20Chlorophyll(lat, lon, date)
         } catch (e: Exception) {
             logger.warn("NOAA Chlorophyll fetch failed for ($lat, $lon): ${e.message}")
             null
@@ -105,7 +107,8 @@ class NOAAClient {
 
     /**
      * Query VIIRS chlorophyll dataset from NOAA NESDIS.
-     * Science Quality daily chlorophyll, ~750m resolution.
+     * Near Real-Time daily chlorophyll from S-NPP VIIRS, ~4km resolution.
+     * Data source: https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSchlaDaily
      */
     private suspend fun getVIIRSChlorophyll(lat: Double, lon: Double, date: String): Double? {
         return try {
@@ -115,13 +118,17 @@ class NOAAClient {
             val lonMin = lon - 0.1
             val lonMax = lon + 0.1
             
-            // VIIRS uses date format without time
-            val url = "$VIIRS_CHL_URL?chlor_a[($date)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            // ERDDAP format: variable[(time)][(altitude)][(lat_min):(lat_max)][(lon_min):(lon_max)]
+            val url = "$VIIRS_CHL_URL?chlor_a[(${date}T12:00:00Z)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             logger.debug("Fetching VIIRS chlorophyll: $url")
             val response: String = client.get(url).bodyAsText()
             
-            parseChlorophyllFromERDDAP(response)
+            val chl = parseChlorophyllFromERDDAP(response)
+            if (chl != null) {
+                logger.info("VIIRS Chlorophyll for ($lat, $lon): ${String.format("%.3f", chl)} mg/m³")
+            }
+            chl
         } catch (e: Exception) {
             logger.debug("VIIRS chlorophyll unavailable: ${e.message}")
             null
@@ -129,24 +136,28 @@ class NOAAClient {
     }
 
     /**
-     * Query MODIS Aqua chlorophyll as backup.
-     * Daily chlorophyll, ~4km resolution.
+     * Query NOAA-20 VIIRS chlorophyll as backup.
+     * Near Real-Time daily chlorophyll from NOAA-20, ~4km resolution.
      */
-    private suspend fun getMODISChlorophyll(lat: Double, lon: Double, date: String): Double? {
+    private suspend fun getNOAA20Chlorophyll(lat: Double, lon: Double, date: String): Double? {
         return try {
             val latMin = lat - 0.1
             val latMax = lat + 0.1
             val lonMin = lon - 0.1
             val lonMax = lon + 0.1
             
-            val url = "$MODIS_CHL_URL?chlorophyll[($date)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            val url = "$NOAA20_CHL_URL?chlor_a[(${date}T12:00:00Z)][(0.0)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
-            logger.debug("Fetching MODIS chlorophyll: $url")
+            logger.debug("Fetching NOAA-20 chlorophyll: $url")
             val response: String = client.get(url).bodyAsText()
             
-            parseChlorophyllFromERDDAP(response)
+            val chl = parseChlorophyllFromERDDAP(response)
+            if (chl != null) {
+                logger.info("NOAA-20 Chlorophyll for ($lat, $lon): ${String.format("%.3f", chl)} mg/m³")
+            }
+            chl
         } catch (e: Exception) {
-            logger.debug("MODIS chlorophyll unavailable: ${e.message}")
+            logger.debug("NOAA-20 chlorophyll unavailable: ${e.message}")
             null
         }
     }

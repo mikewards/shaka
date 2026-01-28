@@ -74,18 +74,25 @@ class CopernicusClient(
         // Fetch SST from NOAA (fast) - always returns a value now
         val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
         
-        // Fetch chlorophyll from NOAA VIIRS (fast)
+        // Fetch chlorophyll from NOAA VIIRS satellite (REAL DATA)
         val chlorophyll = try {
-            noaaClient.getChlorophyll(lat, lon, date) ?: estimateChlorophyllByRegion(lat, lon)
+            noaaClient.getChlorophyll(lat, lon, date)
         } catch (e: Exception) {
-            logger.warn("NOAA chlorophyll failed, using estimate: ${e.message}")
-            estimateChlorophyllByRegion(lat, lon)
+            logger.warn("NOAA chlorophyll fetch failed: ${e.message}")
+            null
         }
         
-        val turbidity = calculateTurbidity(chlorophyll, lat, lon)
-        val visibility = calculateVisibility(chlorophyll, turbidity)
+        // Only calculate turbidity/visibility if we have real chlorophyll data
+        val turbidity = chlorophyll?.let { calculateTurbidity(it, lat, lon) }
+        val visibility = if (chlorophyll != null && turbidity != null) {
+            calculateVisibility(chlorophyll, turbidity)
+        } else null
         
-        val dataSource = "NOAA CoastWatch (SST + VIIRS Chlorophyll)"
+        val dataSource = if (chlorophyll != null) {
+            "NOAA CoastWatch (SST + VIIRS Chlorophyll)"
+        } else {
+            "NOAA CoastWatch (SST only - chlorophyll unavailable)"
+        }
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
@@ -126,30 +133,43 @@ class CopernicusClient(
         // Authenticate with Copernicus
         ensureAuthenticated()
         
-        // Query Sentinel-3 OLCI for latest chlorophyll
+        // Query Sentinel-3 OLCI for latest chlorophyll, fall back to NOAA VIIRS
         val chlorophyll = try {
             queryChlorophyllFromSentinel(lat, lon, date)
         } catch (e: Exception) {
             logger.warn("Sentinel-3 query failed: ${e.message}")
-            // Fall back to NOAA
-            noaaClient.getChlorophyll(lat, lon, date) ?: estimateChlorophyllByRegion(lat, lon)
+            // Fall back to NOAA VIIRS (still real data)
+            noaaClient.getChlorophyll(lat, lon, date)
         }
         
-        val turbidity = calculateTurbidity(chlorophyll, lat, lon)
-        val visibility = calculateVisibility(chlorophyll, turbidity)
+        // Only calculate turbidity/visibility if we have real chlorophyll data
+        val turbidity = chlorophyll?.let { calculateTurbidity(it, lat, lon) }
+        val visibility = if (chlorophyll != null && turbidity != null) {
+            calculateVisibility(chlorophyll, turbidity)
+        } else null
+        
+        val dataSource = if (chlorophyll != null) {
+            "Copernicus Sentinel-3 OLCI (Real-time)"
+        } else {
+            "NOAA CoastWatch (SST only - chlorophyll unavailable)"
+        }
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
             turbidity = turbidity,
             visibility = visibility,
             seaSurfaceTemp = sst,
-            dataSource = "Copernicus Sentinel-3 OLCI (Real-time)"
+            dataSource = dataSource
         )
         
         // Cache this premium data too
         OceanDataCache.putWaterQuality(lat, lon, date, result)
         
-        logger.info("REAL-TIME water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m")
+        if (chlorophyll != null && visibility != null) {
+            logger.info("REAL-TIME water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m")
+        } else {
+            logger.warn("REAL-TIME water quality for ($lat, $lon): chlorophyll unavailable")
+        }
         
         return result
     }
@@ -187,8 +207,9 @@ class CopernicusClient(
     /**
      * Query chlorophyll-a concentration from Sentinel-3 OLCI using Sentinel Hub Process API.
      * This is the SLOW path (~30-60 seconds) that processes raw satellite data.
+     * Returns null if data is unavailable (e.g., cloud cover).
      */
-    private suspend fun queryChlorophyllFromSentinel(lat: Double, lon: Double, date: String): Double {
+    private suspend fun queryChlorophyllFromSentinel(lat: Double, lon: Double, date: String): Double? {
         val bbox = listOf(lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01)
         
         val evalscript = """
@@ -240,18 +261,18 @@ class CopernicusClient(
             parseChlorophyllResponse(response.bodyAsText())
         } else {
             logger.warn("Sentinel Hub request failed: ${response.status}")
-            estimateChlorophyllByRegion(lat, lon)
+            null
         }
     }
 
-    private fun parseChlorophyllResponse(response: String): Double {
+    private fun parseChlorophyllResponse(response: String): Double? {
         return try {
             val valueRegex = """"mean"\s*:\s*([\d.]+)""".toRegex()
             val match = valueRegex.find(response)
-            match?.groupValues?.get(1)?.toDoubleOrNull() ?: estimateChlorophyllByRegion(0.0, 0.0)
+            match?.groupValues?.get(1)?.toDoubleOrNull()
         } catch (e: Exception) {
             logger.debug("Chlorophyll parsing failed: ${e.message}")
-            0.3
+            null
         }
     }
 
@@ -280,59 +301,6 @@ class CopernicusClient(
         return (secchiDepth * 2.7).coerceIn(1.0, 45.0)
     }
 
-    /**
-     * Estimate chlorophyll based on regional oceanographic patterns.
-     */
-    fun estimateChlorophyllByRegion(lat: Double, lon: Double): Double {
-        // Hawaii - oligotrophic clear waters
-        if (lat in 18.0..23.0 && lon in -161.0..-154.0) {
-            return 0.08 + (Math.random() * 0.15)
-        }
-        
-        // Southern California Bight
-        if (lat in 32.0..34.5 && lon in -121.0..-117.0) {
-            return 1.0 + (Math.random() * 2.5)
-        }
-        
-        // Central California - upwelling zone
-        if (lat in 34.5..38.0 && lon in -124.0..-121.0) {
-            return 2.0 + (Math.random() * 4.0)
-        }
-        
-        // Florida Keys
-        if (lat in 24.0..26.0 && lon in -82.0..-79.5) {
-            return 0.15 + (Math.random() * 0.2)
-        }
-        
-        // Caribbean
-        if (lat in 15.0..25.0 && lon in -90.0..-60.0) {
-            return 0.1 + (Math.random() * 0.15)
-        }
-        
-        // Mediterranean
-        if (lat in 30.0..45.0 && lon in -5.0..35.0) {
-            return 0.15 + (Math.random() * 0.35)
-        }
-        
-        // Indonesia/Philippines
-        if (lat in -10.0..20.0 && lon in 95.0..140.0) {
-            return 0.12 + (Math.random() * 0.2)
-        }
-        
-        // Australia - Great Barrier Reef
-        if (lat in -25.0..-10.0 && lon in 142.0..155.0) {
-            return 0.2 + (Math.random() * 0.3)
-        }
-        
-        // Default based on latitude
-        return when {
-            lat in -10.0..10.0 -> 0.15 + (Math.random() * 0.2)
-            lat in 10.0..23.0 || lat in -23.0..-10.0 -> 0.2 + (Math.random() * 0.3)
-            lat in 23.0..35.0 || lat in -35.0..-23.0 -> 0.4 + (Math.random() * 0.6)
-            lat in 35.0..50.0 || lat in -50.0..-35.0 -> 1.0 + (Math.random() * 2.0)
-            else -> 1.5 + (Math.random() * 2.5)
-        }
-    }
 }
 
 @Serializable
