@@ -256,6 +256,7 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
         children: [
           // Full-screen map
           FlutterMap(
+            key: ValueKey('map_${_baseMap}_${_selectedDate.millisecondsSinceEpoch}_${_layerStates.values.where((s) => s.enabled).map((s) => '${s.layer.id}_${s.opacity}').join('_')}'),
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _center,

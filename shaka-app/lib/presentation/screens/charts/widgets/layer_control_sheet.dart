@@ -40,104 +40,111 @@ class _LayerControlSheetState extends State<LayerControlSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A2E),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
 
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Text(
-                  'LAYERS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Text(
+                    'LAYERS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // Base map selector
-          _buildSection(
-            title: 'Base Map',
-            child: Row(
-              children: [
-                _BaseMapOption(
-                  label: 'Dark',
-                  icon: Icons.dark_mode,
-                  selected: _baseMap == 'dark',
-                  onTap: () => _setBaseMap('dark'),
-                ),
-                _BaseMapOption(
-                  label: 'Satellite',
-                  icon: Icons.satellite_alt,
-                  selected: _baseMap == 'satellite',
-                  onTap: () => _setBaseMap('satellite'),
-                ),
-                _BaseMapOption(
-                  label: 'Nautical',
-                  icon: Icons.sailing,
-                  selected: _baseMap == 'nautical',
-                  onTap: () => _setBaseMap('nautical'),
-                ),
-              ],
+            // Base map selector
+            _buildSection(
+              title: 'Base Map',
+              child: Row(
+                children: [
+                  _BaseMapOption(
+                    label: 'Dark',
+                    icon: Icons.dark_mode,
+                    selected: _baseMap == 'dark',
+                    onTap: () => _setBaseMap('dark'),
+                  ),
+                  _BaseMapOption(
+                    label: 'Satellite',
+                    icon: Icons.satellite_alt,
+                    selected: _baseMap == 'satellite',
+                    onTap: () => _setBaseMap('satellite'),
+                  ),
+                  _BaseMapOption(
+                    label: 'Nautical',
+                    icon: Icons.sailing,
+                    selected: _baseMap == 'nautical',
+                    onTap: () => _setBaseMap('nautical'),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          const Divider(color: Colors.white12, height: 1),
+            const Divider(color: Colors.white12, height: 1),
 
-          // Data overlays
-          _buildSection(
-            title: 'Data Overlays',
-            child: Column(
-              children: widget.layerStates.values.map((state) {
-                return _LayerRow(
-                  state: state,
-                  onToggle: (enabled) {
-                    widget.onLayerToggle(state.layer.id, enabled);
-                  },
-                  onOpacityChange: (opacity) {
-                    widget.onOpacityChange(state.layer.id, opacity);
-                  },
-                );
-              }).toList(),
+            // Data overlays
+            _buildSection(
+              title: 'Data Overlays',
+              child: Column(
+                children: widget.layerStates.values.map((state) {
+                  return _LayerRow(
+                    key: ValueKey('layer_${state.layer.id}_${state.enabled}_${state.opacity}'),
+                    state: state,
+                    onToggle: (enabled) {
+                      widget.onLayerToggle(state.layer.id, enabled);
+                      Navigator.pop(context); // Close sheet so map rebuilds
+                    },
+                    onOpacityChange: (opacity) {
+                      widget.onOpacityChange(state.layer.id, opacity);
+                    },
+                  );
+                }).toList(),
+              ),
             ),
-          ),
 
-          const Divider(color: Colors.white12, height: 1),
+            const Divider(color: Colors.white12, height: 1),
 
-          // Time selector
-          _buildSection(
-            title: 'Time',
-            child: _buildTimeScrubber(),
-          ),
+            // Time selector
+            _buildSection(
+              title: 'Time',
+              child: _buildTimeScrubber(),
+            ),
 
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-        ],
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          ],
+        ),
       ),
     );
   }
@@ -317,6 +324,7 @@ class _LayerRow extends StatefulWidget {
   final Function(double) onOpacityChange;
 
   const _LayerRow({
+    super.key,
     required this.state,
     required this.onToggle,
     required this.onOpacityChange,
