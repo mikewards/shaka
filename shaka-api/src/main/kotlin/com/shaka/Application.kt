@@ -9,12 +9,10 @@ import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.plugins.calllogging.*
 import io.ktor.http.*
 import io.ktor.server.response.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import org.slf4j.event.Level
 
 private val logger = LoggerFactory.getLogger("Application")
 
@@ -29,10 +27,6 @@ fun main() {
 fun Application.module() {
     // Initialize database connection
     initDatabase()
-    
-    install(CallLogging) {
-        level = Level.INFO
-    }
     
     install(CORS) {
         anyHost()
