@@ -117,8 +117,9 @@ class OceanLayer {
     name: 'Wind (10m)',
     shortName: 'WIND',
     // Global Ocean Wind L4 NRT - hourly blended product with vector wind data
+    // vectorStyle options: solid (color only), solidAndVector (color + arrows), vector (arrows only)
     wmtsLayer: 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207/wind',
-    style: 'vectorStyle:solid,cmap:speed',
+    style: 'vectorStyle:solidAndVector,cmap:speed',
     unit: 'm/s',
     icon: Icons.air,
     color: Color(0xFF607D8B),
