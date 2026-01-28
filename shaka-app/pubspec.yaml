@@ -34,6 +34,15 @@ dependencies:
   # Caching
   flutter_cache_manager: ^3.3.2
 
+  # WebView for Copernicus Viewer
+  webview_flutter: ^4.4.2
+  
+  # Connectivity
+  connectivity_plus: ^5.0.2
+  
+  # File storage
+  path_provider: ^2.1.1
+
   # Utils
   intl: ^0.18.1
   geolocator: ^10.1.0
