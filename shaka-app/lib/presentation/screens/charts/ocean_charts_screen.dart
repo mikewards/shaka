@@ -493,30 +493,36 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
           ],
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _ToolbarButton(
-            icon: Icons.layers,
-            label: 'Layers',
-            onTap: _openLayerControls,
-          ),
-          _ToolbarButton(
-            icon: Icons.calendar_today,
-            label: _formatDate(_selectedDate),
-            onTap: _openLayerControls,
-          ),
-          _ToolbarButton(
-            icon: _showLegend ? Icons.legend_toggle : Icons.legend_toggle_outlined,
-            label: 'Legend',
-            onTap: () => setState(() => _showLegend = !_showLegend),
-          ),
-          _ToolbarButton(
-            icon: Icons.download_for_offline,
-            label: 'Offline',
-            onTap: _openOfflineMenu,
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _ToolbarButton(
+              icon: Icons.layers,
+              label: 'Layers',
+              onTap: _openLayerControls,
+            ),
+            const SizedBox(width: 8),
+            _ToolbarButton(
+              icon: Icons.calendar_today,
+              label: _formatDate(_selectedDate),
+              onTap: _openLayerControls,
+            ),
+            const SizedBox(width: 8),
+            _ToolbarButton(
+              icon: _showLegend ? Icons.legend_toggle : Icons.legend_toggle_outlined,
+              label: 'Legend',
+              onTap: () => setState(() => _showLegend = !_showLegend),
+            ),
+            const SizedBox(width: 8),
+            _ToolbarButton(
+              icon: Icons.download_for_offline,
+              label: 'Offline',
+              onTap: _openOfflineMenu,
+            ),
+          ],
+        ),
       ),
     );
   }
