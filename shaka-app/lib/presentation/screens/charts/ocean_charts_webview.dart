@@ -264,6 +264,29 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
             el.style.cssText = 'display: none !important;';
           });
           
+          // Hide North Pole and South Pole labels
+          document.querySelectorAll('*').forEach(function(el) {
+            var text = (el.innerText || el.textContent || '').toLowerCase().trim();
+            if (text === 'north pole' || text === 'south pole' || 
+                text === 'northpole' || text === 'southpole' ||
+                text === 'n pole' || text === 's pole') {
+              el.style.cssText = 'display: none !important;';
+            }
+          });
+          
+          // Remove any right border/line artifacts
+          document.body.style.cssText += 'overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
+          document.documentElement.style.cssText += 'overflow: hidden !important; margin: 0 !important; padding: 0 !important;';
+          
+          // Hide any thin vertical lines on edges
+          allElements.forEach(function(el) {
+            var rect = el.getBoundingClientRect();
+            // Very thin element on right edge
+            if (rect.width <= 2 && rect.height > 100 && rect.right >= window.innerWidth - 5) {
+              el.style.cssText = 'display: none !important;';
+            }
+          });
+          
           // Hide SVG icons (often used for controls)
           document.querySelectorAll('svg').forEach(function(svg) {
             var parent = svg.parentElement;
@@ -566,13 +589,14 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
 
   void _showDatePicker() async {
     final nowUtc = DateTime.now().toUtc();
-    final yesterday = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day - 1);
+    // Allow dates from 2020 to 10 days in the future (for forecasts)
+    final futureDate = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day + 10);
     
     final picked = await showDatePicker(
       context: context,
       initialDate: _dataDate,
       firstDate: DateTime.utc(2020, 1, 1),
-      lastDate: yesterday,
+      lastDate: futureDate,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -770,37 +794,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ),
-                  // Connection status
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _isOnline ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _isOnline ? Colors.green : Colors.orange,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _isOnline ? Icons.wifi : Icons.wifi_off,
-                          color: _isOnline ? Colors.green : Colors.orange,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _isOnline ? 'Live' : 'Offline',
-                          style: TextStyle(
-                            color: _isOnline ? Colors.green : Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
