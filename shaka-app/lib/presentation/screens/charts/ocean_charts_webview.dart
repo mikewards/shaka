@@ -161,145 +161,145 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     setState(() {});
   }
 
-  /// Inject CSS and JavaScript to hide Copernicus UI elements
-  /// We provide our own controls overlaid on top
+  /// Inject JavaScript to hide ALL Copernicus UI elements by position and structure
+  /// Uses aggressive DOM manipulation since CSS class names are dynamically generated
   Future<void> _injectCustomizations() async {
     if (_controller == null) return;
     
-    // More targeted CSS - only hide specific UI elements, not the map
-    const customCSS = '''
-      /* Hide the Copernicus control panels and toolbars */
-      .maplibregl-ctrl-group,
-      .maplibregl-ctrl-top-left,
-      .maplibregl-ctrl-top-right,
-      .maplibregl-ctrl-bottom-left,
-      .maplibregl-ctrl-bottom-right,
-      .mapboxgl-ctrl-group,
-      .mapboxgl-ctrl-top-left,
-      .mapboxgl-ctrl-top-right,
-      .mapboxgl-ctrl-bottom-left,
-      .mapboxgl-ctrl-bottom-right {
-        display: none !important;
-      }
-      
-      /* Hide navigation controls (zoom, compass) */
-      .maplibregl-ctrl-nav,
-      .mapboxgl-ctrl-nav,
-      .maplibregl-ctrl-zoom,
-      .mapboxgl-ctrl-zoom,
-      .maplibregl-ctrl-compass,
-      .mapboxgl-ctrl-compass {
-        display: none !important;
-      }
-      
-      /* Hide attribution */
-      .maplibregl-ctrl-attrib,
-      .mapboxgl-ctrl-attrib {
-        display: none !important;
-      }
-      
-      /* Hide any fixed/absolute positioned UI overlays */
-      div[style*="position: fixed"]:not([class*="map"]),
-      div[style*="position: absolute"]:not([class*="map"]):not([class*="canvas"]) {
-        /* Be careful here - only hide if clearly UI */
-      }
-      
-      /* Hide specific Copernicus UI elements by common patterns */
-      [data-testid],
-      [class*="MuiDrawer"],
-      [class*="MuiAppBar"],
-      [class*="MuiToolbar"],
-      [class*="MuiPaper"]:not([class*="map"]),
-      [class*="MuiDialog"],
-      [class*="MuiModal"],
-      [class*="MuiBackdrop"],
-      [class*="MuiSnackbar"],
-      [class*="MuiAlert"],
-      [class*="MuiMenu"],
-      [class*="MuiPopover"],
-      [class*="MuiFab"],
-      [class*="MuiSpeedDial"] {
-        display: none !important;
-        visibility: hidden !important;
-      }
-      
-      /* Hide cookie/consent banners */
-      [class*="cookie"],
-      [class*="Cookie"],
-      [class*="consent"],
-      [class*="Consent"],
-      [class*="gdpr"],
-      [class*="GDPR"],
-      [id*="cookie"],
-      [id*="consent"] {
-        display: none !important;
-      }
-      
-      /* Make sure the map canvas stays visible and fullscreen */
-      .maplibregl-canvas,
-      .mapboxgl-canvas {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-      }
-    ''';
-    
-    // JavaScript to apply CSS and hide specific elements
-    final jsCode = '''
+    // JavaScript that aggressively hides UI by analyzing element positions and roles
+    const jsCode = '''
       (function() {
-        // Create and inject style
-        var existingStyle = document.getElementById('shaka-custom-css');
-        if (existingStyle) existingStyle.remove();
+        // Track the map canvas element
+        var mapCanvas = null;
         
-        var style = document.createElement('style');
-        style.id = 'shaka-custom-css';
-        style.type = 'text/css';
-        style.innerHTML = `$customCSS`;
-        document.head.appendChild(style);
+        function findMapCanvas() {
+          // Find the actual map canvas
+          var canvases = document.querySelectorAll('canvas');
+          for (var i = 0; i < canvases.length; i++) {
+            var c = canvases[i];
+            // The map canvas is usually large and covers most of the viewport
+            if (c.offsetWidth > window.innerWidth * 0.5 && c.offsetHeight > window.innerHeight * 0.5) {
+              mapCanvas = c;
+              return c;
+            }
+          }
+          return null;
+        }
         
-        // Function to hide specific UI elements
+        function isPartOfMap(el) {
+          if (!el || !mapCanvas) return false;
+          // Check if element is the canvas or contains it
+          if (el === mapCanvas) return true;
+          if (el.contains(mapCanvas)) return true;
+          // Check if element is inside the map container
+          var parent = mapCanvas.parentElement;
+          while (parent) {
+            if (parent === el) return true;
+            if (parent.contains(el) && el.contains(mapCanvas)) return true;
+            parent = parent.parentElement;
+          }
+          return false;
+        }
+        
         function hideUI() {
-          // Hide Material UI components (Copernicus uses MUI)
-          document.querySelectorAll('[class*="MuiDrawer"], [class*="MuiAppBar"], [class*="MuiToolbar"], [class*="MuiFab"], [class*="MuiSpeedDial"]').forEach(function(el) {
-            el.style.display = 'none';
-          });
+          findMapCanvas();
           
-          // Hide any dialogs/modals
-          document.querySelectorAll('[role="dialog"], [role="alertdialog"], [class*="MuiDialog"], [class*="MuiModal"]').forEach(function(el) {
-            el.style.display = 'none';
-          });
+          // Get all direct children of body
+          var bodyChildren = document.body.children;
+          for (var i = 0; i < bodyChildren.length; i++) {
+            var child = bodyChildren[i];
+            // Keep the element that contains the map, hide everything else
+            if (!isPartOfMap(child) && !child.contains(mapCanvas)) {
+              child.style.cssText = 'display: none !important; visibility: hidden !important;';
+            }
+          }
           
-          // Hide backdrop/overlay
-          document.querySelectorAll('[class*="MuiBackdrop"], [class*="backdrop"], [class*="overlay"]').forEach(function(el) {
-            if (!el.classList.contains('maplibregl-canvas') && !el.classList.contains('mapboxgl-canvas')) {
-              el.style.display = 'none';
+          // Hide elements positioned in corners (controls, toolbars)
+          var allElements = document.querySelectorAll('*');
+          allElements.forEach(function(el) {
+            if (el === mapCanvas || el.tagName === 'CANVAS') return;
+            if (el.contains(mapCanvas)) return;
+            
+            var style = window.getComputedStyle(el);
+            var pos = style.position;
+            
+            // Hide fixed/absolute positioned elements (UI overlays)
+            if (pos === 'fixed' || pos === 'absolute') {
+              var rect = el.getBoundingClientRect();
+              
+              // Skip if it's the map container itself
+              if (rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8) {
+                return;
+              }
+              
+              // Hide elements in corners (controls)
+              var inCorner = (rect.left < 100 || rect.right > window.innerWidth - 100) &&
+                            (rect.top < 100 || rect.bottom > window.innerHeight - 100);
+              
+              // Hide elements that look like toolbars (full width at top or bottom)
+              var isToolbar = (rect.width > window.innerWidth * 0.5) && 
+                             (rect.height < 100) &&
+                             (rect.top < 80 || rect.bottom > window.innerHeight - 80);
+              
+              // Hide sidebars (narrow, full height)
+              var isSidebar = (rect.height > window.innerHeight * 0.5) &&
+                             (rect.width < 400) &&
+                             (rect.left < 50 || rect.right > window.innerWidth - 50);
+              
+              if (inCorner || isToolbar || isSidebar) {
+                el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              }
             }
           });
           
-          // Try to close any open dialogs by clicking close buttons
-          document.querySelectorAll('[aria-label="close"], [aria-label="Close"], button[class*="close"]').forEach(function(btn) {
+          // Hide buttons, icons, controls by role
+          document.querySelectorAll('button, [role="button"], [role="toolbar"], [role="navigation"], [role="menu"], [role="dialog"], [role="alertdialog"], nav, aside, header, footer').forEach(function(el) {
+            if (!isPartOfMap(el) && !el.contains(mapCanvas)) {
+              el.style.cssText = 'display: none !important;';
+            }
+          });
+          
+          // Hide by aria-labels commonly used for controls
+          document.querySelectorAll('[aria-label*="zoom"], [aria-label*="Zoom"], [aria-label*="compass"], [aria-label*="Compass"], [aria-label*="north"], [aria-label*="North"], [aria-label*="search"], [aria-label*="Search"], [aria-label*="menu"], [aria-label*="Menu"], [aria-label*="layer"], [aria-label*="Layer"], [aria-label*="tool"], [aria-label*="Tool"], [aria-label*="draw"], [aria-label*="Draw"], [aria-label*="measure"], [aria-label*="settings"], [aria-label*="Settings"]').forEach(function(el) {
+            el.style.cssText = 'display: none !important;';
+          });
+          
+          // Hide SVG icons (often used for controls)
+          document.querySelectorAll('svg').forEach(function(svg) {
+            var parent = svg.parentElement;
+            if (parent && (parent.tagName === 'BUTTON' || parent.getAttribute('role') === 'button')) {
+              parent.style.cssText = 'display: none !important;';
+            }
+          });
+          
+          // Click any close buttons on dialogs
+          document.querySelectorAll('[aria-label*="close"], [aria-label*="Close"]').forEach(function(btn) {
             try { btn.click(); } catch(e) {}
           });
           
-          // Accept cookies if there's a consent dialog
+          // Accept cookie/consent dialogs
           document.querySelectorAll('button').forEach(function(btn) {
-            var text = btn.innerText || btn.textContent || '';
-            if (text.toLowerCase().includes('accept') || text.toLowerCase().includes('agree') || text.toLowerCase().includes('ok')) {
-              if (btn.closest('[class*="cookie"]') || btn.closest('[class*="consent"]') || btn.closest('[class*="Cookie"]')) {
-                try { btn.click(); } catch(e) {}
-              }
+            var text = (btn.innerText || '').toLowerCase();
+            if (text.includes('accept') || text.includes('agree') || text === 'ok') {
+              try { btn.click(); } catch(e) {}
             }
           });
         }
         
-        // Run multiple times to catch dynamically loaded content
+        // Run immediately and repeatedly
         hideUI();
+        setTimeout(hideUI, 500);
         setTimeout(hideUI, 1000);
         setTimeout(hideUI, 2000);
-        setTimeout(hideUI, 4000);
+        setTimeout(hideUI, 3000);
+        setTimeout(hideUI, 5000);
+        setInterval(hideUI, 2000);
         
-        // Keep checking periodically
-        setInterval(hideUI, 3000);
+        // Also run on any DOM changes
+        var observer = new MutationObserver(function(mutations) {
+          hideUI();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
       })();
     ''';
     
