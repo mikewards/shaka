@@ -199,18 +199,23 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
     }
 
     // Standard Copernicus WMTS layers with caching
+    // Using @2x tilematrixset - server returns 512x512 tiles at standard coordinates
+    // This gives sharp rendering on HiDPI displays
     return TileLayer(
       urlTemplate: CopernicusWMTSService.buildLayerTileUrl(
         state.layer,
         time: timeStr,
       ),
       userAgentPackageName: 'com.shaka.app',
-      maxZoom: 12,
+      maxZoom: 10, // Copernicus data is ~4-14km resolution, higher zoom shows no more detail
+      minZoom: 3,
       tileProvider: CachedTileProvider(),
       tileBuilder: (context, tileWidget, tile) {
         return Opacity(opacity: state.opacity, child: tileWidget);
       },
-      errorTileCallback: (tile, error, stackTrace) {},
+      errorTileCallback: (tile, error, stackTrace) {
+        // Silently handle missing tiles (e.g., over land)
+      },
     );
   }
 
