@@ -4,11 +4,7 @@ import '../../core/utils/animations.dart';
 import '../../data/models/spot_models.dart';
 import 'shaka_score_badge.dart';
 
-/// Spot card with Quiet Luxury styling.
-/// 
-/// - 14dp corner radius (soft but not bubbly)
-/// - Subtle border
-/// - Text-based navigation indicator
+/// Spot card with clean, Square-inspired styling.
 class SpotCard extends StatelessWidget {
   final SpotSummary spot;
   final VoidCallback onTap;
@@ -28,13 +24,13 @@ class SpotCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border.withOpacity(0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row
+            // Header: Name + Score
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -69,50 +65,27 @@ class SpotCard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
 
-            // Conditions Row - Text only, no icons
-            Row(
-              children: [
-                _ConditionChip(label: spot.conditions.visibility),
-                const SizedBox(width: 10),
-                _ConditionChip(label: spot.conditions.swell),
-                const SizedBox(width: 10),
-                _ConditionChip(label: spot.conditions.wind),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            // Fish Preview
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: spot.expectedFish.take(3).map((fish) {
-                return Text(
-                  fish,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                );
-              }).toList(),
-            ),
+            // Conditions as clean rows
+            _ConditionSummary(conditions: spot.conditions),
 
             const SizedBox(height: 16),
 
-            // View indicator - text chevron
+            // Fish preview + View indicator
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  'View',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textMuted,
+                Expanded(
+                  child: Text(
+                    spot.expectedFish.take(3).join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 4),
                 Text(
-                  '>',
+                  'View >',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textMuted,
                   ),
@@ -126,6 +99,115 @@ class SpotCard extends StatelessWidget {
   }
 }
 
+/// Compact condition summary for spot cards
+class _ConditionSummary extends StatelessWidget {
+  final SpotConditions conditions;
+
+  const _ConditionSummary({required this.conditions});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _MiniCondition(
+              label: 'Vis',
+              value: _extractValue(conditions.visibility),
+            ),
+          ),
+          _Divider(),
+          Expanded(
+            child: _MiniCondition(
+              label: 'Temp',
+              value: _extractTemp(conditions.waterTemp),
+            ),
+          ),
+          _Divider(),
+          Expanded(
+            child: _MiniCondition(
+              label: 'Swell',
+              value: _extractSwell(conditions.swell),
+            ),
+          ),
+          _Divider(),
+          Expanded(
+            child: _MiniCondition(
+              label: 'Wind',
+              value: conditions.wind,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _extractValue(String vis) {
+    // Extract just the meters value: "45m (exceptional)" -> "45m"
+    final match = RegExp(r'(\d+m)').firstMatch(vis);
+    return match?.group(1) ?? vis;
+  }
+
+  String _extractTemp(String temp) {
+    // Extract Fahrenheit: "24°C / 75°F" -> "75°F"
+    final match = RegExp(r'(\d+°F)').firstMatch(temp);
+    return match?.group(1) ?? temp;
+  }
+
+  String _extractSwell(String swell) {
+    // Extract just the feet: "0-1ft @ 12s" -> "0-1ft"
+    final match = RegExp(r'([\d-]+ft)').firstMatch(swell);
+    return match?.group(1) ?? swell;
+  }
+}
+
+class _MiniCondition extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniCondition({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.textMuted,
+            fontSize: 10,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 28,
+      color: AppColors.border.withOpacity(0.3),
+    );
+  }
+}
+
 class _AccessBadge extends StatelessWidget {
   final String access;
 
@@ -134,41 +216,17 @@ class _AccessBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.getAccessColor(access).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         access.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: AppColors.getAccessColor(access),
-        ),
-      ),
-    );
-  }
-}
-
-class _ConditionChip extends StatelessWidget {
-  final String label;
-
-  const _ConditionChip({
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.textSecondary,
-          letterSpacing: 0.3,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
-/// Conditions card with Quiet Luxury styling.
-/// 
-/// Text-only display, no icons - let the data speak.
+/// Conditions card with clean row-based layout.
+/// Each condition gets its own row for readability.
 class ConditionsCard extends StatelessWidget {
   final SpotConditions conditions;
 
@@ -13,71 +12,80 @@ class ConditionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _ConditionItem(
-              label: 'VISIBILITY',
-              value: conditions.visibility,
+          _ConditionRow(label: 'Visibility', value: conditions.visibility),
+          _ConditionRow(label: 'Water', value: conditions.waterTemp),
+          _ConditionRow(label: 'Swell', value: conditions.swell),
+          _ConditionRow(label: 'Wind', value: conditions.wind),
+          if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
+            _ConditionRow(label: 'Tide', value: conditions.tideState),
+          if (conditions.currentStrength.isNotEmpty && 
+              !conditions.currentStrength.contains('N/A'))
+            _ConditionRow(
+              label: 'Current',
+              value: conditions.currentStrength,
+              isLast: true,
             ),
-          ),
-          Expanded(
-            child: _ConditionItem(
-              label: 'WATER',
-              value: conditions.waterTemp,
-            ),
-          ),
-          Expanded(
-            child: _ConditionItem(
-              label: 'SWELL',
-              value: conditions.swell,
-            ),
-          ),
-          Expanded(
-            child: _ConditionItem(
-              label: 'WIND',
-              value: conditions.wind,
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _ConditionItem extends StatelessWidget {
+class _ConditionRow extends StatelessWidget {
   final String label;
   final String value;
+  final bool isLast;
 
-  const _ConditionItem({
+  const _ConditionRow({
     required this.label,
     required this.value,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.textMuted,
+    return Container(
+      padding: EdgeInsets.only(
+        top: 12,
+        bottom: isLast ? 4 : 12,
+      ),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: AppColors.border.withOpacity(0.2),
+                ),
+              ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.textMuted,
+            ),
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+          Flexible(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

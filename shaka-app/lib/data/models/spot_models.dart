@@ -22,6 +22,7 @@ class SpotConditions {
   final String swell;
   final String wind;
   final String tideState;
+  final String currentStrength;
 
   const SpotConditions({
     required this.visibility,
@@ -29,6 +30,7 @@ class SpotConditions {
     required this.swell,
     required this.wind,
     this.tideState = '',
+    this.currentStrength = '',
   });
 
   factory SpotConditions.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class SpotConditions {
       swell: json['swell'] ?? '',
       wind: json['wind'] ?? '',
       tideState: json['tideState'] ?? '',
+      currentStrength: json['currentStrength'] ?? '',
     );
   }
 }
