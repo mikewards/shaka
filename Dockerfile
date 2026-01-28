@@ -2,8 +2,8 @@
 FROM gradle:8.5-jdk17 AS build
 WORKDIR /app
 
-# Copy all project files
-COPY . .
+# Copy the API project
+COPY shaka-api/ .
 
 # Build the application
 RUN gradle shadowJar --no-daemon

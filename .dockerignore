@@ -1,0 +1,24 @@
+# Gradle build outputs
+shaka-api/.gradle/
+shaka-api/build/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter app (not needed for API build)
+shaka-app/
+
+# Git
+.git/
+
+# Local env
+.env
+*.local
+
+# Logs
+*.log
