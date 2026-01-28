@@ -87,26 +87,13 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   double _zoom = 6.0;
   DateTime _dataDate = DateTime.now().subtract(const Duration(days: 1));
   
-  // Layer states - all layers from original ocean charts
-  final Map<String, bool> _layerStates = {
-    'sst': true,       // Sea Surface Temperature
-    'chl': false,      // Chlorophyll
-    'zsd': false,      // Water Visibility (Secchi Depth)
-    'waves': false,    // Wave Height
-    'wind': false,     // Wind
-    'cur': false,      // Ocean Currents
-    'mld': false,      // Mixed Layer Depth (thermocline)
-    'sal': false,      // Salinity
-    'o2': false,       // Dissolved Oxygen
-    'ssh': false,      // Sea Surface Height
-    'bathy': false,    // Bathymetry
-  };
-  
-  // Layer display info - ordered by fishing importance
-  static const Map<String, Map<String, dynamic>> _layerInfo = {
+  // Available Copernicus Marine layers
+  // Note: Layer control currently requires using the viewer's built-in layer panel
+  // These are shown for reference - actual layer selection happens in the Copernicus UI
+  static const Map<String, Map<String, dynamic>> _availableLayers = {
     'sst': {'name': 'Sea Surface Temp', 'icon': Icons.thermostat, 'color': Color(0xFFFF6B35), 'desc': 'Water temperature'},
     'chl': {'name': 'Chlorophyll', 'icon': Icons.grass, 'color': Color(0xFF4CAF50), 'desc': 'Phytoplankton / bait'},
-    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3), 'desc': 'Water clarity'},
+    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3), 'desc': 'Water clarity (Secchi)'},
     'waves': {'name': 'Wave Height', 'icon': Icons.waves, 'color': Color(0xFF3F51B5), 'desc': 'Significant wave height'},
     'wind': {'name': 'Wind', 'icon': Icons.air, 'color': Color(0xFF607D8B), 'desc': 'Surface wind speed'},
     'cur': {'name': 'Currents', 'icon': Icons.sync_alt, 'color': Color(0xFF00BCD4), 'desc': 'Current speed/direction'},
@@ -114,7 +101,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     'sal': {'name': 'Salinity', 'icon': Icons.water_drop, 'color': Color(0xFF009688), 'desc': 'Sea water salinity'},
     'o2': {'name': 'Dissolved Oxygen', 'icon': Icons.bubble_chart, 'color': Color(0xFFE91E63), 'desc': 'Oxygen levels'},
     'ssh': {'name': 'Sea Height', 'icon': Icons.trending_up, 'color': Color(0xFF9C27B0), 'desc': 'Height anomaly'},
-    'bathy': {'name': 'Bathymetry', 'icon': Icons.terrain, 'color': Color(0xFF795548), 'desc': 'Ocean floor depth'},
   };
 
   @override
@@ -269,8 +255,8 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
             }
           });
           
-          // Hide by aria-labels commonly used for controls
-          document.querySelectorAll('[aria-label*="zoom"], [aria-label*="Zoom"], [aria-label*="compass"], [aria-label*="Compass"], [aria-label*="north"], [aria-label*="North"], [aria-label*="search"], [aria-label*="Search"], [aria-label*="menu"], [aria-label*="Menu"], [aria-label*="layer"], [aria-label*="Layer"], [aria-label*="tool"], [aria-label*="Tool"], [aria-label*="draw"], [aria-label*="Draw"], [aria-label*="measure"], [aria-label*="settings"], [aria-label*="Settings"]').forEach(function(el) {
+          // Hide by aria-labels - but KEEP layer controls visible
+          document.querySelectorAll('[aria-label*="zoom"], [aria-label*="Zoom"], [aria-label*="compass"], [aria-label*="Compass"], [aria-label*="north"], [aria-label*="North"], [aria-label*="search"], [aria-label*="Search"], [aria-label*="menu"], [aria-label*="Menu"], [aria-label*="tool"], [aria-label*="Tool"], [aria-label*="draw"], [aria-label*="Draw"], [aria-label*="measure"], [aria-label*="settings"], [aria-label*="Settings"]').forEach(function(el) {
             el.style.cssText = 'display: none !important;';
           });
           
@@ -343,33 +329,9 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     // Build Copernicus MyOcean Viewer URL
     final timestamp = _dataDate.millisecondsSinceEpoch;
     
-    // Get enabled layers and build product IDs
-    // Copernicus product IDs for each layer type
-    final productIds = <String>[];
-    
-    if (_layerStates['sst'] == true) {
-      productIds.add('SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001');
-    }
-    if (_layerStates['chl'] == true) {
-      productIds.add('OCEANCOLOUR_GLO_BGC_L3_NRT_009_101');
-    }
-    if (_layerStates['zsd'] == true) {
-      productIds.add('OCEANCOLOUR_GLO_BGC_L3_NRT_009_101'); // ZSD from same product
-    }
-    if (_layerStates['ssh'] == true) {
-      productIds.add('SEALEVEL_GLO_PHY_L4_NRT_008_046');
-    }
-    if (_layerStates['currents'] == true) {
-      productIds.add('GLOBAL_ANALYSISFORECAST_PHY_001_024');
-    }
-    if (_layerStates['wind'] == true) {
-      productIds.add('WIND_GLO_PHY_L4_NRT_012_004');
-    }
-    
-    // Build URL - the viewer will open with product selection
-    // Using the viewer without pre-encoded layers for simplicity
-    // The CSS injection will hide their layer UI, but the map will show selected products
-    var url = 'https://data.marine.copernicus.eu/viewer/expert?'
+    // The viewer loads with its default layer (usually SST)
+    // Users can add/remove layers using the Copernicus layer panel
+    return 'https://data.marine.copernicus.eu/viewer/expert?'
         'view=viewer'
         '&crs=epsg%3A4326'
         '&t=$timestamp'
@@ -377,8 +339,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         '&center=${_centerLon}%2C${_centerLat}'
         '&zoom=${_zoom.toStringAsFixed(1)}'
         '&basemap=dark';
-    
-    return url;
   }
 
   Future<void> _loadSavedSnapshots() async {
@@ -512,124 +472,108 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          builder: (context, scrollController) => Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                // Handle
-                Container(
-                  margin: const EdgeInsets.only(top: 8, bottom: 8),
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.85,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 8),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                // Title
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.layers, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Data Layers',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+              ),
+              // Title
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.layers, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Available Layers',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                      // Active count
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ],
+                ),
+              ),
+              // Info banner
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Use the Copernicus layer panel on the map to toggle layers',
+                        style: TextStyle(color: Colors.blue, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              // Scrollable layer info list
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: _availableLayers.length,
+                  itemBuilder: (context, index) {
+                    final entry = _availableLayers.entries.elementAt(index);
+                    final info = entry.value;
+                    
+                    return ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
+                          color: (info['color'] as Color).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          '${_layerStates.values.where((v) => v).length} active',
-                          style: const TextStyle(color: Colors.blue, fontSize: 12),
+                        child: Icon(
+                          info['icon'] as IconData,
+                          color: info['color'] as Color,
+                          size: 20,
                         ),
                       ),
-                    ],
-                  ),
+                      title: Text(
+                        info['name'] as String,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        info['desc'] as String,
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    );
+                  },
                 ),
-                const Divider(color: Colors.white12, height: 1),
-                // Scrollable layer list
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: _layerInfo.length,
-                    itemBuilder: (context, index) {
-                      final entry = _layerInfo.entries.elementAt(index);
-                      final id = entry.key;
-                      final info = entry.value;
-                      final isEnabled = _layerStates[id] ?? false;
-                      
-                      return ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: isEnabled 
-                                ? (info['color'] as Color).withOpacity(0.2)
-                                : Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            info['icon'] as IconData,
-                            color: isEnabled ? info['color'] as Color : Colors.white38,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(
-                          info['name'] as String,
-                          style: TextStyle(
-                            color: isEnabled ? Colors.white : Colors.white70,
-                            fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          info['desc'] as String,
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
-                        trailing: Switch(
-                          value: isEnabled,
-                          activeColor: info['color'] as Color,
-                          onChanged: (value) {
-                            setModalState(() {
-                              _layerStates[id] = value;
-                            });
-                            setState(() {});
-                            _reloadWithCurrentSettings();
-                          },
-                        ),
-                        onTap: () {
-                          setModalState(() {
-                            _layerStates[id] = !isEnabled;
-                          });
-                          setState(() {});
-                          _reloadWithCurrentSettings();
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -666,11 +610,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       setState(() {
         _dataDate = picked;
       });
-      _reloadWithCurrentSettings();
+      _reloadViewerWithNewDate();
     }
   }
 
-  void _reloadWithCurrentSettings() {
+  /// Reload the Copernicus viewer with the new date
+  void _reloadViewerWithNewDate() {
     if (_controller != null && _isOnline) {
       final url = _buildCopernicusUrl();
       _controller!.loadRequest(Uri.parse(url));
