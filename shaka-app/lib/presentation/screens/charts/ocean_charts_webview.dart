@@ -161,296 +161,145 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     setState(() {});
   }
 
-  /// Inject CSS and JavaScript to hide ALL Copernicus UI
+  /// Inject CSS and JavaScript to hide Copernicus UI elements
   /// We provide our own controls overlaid on top
   Future<void> _injectCustomizations() async {
     if (_controller == null) return;
     
-    // Aggressive CSS to hide EVERYTHING except the map itself
+    // More targeted CSS - only hide specific UI elements, not the map
     const customCSS = '''
-      /* Hide EVERYTHING except the map canvas */
-      body > *:not(.maplibregl-map):not(.mapboxgl-map):not([class*="map-container"]):not(#map) {
+      /* Hide the Copernicus control panels and toolbars */
+      .maplibregl-ctrl-group,
+      .maplibregl-ctrl-top-left,
+      .maplibregl-ctrl-top-right,
+      .maplibregl-ctrl-bottom-left,
+      .maplibregl-ctrl-bottom-right,
+      .mapboxgl-ctrl-group,
+      .mapboxgl-ctrl-top-left,
+      .mapboxgl-ctrl-top-right,
+      .mapboxgl-ctrl-bottom-left,
+      .mapboxgl-ctrl-bottom-right {
         display: none !important;
       }
       
-      /* Hide all controls, toolbars, panels, sidebars */
-      .maplibregl-ctrl-group,
-      .mapboxgl-ctrl-group,
-      .maplibregl-ctrl,
-      .mapboxgl-ctrl,
-      [class*="ctrl-"],
-      [class*="control"],
-      [class*="Control"],
-      [class*="toolbar"],
-      [class*="Toolbar"],
-      [class*="sidebar"],
-      [class*="Sidebar"],
-      [class*="panel"],
-      [class*="Panel"],
-      [class*="drawer"],
-      [class*="Drawer"],
-      [class*="menu"],
-      [class*="Menu"],
-      [class*="nav"],
-      [class*="Nav"],
-      [class*="header"],
-      [class*="Header"],
-      [class*="footer"],
-      [class*="Footer"] {
+      /* Hide navigation controls (zoom, compass) */
+      .maplibregl-ctrl-nav,
+      .mapboxgl-ctrl-nav,
+      .maplibregl-ctrl-zoom,
+      .mapboxgl-ctrl-zoom,
+      .maplibregl-ctrl-compass,
+      .mapboxgl-ctrl-compass {
+        display: none !important;
+      }
+      
+      /* Hide attribution */
+      .maplibregl-ctrl-attrib,
+      .mapboxgl-ctrl-attrib {
+        display: none !important;
+      }
+      
+      /* Hide any fixed/absolute positioned UI overlays */
+      div[style*="position: fixed"]:not([class*="map"]),
+      div[style*="position: absolute"]:not([class*="map"]):not([class*="canvas"]) {
+        /* Be careful here - only hide if clearly UI */
+      }
+      
+      /* Hide specific Copernicus UI elements by common patterns */
+      [data-testid],
+      [class*="MuiDrawer"],
+      [class*="MuiAppBar"],
+      [class*="MuiToolbar"],
+      [class*="MuiPaper"]:not([class*="map"]),
+      [class*="MuiDialog"],
+      [class*="MuiModal"],
+      [class*="MuiBackdrop"],
+      [class*="MuiSnackbar"],
+      [class*="MuiAlert"],
+      [class*="MuiMenu"],
+      [class*="MuiPopover"],
+      [class*="MuiFab"],
+      [class*="MuiSpeedDial"] {
         display: none !important;
         visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
       }
       
-      /* Hide zoom controls */
-      .maplibregl-ctrl-zoom-in,
-      .maplibregl-ctrl-zoom-out,
-      .mapboxgl-ctrl-zoom-in,
-      .mapboxgl-ctrl-zoom-out,
-      [class*="zoom"],
-      [class*="Zoom"] {
-        display: none !important;
-      }
-      
-      /* Hide compass/north indicator */
-      .maplibregl-ctrl-compass,
-      .mapboxgl-ctrl-compass,
-      [class*="compass"],
-      [class*="Compass"],
-      [class*="north"],
-      [class*="North"] {
-        display: none !important;
-      }
-      
-      /* Hide attribution (we can add our own) */
-      .maplibregl-ctrl-attrib,
-      .mapboxgl-ctrl-attrib,
-      [class*="attrib"],
-      [class*="Attrib"],
-      [class*="attribution"],
-      [class*="Attribution"] {
-        display: none !important;
-      }
-      
-      /* Hide all buttons, icons, floating elements */
-      button:not([class*="map"]),
-      [class*="btn"],
-      [class*="Btn"],
-      [class*="button"],
-      [class*="Button"],
-      [class*="icon"],
-      [class*="Icon"],
-      [class*="fab"],
-      [class*="Fab"],
-      [class*="floating"],
-      [class*="Floating"],
-      [class*="action"],
-      [class*="Action"] {
-        display: none !important;
-      }
-      
-      /* Hide modals, popups, dialogs, overlays */
-      [class*="modal"],
-      [class*="Modal"],
-      [class*="popup"],
-      [class*="Popup"],
-      [class*="dialog"],
-      [class*="Dialog"],
-      [class*="overlay"]:not(.maplibregl-canvas):not(.mapboxgl-canvas),
-      [class*="Overlay"]:not(.maplibregl-canvas):not(.mapboxgl-canvas),
-      [class*="toast"],
-      [class*="Toast"],
-      [class*="snackbar"],
-      [class*="Snackbar"],
-      [class*="notification"],
-      [class*="Notification"],
-      [class*="alert"],
-      [class*="Alert"],
+      /* Hide cookie/consent banners */
       [class*="cookie"],
       [class*="Cookie"],
       [class*="consent"],
       [class*="Consent"],
-      [class*="banner"],
-      [class*="Banner"] {
+      [class*="gdpr"],
+      [class*="GDPR"],
+      [id*="cookie"],
+      [id*="consent"] {
         display: none !important;
       }
       
-      /* Hide search, forms, inputs */
-      [class*="search"],
-      [class*="Search"],
-      input,
-      form,
-      [class*="form"],
-      [class*="Form"],
-      [class*="input"],
-      [class*="Input"] {
-        display: none !important;
-      }
-      
-      /* Hide timeline, date pickers, sliders */
-      [class*="timeline"],
-      [class*="Timeline"],
-      [class*="time-"],
-      [class*="Time"],
-      [class*="date"],
-      [class*="Date"],
-      [class*="slider"],
-      [class*="Slider"],
-      [class*="range"],
-      [class*="Range"],
-      [class*="player"],
-      [class*="Player"] {
-        display: none !important;
-      }
-      
-      /* Hide logos, branding */
-      [class*="logo"],
-      [class*="Logo"],
-      [class*="brand"],
-      [class*="Brand"],
-      [class*="watermark"],
-      [class*="Watermark"] {
-        display: none !important;
-      }
-      
-      /* Hide any remaining UI chrome */
-      [class*="layer-list"],
-      [class*="LayerList"],
-      [class*="legend"],
-      [class*="Legend"],
-      [class*="info"],
-      [class*="Info"],
-      [class*="help"],
-      [class*="Help"],
-      [class*="settings"],
-      [class*="Settings"],
-      [class*="config"],
-      [class*="Config"],
-      [class*="tool"],
-      [class*="Tool"],
-      [class*="widget"],
-      [class*="Widget"],
-      [class*="card"],
-      [class*="Card"],
-      [class*="dropdown"],
-      [class*="Dropdown"],
-      [class*="select"],
-      [class*="Select"],
-      [class*="picker"],
-      [class*="Picker"],
-      [class*="battery"],
-      [class*="Battery"],
-      [class*="status"],
-      [class*="Status"] {
-        display: none !important;
-      }
-      
-      /* Hide drawing tools (points, lines, areas, import) */
-      [class*="draw"],
-      [class*="Draw"],
-      [class*="point"],
-      [class*="Point"],
-      [class*="line"],
-      [class*="Line"],
-      [class*="polygon"],
-      [class*="Polygon"],
-      [class*="area"],
-      [class*="Area"],
-      [class*="import"],
-      [class*="Import"],
-      [class*="export"],
-      [class*="Export"],
-      [class*="measure"],
-      [class*="Measure"],
-      [class*="ruler"],
-      [class*="Ruler"],
-      [class*="edit"],
-      [class*="Edit"],
-      [class*="marker"],
-      [class*="Marker"],
-      [class*="pin"],
-      [class*="Pin"] {
-        display: none !important;
-      }
-      
-      /* Force map to be fullscreen */
-      html, body {
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        background: #0a0a0a !important;
-      }
-      
-      .maplibregl-map,
-      .mapboxgl-map,
-      .maplibregl-canvas-container,
-      .mapboxgl-canvas-container,
+      /* Make sure the map canvas stays visible and fullscreen */
       .maplibregl-canvas,
-      .mapboxgl-canvas,
-      #map,
-      [id*="map"],
-      [class*="map-container"],
-      [class*="MapContainer"] {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 0 !important;
-      }
-      
-      /* Remove all borders, shadows, outlines from map */
-      .maplibregl-map *,
-      .mapboxgl-map * {
-        border: none !important;
-        box-shadow: none !important;
-        outline: none !important;
+      .mapboxgl-canvas {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
       }
     ''';
     
-    // JavaScript to apply CSS and aggressively hide elements
+    // JavaScript to apply CSS and hide specific elements
     final jsCode = '''
       (function() {
         // Create and inject style
+        var existingStyle = document.getElementById('shaka-custom-css');
+        if (existingStyle) existingStyle.remove();
+        
         var style = document.createElement('style');
-        style.id = 'shaka-hide-all';
+        style.id = 'shaka-custom-css';
         style.type = 'text/css';
         style.innerHTML = `$customCSS`;
         document.head.appendChild(style);
         
-        // Function to hide elements aggressively
-        function hideAllUI() {
-          // Hide everything that's not the map canvas
-          document.querySelectorAll('button, [role="button"], nav, aside, header, footer, dialog, [role="dialog"], form').forEach(function(el) {
+        // Function to hide specific UI elements
+        function hideUI() {
+          // Hide Material UI components (Copernicus uses MUI)
+          document.querySelectorAll('[class*="MuiDrawer"], [class*="MuiAppBar"], [class*="MuiToolbar"], [class*="MuiFab"], [class*="MuiSpeedDial"]').forEach(function(el) {
             el.style.display = 'none';
-            el.style.visibility = 'hidden';
-            el.style.opacity = '0';
-            el.style.pointerEvents = 'none';
           });
           
-          // Close any open dialogs/modals
-          document.querySelectorAll('[aria-label*="close"], [aria-label*="Close"], .close, [class*="close"]').forEach(function(btn) {
+          // Hide any dialogs/modals
+          document.querySelectorAll('[role="dialog"], [role="alertdialog"], [class*="MuiDialog"], [class*="MuiModal"]').forEach(function(el) {
+            el.style.display = 'none';
+          });
+          
+          // Hide backdrop/overlay
+          document.querySelectorAll('[class*="MuiBackdrop"], [class*="backdrop"], [class*="overlay"]').forEach(function(el) {
+            if (!el.classList.contains('maplibregl-canvas') && !el.classList.contains('mapboxgl-canvas')) {
+              el.style.display = 'none';
+            }
+          });
+          
+          // Try to close any open dialogs by clicking close buttons
+          document.querySelectorAll('[aria-label="close"], [aria-label="Close"], button[class*="close"]').forEach(function(btn) {
             try { btn.click(); } catch(e) {}
           });
           
-          // Auto-accept cookies/consent
-          document.querySelectorAll('[class*="accept"], [class*="Accept"], [class*="agree"], [class*="Agree"]').forEach(function(btn) {
-            try { btn.click(); } catch(e) {}
+          // Accept cookies if there's a consent dialog
+          document.querySelectorAll('button').forEach(function(btn) {
+            var text = btn.innerText || btn.textContent || '';
+            if (text.toLowerCase().includes('accept') || text.toLowerCase().includes('agree') || text.toLowerCase().includes('ok')) {
+              if (btn.closest('[class*="cookie"]') || btn.closest('[class*="consent"]') || btn.closest('[class*="Cookie"]')) {
+                try { btn.click(); } catch(e) {}
+              }
+            }
           });
         }
         
-        // Run immediately
-        hideAllUI();
+        // Run multiple times to catch dynamically loaded content
+        hideUI();
+        setTimeout(hideUI, 1000);
+        setTimeout(hideUI, 2000);
+        setTimeout(hideUI, 4000);
         
-        // Run again after delays (for lazy-loaded content)
-        setTimeout(hideAllUI, 500);
-        setTimeout(hideAllUI, 1500);
-        setTimeout(hideAllUI, 3000);
-        setTimeout(hideAllUI, 5000);
-        
-        // Keep running periodically
-        setInterval(hideAllUI, 2000);
+        // Keep checking periodically
+        setInterval(hideUI, 3000);
       })();
     ''';
     
