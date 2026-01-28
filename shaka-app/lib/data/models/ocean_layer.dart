@@ -31,7 +31,7 @@ class OceanLayer {
   });
 
   /// Pre-defined ocean layers from Copernicus Marine Service
-  /// Updated Jan 28, 2026 with current dataset versions
+  /// Updated Jan 28, 2026 with verified dataset versions from data.marine.copernicus.eu
   /// Layer format: PRODUCT_ID/DATASET_ID/VARIABLE_ID
   static const sst = OceanLayer(
     id: 'sst',
@@ -44,7 +44,7 @@ class OceanLayer {
     color: Color(0xFFFF6B35),
     minValue: 50,
     maxValue: 86,
-    description: 'Water temperature at the surface, updated every 6 hours',
+    description: 'Water temperature at the surface',
     updateFrequency: Duration(hours: 6),
   );
 
@@ -52,14 +52,15 @@ class OceanLayer {
     id: 'chl',
     name: 'Chlorophyll-a',
     shortName: 'CHL',
-    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-multi-4km_P1D_202411/CHL',
-    style: 'cmap:viridis,logScale',
+    // OLCI sensor dataset 202511 - has data through Jan 27+ (more current than multi-sensor 202411)
+    wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-plankton_nrt_l3-olci-4km_P1D_202511/CHL',
+    style: 'cmap:algae,logScale',
     unit: 'mg/m³',
     icon: Icons.grass,
     color: Color(0xFF4CAF50),
     minValue: 0.01,
     maxValue: 10,
-    description: 'Phytoplankton concentration - indicates water clarity and fish activity',
+    description: 'Phytoplankton concentration',
     updateFrequency: Duration(days: 1),
   );
 
@@ -67,14 +68,15 @@ class OceanLayer {
     id: 'zsd',
     name: 'Water Visibility',
     shortName: 'VIS',
+    // Transparency dataset - Secchi disk depth (ZSD)
     wmtsLayer: 'OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/cmems_obs-oc_glo_bgc-transp_nrt_l3-multi-4km_P1D_202311/ZSD',
-    style: 'cmap:viridis',
+    style: 'cmap:ice',
     unit: 'm',
     icon: Icons.visibility,
     color: Color(0xFF2196F3),
     minValue: 0,
     maxValue: 50,
-    description: 'Underwater visibility (Secchi disk depth)',
+    description: 'Underwater visibility depth',
     updateFrequency: Duration(days: 1),
   );
 
@@ -82,15 +84,15 @@ class OceanLayer {
     id: 'ssh',
     name: 'Sea Surface Height',
     shortName: 'SSH',
-    // Updated to 0.125deg_202506 - the 0.25deg_202311 dataset ended Nov 2024
-    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506/adt',
+    // Sea level L4 NRT - 0.25deg daily (verified active dataset)
+    wmtsLayer: 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202411/adt',
     style: 'cmap:balance',
     unit: 'm',
     icon: Icons.waves,
     color: Color(0xFF9C27B0),
     minValue: -0.5,
     maxValue: 0.5,
-    description: 'Sea surface height anomaly - indicates currents and upwelling',
+    description: 'Sea surface height anomaly',
     updateFrequency: Duration(days: 1),
   );
 
@@ -105,23 +107,24 @@ class OceanLayer {
     color: Color(0xFF00BCD4),
     minValue: 0,
     maxValue: 2,
-    description: 'Ocean current speed and direction',
+    description: 'Current speed and direction',
     updateFrequency: Duration(hours: 6),
   );
 
+  // Bathymetry uses GEBCO WMS - handled separately in ocean_charts_screen
   static const bathymetry = OceanLayer(
     id: 'bathy',
     name: 'Bathymetry',
     shortName: 'DEPTH',
-    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_static_202211/deptho',
-    style: 'cmap:deep',
+    wmtsLayer: 'GEBCO', // Special marker - uses GEBCO WMS instead
+    style: 'gebco_latest_2',
     unit: 'm',
     icon: Icons.terrain,
     color: Color(0xFF795548),
     minValue: 0,
     maxValue: 6000,
-    description: 'Ocean floor depth and underwater topography',
-    updateFrequency: Duration(days: 365), // Static dataset
+    description: 'Ocean floor depth',
+    updateFrequency: Duration(days: 365),
   );
 
   /// All available layers

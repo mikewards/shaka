@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../data/api/copernicus_wmts_service.dart';
+import '../../../data/api/cached_tile_provider.dart';
 import '../../../data/models/ocean_layer.dart';
 import 'widgets/floating_data_bar.dart';
 import 'widgets/layer_control_sheet.dart';
@@ -130,31 +131,47 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
       urlTemplate: urlTemplate,
       userAgentPackageName: 'com.shaka.app',
       maxZoom: 18,
-      tileProvider: NetworkTileProvider(),
+      tileProvider: CachedTileProvider(),
     );
   }
 
   TileLayer _buildOceanTileLayer(LayerState state) {
     final timeStr = CopernicusWMTSService.formatTime(_selectedDate);
+    
+    // GEBCO bathymetry uses WMS (different from Copernicus WMTS)
+    if (CopernicusWMTSService.isGebcoLayer(state.layer)) {
+      return TileLayer(
+        wmsOptions: WMSTileLayerOptions(
+          baseUrl: 'https://wms.gebco.net/mapserv?',
+          layers: ['gebco_latest_2'],
+          transparent: true,
+          format: 'image/png',
+          version: '1.3.0',
+          crs: const Epsg3857(),
+        ),
+        userAgentPackageName: 'com.shaka.app',
+        maxZoom: 12,
+        tileProvider: CachedTileProvider(),
+        tileBuilder: (context, tileWidget, tile) {
+          return Opacity(opacity: state.opacity, child: tileWidget);
+        },
+        errorTileCallback: (tile, error, stackTrace) {},
+      );
+    }
 
+    // Standard Copernicus WMTS layers with caching
     return TileLayer(
       urlTemplate: CopernicusWMTSService.buildLayerTileUrl(
         state.layer,
         time: timeStr,
       ),
       userAgentPackageName: 'com.shaka.app',
-      maxZoom: 10,
-      tileProvider: NetworkTileProvider(),
+      maxZoom: 12,
+      tileProvider: CachedTileProvider(),
       tileBuilder: (context, tileWidget, tile) {
-        // Apply opacity to tiles
-        return Opacity(
-          opacity: state.opacity,
-          child: tileWidget,
-        );
+        return Opacity(opacity: state.opacity, child: tileWidget);
       },
-      errorTileCallback: (tile, error, stackTrace) {
-        // Silently handle tile errors (common for ocean data near coasts)
-      },
+      errorTileCallback: (tile, error, stackTrace) {},
     );
   }
 

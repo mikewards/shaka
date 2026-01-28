@@ -2,22 +2,25 @@ import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/ocean_layer.dart';
 
-/// Service for interacting with Copernicus Marine WMTS
+/// Service for interacting with Copernicus Marine WMTS and GEBCO WMS
 class CopernicusWMTSService {
   static const String _baseUrl = 'https://wmts.marine.copernicus.eu/teroWmts';
+  static const String _gebcoUrl = 'https://wms.gebco.net/mapserv';
 
   final Dio _dio;
 
   CopernicusWMTSService({Dio? dio}) : _dio = dio ?? Dio();
 
-  /// Build a WMTS tile URL for flutter_map
-  /// 
-  /// The URL template uses {z}, {x}, {y} placeholders that flutter_map replaces
+  /// Check if layer uses GEBCO WMS instead of Copernicus WMTS
+  static bool isGebcoLayer(OceanLayer layer) => layer.wmtsLayer == 'GEBCO';
+
+  /// Build a WMTS tile URL for flutter_map (Copernicus)
+  /// Uses @2x suffix for higher resolution 512x512 tiles
   static String buildTileUrlTemplate({
     required String layer,
     required String style,
     String? time,
-    String projection = 'EPSG:3857',
+    String projection = 'EPSG:3857@2x', // @2x for 512px tiles
   }) {
     final timeParam = time != null ? '&time=$time' : '';
     return '$_baseUrl'
@@ -34,8 +37,31 @@ class CopernicusWMTSService {
         '$timeParam';
   }
 
+  /// Build GEBCO WMS tile URL for flutter_map
+  /// GEBCO provides bathymetry data via WMS (not WMTS)
+  static String buildGebcoTileUrl() {
+    // GEBCO WMS uses standard slippy map tile coordinates
+    // We construct a WMS GetMap request that flutter_map can use
+    return '$_gebcoUrl'
+        '?service=WMS'
+        '&version=1.3.0'
+        '&request=GetMap'
+        '&layers=gebco_latest_2'
+        '&crs=EPSG:3857'
+        '&format=image/png'
+        '&transparent=true'
+        '&width=512'
+        '&height=512'
+        '&bbox={bbox-epsg-3857}';
+  }
+
   /// Build tile URL template for an OceanLayer
   static String buildLayerTileUrl(OceanLayer layer, {String? time}) {
+    // Special handling for GEBCO bathymetry
+    if (isGebcoLayer(layer)) {
+      return buildGebcoTileUrl();
+    }
+    
     return buildTileUrlTemplate(
       layer: layer.wmtsLayer,
       style: layer.style,
