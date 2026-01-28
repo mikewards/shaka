@@ -87,20 +87,60 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   double _zoom = 6.0;
   DateTime _dataDate = DateTime.now().subtract(const Duration(days: 1));
   
-  // Available Copernicus Marine layers
-  // Note: Layer control currently requires using the viewer's built-in layer panel
-  // These are shown for reference - actual layer selection happens in the Copernicus UI
-  static const Map<String, Map<String, dynamic>> _availableLayers = {
-    'sst': {'name': 'Sea Surface Temp', 'icon': Icons.thermostat, 'color': Color(0xFFFF6B35), 'desc': 'Water temperature'},
-    'chl': {'name': 'Chlorophyll', 'icon': Icons.grass, 'color': Color(0xFF4CAF50), 'desc': 'Phytoplankton / bait'},
-    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3), 'desc': 'Water clarity (Secchi)'},
-    'waves': {'name': 'Wave Height', 'icon': Icons.waves, 'color': Color(0xFF3F51B5), 'desc': 'Significant wave height'},
-    'wind': {'name': 'Wind', 'icon': Icons.air, 'color': Color(0xFF607D8B), 'desc': 'Surface wind speed'},
-    'cur': {'name': 'Currents', 'icon': Icons.sync_alt, 'color': Color(0xFF00BCD4), 'desc': 'Current speed/direction'},
-    'mld': {'name': 'Mixed Layer Depth', 'icon': Icons.layers, 'color': Color(0xFF673AB7), 'desc': 'Thermocline depth'},
-    'sal': {'name': 'Salinity', 'icon': Icons.water_drop, 'color': Color(0xFF009688), 'desc': 'Sea water salinity'},
-    'o2': {'name': 'Dissolved Oxygen', 'icon': Icons.bubble_chart, 'color': Color(0xFFE91E63), 'desc': 'Oxygen levels'},
-    'ssh': {'name': 'Sea Height', 'icon': Icons.trending_up, 'color': Color(0xFF9C27B0), 'desc': 'Height anomaly'},
+  // Layer states - controlled via JavaScript injection into Copernicus viewer
+  final Map<String, bool> _layerStates = {
+    'sst': true,       // Sea Surface Temperature (default on)
+    'chl': false,      // Chlorophyll
+    'waves': false,    // Wave Height
+    'wind': false,     // Wind
+    'cur': false,      // Ocean Currents
+    'sal': false,      // Salinity
+  };
+  
+  // Layer info with Copernicus product search terms
+  static const Map<String, Map<String, dynamic>> _layerInfo = {
+    'sst': {
+      'name': 'Sea Surface Temp',
+      'icon': Icons.thermostat,
+      'color': Color(0xFFFF6B35),
+      'desc': 'Water temperature',
+      'searchTerm': 'temperature', // Used to find layer in Copernicus UI
+    },
+    'chl': {
+      'name': 'Chlorophyll',
+      'icon': Icons.grass,
+      'color': Color(0xFF4CAF50),
+      'desc': 'Phytoplankton / bait',
+      'searchTerm': 'chlorophyll',
+    },
+    'waves': {
+      'name': 'Wave Height',
+      'icon': Icons.waves,
+      'color': Color(0xFF3F51B5),
+      'desc': 'Significant wave height',
+      'searchTerm': 'wave',
+    },
+    'wind': {
+      'name': 'Wind',
+      'icon': Icons.air,
+      'color': Color(0xFF607D8B),
+      'desc': 'Surface wind speed',
+      'searchTerm': 'wind',
+    },
+    'cur': {
+      'name': 'Currents',
+      'icon': Icons.sync_alt,
+      'color': Color(0xFF00BCD4),
+      'desc': 'Current speed/direction',
+      'searchTerm': 'current',
+    },
+    'sal': {
+      'name': 'Salinity',
+      'icon': Icons.water_drop,
+      'color': Color(0xFF009688),
+      'desc': 'Sea water salinity',
+      'searchTerm': 'salinity',
+    },
   };
 
   @override
@@ -472,108 +512,125 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        minChildSize: 0.4,
-        maxChildSize: 0.85,
-        builder: (context, scrollController) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              // Handle
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 8),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.3,
+          maxChildSize: 0.75,
+          builder: (context, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Column(
+              children: [
+                // Handle
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 8),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              // Title
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.layers, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Available Layers',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                // Title with active count
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.layers, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Data Layers',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Info banner
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Use the Copernicus layer panel on the map to toggle layers',
-                        style: TextStyle(color: Colors.blue, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(color: Colors.white12, height: 1),
-              // Scrollable layer info list
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: _availableLayers.length,
-                  itemBuilder: (context, index) {
-                    final entry = _availableLayers.entries.elementAt(index);
-                    final info = entry.value;
-                    
-                    return ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 40,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: (info['color'] as Color).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.blue.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          info['icon'] as IconData,
-                          color: info['color'] as Color,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(
-                        info['name'] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                        child: Text(
+                          '${_layerStates.values.where((v) => v).length} active',
+                          style: const TextStyle(color: Colors.blue, fontSize: 12),
                         ),
                       ),
-                      subtitle: Text(
-                        info['desc'] as String,
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
-                      ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const Divider(color: Colors.white12, height: 1),
+                // Layer toggles
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: _layerInfo.length,
+                    itemBuilder: (context, index) {
+                      final entry = _layerInfo.entries.elementAt(index);
+                      final id = entry.key;
+                      final info = entry.value;
+                      final isEnabled = _layerStates[id] ?? false;
+                      
+                      return ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isEnabled 
+                                ? (info['color'] as Color).withOpacity(0.2)
+                                : Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            info['icon'] as IconData,
+                            color: isEnabled ? info['color'] as Color : Colors.white38,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          info['name'] as String,
+                          style: TextStyle(
+                            color: isEnabled ? Colors.white : Colors.white70,
+                            fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          info['desc'] as String,
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                        trailing: Switch(
+                          value: isEnabled,
+                          activeColor: info['color'] as Color,
+                          onChanged: (value) async {
+                            setModalState(() {
+                              _layerStates[id] = value;
+                            });
+                            setState(() {});
+                            // Try to toggle layer via JavaScript
+                            await _toggleLayerViaJS(id, value);
+                          },
+                        ),
+                        onTap: () async {
+                          final newValue = !isEnabled;
+                          setModalState(() {
+                            _layerStates[id] = newValue;
+                          });
+                          setState(() {});
+                          await _toggleLayerViaJS(id, newValue);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -620,6 +677,51 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       final url = _buildCopernicusUrl();
       _controller!.loadRequest(Uri.parse(url));
     }
+  }
+
+  /// Toggle a layer via JavaScript injection
+  Future<void> _toggleLayerViaJS(String layerId, bool enable) async {
+    if (_controller == null) return;
+    
+    final searchTerm = _layerInfo[layerId]?['searchTerm'] as String? ?? layerId;
+    
+    // JavaScript to find and toggle layer in Copernicus viewer
+    final jsCode = '''
+      (function() {
+        // Try to find layer controls and toggle them
+        // This is experimental - Copernicus UI structure may vary
+        
+        function findAndToggleLayer(searchTerm, shouldEnable) {
+          // Look for layer items containing the search term
+          var allElements = document.querySelectorAll('*');
+          var found = false;
+          
+          allElements.forEach(function(el) {
+            var text = (el.innerText || el.textContent || '').toLowerCase();
+            if (text.includes(searchTerm.toLowerCase())) {
+              // Look for a toggle/switch/checkbox nearby
+              var parent = el.closest('[role="listitem"], [class*="layer"], [class*="Layer"], li, div');
+              if (parent) {
+                var toggle = parent.querySelector('input[type="checkbox"], [role="switch"], [class*="switch"], [class*="Switch"], [class*="toggle"], [class*="Toggle"]');
+                if (toggle) {
+                  var isChecked = toggle.checked || toggle.getAttribute('aria-checked') === 'true' || toggle.classList.contains('checked');
+                  if ((shouldEnable && !isChecked) || (!shouldEnable && isChecked)) {
+                    toggle.click();
+                    found = true;
+                  }
+                }
+              }
+            }
+          });
+          
+          return found;
+        }
+        
+        findAndToggleLayer('$searchTerm', $enable);
+      })();
+    ''';
+    
+    await _controller!.runJavaScript(jsCode);
   }
 
   void _showSavedSnapshots() {
