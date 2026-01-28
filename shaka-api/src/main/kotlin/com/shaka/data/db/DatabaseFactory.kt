@@ -58,27 +58,24 @@ object DatabaseFactory {
     }
 
     /**
-     * Initialize with explicit connection parameters.
-     * Handles Railway's DATABASE_URL format (postgresql://...) and converts to JDBC format.
+     * Initialize with Railway DATABASE_URL format.
+     * Parses: postgresql://user:password@host:port/database
      */
-    fun init(url: String, user: String, password: String) {
-        // Convert Railway URL format to JDBC format if needed
-        val jdbcUrl = when {
-            url.startsWith("jdbc:") -> url
-            url.startsWith("postgresql://") -> "jdbc:$url"
-            url.startsWith("postgres://") -> "jdbc:postgresql://${url.removePrefix("postgres://")}"
-            else -> url
-        }
+    fun init(url: String, userOverride: String, passwordOverride: String) {
+        // Parse Railway URL format: postgresql://user:pass@host:port/database
+        val parsed = parseRailwayUrl(url)
         
-        logger.info("Connecting to database: ${jdbcUrl.substringBefore("?").substringBefore("@").let { 
-            if (it.contains("@")) it.substringAfterLast("@") else it 
-        }}")
+        val jdbcUrl = "jdbc:postgresql://${parsed.host}:${parsed.port}/${parsed.database}"
+        val dbUser = userOverride.ifBlank { parsed.user }
+        val dbPassword = passwordOverride.ifBlank { parsed.password }
+        
+        logger.info("Connecting to database at ${parsed.host}:${parsed.port}/${parsed.database}")
         
         val hikariConfig = HikariConfig().apply {
             this.jdbcUrl = jdbcUrl
             driverClassName = "org.postgresql.Driver"
-            username = user
-            this.password = password
+            username = dbUser
+            this.password = dbPassword
             maximumPoolSize = 5
             minimumIdle = 1
             connectionTimeout = 30000
@@ -97,6 +94,51 @@ object DatabaseFactory {
         }
         
         logger.info("Database initialization complete")
+    }
+    
+    /**
+     * Parse Railway DATABASE_URL format.
+     * Format: postgresql://user:password@host:port/database
+     */
+    private data class DbConnectionInfo(
+        val host: String,
+        val port: Int,
+        val database: String,
+        val user: String,
+        val password: String
+    )
+    
+    private fun parseRailwayUrl(url: String): DbConnectionInfo {
+        // Remove protocol prefix
+        val withoutProtocol = url
+            .removePrefix("postgresql://")
+            .removePrefix("postgres://")
+            .removePrefix("jdbc:postgresql://")
+        
+        // Split into credentials@hostInfo
+        val atIndex = withoutProtocol.lastIndexOf("@")
+        if (atIndex == -1) {
+            throw IllegalArgumentException("Invalid DATABASE_URL format - missing @")
+        }
+        
+        val credentials = withoutProtocol.substring(0, atIndex)
+        val hostInfo = withoutProtocol.substring(atIndex + 1)
+        
+        // Parse credentials (user:password)
+        val colonIndex = credentials.indexOf(":")
+        val user = if (colonIndex != -1) credentials.substring(0, colonIndex) else credentials
+        val password = if (colonIndex != -1) credentials.substring(colonIndex + 1) else ""
+        
+        // Parse hostInfo (host:port/database)
+        val slashIndex = hostInfo.indexOf("/")
+        val hostPort = if (slashIndex != -1) hostInfo.substring(0, slashIndex) else hostInfo
+        val database = if (slashIndex != -1) hostInfo.substring(slashIndex + 1).substringBefore("?") else "railway"
+        
+        val portColonIndex = hostPort.lastIndexOf(":")
+        val host = if (portColonIndex != -1) hostPort.substring(0, portColonIndex) else hostPort
+        val port = if (portColonIndex != -1) hostPort.substring(portColonIndex + 1).toIntOrNull() ?: 5432 else 5432
+        
+        return DbConnectionInfo(host, port, database, user, password)
     }
 
     /**
