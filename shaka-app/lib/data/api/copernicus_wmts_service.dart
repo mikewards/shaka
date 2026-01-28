@@ -23,6 +23,8 @@ class CopernicusWMTSService {
     String projection = 'EPSG:3857@2x', // @2x for 512px tiles
   }) {
     final timeParam = time != null ? '&time=$time' : '';
+    // URL-encode style to handle special characters like commas
+    final encodedStyle = Uri.encodeComponent(style);
     return '$_baseUrl'
         '?service=WMTS'
         '&version=1.0.0'
@@ -33,7 +35,7 @@ class CopernicusWMTSService {
         '&tilerow={y}'
         '&tilecol={x}'
         '&format=image/png'
-        '&STYLE=$style'
+        '&STYLE=$encodedStyle'
         '$timeParam';
   }
 
