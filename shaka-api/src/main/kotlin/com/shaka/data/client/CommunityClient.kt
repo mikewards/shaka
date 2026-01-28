@@ -396,3 +396,28 @@ data class SourceConfig(
     val type: SourceType,
     val regions: List<String>
 )
+
+// Reddit API response models
+@kotlinx.serialization.Serializable
+data class RedditListingResponse(
+    val data: RedditListingData
+)
+
+@kotlinx.serialization.Serializable
+data class RedditListingData(
+    val children: List<RedditPostWrapper>
+)
+
+@kotlinx.serialization.Serializable
+data class RedditPostWrapper(
+    val data: RedditPost
+)
+
+@kotlinx.serialization.Serializable
+data class RedditPost(
+    val title: String,
+    val selftext: String = "",
+    val permalink: String,
+    val created_utc: Double,
+    val subreddit: String = ""
+)

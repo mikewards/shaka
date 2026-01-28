@@ -5,8 +5,9 @@ import '../models/spot_models.dart';
 class ShakaApiClient {
   final Dio _dio;
   
-  // TODO: Update with production URL
-  static const String baseUrl = 'http://localhost:8080/v1';
+  // Use 10.0.2.2 for Android emulator to reach host machine
+  // Use localhost for iOS simulator or web
+  static const String baseUrl = 'http://10.0.2.2:8080/v1';
 
   ShakaApiClient({Dio? dio})
       : _dio = dio ??
