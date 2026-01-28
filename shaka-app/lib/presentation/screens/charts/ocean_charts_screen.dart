@@ -176,17 +176,19 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
   }
 
   /// Update crosshair position and fetch data
-  void _onMapMove(MapCamera camera) {
-    setState(() {
-      _center = camera.center;
-      _zoom = camera.zoom;
-      _crosshairPosition = camera.center;
-    });
+  void _onMapMove(MapPosition position, bool hasGesture) {
+    if (position.center != null) {
+      setState(() {
+        _center = position.center!;
+        _zoom = position.zoom ?? _zoom;
+        _crosshairPosition = position.center;
+      });
+    }
   }
 
   /// Fetch feature data when map stops moving
-  void _onMapMoveEnd(MapCamera camera) {
-    _fetchFeatureData(camera.center);
+  void _onMapMoveEnd() {
+    _fetchFeatureData(_center);
   }
 
   Future<void> _fetchFeatureData(LatLng point) async {
@@ -281,10 +283,10 @@ class _OceanChartsScreenState extends State<OceanChartsScreen> {
               initialZoom: _zoom,
               minZoom: 2,
               maxZoom: 12,
-              onPositionChanged: (camera, hasGesture) => _onMapMove(camera),
+              onPositionChanged: _onMapMove,
               onMapEvent: (event) {
                 if (event is MapEventMoveEnd) {
-                  _onMapMoveEnd(_mapController.camera);
+                  _onMapMoveEnd();
                 }
               },
               onLongPress: _onMapLongPress,

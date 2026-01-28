@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Location picker with Quiet Luxury styling.
-/// 
 /// Text-based, no icons - clean and minimal.
 class LocationPicker extends StatelessWidget {
   final String selectedLocationName;
@@ -79,12 +79,11 @@ class _LocationPickerSheet extends StatefulWidget {
 
 class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final TextEditingController _zipController = TextEditingController();
+  final MapController _mapController = MapController();
   bool _showMap = false;
   LatLng? _selectedPoint;
-  GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
 
-  // Popular spearfishing locations - expanded list
+  // Popular spearfishing locations
   static const _popularLocations = [
     // Hawaii
     {'name': 'Oahu North Shore, Hawaii', 'lat': 21.6400, 'lon': -158.0600},
@@ -124,28 +123,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     '96761': {'lat': 20.8800, 'lon': -156.6800, 'name': 'Lahaina, HI'},
     '96753': {'lat': 20.7300, 'lon': -156.4500, 'name': 'Kihei, HI'},
     '96734': {'lat': 21.4000, 'lon': -157.7400, 'name': 'Kailua, HI'},
-    // California - San Francisco Bay Area
-    '94102': {'lat': 37.7749, 'lon': -122.4194, 'name': 'San Francisco, CA'},
-    '94110': {'lat': 37.7485, 'lon': -122.4156, 'name': 'San Francisco (Mission), CA'},
-    '94122': {'lat': 37.7585, 'lon': -122.4844, 'name': 'San Francisco (Sunset), CA'},
-    '94965': {'lat': 37.8558, 'lon': -122.4892, 'name': 'Sausalito, CA'},
-    '94019': {'lat': 37.5021, 'lon': -122.4536, 'name': 'Half Moon Bay, CA'},
-    '94060': {'lat': 37.3631, 'lon': -122.4061, 'name': 'Pescadero, CA'},
-    '95060': {'lat': 36.9741, 'lon': -122.0308, 'name': 'Santa Cruz, CA'},
-    '93940': {'lat': 36.6002, 'lon': -121.8947, 'name': 'Monterey, CA'},
-    '93950': {'lat': 36.6177, 'lon': -121.9166, 'name': 'Pacific Grove, CA'},
-    '93923': {'lat': 36.5468, 'lon': -121.9234, 'name': 'Carmel, CA'},
-    // California - Southern
+    // California
     '92037': {'lat': 32.8328, 'lon': -117.2713, 'name': 'La Jolla, CA'},
     '92118': {'lat': 32.6800, 'lon': -117.2400, 'name': 'Coronado, CA'},
     '90704': {'lat': 33.3872, 'lon': -118.4165, 'name': 'Avalon (Catalina), CA'},
     '93001': {'lat': 34.2750, 'lon': -119.2290, 'name': 'Ventura, CA'},
-    '90266': {'lat': 33.8886, 'lon': -118.4098, 'name': 'Manhattan Beach, CA'},
-    '90254': {'lat': 33.8622, 'lon': -118.3990, 'name': 'Hermosa Beach, CA'},
-    '90277': {'lat': 33.8153, 'lon': -118.3881, 'name': 'Redondo Beach, CA'},
-    '92651': {'lat': 33.5427, 'lon': -117.7854, 'name': 'Laguna Beach, CA'},
-    '92661': {'lat': 33.6028, 'lon': -117.9029, 'name': 'Newport Beach, CA'},
-    '92648': {'lat': 33.6595, 'lon': -117.9988, 'name': 'Huntington Beach, CA'},
     // Florida Keys
     '33037': {'lat': 25.0861, 'lon': -80.4475, 'name': 'Key Largo, FL'},
     '33050': {'lat': 24.7136, 'lon': -81.0906, 'name': 'Marathon, FL'},
@@ -159,7 +141,6 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   @override
   void dispose() {
     _zipController.dispose();
-    _mapController?.dispose();
     super.dispose();
   }
 
@@ -182,16 +163,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     }
   }
 
-  void _onMapTap(LatLng point) {
+  void _onMapTap(TapPosition tapPosition, LatLng point) {
     setState(() {
       _selectedPoint = point;
-      _markers = {
-        Marker(
-          markerId: const MarkerId('selected'),
-          position: point,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      };
     });
   }
 
@@ -228,122 +202,86 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
             ),
           ),
 
-          // Header - text-based close button
+          // Header
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
                 Text(
-                  'Location',
+                  'Select Location',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Text(
-                    'Done',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
 
-          // Zip Code Input with submit button
+          // Zip Code Input
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _zipController,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: 'Zip code',
-                      hintStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: AppColors.surface,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: AppColors.oceanBlue),
-                      ),
-                    ),
-                    onSubmitted: _onZipSubmit,
-                  ),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: TextField(
+              controller: _zipController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'Enter zip code',
+                prefixIcon: const Icon(Icons.pin_drop, color: AppColors.oceanBlue),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: () => _onZipSubmit(_zipController.text),
                 ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _onZipSubmit(_zipController.text);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.oceanBlue,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      'Go',
-                      style: TextStyle(
-                        color: AppColors.textOnDark,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                filled: true,
+                fillColor: AppColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
-              ],
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+              ),
+              onSubmitted: _onZipSubmit,
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          // Map Toggle - text-based
+          // Map Toggle
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _showMap = !_showMap);
-              },
+              onTap: () => setState(() => _showMap = !_showMap),
               child: Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _showMap ? AppColors.oceanBlue.withOpacity(0.05) : AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
+                  color: _showMap ? AppColors.oceanBlue.withOpacity(0.1) : AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _showMap ? AppColors.oceanBlue.withOpacity(0.3) : AppColors.border.withOpacity(0.5),
+                    color: _showMap ? AppColors.oceanBlue : AppColors.border,
                   ),
                 ),
                 child: Row(
                   children: [
+                    Icon(
+                      Icons.map,
+                      color: _showMap ? AppColors.oceanBlue : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 12),
                     Text(
-                      _showMap ? 'Tap to place pin' : 'Use map',
+                      _showMap ? 'Tap map to drop pin' : 'Drop pin on map',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: _showMap ? AppColors.oceanBlue : AppColors.textPrimary,
+                        fontWeight: _showMap ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                     const Spacer(),
-                    Text(
-                      _showMap ? '−' : '+',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
+                    Icon(
+                      _showMap ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      color: AppColors.textMuted,
                     ),
                   ],
                 ),
@@ -353,85 +291,112 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
           // Map View
           if (_showMap) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
-                height: 180,
+                height: 200,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: GoogleMap(
-                    initialCameraPosition: const CameraPosition(
-                      target: LatLng(21.4389, -158.0001), // Hawaii
-                      zoom: 4,
+                  borderRadius: BorderRadius.circular(12),
+                  child: FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: const LatLng(21.4389, -158.0001), // Oahu
+                      initialZoom: 5,
+                      onTap: _onMapTap,
                     ),
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                    },
-                    onTap: _onMapTap,
-                    markers: _markers,
-                    myLocationEnabled: false,
-                    myLocationButtonEnabled: false,
-                    zoomControlsEnabled: true,
-                    mapToolbarEnabled: false,
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.shaka.app',
+                      ),
+                      if (_selectedPoint != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _selectedPoint!,
+                              width: 40,
+                              height: 40,
+                              child: const Icon(
+                                Icons.location_on,
+                                color: AppColors.coral,
+                                size: 40,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
               ),
             ),
             if (_selectedPoint != null)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _confirmMapSelection();
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.oceanBlue,
-                      borderRadius: BorderRadius.circular(12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _confirmMapSelection,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.oceanBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: Text(
-                      'Confirm',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textOnDark,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      'Use this location (${_selectedPoint!.latitude.toStringAsFixed(2)}, ${_selectedPoint!.longitude.toStringAsFixed(2)})',
                     ),
                   ),
                 ),
               ),
           ],
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Popular Locations
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'POPULAR',
+                'POPULAR SPOTS',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  letterSpacing: 2,
                   color: AppColors.textMuted,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: _popularLocations.length,
               itemBuilder: (context, index) {
                 final location = _popularLocations[index];
-                return GestureDetector(
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.sand,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.place,
+                      color: AppColors.oceanBlue,
+                      size: 16,
+                    ),
+                  ),
+                  title: Text(
+                    location['name'] as String,
+                    style: const TextStyle(fontSize: 14),
+                  ),
                   onTap: () {
-                    HapticFeedback.lightImpact();
                     widget.onLocationSelected(
                       location['lat'] as double,
                       location['lon'] as double,
@@ -439,31 +404,6 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                     );
                     Navigator.pop(context);
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppColors.border.withOpacity(0.3),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          location['name'] as String,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const Spacer(),
-                        Text(
-                          '>',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 );
               },
             ),

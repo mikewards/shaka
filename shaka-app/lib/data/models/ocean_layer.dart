@@ -111,6 +111,86 @@ class OceanLayer {
     updateFrequency: Duration(hours: 6),
   );
 
+  // Wind - hourly scatterometer + model data
+  static const wind = OceanLayer(
+    id: 'wind',
+    name: 'Wind Speed',
+    shortName: 'WIND',
+    wmtsLayer: 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207/wind_speed',
+    style: 'vectorStyle:solidAndVector,cmap:speed',
+    unit: 'm/s',
+    icon: Icons.air,
+    color: Color(0xFF607D8B),
+    minValue: 0,
+    maxValue: 25,
+    description: 'Surface wind speed and direction',
+    updateFrequency: Duration(hours: 1),
+  );
+
+  // Wave Height - 3-hourly forecast
+  static const waves = OceanLayer(
+    id: 'waves',
+    name: 'Wave Height',
+    shortName: 'WAVES',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411/VHM0',
+    style: 'cmap:amp',
+    unit: 'm',
+    icon: Icons.waves,
+    color: Color(0xFF3F51B5),
+    minValue: 0,
+    maxValue: 8,
+    description: 'Significant wave height',
+    updateFrequency: Duration(hours: 3),
+  );
+
+  // Salinity - daily
+  static const salinity = OceanLayer(
+    id: 'sal',
+    name: 'Salinity',
+    shortName: 'SAL',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406/so',
+    style: 'cmap:haline',
+    unit: 'PSU',
+    icon: Icons.water_drop,
+    color: Color(0xFF009688),
+    minValue: 30,
+    maxValue: 40,
+    description: 'Sea water salinity',
+    updateFrequency: Duration(days: 1),
+  );
+
+  // Mixed Layer Depth - daily (thermocline indicator)
+  static const mixedLayerDepth = OceanLayer(
+    id: 'mld',
+    name: 'Mixed Layer Depth',
+    shortName: 'MLD',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_P1D-m_202406/mlotst',
+    style: 'cmap:deep',
+    unit: 'm',
+    icon: Icons.layers,
+    color: Color(0xFF673AB7),
+    minValue: 0,
+    maxValue: 200,
+    description: 'Thermocline depth - fish often stack here',
+    updateFrequency: Duration(days: 1),
+  );
+
+  // Dissolved Oxygen - daily biogeochemistry
+  static const oxygen = OceanLayer(
+    id: 'o2',
+    name: 'Dissolved Oxygen',
+    shortName: 'O2',
+    wmtsLayer: 'GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311/o2',
+    style: 'cmap:ice',
+    unit: 'mmol/m³',
+    icon: Icons.bubble_chart,
+    color: Color(0xFFE91E63),
+    minValue: 150,
+    maxValue: 350,
+    description: 'Oxygen levels - fish avoid low-O2 zones',
+    updateFrequency: Duration(days: 1),
+  );
+
   // Bathymetry uses GEBCO WMS - handled separately in ocean_charts_screen
   static const bathymetry = OceanLayer(
     id: 'bathy',
@@ -127,8 +207,20 @@ class OceanLayer {
     updateFrequency: Duration(days: 365),
   );
 
-  /// All available layers
-  static const List<OceanLayer> all = [sst, chlorophyll, visibility, seaHeight, currents, bathymetry];
+  /// All available layers - ordered by importance for fishing
+  static const List<OceanLayer> all = [
+    sst,           // Temperature affects fish behavior
+    chlorophyll,   // Food chain indicator
+    visibility,    // Spearfishing visibility
+    waves,         // Safety / conditions
+    wind,          // Safety / conditions
+    currents,      // Fish congregation points
+    mixedLayerDepth, // Thermocline - where fish stack
+    salinity,      // Species preferences
+    oxygen,        // Fish habitat suitability
+    seaHeight,     // Currents / upwelling
+    bathymetry,    // Depth / structure
+  ];
 
   /// Get layer by ID
   static OceanLayer? byId(String id) {

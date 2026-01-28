@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/spot_models.dart';
 import '../../widgets/shaka_score_badge.dart';
@@ -23,61 +24,82 @@ class MapView extends StatefulWidget {
 }
 
 class _MapViewState extends State<MapView> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   SpotSummary? _selectedSpot;
-  Set<Marker> _markers = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _buildMarkers();
-  }
-
-  void _buildMarkers() {
-    _markers = widget.spots.map((spot) {
-      final color = _getMarkerHue(spot.shakaScore);
+  List<Marker> _buildMarkers() {
+    return widget.spots.map((spot) {
+      final color = _getMarkerColor(spot.shakaScore);
       return Marker(
-        markerId: MarkerId(spot.id),
-        position: LatLng(spot.coordinates.lat, spot.coordinates.lon),
-        icon: BitmapDescriptor.defaultMarkerWithHue(color),
-        onTap: () {
-          setState(() {
-            _selectedSpot = spot;
-          });
-        },
+        point: LatLng(spot.coordinates.lat, spot.coordinates.lon),
+        width: 40,
+        height: 40,
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedSpot = spot;
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '${spot.shakaScore}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
       );
-    }).toSet();
+    }).toList();
   }
 
-  double _getMarkerHue(int score) {
-    if (score >= 80) return BitmapDescriptor.hueGreen;
-    if (score >= 60) return BitmapDescriptor.hueCyan;
-    if (score >= 40) return BitmapDescriptor.hueYellow;
-    return BitmapDescriptor.hueRed;
+  Color _getMarkerColor(int score) {
+    if (score >= 80) return AppColors.scoreExcellent;
+    if (score >= 60) return AppColors.scoreGood;
+    if (score >= 40) return AppColors.scoreFair;
+    return AppColors.scorePoor;
   }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: LatLng(widget.centerLat, widget.centerLon),
-            zoom: 10,
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: LatLng(widget.centerLat, widget.centerLon),
+            initialZoom: 10,
+            onTap: (_, __) {
+              setState(() {
+                _selectedSpot = null;
+              });
+            },
           ),
-          onMapCreated: (controller) {
-            _mapController = controller;
-          },
-          markers: _markers,
-          onTap: (_) {
-            setState(() {
-              _selectedSpot = null;
-            });
-          },
-          myLocationEnabled: false,
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: true,
-          mapToolbarEnabled: false,
+          children: [
+            TileLayer(
+              urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}@2x.png',
+              userAgentPackageName: 'com.shaka.app',
+            ),
+            MarkerLayer(
+              markers: _buildMarkers(),
+            ),
+          ],
         ),
 
         // Selected spot preview card

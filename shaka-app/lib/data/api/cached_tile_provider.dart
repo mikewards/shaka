@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -73,7 +75,7 @@ class CachedNetworkImageProvider extends ImageProvider<CachedNetworkImageProvide
     );
   }
 
-  Future<Codec> _loadAsync(
+  Future<ui.Codec> _loadAsync(
     CachedNetworkImageProvider key,
     ImageDecoderCallback decode,
   ) async {
@@ -83,12 +85,12 @@ class CachedNetworkImageProvider extends ImageProvider<CachedNetworkImageProvide
         headers: headers,
       );
       final bytes = await file.readAsBytes();
-      final buffer = await ImmutableBuffer.fromUint8List(bytes);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
       return decode(buffer);
     } catch (e) {
       // Return transparent tile on error
       final transparentPng = _createTransparentPng();
-      final buffer = await ImmutableBuffer.fromUint8List(transparentPng);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(transparentPng);
       return decode(buffer);
     }
   }
