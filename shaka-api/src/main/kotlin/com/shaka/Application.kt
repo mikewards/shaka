@@ -18,15 +18,17 @@ private val logger = LoggerFactory.getLogger("Application")
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
-    logger.info("Starting Shaka API on port $port")
+    println("Starting Shaka API on port $port")
     
     embeddedServer(Netty, port = port, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 
 fun Application.module() {
-    // Initialize database connection
-    initDatabase()
+    println("Initializing Shaka API module...")
+    
+    // Try database connection (non-blocking - app works without it)
+    tryInitDatabase()
     
     install(CORS) {
         anyHost()
@@ -60,23 +62,28 @@ fun Application.module() {
     logger.info("Shaka API initialized successfully")
 }
 
-private fun Application.initDatabase() {
+private fun Application.tryInitDatabase() {
     val dbUrl = System.getenv("DATABASE_URL")
     
     if (dbUrl.isNullOrBlank()) {
-        logger.warn("DATABASE_URL not set - using in-memory database")
+        println("DATABASE_URL not set - using in-memory database")
         return
     }
     
     try {
-        val dbUser = System.getenv("DATABASE_USER") ?: "shaka"
+        val dbUser = System.getenv("DATABASE_USER") ?: ""
         val dbPassword = System.getenv("DATABASE_PASSWORD") ?: ""
         
-        logger.info("Connecting to PostgreSQL database...")
+        println("Attempting database connection...")
+        println("DB User: $dbUser")
+        println("DB URL prefix: ${dbUrl.take(30)}...")
+        
         DatabaseFactory.init(dbUrl, dbUser, dbPassword)
-        logger.info("Database connection established successfully")
-    } catch (e: Exception) {
-        logger.error("Failed to connect to database: ${e.message}")
-        logger.warn("Falling back to in-memory database")
+        println("Database connection established!")
+    } catch (e: Throwable) {
+        // Catch Throwable to handle Errors too, not just Exceptions
+        println("Database connection failed: ${e.message}")
+        e.printStackTrace()
+        println("Continuing with in-memory database...")
     }
 }
