@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 
+/// Date picker with Quiet Luxury styling.
+/// 
+/// Text-based, no icons - clean and minimal.
 class DatePickerCard extends StatelessWidget {
   final DateTime selectedDate;
   final Function(DateTime) onDateSelected;
@@ -27,58 +31,35 @@ class DatePickerCard extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () => _showDatePicker(context),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _showDatePicker(context);
+      },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border.withOpacity(0.5)),
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.coral.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.calendar_today,
-                color: AppColors.coral,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    dateLabel,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  if (!isToday && !isTomorrow)
-                    Text(
-                      _getDaysFromNow(),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                ],
+              child: Text(
+                dateLabel,
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textMuted,
+            Text(
+              '>',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textMuted,
+              ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _getDaysFromNow() {
-    final days = selectedDate.difference(DateTime.now()).inDays;
-    return '$days days from now';
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -95,9 +76,9 @@ class DatePickerCard extends StatelessWidget {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
+            colorScheme: ColorScheme.light(
               primary: AppColors.oceanBlue,
-              onPrimary: Colors.white,
+              onPrimary: AppColors.textOnDark,
               surface: AppColors.surface,
               onSurface: AppColors.textPrimary,
             ),

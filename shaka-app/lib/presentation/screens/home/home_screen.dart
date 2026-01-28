@@ -24,11 +24,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 48),
+              const Spacer(flex: 2),
               
               // Logo / Title
               Text(
@@ -38,21 +38,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.textMuted,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                'Find your\nnext dive',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  height: 1.1,
-                ),
+                'Find your\ndive',
+                style: Theme.of(context).textTheme.displayMedium,
               ),
               
-              const SizedBox(height: 48),
+              const Spacer(flex: 2),
 
               // Location Picker
               Text(
                 'WHERE',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  letterSpacing: 2,
                   color: AppColors.textMuted,
                 ),
               ),
@@ -68,13 +65,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               // Date Picker
               Text(
                 'WHEN',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  letterSpacing: 2,
                   color: AppColors.textMuted,
                 ),
               ),
@@ -88,16 +84,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
 
-              const Spacer(),
+              const Spacer(flex: 3),
 
-              // Search Button
-              ShakaButton(
-                label: 'Find Spots',
-                onPressed: _canSearch ? _onSearch : null,
-                isExpanded: true,
+              // Hero Button with breathing animation
+              Center(
+                child: BreathingWidget(
+                  enabled: _canSearch,
+                  child: ShakaButton(
+                    label: 'Begin',
+                    onPressed: _canSearch ? _onSearch : null,
+                    isExpanded: true,
+                    isHero: true,
+                  ),
+                ),
               ),
 
-              const SizedBox(height: 32),
+              const Spacer(flex: 2),
             ],
           ),
         ),

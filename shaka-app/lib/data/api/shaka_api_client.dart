@@ -94,15 +94,15 @@ class ShakaApiClient {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return Exception('Connection timeout. Please check your internet.');
+        return Exception('Connection timed out.');
       case DioExceptionType.connectionError:
-        return Exception('Cannot connect to server. Please try again later.');
+        return Exception('Unable to connect.');
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode;
         final message = e.response?.data?['error'] ?? 'Unknown error';
-        return Exception('Error ($statusCode): $message');
+        return Exception('Error $statusCode: $message');
       default:
-        return Exception('Something went wrong. Please try again.');
+        return Exception('Request failed.');
     }
   }
 }

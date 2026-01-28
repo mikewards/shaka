@@ -2,59 +2,58 @@ import 'package:flutter/material.dart';
 
 /// Shaka Color Palette
 /// 
-/// Design: "Early Square meets The Old Man and the Sea"
-/// - Deep ocean blues for trust and depth
-/// - Warm sand tones for approachability
-/// - Coral accent for energy and action
+/// Design: Quiet Luxury - Understated elegance
+/// Colors should feel like real materials: leather, aged paper, brushed metal, natural stone
+/// Warm tones throughout - no pure black or white
 class AppColors {
   AppColors._();
 
-  // Primary - Deep Ocean Blue
-  static const Color oceanBlue = Color(0xFF1A365D);
-  static const Color oceanBlueLight = Color(0xFF2C5282);
-  static const Color oceanBlueDark = Color(0xFF0F2942);
+  // Primary - Deep Ocean Blue (slightly warmed)
+  static const Color oceanBlue = Color(0xFF1E3A5F);
+  static const Color oceanBlueLight = Color(0xFF2D4A6F);
+  static const Color oceanBlueDark = Color(0xFF152942);
 
-  // Secondary - Coral (action color)
-  static const Color coral = Color(0xFFE07A5F);
-  static const Color coralLight = Color(0xFFE8998D);
-  static const Color coralDark = Color(0xFFC65D3D);
+  // Secondary - Muted Coral (desaturated for quiet luxury)
+  static const Color coral = Color(0xFFCB8B7A);
+  static const Color coralLight = Color(0xFFD9A99C);
+  static const Color coralDark = Color(0xFFAA7265);
 
-  // Neutral - Sand tones
-  static const Color sand = Color(0xFFF5E6D3);
-  static const Color sandLight = Color(0xFFFAF5EE);
-  static const Color sandDark = Color(0xFFE8D4BC);
+  // Neutral - Warm Sand tones
+  static const Color sand = Color(0xFFF2E6D9);
+  static const Color sandLight = Color(0xFFF8F4EE);
+  static const Color sandDark = Color(0xFFE5D4C3);
 
-  // Background & Surface
-  static const Color background = Color(0xFFFCFAF7);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceElevated = Color(0xFFFFFFFF);
+  // Background & Surface - Warm off-whites, never pure white
+  static const Color background = Color(0xFFFAF8F5);
+  static const Color surface = Color(0xFFFEFDFB);
+  static const Color surfaceElevated = Color(0xFFFFFEFC);
 
-  // Text
-  static const Color textPrimary = Color(0xFF1A1A1A);
-  static const Color textSecondary = Color(0xFF5C5C5C);
-  static const Color textMuted = Color(0xFF9CA3AF);
-  static const Color textOnDark = Color(0xFFFAFAFA);
+  // Text - Warm near-black, never pure black
+  static const Color textPrimary = Color(0xFF2C2C2C);
+  static const Color textSecondary = Color(0xFF5A5A58);
+  static const Color textMuted = Color(0xFF8E8E8A);
+  static const Color textOnDark = Color(0xFFFAF9F7);
 
-  // Borders
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color borderLight = Color(0xFFF3F4F6);
-  static const Color borderDark = Color(0xFFD1D5DB);
+  // Borders - Warm grays
+  static const Color border = Color(0xFFE8E6E1);
+  static const Color borderLight = Color(0xFFF3F1ED);
+  static const Color borderDark = Color(0xFFD4D2CD);
 
-  // Shaka Score Colors
-  static const Color scoreExcellent = Color(0xFF059669);  // 80-100
-  static const Color scoreGood = Color(0xFF10B981);       // 60-79
-  static const Color scoreFair = Color(0xFFF59E0B);       // 40-59
-  static const Color scorePoor = Color(0xFFEF4444);       // 0-39
+  // Shaka Score Colors - Desaturated, natural tones
+  static const Color scoreExcellent = Color(0xFF6B8E7D);  // Sage green - 80-100
+  static const Color scoreGood = Color(0xFF8FA98B);       // Muted green - 60-79
+  static const Color scoreFair = Color(0xFFC9A66B);       // Amber/brass - 40-59
+  static const Color scorePoor = Color(0xFFB87A7A);       // Dusty rose - 0-39
 
-  // Status
-  static const Color success = Color(0xFF059669);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color error = Color(0xFFDC2626);
-  static const Color info = Color(0xFF3B82F6);
+  // Status - Desaturated, refined
+  static const Color success = Color(0xFF6B8E7D);
+  static const Color warning = Color(0xFFC9A66B);
+  static const Color error = Color(0xFFB87A7A);
+  static const Color info = Color(0xFF7A9BB8);
 
-  // Semantic - Access Types
-  static const Color shoreDive = Color(0xFF10B981);
-  static const Color boatDive = Color(0xFF3B82F6);
+  // Semantic - Access Types (desaturated)
+  static const Color shoreDive = Color(0xFF7A9E8A);
+  static const Color boatDive = Color(0xFF7A9BB8);
 
   /// Get score color based on shaka score value
   static Color getScoreColor(int score) {

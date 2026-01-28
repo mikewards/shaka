@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
+/// Conditions card with Quiet Luxury styling.
+/// 
+/// Text-only display, no icons - let the data speak.
 class ConditionsCard extends StatelessWidget {
   final SpotConditions conditions;
 
@@ -10,42 +13,35 @@ class ConditionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
       ),
       child: Row(
         children: [
           Expanded(
             child: _ConditionItem(
-              icon: Icons.visibility,
-              label: 'Visibility',
+              label: 'VISIBILITY',
               value: conditions.visibility,
             ),
           ),
-          _Divider(),
           Expanded(
             child: _ConditionItem(
-              icon: Icons.thermostat,
-              label: 'Water',
+              label: 'WATER',
               value: conditions.waterTemp,
             ),
           ),
-          _Divider(),
           Expanded(
             child: _ConditionItem(
-              icon: Icons.waves,
-              label: 'Swell',
+              label: 'SWELL',
               value: conditions.swell,
             ),
           ),
-          _Divider(),
           Expanded(
             child: _ConditionItem(
-              icon: Icons.air,
-              label: 'Wind',
+              label: 'WIND',
               value: conditions.wind,
             ),
           ),
@@ -56,12 +52,10 @@ class ConditionsCard extends StatelessWidget {
 }
 
 class _ConditionItem extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String value;
 
   const _ConditionItem({
-    required this.icon,
     required this.label,
     required this.value,
   });
@@ -70,32 +64,20 @@ class _ConditionItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: AppColors.oceanBlue, size: 20),
-        const SizedBox(height: 8),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 6),
         Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.textMuted,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 40,
-      color: AppColors.border,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
     );
   }
 }

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/animations.dart';
 import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/spot_card.dart';
-import '../../widgets/shaka_score_badge.dart';
 import 'map_view.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -47,10 +48,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: TextButton(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.pop();
+            },
+            child: Text(
+              'Back',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
         ),
+        leadingWidth: 80,
         title: Column(
           children: [
             Text(
@@ -59,26 +72,38 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ),
             Text(
               widget.date,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textMuted,
+              ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(_isMapView ? Icons.list : Icons.map_outlined),
+          TextButton(
             onPressed: () {
+              HapticFeedback.lightImpact();
               setState(() {
                 _isMapView = !_isMapView;
               });
             },
+            child: Text(
+              _isMapView ? 'List' : 'Map',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
           if (state is SearchLoading) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.oceanBlue,
+              ),
             );
           }
 
@@ -90,9 +115,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             if (state.response.spots.isEmpty) {
               return _buildEmpty();
             }
-            return _isMapView
-                ? _buildMapView(state.response.spots)
-                : _buildListView(state.response.spots);
+            return AnimatedSwitcher(
+              duration: AppAnimations.pageTransition,
+              child: _isMapView
+                  ? _buildMapView(state.response.spots)
+                  : _buildListView(state.response.spots),
+            );
           }
 
           return const SizedBox.shrink();
@@ -103,14 +131,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Widget _buildListView(List<SpotSummary> spots) {
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      key: const ValueKey('list'),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       itemCount: spots.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final spot = spots[index];
         return SpotCard(
           spot: spot,
           onTap: () {
+            HapticFeedback.lightImpact();
             context.push(
               '/spot/${spot.id}',
               extra: {'date': widget.date},
@@ -123,10 +153,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Widget _buildMapView(List<SpotSummary> spots) {
     return MapView(
+      key: const ValueKey('map'),
       spots: spots,
       centerLat: widget.lat,
       centerLon: widget.lon,
       onSpotTap: (spot) {
+        HapticFeedback.lightImpact();
         context.push(
           '/spot/${spot.id}',
           extra: {'date': widget.date},
@@ -138,23 +170,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget _buildEmpty() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: AppColors.textMuted,
-            ),
-            const SizedBox(height: 16),
             Text(
               'No spots found',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
-              'Try expanding your search radius or selecting a different location.',
+              'Try a different location or expand your search.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -169,21 +195,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget _buildError(String message) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: 16),
             Text(
-              'Something went wrong',
-              style: Theme.of(context).textTheme.titleLarge,
+              'Unable to load',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               message,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -191,10 +211,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             TextButton(
-              onPressed: _loadSpots,
-              child: const Text('Try Again'),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _loadSpots();
+              },
+              child: Text(
+                'Retry',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.oceanBlue,
+                ),
+              ),
             ),
           ],
         ),

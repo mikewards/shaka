@@ -3,11 +3,11 @@ import 'app_colors.dart';
 
 /// Shaka App Theme
 /// 
-/// Design direction: "Early Square meets The Old Man and the Sea"
-/// - Understated elegance
-/// - Generous whitespace
-/// - Clean typography
-/// - Subtle shadows and textures
+/// Design: Quiet Luxury
+/// - Understated elegance, not tech-forward minimalism
+/// - Light font weights for display text
+/// - Generous letter-spacing on labels (gallery/museum aesthetic)
+/// - Warmth throughout
 class AppTheme {
   AppTheme._();
 
@@ -24,12 +24,12 @@ class AppTheme {
         surface: AppColors.surface,
         surfaceContainerHighest: AppColors.background,
         error: AppColors.error,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
+        onPrimary: AppColors.textOnDark,
+        onSecondary: AppColors.textOnDark,
         onSurface: AppColors.textPrimary,
       ),
 
-      // App Bar
+      // App Bar - Clean, minimal
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.background,
         elevation: 0,
@@ -38,86 +38,99 @@ class AppTheme {
         iconTheme: IconThemeData(color: AppColors.textPrimary),
         titleTextStyle: TextStyle(
           fontFamily: 'Inter',
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
-          letterSpacing: -0.3,
+          letterSpacing: 0.3,
         ),
       ),
 
-      // Typography
+      // Typography - Light weights for elegance, generous tracking on labels
       textTheme: const TextTheme(
+        // Display - Light weight for refined elegance
         displayLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 48,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w300,
           color: AppColors.textPrimary,
-          letterSpacing: -1.5,
+          letterSpacing: -1.0,
+          height: 1.1,
         ),
         displayMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 36,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w300,
           color: AppColors.textPrimary,
-          letterSpacing: -1.0,
+          letterSpacing: -0.5,
+          height: 1.1,
         ),
         displaySmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 28,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w300,
           color: AppColors.textPrimary,
-          letterSpacing: -0.5,
+          letterSpacing: -0.3,
+          height: 1.2,
         ),
+        // Headlines - Medium weight
         headlineLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 24,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
-          letterSpacing: -0.3,
+          letterSpacing: -0.2,
         ),
         headlineMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
-          letterSpacing: -0.2,
+          letterSpacing: -0.1,
         ),
         headlineSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
+          letterSpacing: 0,
         ),
+        // Titles
         titleLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
+          letterSpacing: 0.1,
         ),
         titleMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 14,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
+          letterSpacing: 0.2,
         ),
         titleSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: AppColors.textSecondary,
+          letterSpacing: 0.3,
         ),
+        // Body - Slightly increased letter-spacing for readability
         bodyLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
           fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
-          height: 1.5,
+          letterSpacing: 0.2,
+          height: 1.6,
         ),
         bodyMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
+          letterSpacing: 0.2,
           height: 1.5,
         ),
         bodySmall: TextStyle(
@@ -125,28 +138,30 @@ class AppTheme {
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: AppColors.textSecondary,
+          letterSpacing: 0.2,
           height: 1.4,
         ),
+        // Labels - ALL-CAPS with generous tracking (gallery aesthetic)
         labelLarge: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
-          letterSpacing: 0.5,
-        ),
-        labelMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
+          letterSpacing: 1.5,
+        ),
+        labelMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
           color: AppColors.textSecondary,
-          letterSpacing: 0.3,
+          letterSpacing: 1.5,
         ),
         labelSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 10,
           fontWeight: FontWeight.w500,
           color: AppColors.textMuted,
-          letterSpacing: 0.5,
+          letterSpacing: 2.0,
         ),
       ),
 
@@ -183,10 +198,13 @@ class AppTheme {
       ),
 
       // Card
-      cardTheme: const CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
       ),
 
       // Input Decoration

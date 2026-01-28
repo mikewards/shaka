@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/animations.dart';
 import '../../data/models/spot_models.dart';
 
+/// Score breakdown card with Quiet Luxury styling.
+/// 
+/// Clean, text-only display with subtle progress indicators.
 class ScoreBreakdownCard extends StatelessWidget {
   final ScoreBreakdown breakdown;
 
@@ -10,25 +14,25 @@ class ScoreBreakdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
       ),
       child: Column(
         children: [
-          _ScoreRow(label: 'Visibility', score: breakdown.visibility, icon: Icons.visibility),
-          const SizedBox(height: 12),
-          _ScoreRow(label: 'Weather', score: breakdown.weather, icon: Icons.wb_sunny),
-          const SizedBox(height: 12),
-          _ScoreRow(label: 'Swell', score: breakdown.swell, icon: Icons.waves),
-          const SizedBox(height: 12),
-          _ScoreRow(label: 'Fish Activity', score: breakdown.fishActivity, icon: Icons.phishing),
-          const SizedBox(height: 12),
-          _ScoreRow(label: 'Accessibility', score: breakdown.accessibility, icon: Icons.directions_walk),
-          const SizedBox(height: 12),
-          _ScoreRow(label: 'Safety', score: breakdown.safety, icon: Icons.shield),
+          _ScoreRow(label: 'Visibility', score: breakdown.visibility),
+          const SizedBox(height: 14),
+          _ScoreRow(label: 'Weather', score: breakdown.weather),
+          const SizedBox(height: 14),
+          _ScoreRow(label: 'Swell', score: breakdown.swell),
+          const SizedBox(height: 14),
+          _ScoreRow(label: 'Fish', score: breakdown.fishActivity),
+          const SizedBox(height: 14),
+          _ScoreRow(label: 'Access', score: breakdown.accessibility),
+          const SizedBox(height: 14),
+          _ScoreRow(label: 'Safety', score: breakdown.safety),
         ],
       ),
     );
@@ -38,12 +42,10 @@ class ScoreBreakdownCard extends StatelessWidget {
 class _ScoreRow extends StatelessWidget {
   final String label;
   final int score;
-  final IconData icon;
 
   const _ScoreRow({
     required this.label,
     required this.score,
-    required this.icon,
   });
 
   @override
@@ -52,34 +54,34 @@ class _ScoreRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.textMuted),
-        const SizedBox(width: 12),
-        Expanded(
+        SizedBox(
+          width: 80,
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        SizedBox(
-          width: 100,
+        Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: score / 100,
-              backgroundColor: AppColors.border,
-              valueColor: AlwaysStoppedAnimation(color),
-              minHeight: 6,
+            child: AnimatedContainer(
+              duration: AppAnimations.stateTransition,
+              height: 4,
+              child: LinearProgressIndicator(
+                value: score / 100,
+                backgroundColor: AppColors.border.withOpacity(0.3),
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 16),
         SizedBox(
-          width: 32,
+          width: 28,
           child: Text(
             '$score',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
             ),
             textAlign: TextAlign.right,
           ),
