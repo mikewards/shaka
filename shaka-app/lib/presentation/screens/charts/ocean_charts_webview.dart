@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -73,6 +75,7 @@ class OceanChartsWebView extends StatefulWidget {
 
 class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   WebViewController? _controller;
+  final GlobalKey _webViewKey = GlobalKey();
   bool _isLoading = true;
   bool _isOnline = true;
   bool _isSaving = false;
@@ -167,12 +170,22 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     setState(() => _isSaving = true);
     
     try {
-      // Capture screenshot from WebView
-      final Uint8List? imageBytes = await _controller!.takeSnapshot();
+      // Capture screenshot using RepaintBoundary
+      final RenderRepaintBoundary? boundary = 
+          _webViewKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       
-      if (imageBytes == null) {
+      if (boundary == null) {
+        throw Exception('Could not find WebView to capture');
+      }
+      
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData == null) {
         throw Exception('Failed to capture screenshot');
       }
+      
+      final Uint8List imageBytes = byteData.buffer.asUint8List();
       
       // Generate unique ID
       final id = DateTime.now().millisecondsSinceEpoch.toString();
@@ -359,7 +372,10 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         children: [
           // Main content
           if (_isOnline && _controller != null)
-            WebViewWidget(controller: _controller!)
+            RepaintBoundary(
+              key: _webViewKey,
+              child: WebViewWidget(controller: _controller!),
+            )
           else if (!_isOnline)
             _buildOfflineView()
           else
