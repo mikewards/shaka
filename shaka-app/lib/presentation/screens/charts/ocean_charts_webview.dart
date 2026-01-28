@@ -87,24 +87,34 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   double _zoom = 6.0;
   DateTime _dataDate = DateTime.now().subtract(const Duration(days: 1));
   
-  // Layer states - matches our original ocean charts
+  // Layer states - all layers from original ocean charts
   final Map<String, bool> _layerStates = {
-    'sst': true,      // Sea Surface Temperature
-    'chl': false,     // Chlorophyll
-    'zsd': false,     // Water Visibility (Secchi Depth)
-    'ssh': false,     // Sea Surface Height
-    'currents': false, // Ocean Currents
-    'wind': false,    // Wind
+    'sst': true,       // Sea Surface Temperature
+    'chl': false,      // Chlorophyll
+    'zsd': false,      // Water Visibility (Secchi Depth)
+    'waves': false,    // Wave Height
+    'wind': false,     // Wind
+    'cur': false,      // Ocean Currents
+    'mld': false,      // Mixed Layer Depth (thermocline)
+    'sal': false,      // Salinity
+    'o2': false,       // Dissolved Oxygen
+    'ssh': false,      // Sea Surface Height
+    'bathy': false,    // Bathymetry
   };
   
-  // Layer display info
+  // Layer display info - ordered by fishing importance
   static const Map<String, Map<String, dynamic>> _layerInfo = {
-    'sst': {'name': 'Sea Surface Temp', 'icon': Icons.thermostat, 'color': Color(0xFFFF6B35)},
-    'chl': {'name': 'Chlorophyll', 'icon': Icons.eco, 'color': Color(0xFF4CAF50)},
-    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3)},
-    'ssh': {'name': 'Sea Height', 'icon': Icons.waves, 'color': Color(0xFF9C27B0)},
-    'currents': {'name': 'Currents', 'icon': Icons.sync_alt, 'color': Color(0xFF00BCD4)},
-    'wind': {'name': 'Wind', 'icon': Icons.air, 'color': Color(0xFF78909C)},
+    'sst': {'name': 'Sea Surface Temp', 'icon': Icons.thermostat, 'color': Color(0xFFFF6B35), 'desc': 'Water temperature'},
+    'chl': {'name': 'Chlorophyll', 'icon': Icons.grass, 'color': Color(0xFF4CAF50), 'desc': 'Phytoplankton / bait'},
+    'zsd': {'name': 'Visibility', 'icon': Icons.visibility, 'color': Color(0xFF2196F3), 'desc': 'Water clarity'},
+    'waves': {'name': 'Wave Height', 'icon': Icons.waves, 'color': Color(0xFF3F51B5), 'desc': 'Significant wave height'},
+    'wind': {'name': 'Wind', 'icon': Icons.air, 'color': Color(0xFF607D8B), 'desc': 'Surface wind speed'},
+    'cur': {'name': 'Currents', 'icon': Icons.sync_alt, 'color': Color(0xFF00BCD4), 'desc': 'Current speed/direction'},
+    'mld': {'name': 'Mixed Layer Depth', 'icon': Icons.layers, 'color': Color(0xFF673AB7), 'desc': 'Thermocline depth'},
+    'sal': {'name': 'Salinity', 'icon': Icons.water_drop, 'color': Color(0xFF009688), 'desc': 'Sea water salinity'},
+    'o2': {'name': 'Dissolved Oxygen', 'icon': Icons.bubble_chart, 'color': Color(0xFFE91E63), 'desc': 'Oxygen levels'},
+    'ssh': {'name': 'Sea Height', 'icon': Icons.trending_up, 'color': Color(0xFF9C27B0), 'desc': 'Height anomaly'},
+    'bathy': {'name': 'Bathymetry', 'icon': Icons.terrain, 'color': Color(0xFF795548), 'desc': 'Ocean floor depth'},
   };
 
   @override
@@ -501,86 +511,125 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-          decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 16),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Column(
+              children: [
+                // Handle
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 8),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              // Title
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Icon(Icons.layers, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Data Layers',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                // Title
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.layers, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Data Layers',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      // Active count
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_layerStates.values.where((v) => v).length} active',
+                          style: const TextStyle(color: Colors.blue, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Layer toggles
-              ..._layerInfo.entries.map((entry) {
-                final id = entry.key;
-                final info = entry.value;
-                final isEnabled = _layerStates[id] ?? false;
-                
-                return ListTile(
-                  leading: Icon(
-                    info['icon'] as IconData,
-                    color: isEnabled ? info['color'] as Color : Colors.white38,
-                  ),
-                  title: Text(
-                    info['name'] as String,
-                    style: TextStyle(
-                      color: isEnabled ? Colors.white : Colors.white54,
-                      fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                  trailing: Switch(
-                    value: isEnabled,
-                    activeColor: info['color'] as Color,
-                    onChanged: (value) {
-                      setModalState(() {
-                        _layerStates[id] = value;
-                      });
-                      setState(() {});
-                      // Reload WebView with new layers
-                      _reloadWithCurrentSettings();
+                const Divider(color: Colors.white12, height: 1),
+                // Scrollable layer list
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: _layerInfo.length,
+                    itemBuilder: (context, index) {
+                      final entry = _layerInfo.entries.elementAt(index);
+                      final id = entry.key;
+                      final info = entry.value;
+                      final isEnabled = _layerStates[id] ?? false;
+                      
+                      return ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isEnabled 
+                                ? (info['color'] as Color).withOpacity(0.2)
+                                : Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            info['icon'] as IconData,
+                            color: isEnabled ? info['color'] as Color : Colors.white38,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          info['name'] as String,
+                          style: TextStyle(
+                            color: isEnabled ? Colors.white : Colors.white70,
+                            fontWeight: isEnabled ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          info['desc'] as String,
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                        trailing: Switch(
+                          value: isEnabled,
+                          activeColor: info['color'] as Color,
+                          onChanged: (value) {
+                            setModalState(() {
+                              _layerStates[id] = value;
+                            });
+                            setState(() {});
+                            _reloadWithCurrentSettings();
+                          },
+                        ),
+                        onTap: () {
+                          setModalState(() {
+                            _layerStates[id] = !isEnabled;
+                          });
+                          setState(() {});
+                          _reloadWithCurrentSettings();
+                        },
+                      );
                     },
                   ),
-                  onTap: () {
-                    setModalState(() {
-                      _layerStates[id] = !isEnabled;
-                    });
-                    setState(() {});
-                    _reloadWithCurrentSettings();
-                  },
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
