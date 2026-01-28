@@ -57,6 +57,9 @@ class SpotService {
                 sharkRisk = "low"
             )
 
+            // Use real SST from water quality data (NOAA/Copernicus) instead of hardcoded value
+            val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+            
             SpotSummary(
                 id = spot.id,
                 name = spot.name,
@@ -65,14 +68,15 @@ class SpotService {
                 confidence = score.confidence,
                 access = spot.access,
                 conditions = SpotConditions(
-                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m",
-                    waterTemp = "${ocean.waterTemperature.toInt()}C",
-                    swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft",
+                    visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory})",
+                    waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                    swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = "${weather.windSpeed.toInt()} knots",
-                    tideState = "rising"
+                    tideState = "rising",
+                    currentStrength = "moderate"
                 ),
                 expectedFish = spot.commonFish,
-                gearRecommendations = generateGearRecs(ocean.waterTemperature, spot.depth),
+                gearRecommendations = generateGearRecs(actualSST, spot.depth),
                 risks = generateRisks(weather, ocean),
                 bestTimeOfDay = "6am-10am"
             )
@@ -94,6 +98,7 @@ class SpotService {
 
         val weather = openMeteo.getWeather(spot.coordinates.lat, spot.coordinates.lon, date)
         val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, date)
+        val waterQuality = copernicus.getWaterQuality(spot.coordinates.lat, spot.coordinates.lon, date)
 
         // Get community reports for the spot's region
         val region = inferRegionFromSpotId(spotId)
@@ -107,7 +112,7 @@ class SpotService {
             targetDate = date,
             weather = weather,
             ocean = ocean,
-            waterQuality = null,
+            waterQuality = waterQuality,
             moonPhase = getMoonPhase(date),
             seasonalMultiplier = getSeasonalMultiplier(spotId, date),
             recentSightings = communityReports.size.coerceAtLeast(1),
@@ -118,6 +123,9 @@ class SpotService {
             hasHazards = false,
             sharkRisk = "low"
         )
+        
+        // Use real SST from water quality data (NOAA/Copernicus)
+        val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
 
         // Generate 7-day forecast
         val forecast = forecastService.getForecast(spotId, 7)
@@ -125,7 +133,7 @@ class SpotService {
         return SpotDetail(
             id = spot.id,
             name = spot.name,
-            description = spot.description,
+            description = "${spot.description}\n\nWater Quality: ${waterQuality.dataSource}",
             coordinates = spot.coordinates,
             score = score,
             access = AccessInfo(
@@ -136,11 +144,12 @@ class SpotService {
                 boatLaunchNearby = spot.access == "boat"
             ),
             conditions = SpotConditions(
-                visibility = "${(score.breakdown.visibility / 5)}m",
-                waterTemp = "${ocean.waterTemperature.toInt()}C",
-                swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft",
+                visibility = "${waterQuality.visibility?.toInt() ?: 15}m (${waterQuality.visibilityCategory}) - Chl: ${String.format("%.2f", waterQuality.chlorophyllA ?: 0.0)} mg/m³",
+                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = "${weather.windSpeed.toInt()} knots",
-                tideState = "rising"
+                tideState = "rising",
+                currentStrength = "Turbidity: ${String.format("%.1f", waterQuality.turbidity ?: 0.0)} NTU (${waterQuality.turbidityCategory})"
             ),
             forecast = forecast,
             expectedFish = spot.commonFish.map { fish ->
@@ -150,7 +159,7 @@ class SpotService {
                     seasonalNotes = getSeasonalNotes(fish, spotId, date)
                 )
             },
-            gearRecommendations = generateGearRecs(ocean.waterTemperature, spot.depth).map { item ->
+            gearRecommendations = generateGearRecs(actualSST, spot.depth).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
             risks = generateRisks(weather, ocean).map { risk ->

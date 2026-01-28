@@ -161,8 +161,43 @@ data class TideData(
 
 @Serializable
 data class WaterQuality(
-    val chlorophyllA: Double?,
-    val turbidity: Double?,
-    val visibility: Double?,
-    val dataSource: String
-)
+    val chlorophyllA: Double?,        // mg/m³ - algae indicator (0.1-0.5 clear, 1-5 productive, >10 bloom)
+    val turbidity: Double?,           // NTU - Total Suspended Matter (0-1 clear, 1-5 moderate, >5 murky)
+    val visibility: Double?,          // meters - estimated underwater visibility
+    val seaSurfaceTemp: Double?,      // °C - from NOAA or Copernicus
+    val dataSource: String,           // Source attribution
+    val chlorophyllCategory: String = categorizeChlorophyll(chlorophyllA),
+    val turbidityCategory: String = categorizeTurbidity(turbidity),
+    val visibilityCategory: String = categorizeVisibility(visibility)
+) {
+    companion object {
+        fun categorizeChlorophyll(chl: Double?): String = when {
+            chl == null -> "unknown"
+            chl < 0.3 -> "excellent"     // Very clear, oligotrophic
+            chl < 0.5 -> "good"          // Clear tropical/subtropical
+            chl < 1.0 -> "moderate"      // Slightly productive
+            chl < 3.0 -> "productive"    // Upwelling/coastal enrichment
+            chl < 10.0 -> "high"         // Very productive
+            else -> "bloom"              // Algae bloom conditions
+        }
+        
+        fun categorizeTurbidity(turb: Double?): String = when {
+            turb == null -> "unknown"
+            turb < 1.0 -> "clear"        // Excellent clarity
+            turb < 2.0 -> "good"         // Good visibility
+            turb < 4.0 -> "moderate"     // Some suspended particles
+            turb < 8.0 -> "murky"        // Reduced visibility
+            else -> "poor"               // Very turbid
+        }
+        
+        fun categorizeVisibility(vis: Double?): String = when {
+            vis == null -> "unknown"
+            vis >= 30.0 -> "exceptional" // Crystal clear (30m+)
+            vis >= 20.0 -> "excellent"   // Very good (20-30m)
+            vis >= 15.0 -> "good"        // Good (15-20m)
+            vis >= 10.0 -> "moderate"    // Average (10-15m)
+            vis >= 5.0 -> "fair"         // Below average (5-10m)
+            else -> "poor"               // Poor (<5m)
+        }
+    }
+}
