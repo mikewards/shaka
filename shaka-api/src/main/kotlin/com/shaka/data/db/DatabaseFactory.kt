@@ -58,15 +58,30 @@ object DatabaseFactory {
     }
 
     /**
-     * Initialize with explicit connection parameters (for testing).
+     * Initialize with explicit connection parameters.
+     * Handles Railway's DATABASE_URL format (postgresql://...) and converts to JDBC format.
      */
     fun init(url: String, user: String, password: String) {
+        // Convert Railway URL format to JDBC format if needed
+        val jdbcUrl = when {
+            url.startsWith("jdbc:") -> url
+            url.startsWith("postgresql://") -> "jdbc:$url"
+            url.startsWith("postgres://") -> "jdbc:postgresql://${url.removePrefix("postgres://")}"
+            else -> url
+        }
+        
+        logger.info("Connecting to database: ${jdbcUrl.substringBefore("?").substringBefore("@").let { 
+            if (it.contains("@")) it.substringAfterLast("@") else it 
+        }}")
+        
         val hikariConfig = HikariConfig().apply {
-            jdbcUrl = url
+            this.jdbcUrl = jdbcUrl
             driverClassName = "org.postgresql.Driver"
             username = user
             this.password = password
             maximumPoolSize = 5
+            minimumIdle = 1
+            connectionTimeout = 30000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"
             validate()
@@ -74,10 +89,14 @@ object DatabaseFactory {
 
         dataSource = HikariDataSource(hikariConfig)
         Database.connect(dataSource!!)
+        
+        logger.info("Database connected, creating tables if needed...")
 
         transaction {
             SchemaUtils.create(SpotsTable, ReportsTable)
         }
+        
+        logger.info("Database initialization complete")
     }
 
     /**
