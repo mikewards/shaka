@@ -132,6 +132,29 @@ data class SearchResponse(
 )
 
 @Serializable
+data class SpotSearchResult(
+    val id: String,
+    val name: String,
+    val region: String,
+    val coordinates: Coordinates,
+    val access: String
+)
+
+@Serializable
+data class BatchSpotsResponse(
+    val spots: List<SpotSummary>,
+    val date: String,
+    val fetchedAt: String
+)
+
+@Serializable
+data class RegionInfo(
+    val id: String,
+    val name: String,
+    val spotCount: Int
+)
+
+@Serializable
 data class WeatherData(
     val temperature: Double,
     val windSpeed: Double,

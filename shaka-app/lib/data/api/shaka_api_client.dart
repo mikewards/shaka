@@ -95,6 +95,70 @@ class ShakaApiClient {
     }
   }
 
+  /// Batch fetch spots by IDs (for favorites/home screen)
+  Future<BatchSpotsResponse> getSpotsBatch({
+    required List<String> spotIds,
+    required String date,
+  }) async {
+    if (spotIds.isEmpty) {
+      return BatchSpotsResponse(
+        spots: [],
+        date: date,
+        fetchedAt: DateTime.now().toIso8601String(),
+      );
+    }
+    
+    try {
+      final response = await _dio.get(
+        '/spots/batch',
+        queryParameters: {
+          'ids': spotIds.join(','),
+          'date': date,
+        },
+      );
+      return BatchSpotsResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Search spots by name (for type-ahead search)
+  Future<List<SpotSearchResult>> searchSpotsByName({
+    required String query,
+    int limit = 20,
+  }) async {
+    if (query.trim().isEmpty) {
+      return [];
+    }
+    
+    try {
+      final response = await _dio.get(
+        '/spots/search/name',
+        queryParameters: {
+          'q': query,
+          'limit': limit,
+        },
+      );
+      return (response.data as List)
+          .map((e) => SpotSearchResult.fromJson(e))
+          .toList();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get all regions (for search autocomplete)
+  Future<List<RegionInfo>> getRegions() async {
+    try {
+      final response = await _dio.get('/regions');
+      return (response.data as List)
+          .map((e) => RegionInfo.fromJson(e))
+          .toList();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Exception _handleError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:

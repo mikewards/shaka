@@ -55,16 +55,20 @@ const _conditionSources = {
 class ConditionsCard extends StatelessWidget {
   final SpotConditions conditions;
 
+  // Dark theme colors
+  static const _cardColor = Color(0xFF1A1A1A);
+  static const _borderColor = Color(0xFF2A2A2A);
+
   const ConditionsCard({super.key, required this.conditions});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withOpacity(0.3)),
+        border: Border.all(color: _borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,9 +77,11 @@ class ConditionsCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Conditions',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -84,21 +90,15 @@ class ConditionsCard extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   _showAllSourcesInfo(context);
                 },
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Data sources',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.info_outline,
-                      size: 14,
-                      color: AppColors.textMuted,
-                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.info_outline, size: 12, color: Colors.white38),
                   ],
                 ),
               ),
@@ -313,16 +313,14 @@ class _ConditionRow extends StatelessWidget {
       },
       child: Container(
         padding: EdgeInsets.only(
-          top: 12,
-          bottom: isLast ? 4 : 12,
+          top: 10,
+          bottom: isLast ? 4 : 10,
         ),
         decoration: BoxDecoration(
           border: isLast
               ? null
-              : Border(
-                  bottom: BorderSide(
-                    color: AppColors.border.withOpacity(0.2),
-                  ),
+              : const Border(
+                  bottom: BorderSide(color: Colors.white10),
                 ),
         ),
         child: Row(
@@ -333,22 +331,18 @@ class _ConditionRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textMuted,
-                  ),
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
                 ),
                 const SizedBox(width: 4),
-                Icon(
-                  Icons.info_outline,
-                  size: 12,
-                  color: AppColors.textMuted.withOpacity(0.5),
-                ),
+                const Icon(Icons.info_outline, size: 10, color: Colors.white24),
               ],
             ),
             Flexible(
               child: Text(
                 value,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.right,

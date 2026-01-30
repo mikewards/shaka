@@ -360,3 +360,74 @@ class SearchResponse {
     );
   }
 }
+
+/// Result from spot name search (lightweight, no conditions)
+class SpotSearchResult {
+  final String id;
+  final String name;
+  final String region;
+  final Coordinates coordinates;
+  final String access;
+
+  const SpotSearchResult({
+    required this.id,
+    required this.name,
+    required this.region,
+    required this.coordinates,
+    required this.access,
+  });
+
+  factory SpotSearchResult.fromJson(Map<String, dynamic> json) {
+    return SpotSearchResult(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      region: json['region'] ?? '',
+      coordinates: Coordinates.fromJson(json['coordinates'] ?? {}),
+      access: json['access'] ?? 'shore',
+    );
+  }
+}
+
+/// Response from batch spot fetch
+class BatchSpotsResponse {
+  final List<SpotSummary> spots;
+  final String date;
+  final String fetchedAt;
+
+  const BatchSpotsResponse({
+    required this.spots,
+    required this.date,
+    required this.fetchedAt,
+  });
+
+  factory BatchSpotsResponse.fromJson(Map<String, dynamic> json) {
+    return BatchSpotsResponse(
+      spots: (json['spots'] as List? ?? [])
+          .map((e) => SpotSummary.fromJson(e))
+          .toList(),
+      date: json['date'] ?? '',
+      fetchedAt: json['fetchedAt'] ?? '',
+    );
+  }
+}
+
+/// Region info for search autocomplete
+class RegionInfo {
+  final String id;
+  final String name;
+  final int spotCount;
+
+  const RegionInfo({
+    required this.id,
+    required this.name,
+    required this.spotCount,
+  });
+
+  factory RegionInfo.fromJson(Map<String, dynamic> json) {
+    return RegionInfo(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      spotCount: json['spotCount'] ?? 0,
+    );
+  }
+}

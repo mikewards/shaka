@@ -8,6 +8,9 @@ import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.scoring.ShakaScorer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 
 /**
@@ -130,46 +133,89 @@ class SpotService {
 
     /**
      * Get detailed information for a specific spot.
+     * Optimized with parallel data fetching and timeouts.
      */
-    suspend fun getSpotDetail(spotId: String, date: String): SpotDetail? {
-        val spot = spotDb.findSpotById(spotId) ?: return null
+    suspend fun getSpotDetail(spotId: String, date: String): SpotDetail? = coroutineScope {
+        val spot = spotDb.findSpotById(spotId) ?: return@coroutineScope null
         val lat = spot.coordinates.lat
         val lon = spot.coordinates.lon
-
-        // Fetch weather data (with caching)
-        val weather = OceanDataCache.getWeather(lat, lon, date) ?: run {
-            val data = openMeteo.getWeather(lat, lon, date)
-            OceanDataCache.putWeather(lat, lon, date, data)
-            data
-        }
-        
-        // Fetch ocean/swell data (with caching)
-        val ocean = OceanDataCache.getOcean(lat, lon, date) ?: run {
-            val data = openMeteo.getMarineData(lat, lon, date)
-            OceanDataCache.putOcean(lat, lon, date, data)
-            data
-        }
-        
-        // Fetch water quality - already cached internally
-        val waterQuality = copernicus.getWaterQuality(lat, lon, date)
-        
-        // Fetch tide data (with caching)
-        val tideData = OceanDataCache.getTide(lat, lon, date) ?: run {
-            val data = tidesClient.getTideData(lat, lon, date)
-            OceanDataCache.putTide(lat, lon, date, data)
-            data
-        }
-
-        logger.info("Water quality for ${spot.name}: vis=${waterQuality.visibility?.let { "${it.toInt()}m" } ?: "N/A"}, " +
-                   "chl=${waterQuality.chlorophyllA?.let { String.format("%.2f", it) } ?: "N/A"} mg/m³")
-
-        // Get community reports for the spot's region
         val region = inferRegionFromSpotId(spotId)
-        val communityReports = try {
-            community.getReportsForRegion(region, 5)
-        } catch (e: Exception) {
-            emptyList()
+
+        // Launch ALL data fetches in parallel with timeouts
+        val weatherDeferred = async {
+            withTimeoutOrNull(5000) {
+                OceanDataCache.getWeather(lat, lon, date) ?: run {
+                    val data = openMeteo.getWeather(lat, lon, date)
+                    OceanDataCache.putWeather(lat, lon, date, data)
+                    data
+                }
+            }
         }
+        
+        val oceanDeferred = async {
+            withTimeoutOrNull(5000) {
+                OceanDataCache.getOcean(lat, lon, date) ?: run {
+                    val data = openMeteo.getMarineData(lat, lon, date)
+                    OceanDataCache.putOcean(lat, lon, date, data)
+                    data
+                }
+            }
+        }
+        
+        val waterQualityDeferred = async {
+            withTimeoutOrNull(8000) { // Copernicus can be slow
+                copernicus.getWaterQuality(lat, lon, date)
+            }
+        }
+        
+        val tideDeferred = async {
+            withTimeoutOrNull(5000) {
+                OceanDataCache.getTide(lat, lon, date) ?: run {
+                    val data = tidesClient.getTideData(lat, lon, date)
+                    OceanDataCache.putTide(lat, lon, date, data)
+                    data
+                }
+            }
+        }
+        
+        val communityDeferred = async {
+            withTimeoutOrNull(3000) {
+                try { community.getReportsForRegion(region, 5) } catch (e: Exception) { emptyList() }
+            }
+        }
+        
+        // Forecast with SHORT timeout - skip if slow (user already has basic conditions)
+        val forecastDeferred = async {
+            withTimeoutOrNull(6000) {
+                try { forecastService.getForecast(spotId, 5) } catch (e: Exception) { emptyList() } // 5 days, not 7
+            }
+        }
+
+        // Await all results (with fallbacks for timeouts)
+        val weather = weatherDeferred.await() ?: WeatherData(
+            temperature = 25.0, windSpeed = 10.0, windDirection = 0,
+            precipitation = 0.0, cloudCover = 50, visibility = 10.0
+        )
+        
+        val ocean = oceanDeferred.await() ?: OceanData(
+            waveHeight = 1.0, wavePeriod = 8.0, waveDirection = 0,
+            waterTemperature = 24.0, swellHeight = 1.0, swellDirection = 0
+        )
+        
+        val waterQuality = waterQualityDeferred.await() ?: WaterQuality(
+            chlorophyllA = null, turbidity = null, visibility = null,
+            seaSurfaceTemp = ocean.waterTemperature, dataSource = "Data temporarily unavailable"
+        )
+        
+        val tideData = tideDeferred.await() ?: TideData(
+            currentHeight = 0.5, nextHighTide = "Check local source", 
+            nextLowTide = "Check local source", tideState = "Unknown"
+        )
+        
+        val communityReports = communityDeferred.await() ?: emptyList()
+        val forecast = forecastDeferred.await() ?: emptyList()
+
+        logger.info("Spot detail loaded: ${spot.name} (parallel fetch complete)")
 
         val score = ShakaScorer.generateScore(
             targetDate = date,
@@ -187,13 +233,9 @@ class SpotService {
             sharkRisk = "low"
         )
         
-        // Use real SST - prefer NOAA satellite data, fallback to Open-Meteo
         val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
 
-        // Generate 7-day forecast
-        val forecast = forecastService.getForecast(spotId, 7)
-
-        return SpotDetail(
+        SpotDetail(
             id = spot.id,
             name = spot.name,
             description = "${spot.description}\n\nData: ${waterQuality.dataSource}",
@@ -207,9 +249,8 @@ class SpotService {
                 boatLaunchNearby = spot.access == "boat"
             ),
             conditions = SpotConditions(
-                // ACTUAL MEASURED visibility from Copernicus L3 NRT satellite
                 visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" }
-                    ?: "Data unavailable (cloud cover)",
+                    ?: "Data unavailable",
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = "${weather.windSpeed.toInt()} knots",
@@ -246,6 +287,131 @@ class SpotService {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+    
+    /**
+     * Search spots by name (for type-ahead search).
+     * Returns basic spot info without fetching live conditions.
+     */
+    fun searchSpotsByName(query: String, limit: Int): List<SpotSearchResult> {
+        val queryLower = query.lowercase()
+        return spotDb.getAllSpots()
+            .filter { spot ->
+                spot.name.lowercase().contains(queryLower) ||
+                spot.id.lowercase().contains(queryLower) ||
+                spot.description.lowercase().contains(queryLower)
+            }
+            .take(limit)
+            .map { spot ->
+                SpotSearchResult(
+                    id = spot.id,
+                    name = spot.name,
+                    region = inferRegionFromSpotId(spot.id),
+                    coordinates = spot.coordinates,
+                    access = spot.access
+                )
+            }
+    }
+    
+    /**
+     * Batch fetch current conditions for multiple spots.
+     * Used for favorites/home screen to show live data.
+     */
+    suspend fun getSpotsBatch(spotIds: List<String>, date: String): BatchSpotsResponse {
+        val spots = spotIds.mapNotNull { spotId ->
+            val spot = spotDb.findSpotById(spotId) ?: return@mapNotNull null
+            val lat = spot.coordinates.lat
+            val lon = spot.coordinates.lon
+            
+            try {
+                // Fetch weather data (with caching)
+                val weather = OceanDataCache.getWeather(lat, lon, date) ?: run {
+                    val data = openMeteo.getWeather(lat, lon, date)
+                    OceanDataCache.putWeather(lat, lon, date, data)
+                    data
+                }
+                
+                // Fetch ocean/swell data (with caching)
+                val ocean = OceanDataCache.getOcean(lat, lon, date) ?: run {
+                    val data = openMeteo.getMarineData(lat, lon, date)
+                    OceanDataCache.putOcean(lat, lon, date, data)
+                    data
+                }
+                
+                // Fetch water quality
+                val waterQuality = copernicus.getWaterQuality(lat, lon, date)
+                
+                // Calculate score
+                val score = ShakaScorer.generateScore(
+                    targetDate = date,
+                    weather = weather,
+                    ocean = ocean,
+                    waterQuality = waterQuality,
+                    moonPhase = getMoonPhase(date),
+                    seasonalMultiplier = getSeasonalMultiplier(spotId, date),
+                    recentSightings = 1,
+                    isShore = spot.access == "shore",
+                    hasParking = true,
+                    permitRequired = false,
+                    currentStrength = 0.5,
+                    hasHazards = false,
+                    sharkRisk = "low"
+                )
+                
+                val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+                
+                SpotSummary(
+                    id = spot.id,
+                    name = spot.name,
+                    coordinates = spot.coordinates,
+                    shakaScore = score.overall,
+                    confidence = score.confidence,
+                    access = spot.access,
+                    conditions = SpotConditions(
+                        visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" }
+                            ?: "Data unavailable",
+                        waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                        swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                        wind = "${weather.windSpeed.toInt()} knots",
+                        tideState = "",
+                        currentStrength = ""
+                    ),
+                    expectedFish = spot.commonFish,
+                    gearRecommendations = emptyList(),
+                    risks = emptyList(),
+                    bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date))
+                )
+            } catch (e: Exception) {
+                logger.warn("Failed to fetch data for spot $spotId: ${e.message}")
+                null
+            }
+        }
+        
+        return BatchSpotsResponse(
+            spots = spots,
+            date = date,
+            fetchedAt = java.time.Instant.now().toString()
+        )
+    }
+    
+    /**
+     * Get all unique regions for search autocomplete.
+     */
+    fun getAllRegions(): List<RegionInfo> {
+        val regionMap = mutableMapOf<String, MutableList<String>>()
+        
+        spotDb.getAllSpots().forEach { spot ->
+            val region = inferRegionFromSpotId(spot.id)
+            regionMap.getOrPut(region) { mutableListOf() }.add(spot.id)
+        }
+        
+        return regionMap.map { (region, spotIds) ->
+            RegionInfo(
+                id = region,
+                name = region.replaceFirstChar { it.uppercase() },
+                spotCount = spotIds.size
+            )
+        }.sortedBy { it.name }
     }
 
     private fun getMoonPhase(date: String): Double {

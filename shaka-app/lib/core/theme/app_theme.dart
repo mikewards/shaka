@@ -248,4 +248,242 @@ class AppTheme {
       ),
     );
   }
+
+  /// Dark theme - Surfline-style dark UI
+  static ThemeData get darkTheme {
+    const darkBackground = Color(0xFF0D0D0D);
+    const darkSurface = Color(0xFF1A1A1A);
+    const darkBorder = Color(0xFF2A2A2A);
+    
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      primaryColor: AppColors.oceanBlue,
+      scaffoldBackgroundColor: darkBackground,
+      
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.oceanBlue,
+        secondary: AppColors.coral,
+        surface: darkSurface,
+        surfaceContainerHighest: darkBackground,
+        error: AppColors.error,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: Colors.white,
+      ),
+
+      // App Bar - Dark, minimal
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkBackground,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        iconTheme: IconThemeData(color: Colors.white),
+        titleTextStyle: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+      ),
+
+      // Typography - White/grey on dark
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 48,
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          letterSpacing: -1.0,
+          height: 1.1,
+        ),
+        displayMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 36,
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          letterSpacing: -0.5,
+          height: 1.1,
+        ),
+        displaySmall: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 28,
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          letterSpacing: -0.3,
+          height: 1.2,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 24,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          letterSpacing: -0.2,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 20,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          letterSpacing: -0.1,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          letterSpacing: 0,
+        ),
+        titleLarge: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
+          letterSpacing: 0.1,
+        ),
+        titleMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
+          letterSpacing: 0.2,
+        ),
+        titleSmall: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Colors.white70,
+          letterSpacing: 0.3,
+        ),
+        bodyLarge: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          letterSpacing: 0.2,
+          height: 1.6,
+        ),
+        bodyMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          letterSpacing: 0.2,
+          height: 1.5,
+        ),
+        bodySmall: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: Colors.white70,
+          letterSpacing: 0.2,
+          height: 1.4,
+        ),
+        labelLarge: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Colors.white,
+          letterSpacing: 1.5,
+        ),
+        labelMedium: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: Colors.white70,
+          letterSpacing: 1.5,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: Colors.white54,
+          letterSpacing: 2.0,
+        ),
+      ),
+
+      // Elevated Button
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.oceanBlue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+
+      // Text Button
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.oceanBlue,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // Card
+      cardTheme: CardThemeData(
+        color: darkSurface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+
+      // Input Decoration
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: darkBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: darkBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.oceanBlue, width: 2),
+        ),
+        hintStyle: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 14,
+          color: Colors.white38,
+        ),
+      ),
+
+      // Divider
+      dividerTheme: const DividerThemeData(
+        color: darkBorder,
+        thickness: 1,
+        space: 1,
+      ),
+
+      // Bottom Navigation
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkBackground,
+        selectedItemColor: AppColors.oceanBlue,
+        unselectedItemColor: Colors.white54,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+      ),
+    );
+  }
 }

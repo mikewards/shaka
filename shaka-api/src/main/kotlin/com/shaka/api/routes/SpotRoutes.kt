@@ -34,7 +34,7 @@ fun Application.configureRouting() {
                 ))
             }
 
-            // Search for spots
+            // Search for spots by location
             get("/spots/search") {
                 val lat = call.parameters["lat"]?.toDoubleOrNull()
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "lat required"))
@@ -46,6 +46,40 @@ fun Application.configureRouting() {
 
                 val results = spotService.searchSpots(lat, lon, radiusKm, date)
                 call.respond(results)
+            }
+            
+            // Search spots by name (for type-ahead search)
+            get("/spots/search/name") {
+                val query = call.parameters["q"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "q (query) required"))
+                val limit = call.parameters["limit"]?.toIntOrNull() ?: 20
+                
+                val results = spotService.searchSpotsByName(query, limit)
+                call.respond(results)
+            }
+            
+            // Batch fetch spots by IDs (for favorites/home screen)
+            get("/spots/batch") {
+                val ids = call.parameters["ids"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ids required (comma-separated)"))
+                val date = call.parameters["date"] ?: java.time.LocalDate.now().toString()
+                
+                val spotIds = ids.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (spotIds.isEmpty()) {
+                    return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "at least one spot ID required"))
+                }
+                if (spotIds.size > 20) {
+                    return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "maximum 20 spots per request"))
+                }
+                
+                val results = spotService.getSpotsBatch(spotIds, date)
+                call.respond(results)
+            }
+            
+            // Get all regions (for search autocomplete)
+            get("/regions") {
+                val regions = spotService.getAllRegions()
+                call.respond(regions)
             }
 
             // Get spot detail
