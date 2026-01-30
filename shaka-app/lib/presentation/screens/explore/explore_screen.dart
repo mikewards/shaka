@@ -64,7 +64,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         lat: _defaultCenter.latitude,
         lon: _defaultCenter.longitude,
         date: today,
-        radiusKm: 300,
+        radiusKm: 160, // ~100 miles, reasonable area
       );
       
       if (mounted) {
