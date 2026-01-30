@@ -38,6 +38,9 @@ class CopernicusWMTSClient {
     private val logger = LoggerFactory.getLogger(CopernicusWMTSClient::class.java)
 
     private val client = HttpClient(CIO) {
+        engine {
+            requestTimeout = 10_000 // 10 seconds
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true

@@ -6,6 +6,7 @@ import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
+import com.shaka.service.HealthService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
@@ -15,6 +16,7 @@ fun Application.configureRouting() {
     val spotService = SpotService()
     val forecastService = ForecastService()
     val copernicusClient = CopernicusClient()
+    val healthService = HealthService()
 
     routing {
         route("/v1") {
@@ -23,14 +25,18 @@ fun Application.configureRouting() {
                 call.respond(mapOf("status" to "ok", "service" to "shaka-api"))
             }
             
-            // Detailed health with cache stats
+            // Detailed health with external service checks
+            // Used by Flutter app to auto-degrade features
             get("/health/detailed") {
+                val serviceHealth = healthService.checkHealth()
                 val cacheStats = OceanDataCache.getStats()
                 call.respond(mapOf(
-                    "status" to "ok", 
+                    "status" to serviceHealth.status,
                     "service" to "shaka-api",
+                    "services" to serviceHealth.services,
                     "realtimeSatelliteAvailable" to copernicusClient.isDirectAccessAvailable(),
-                    "cache" to cacheStats
+                    "cache" to cacheStats,
+                    "timestamp" to serviceHealth.timestamp
                 ))
             }
 

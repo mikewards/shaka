@@ -1,0 +1,413 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../data/services/health_service.dart';
+import 'ocean_charts_webview.dart';
+import 'gibs_imagery_screen.dart';
+
+/// Charts Hub - Selection screen for ocean data sources
+/// Presents two independent options: Satellite (GIBS) and Conditions (Copernicus)
+/// Auto-degrades when services are unavailable
+class ChartsHubScreen extends StatefulWidget {
+  final double? initialLat;
+  final double? initialLon;
+  final String? spotName;
+  
+  const ChartsHubScreen({
+    super.key,
+    this.initialLat,
+    this.initialLon,
+    this.spotName,
+  });
+
+  @override
+  State<ChartsHubScreen> createState() => _ChartsHubScreenState();
+}
+
+class _ChartsHubScreenState extends State<ChartsHubScreen> {
+  final _healthProvider = HealthProvider();
+  
+  bool get _hasSpotContext => widget.spotName != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh health status when screen opens
+    _healthProvider.fetchHealth();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0D0D),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _healthProvider,
+          builder: (context, _) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Spot context header (when opened from a spot)
+                  if (_hasSpotContext) ...[
+                    _buildSpotHeader(context),
+                    const SizedBox(height: 16),
+                  ] else
+                    const SizedBox(height: 8),
+                  
+                  // Satellite Card (GIBS) - TOP
+                  Expanded(
+                    child: _DataSourceCard(
+                      title: 'Satellite Imagery',
+                      subtitle: 'Higher resolution imagery from PACE, VIIRS, MODIS satellites',
+                      source: 'NASA GIBS Near Real-Time',
+                      badge: 'HIGH-RES',
+                      badgeColor: const Color(0xFF4CAF50),
+                      icon: Icons.satellite_alt,
+                      imagePath: 'assets/images/satellite_imagery_preview.png',
+                      fallbackColors: const [
+                        Color(0xFF1B5E20),
+                        Color(0xFF2E7D32),
+                        Color(0xFF4CAF50),
+                      ],
+                      isAvailable: _healthProvider.isGibsAvailable,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (context) => GibsImageryScreen(
+                              initialLat: widget.initialLat,
+                              initialLon: widget.initialLon,
+                              spotName: widget.spotName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Conditions Card (Copernicus) - BOTTOM
+                  Expanded(
+                    child: _DataSourceCard(
+                      title: 'Ocean Conditions',
+                      subtitle: 'Animated currents, waves, wind with hourly snapshots',
+                      source: 'Copernicus Marine Service',
+                      badge: 'ANIMATED',
+                      badgeColor: const Color(0xFF2196F3),
+                      icon: Icons.play_circle_outline,
+                      imagePath: 'assets/images/ocean_conditions_preview.png',
+                      fallbackColors: const [
+                        Color(0xFF1A237E),
+                        Color(0xFF0D47A1),
+                        Color(0xFF00BCD4),
+                      ],
+                      isAvailable: _healthProvider.isCopernicusAvailable,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (context) => OceanChartsWebView(
+                              initialLat: widget.initialLat,
+                              initialLon: widget.initialLon,
+                              spotName: widget.spotName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+  
+  /// Build header showing which spot we're viewing data for
+  Widget _buildSpotHeader(BuildContext context) {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ocean Data for',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                widget.spotName!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Card widget for a data source option
+class _DataSourceCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String source;
+  final String? badge;
+  final Color? badgeColor;
+  final IconData icon;
+  final String imagePath;
+  final List<Color> fallbackColors;
+  final bool isAvailable;
+  final VoidCallback onTap;
+
+  const _DataSourceCard({
+    required this.title,
+    required this.subtitle,
+    required this.source,
+    this.badge,
+    this.badgeColor,
+    required this.icon,
+    required this.imagePath,
+    required this.fallbackColors,
+    this.isAvailable = true,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isAvailable ? onTap : () => _showUnavailableMessage(context),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.15),
+            width: 1,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              // Image background
+              Positioned.fill(
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to gradient if image fails
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: fallbackColors,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Dark gradient overlay for text readability
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.5, 1.0],
+                      colors: [
+                        Colors.black.withOpacity(0.6),
+                        Colors.black.withOpacity(0.2),
+                        Colors.black.withOpacity(0.85),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              // SOURCE at top-left - THE MASSIVE SELLING POINT!
+              Positioned(
+                top: 16,
+                left: 16,
+                right: 60,
+                child: Text(
+                  source.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black87,
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Icon in top right
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 20,
+                  ),
+                ),
+              ),
+              
+              // Content at bottom
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title row with badge
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black54,
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: badgeColor ?? Colors.blue,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 14,
+                        height: 1.3,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Unavailable overlay
+              if (!isAvailable)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.cloud_off,
+                            color: Colors.white54,
+                            size: 32,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Temporarily unavailable',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  void _showUnavailableMessage(BuildContext context) {
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title is temporarily unavailable. Please try again later.'),
+        backgroundColor: Colors.orange.shade800,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+}

@@ -159,6 +159,19 @@ class ShakaApiClient {
     }
   }
 
+  /// Get detailed health status of external services
+  /// Used for auto-degradation when services are down
+  Future<ServiceHealth> getServiceHealth() async {
+    try {
+      final response = await _dio.get('/health/detailed');
+      return ServiceHealth.fromJson(response.data);
+    } catch (e) {
+      // If health check fails, assume healthy - don't degrade UI
+      // just because we can't reach the health endpoint
+      return ServiceHealth.healthy();
+    }
+  }
+
   Exception _handleError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:

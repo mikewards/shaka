@@ -26,6 +26,9 @@ class NOAAClient {
     private val logger = LoggerFactory.getLogger(NOAAClient::class.java)
     
     private val client = HttpClient(CIO) {
+        engine {
+            requestTimeout = 10_000 // 10 seconds
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true

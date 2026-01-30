@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,7 +69,16 @@ class SavedSnapshot {
 /// Ocean Charts screen using Copernicus WebView
 /// Provides high-quality rendering online with snapshot saving for offline use
 class OceanChartsWebView extends StatefulWidget {
-  const OceanChartsWebView({super.key});
+  final double? initialLat;
+  final double? initialLon;
+  final String? spotName;
+  
+  const OceanChartsWebView({
+    super.key,
+    this.initialLat,
+    this.initialLon,
+    this.spotName,
+  });
 
   @override
   State<OceanChartsWebView> createState() => _OceanChartsWebViewState();
@@ -82,10 +92,13 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   bool _isSaving = false;
   List<SavedSnapshot> _savedSnapshots = [];
   
-  // Default view settings
-  double _centerLat = 21.3;
-  double _centerLon = -157.8;
-  double _zoom = 6.0;
+  // Layer opacity (for WebView layers)
+  double _opacity = 1.0;
+  
+  // View settings (will be initialized from widget params or defaults)
+  late double _centerLat;
+  late double _centerLon;
+  late double _zoom;
   DateTime _dataDate = DateTime.now().subtract(const Duration(hours: 1));
   
   // Selected date for the date picker (date only, no time)
@@ -276,6 +289,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize center from spot coordinates or default to Hawaii
+    _centerLat = widget.initialLat ?? 21.3;
+    _centerLon = widget.initialLon ?? -157.8;
+    _zoom = (widget.initialLat != null && widget.initialLon != null) ? 8.0 : 6.0;
+    
     // Initialize selected date to today
     final now = DateTime.now();
     _selectedDate = DateTime(now.year, now.month, now.day);
@@ -284,6 +303,9 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     _checkConnectivity();
     _loadSavedSnapshots();
   }
+  
+  // Check if opened from a spot
+  bool get _hasSpotContext => widget.spotName != null;
 
   Future<void> _checkConnectivity() async {
     final result = await Connectivity().checkConnectivity();
@@ -1511,6 +1533,100 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     }
   }
 
+  /// Update WebView layer opacity via JavaScript
+  void _updateWebViewOpacity(double opacity) {
+    setState(() => _opacity = opacity);
+    
+    if (_controller != null) {
+      // Inject JS to modify canvas opacity
+      _controller!.runJavaScript('''
+        (function() {
+          var canvases = document.querySelectorAll('canvas');
+          canvases.forEach(function(c) {
+            c.style.opacity = '$opacity';
+          });
+        })();
+      ''');
+    }
+  }
+  
+  /// Show layer info bottom sheet
+  void _showLayerInfo() {
+    final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
+    if (layerInfo == null) return;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Title
+            Row(
+              children: [
+                Icon(
+                  layerInfo['icon'] as IconData,
+                  color: layerInfo['color'] as Color,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    layerInfo['name'] as String,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              layerInfo['desc'] as String,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _LayerInfoRow(label: 'Product', value: layerInfo['product'] as String),
+            _LayerInfoRow(label: 'Dataset', value: layerInfo['dataset'] as String),
+            _LayerInfoRow(label: 'Variable', value: layerInfo['variable'] as String),
+            _LayerInfoRow(label: 'Source', value: 'Copernicus Marine Service'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSavedSnapshots() {
     showModalBottomSheet(
       context: context,
@@ -1640,151 +1756,300 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
               ),
             ),
           
-          // Layer metadata - top center (only show if we have valid data)
-          if (_hasValidLayerData)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 12,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Snapshot » ${_formatLayerDateTime()}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          
-          // Floating action bar - horizontal bar above date picker
+          // Top bar with back button and info pill
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: MediaQuery.of(context).padding.bottom + 135,
-            child: _buildFloatingActionBar(),
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 16,
+            right: 16,
+            child: _buildTopBar(),
           ),
           
-          // Custom date/time picker at bottom
+          // Unified bottom controls (matches GIBS style)
           if (_isOnline && _controller != null)
             Positioned(
               left: 0,
               right: 0,
-              bottom: MediaQuery.of(context).padding.bottom,
-              child: _buildDateTimePicker(),
+              bottom: 0,
+              child: _buildBottomControls(),
             ),
         ],
       ),
     );
   }
 
-  /// Build the floating action bar with layer button, save buttons, and legend
-  Widget _buildFloatingActionBar() {
+  /// Build top bar with back button and info pill (matches GIBS style)
+  Widget _buildTopBar() {
     final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
-    final layerName = layerInfo?['shortName'] as String? ?? 'Layers';
     final layerColor = layerInfo?['color'] as Color? ?? Colors.white;
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          // Layer button with current layer name
-          GestureDetector(
-            onTap: _showLayerSheet,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: layerColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: layerColor.withOpacity(0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.layers, color: layerColor, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    layerName,
-                    style: TextStyle(
-                      color: layerColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+    return Row(
+      children: [
+        // Back button - floating pill style
+        GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+          ),
+        ),
+        const Spacer(),
+        // Date and layer info - floating pill
+        if (_hasValidLayerData)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Layer color dot
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: layerColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Date/time (and spot name if available)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_hasSpotContext)
+                      Text(
+                        widget.spotName!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    Text(
+                      _formatLayerDateTime(),
+                      style: TextStyle(
+                        color: _hasSpotContext ? Colors.white70 : Colors.white,
+                        fontSize: _hasSpotContext ? 11 : 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Build unified bottom controls (matches GIBS style)
+  Widget _buildBottomControls() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Save buttons floating above the container
+        Padding(
+          padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+          child: _buildSaveButtons(),
+        ),
+        
+        // Main container with opacity + action buttons
+        Container(
+          padding: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            top: 8,
+            bottom: MediaQuery.of(context).padding.bottom + 8,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.85),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Opacity slider row
+              _buildOpacityRow(),
+              
+              const SizedBox(height: 8),
+              
+              // Action buttons + legend row (50/50 split)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Buttons cluster (~50% width)
+                  Expanded(
+                    flex: 1,
+                    child: _buildActionButtons(),
+                  ),
+                  const SizedBox(width: 12),
+                  // Legend (~50% width)
+                  Expanded(
+                    flex: 1,
+                    child: _buildLegendSection(),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-          
-          const SizedBox(width: 8),
-          
-          // Save button
-          _FloatingActionButton(
-            icon: _isSaving ? Icons.hourglass_empty : Icons.save_alt,
-            onTap: _isOnline && !_isSaving ? _saveSnapshot : null,
-            tooltip: 'Save Snapshot',
-          ),
-          
-          const SizedBox(width: 6),
-          
-          // Saved snapshots button
-          _FloatingActionButton(
-            icon: Icons.offline_pin,
-            onTap: _showSavedSnapshots,
-            tooltip: 'Saved Snapshots',
-            badgeCount: _savedSnapshots.length,
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Legend (compact horizontal) - expands to fill remaining space
-          if (_hasValidLayerData && (_legendGradientCss != null || _legendTicks.isNotEmpty))
-            Expanded(
-              child: DynamicOceanLegend(
-                gradientCss: _legendGradientCss,
-                ticks: _legendTicks,
-                compact: true,
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-
-  /// Build the custom date/time picker that replaces the native Copernicus timeline
-  Widget _buildDateTimePicker() {
-    // Get current layer's time interval
-    final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
-    final timeInterval = layerInfo?['timeInterval'] as int? ?? 1;
-    final isDaily = timeInterval >= 24;
+  
+  /// Build save buttons (right-aligned, icon-only, equal width)
+  Widget _buildSaveButtons() {
+    const buttonWidth = 44.0;
     
-    return Container(
-      color: Colors.black,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Date selector row - shows 7 days (today +/- 3)
-          _buildDateSelector(),
-          // Time selector - only show if not daily layer
-          if (!isDaily) ...[
-            const SizedBox(height: 8),
-            _buildTimeSelector(timeInterval),
-          ],
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Save snapshot button
+        GestureDetector(
+          onTap: _isOnline && !_isSaving ? () {
+            HapticFeedback.lightImpact();
+            _saveSnapshot();
+          } : null,
+          child: Container(
+            width: buttonWidth,
+            height: buttonWidth,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Icon(
+                _isSaving ? Icons.hourglass_empty : Icons.save_alt,
+                color: _isOnline && !_isSaving ? Colors.white : Colors.white38,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Saved snapshots button
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showSavedSnapshots();
+          },
+          child: Stack(
+            children: [
+              Container(
+                width: buttonWidth,
+                height: buttonWidth,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Icon(Icons.offline_pin, color: Colors.white, size: 20),
+                ),
+              ),
+              // Badge for count
+              if (_savedSnapshots.isNotEmpty)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      _savedSnapshots.length > 9 ? '9+' : _savedSnapshots.length.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+
+  /// Build opacity slider row
+  Widget _buildOpacityRow() {
+    final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
+    final layerColor = layerInfo?['color'] as Color? ?? Colors.blue;
+    
+    return Row(
+      children: [
+        const Icon(Icons.opacity, color: Colors.white54, size: 16),
+        Expanded(
+          child: SliderTheme(
+            data: const SliderThemeData(trackHeight: 3),
+            child: Slider(
+              value: _opacity,
+              activeColor: layerColor,
+              inactiveColor: Colors.white24,
+              onChanged: _updateWebViewOpacity,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(
+            '${(_opacity * 100).round()}%',
+            style: const TextStyle(color: Colors.white54, fontSize: 10),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  /// Build action buttons row (square buttons like GIBS)
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: _SquareButton(
+            icon: Icons.layers,
+            onTap: _showLayerSheet,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SquareButton(
+            icon: Icons.calendar_today,
+            onTap: _showDatePicker,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SquareButton(
+            icon: Icons.info_outline,
+            onTap: _showLayerInfo,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  /// Build legend section
+  Widget _buildLegendSection() {
+    if (!_hasValidLayerData || (_legendGradientCss == null && _legendTicks.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+    
+    return DynamicOceanLegend(
+      gradientCss: _legendGradientCss,
+      ticks: _legendTicks,
+      compact: true,
     );
   }
 
@@ -2395,6 +2660,108 @@ class _ToolbarButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Square action button (matches GIBS style)
+class _SquareButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final int? badgeCount;
+
+  const _SquareButton({
+    required this.icon,
+    this.onTap,
+    this.badgeCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    
+    return GestureDetector(
+      onTap: () {
+        if (enabled) {
+          HapticFeedback.lightImpact();
+          onTap!();
+        }
+      },
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(enabled ? 0.1 : 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: enabled ? Colors.white24 : Colors.white12),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, color: enabled ? Colors.white : Colors.white38, size: 22),
+              if (badgeCount != null && badgeCount! > 0)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      badgeCount! > 9 ? '9+' : badgeCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Layer info row for bottom sheet
+class _LayerInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _LayerInfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -368,6 +368,7 @@ class SpotSearchResult {
   final String region;
   final Coordinates coordinates;
   final String access;
+  final int shakaScore;
 
   const SpotSearchResult({
     required this.id,
@@ -375,6 +376,7 @@ class SpotSearchResult {
     required this.region,
     required this.coordinates,
     required this.access,
+    this.shakaScore = 0,
   });
 
   factory SpotSearchResult.fromJson(Map<String, dynamic> json) {
@@ -384,6 +386,7 @@ class SpotSearchResult {
       region: json['region'] ?? '',
       coordinates: Coordinates.fromJson(json['coordinates'] ?? {}),
       access: json['access'] ?? 'shore',
+      shakaScore: json['shakaScore'] ?? json['score'] ?? 0,
     );
   }
 }
@@ -416,11 +419,15 @@ class RegionInfo {
   final String id;
   final String name;
   final int spotCount;
+  final double centerLat;
+  final double centerLon;
 
   const RegionInfo({
     required this.id,
     required this.name,
     required this.spotCount,
+    this.centerLat = 0.0,
+    this.centerLon = 0.0,
   });
 
   factory RegionInfo.fromJson(Map<String, dynamic> json) {
@@ -428,6 +435,118 @@ class RegionInfo {
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       spotCount: json['spotCount'] ?? 0,
+      centerLat: (json['centerLat'] ?? json['lat'] ?? 0.0).toDouble(),
+      centerLon: (json['centerLon'] ?? json['lon'] ?? 0.0).toDouble(),
+    );
+  }
+}
+
+/// Status of an individual external service
+class ExternalServiceStatus {
+  final String status; // "ok", "error", "degraded"
+  final String? message;
+  final String lastChecked;
+
+  const ExternalServiceStatus({
+    required this.status,
+    this.message,
+    required this.lastChecked,
+  });
+
+  bool get isOk => status == 'ok';
+  bool get isError => status == 'error';
+
+  factory ExternalServiceStatus.fromJson(Map<String, dynamic> json) {
+    return ExternalServiceStatus(
+      status: json['status'] ?? 'error',
+      message: json['message'],
+      lastChecked: json['lastChecked'] ?? '',
+    );
+  }
+
+  factory ExternalServiceStatus.unknown() {
+    return ExternalServiceStatus(
+      status: 'error',
+      message: 'Unable to check',
+      lastChecked: DateTime.now().toIso8601String(),
+    );
+  }
+}
+
+/// Health status of all external services
+/// Used by app to auto-degrade features when services are unavailable
+class ServiceHealth {
+  final String status; // "healthy", "degraded", "unhealthy"
+  final Map<String, ExternalServiceStatus> services;
+  final String timestamp;
+
+  const ServiceHealth({
+    required this.status,
+    required this.services,
+    required this.timestamp,
+  });
+
+  bool get isHealthy => status == 'healthy';
+  bool get isDegraded => status == 'degraded';
+  bool get isUnhealthy => status == 'unhealthy';
+
+  /// Check if a specific service is available
+  bool isServiceAvailable(String serviceName) {
+    return services[serviceName]?.isOk ?? false;
+  }
+
+  /// Check if GIBS satellite imagery is available
+  bool get isGibsAvailable => isServiceAvailable('gibs');
+
+  /// Check if Copernicus ocean data is available
+  bool get isCopernicusAvailable => isServiceAvailable('copernicus');
+
+  /// Check if OpenMeteo weather is available
+  bool get isOpenMeteoAvailable => isServiceAvailable('openmeteo');
+
+  /// Check if NOAA data is available
+  bool get isNoaaAvailable => isServiceAvailable('noaa');
+
+  factory ServiceHealth.fromJson(Map<String, dynamic> json) {
+    final servicesJson = json['services'] as Map<String, dynamic>? ?? {};
+    final services = servicesJson.map((key, value) => MapEntry(
+      key,
+      ExternalServiceStatus.fromJson(value as Map<String, dynamic>),
+    ));
+
+    return ServiceHealth(
+      status: json['status'] ?? 'degraded',
+      services: services,
+      timestamp: json['timestamp'] ?? DateTime.now().toIso8601String(),
+    );
+  }
+
+  /// Create a degraded health status when unable to reach health endpoint
+  factory ServiceHealth.degraded() {
+    return ServiceHealth(
+      status: 'degraded',
+      services: {
+        'openmeteo': ExternalServiceStatus.unknown(),
+        'gibs': ExternalServiceStatus.unknown(),
+        'noaa': ExternalServiceStatus.unknown(),
+        'copernicus': ExternalServiceStatus.unknown(),
+      },
+      timestamp: DateTime.now().toIso8601String(),
+    );
+  }
+
+  /// Create a healthy status (for testing)
+  factory ServiceHealth.healthy() {
+    final now = DateTime.now().toIso8601String();
+    return ServiceHealth(
+      status: 'healthy',
+      services: {
+        'openmeteo': ExternalServiceStatus(status: 'ok', lastChecked: now),
+        'gibs': ExternalServiceStatus(status: 'ok', lastChecked: now),
+        'noaa': ExternalServiceStatus(status: 'ok', lastChecked: now),
+        'copernicus': ExternalServiceStatus(status: 'ok', lastChecked: now),
+      },
+      timestamp: now,
     );
   }
 }

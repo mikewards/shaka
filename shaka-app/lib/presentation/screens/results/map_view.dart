@@ -69,12 +69,7 @@ class _MapViewState extends State<MapView> {
     }).toList();
   }
 
-  Color _getMarkerColor(int score) {
-    if (score >= 80) return AppColors.scoreExcellent;
-    if (score >= 60) return AppColors.scoreGood;
-    if (score >= 40) return AppColors.scoreFair;
-    return AppColors.scorePoor;
-  }
+  Color _getMarkerColor(int score) => AppColors.getScoreColor(score);
 
   @override
   Widget build(BuildContext context) {

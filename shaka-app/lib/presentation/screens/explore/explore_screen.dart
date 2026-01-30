@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../widgets/search_overlay.dart';
 
 /// Full-screen explore map for discovering dive spots.
 /// Surfline-style: Map 70% top, horizontal spot carousel 30% bottom.
@@ -28,13 +31,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
   List<SpotSummary> _spots = [];
   bool _isLoading = true;
   String? _error;
-  int _selectedSpotIndex = 0;
+  int? _selectedSpotIndex = 0; // null = no selection
   String _selectedFilter = 'All';
+  bool _showSearch = false;
+  
+  // Debounce timer for map animations (prevents excessive animations during rapid carousel swiping)
+  Timer? _mapAnimationDebounce;
+  bool _isFromMarkerTap = false; // Track if selection came from marker tap
 
   @override
   void initState() {
     super.initState();
     _loadSpots();
+  }
+  
+  @override
+  void dispose() {
+    _mapAnimationDebounce?.cancel();
+    _carouselController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSpots({int retryCount = 0}) async {
@@ -88,24 +103,56 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return _spots;
   }
 
-  Color _getScoreColor(int score) {
-    if (score >= 80) return const Color(0xFF4CAF50);
-    if (score >= 60) return const Color(0xFF00BCD4);
-    if (score >= 40) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
-  }
+  Color _getScoreColor(int score) => AppColors.getScoreColor(score);
 
+  /// Handle spot selection from carousel swipes (debounced map animation)
   void _onSpotSelected(int index) {
     if (index == _selectedSpotIndex) return;
     
     HapticFeedback.selectionClick();
     setState(() => _selectedSpotIndex = index);
     
-    // Animate map to selected spot
+    // Skip map animation if triggered from marker tap (already handled)
+    if (_isFromMarkerTap) {
+      _isFromMarkerTap = false;
+      return;
+    }
+    
+    // Debounce map animation for carousel swipes (300ms delay)
+    _mapAnimationDebounce?.cancel();
+    _mapAnimationDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      final spots = _filteredSpots;
+      if (index < spots.length) {
+        final spot = spots[index];
+        _mapController.move(
+          LatLng(spot.coordinates.lat, spot.coordinates.lon),
+          10.0,
+        );
+      }
+    });
+  }
+  
+  /// Handle spot selection from marker tap (immediate map animation)
+  void _onMarkerTapped(int index) {
+    if (index == _selectedSpotIndex) return;
+    
+    _isFromMarkerTap = true;
+    HapticFeedback.selectionClick();
+    setState(() => _selectedSpotIndex = index);
+    
+    // Immediate map animation for marker taps
     final spot = _filteredSpots[index];
     _mapController.move(
       LatLng(spot.coordinates.lat, spot.coordinates.lon),
       10.0,
+    );
+    
+    // Sync carousel to marker
+    _carouselController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -115,6 +162,49 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'date': today,
       'spot': spot, // Pass preloaded data for instant display
     });
+  }
+  
+  /// Handle filter changes - try to keep current spot if it passes the filter
+  void _onFilterChanged(String filter) {
+    if (filter == _selectedFilter) return;
+    
+    HapticFeedback.selectionClick();
+    
+    // Get currently selected spot before changing filter
+    SpotSummary? currentSpot;
+    final currentIndex = _selectedSpotIndex;
+    if (currentIndex != null && currentIndex < _filteredSpots.length) {
+      currentSpot = _filteredSpots[currentIndex];
+    }
+    
+    // Apply the new filter
+    setState(() => _selectedFilter = filter);
+    
+    // Check if current spot is still in filtered list
+    final newFilteredSpots = _filteredSpots;
+    if (newFilteredSpots.isEmpty) {
+      setState(() => _selectedSpotIndex = null);
+      return;
+    }
+    
+    // Try to find current spot in new filtered list
+    int newIndex = 0;
+    if (currentSpot != null) {
+      final foundIndex = newFilteredSpots.indexWhere((s) => s.id == currentSpot!.id);
+      if (foundIndex >= 0) {
+        newIndex = foundIndex;
+      }
+    }
+    
+    setState(() => _selectedSpotIndex = newIndex);
+    
+    // Sync carousel and map (without jarring animation if staying on same spot)
+    _carouselController.jumpToPage(newIndex);
+    final spot = newFilteredSpots[newIndex];
+    _mapController.move(
+      LatLng(spot.coordinates.lat, spot.coordinates.lon),
+      10.0,
+    );
   }
 
   @override
@@ -129,15 +219,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
-      body: Column(
+      body: Stack(
         children: [
-          // Map section (65%)
-          SizedBox(
-            height: mapHeight,
-            child: Stack(
-              children: [
-                // Map
-                FlutterMap(
+          // Main content
+          Column(
+            children: [
+              // Map section (65%)
+              SizedBox(
+                height: mapHeight,
+                child: Stack(
+                  children: [
+                    // Map
+                    FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
                     initialCenter: _defaultCenter,
@@ -145,7 +238,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     minZoom: 3,
                     maxZoom: 18,
                     backgroundColor: const Color(0xFF191A1A),
-                    onTap: (_, __) {}, // Consume taps
+                    onTap: (_, __) {
+                      // Tap on empty map area deselects current spot
+                      if (_selectedSpotIndex != null) {
+                        HapticFeedback.lightImpact();
+                        setState(() => _selectedSpotIndex = null);
+                      }
+                    },
                   ),
                   children: [
                     // OpenStreetMap with dark styling
@@ -167,14 +266,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             width: isSelected ? 48 : 36,
                             height: isSelected ? 48 : 36,
                             child: GestureDetector(
-                              onTap: () {
-                                _onSpotSelected(index);
-                                _carouselController.animateToPage(
-                                  index,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeOut,
-                                );
-                              },
+                              onTap: () => _onMarkerTapped(index),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 decoration: BoxDecoration(
@@ -281,13 +373,80 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ],
       ),
+
+      // Search overlay
+      if (_showSearch)
+        SearchOverlay(
+          onSpotSelected: (spot) {
+            setState(() => _showSearch = false);
+            _navigateToSpot(spot);
+          },
+          onRegionSelected: (region) {
+            setState(() => _showSearch = false);
+            _navigateToRegion(region);
+          },
+          onClose: () => setState(() => _showSearch = false),
+        ),
+      ],
+    ),
     );
+  }
+
+  void _navigateToSpot(SpotSearchResult spot) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    context.push('/spot/${spot.id}', extra: {'date': today});
+  }
+
+  void _navigateToRegion(RegionInfo region) {
+    // Move map to region center
+    _mapController.move(
+      LatLng(region.centerLat, region.centerLon),
+      9.0,
+    );
+    // Reload spots for this region
+    _loadSpotsForRegion(region);
+  }
+
+  Future<void> _loadSpotsForRegion(RegionInfo region) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final response = await _apiClient.searchSpots(
+        lat: region.centerLat,
+        lon: region.centerLon,
+        date: today,
+        radiusKm: 150,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _spots = response.spots;
+          _isLoading = false;
+          _selectedSpotIndex = 0;
+        });
+        if (_spots.isNotEmpty) {
+          _carouselController.jumpToPage(0);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildSearchBar() {
     return GestureDetector(
       onTap: () {
-        // TODO: Open search sheet
+        HapticFeedback.lightImpact();
+        setState(() => _showSearch = true);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -325,21 +484,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() {
-                  _selectedFilter = filter;
-                  _selectedSpotIndex = 0;
-                });
-                if (_filteredSpots.isNotEmpty) {
-                  _carouselController.jumpToPage(0);
-                  final spot = _filteredSpots.first;
-                  _mapController.move(
-                    LatLng(spot.coordinates.lat, spot.coordinates.lon),
-                    10.0,
-                  );
-                }
-              },
+              onTap: () => _onFilterChanged(filter),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
@@ -451,12 +596,7 @@ class _SpotCard extends StatelessWidget {
 
   const _SpotCard({required this.spot});
 
-  Color _getScoreColor(int score) {
-    if (score >= 80) return const Color(0xFF4CAF50);
-    if (score >= 60) return const Color(0xFF00BCD4);
-    if (score >= 40) return const Color(0xFFFF9800);
-    return const Color(0xFFF44336);
-  }
+  Color _getScoreColor(int score) => AppColors.getScoreColor(score);
 
   String _getScoreLabel(int score) {
     if (score >= 80) return 'Excellent';

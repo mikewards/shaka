@@ -1,7 +1,7 @@
 Shaka
 =====
 
-Spearfishing spot finder with real-time ocean data. Ranks locations by weather, ocean conditions, and fish patterns. Features professional-grade oceanographic charts.
+Spearfishing and diving spot finder with real-time ocean data. Ranks locations by weather, ocean conditions, and fish patterns. Features professional-grade oceanographic charts from NASA and Copernicus satellites.
 
 Download
 --------
@@ -13,7 +13,7 @@ Features
 
 ### Spot Finder
 
-Search for spearfishing spots by location and date. Each spot is ranked with a Shaka Score (0-100) based on:
+Interactive map for discovering dive spots. Surfline-style interface with map above and horizontal spot carousel below. Each spot is ranked with a Shaka Score (0-100) based on:
 
 - Water visibility (satellite-measured Secchi depth)
 - Sea surface temperature
@@ -23,22 +23,38 @@ Search for spearfishing spots by location and date. Each spot is ranked with a S
 - Fish activity patterns
 - Accessibility and safety
 
-### Ocean Charts
+Features include type-ahead search, region browsing, and filter chips (All, Shore, Boat, 80+).
 
-Full-screen oceanographic visualization with real-time satellite data from Copernicus Marine Service:
+### NASA GIBS Satellite Imagery
 
-- **Sea Surface Temperature (SST)** - Updated every 6 hours
-- **Chlorophyll-a** - Indicates water clarity and fish activity
-- **Water Visibility** - Secchi disk depth measurements
-- **Sea Surface Height** - Identifies currents and upwelling zones
-- **Ocean Currents** - Vector visualization of water movement
+High-resolution satellite imagery from NASA's Global Imagery Browse Services (GIBS):
+
+- **Chlorophyll-a** - PACE OCI, VIIRS SNPP/NOAA-20, MODIS Terra/Aqua
+- **Sea Surface Temperature** - MUR SST (0.01 degree resolution), GHRSST
+- **True Color** - Daily composites from MODIS and VIIRS
 
 Features include:
-- Multiple base maps (dark, satellite, nautical)
+- Multi-layer stacking (combine chlorophyll + SST + true color)
+- Layer presets for common combinations
+- Historical data scrubbing back to 2012
+- Dynamic legends with units
+- Opacity controls per layer
+
+### Copernicus Ocean Conditions
+
+Animated ocean data visualization from Copernicus Marine Service:
+
+- **Sea Surface Temperature (SST)** - Updated every 6 hours
+- **Ocean Currents** - Animated vector visualization
+- **Waves** - Height, period, direction
+- **Wind** - Speed and direction overlay
+- **Chlorophyll-a** - Water clarity indicator
+
+Features include:
+- Hourly snapshots for time-series viewing
+- Save snapshots for offline reference
 - Layer opacity controls
-- 14-day historical data scrubber
 - Tap-for-data at any point
-- Colormap legends
 
 Data Sources
 ------------
@@ -48,18 +64,27 @@ All condition data comes from real measurements, not estimates:
 | Data | Source | Update Frequency |
 |------|--------|------------------|
 | Weather | Open-Meteo | Hourly |
-| SST, Visibility, Chlorophyll | Copernicus Marine (L3 NRT) | Daily |
-| Currents, Sea Height | Copernicus Marine | 6 hours |
+| SST (High-Res) | NASA GIBS MUR/GHRSST | Daily |
+| Chlorophyll-a | NASA GIBS PACE/VIIRS/MODIS | Daily |
+| True Color | NASA GIBS MODIS/VIIRS | Daily |
+| SST, Visibility | Copernicus Marine (L3 NRT) | Daily |
+| Currents, Waves | Copernicus Marine | 6 hours |
 | Tides | NOAA CO-OPS | Real-time |
 | Spot Info | Community database | Ongoing |
 
 API
 ---
 
-Search for spots:
+Search for spots by location:
 
 ```
 GET /v1/spots/search?lat=21.3&lon=-157.8&date=2026-02-15&radius=50
+```
+
+Search spots by name (type-ahead):
+
+```
+GET /v1/spots/search/name?q=hanauma&limit=10
 ```
 
 Get spot details:
@@ -68,11 +93,19 @@ Get spot details:
 GET /v1/spots/{id}?date=2026-02-15
 ```
 
-Health check:
+Get available regions:
 
 ```
-GET /health/detailed
+GET /v1/regions
 ```
+
+Health check with external service status:
+
+```
+GET /v1/health/detailed
+```
+
+Returns status of OpenMeteo, NOAA, Copernicus, and NASA GIBS services. Used by the app to auto-degrade features when services are unavailable.
 
 Building
 --------
@@ -113,27 +146,54 @@ Architecture
 
 ```
 shaka/
-├── shaka-api/          Kotlin backend (Ktor)
+├── shaka-api/              Kotlin backend (Ktor)
 │   ├── data/
-│   │   ├── client/     External API clients
-│   │   ├── cache/      In-memory caching
-│   │   └── db/         PostgreSQL repositories
-│   ├── model/          Domain models
-│   ├── scoring/        Shaka Score algorithm
-│   └── service/        Business logic
+│   │   ├── client/         External API clients (OpenMeteo, NOAA, Copernicus)
+│   │   ├── cache/          In-memory caching with TTL
+│   │   └── db/             PostgreSQL repositories
+│   ├── model/              Domain models
+│   ├── scoring/            Shaka Score algorithm
+│   └── service/
+│       ├── SpotService     Spot search and details
+│       ├── ForecastService 7-day forecasts
+│       └── HealthService   External service health checks
 │
-└── shaka-app/          Flutter mobile app
+└── shaka-app/              Flutter mobile app
     ├── data/
-    │   ├── api/        Backend + Copernicus WMTS clients
-    │   └── models/     Data models
+    │   ├── api/            Backend client, GIBS service, tile caching
+    │   ├── models/         Data models (spots, forecasts, layers)
+    │   └── services/       Health monitoring
     └── presentation/
         ├── screens/
-        │   ├── home/       Location/date selection
-        │   ├── results/    Spot list and map
-        │   ├── spot_detail/ Individual spot view
-        │   └── charts/     Ocean Charts feature
+        │   ├── explore/    Map + carousel spot discovery
+        │   ├── charts/     Charts hub, GIBS viewer, Copernicus viewer
+        │   ├── spot_detail/ Individual spot view with tabs
+        │   └── profile/    User settings
+        ├── shell/          Bottom navigation shell
         └── widgets/        Reusable components
 ```
+
+App Navigation:
+- Explore tab: Interactive map with spot carousel
+- Charts tab: Selection between NASA GIBS and Copernicus viewers
+- Profile tab: Settings and preferences
+
+Graceful Degradation
+--------------------
+
+The app is designed to continue working when external services are unavailable:
+
+| Service Down | App Behavior |
+|--------------|--------------|
+| NASA GIBS | Unavailable layers hidden from picker |
+| Copernicus | Option hidden from Charts hub, banner shown |
+| OpenMeteo | Weather shows "unavailable" in spot details |
+| NOAA | Falls back to regional SST estimates |
+| Backend | Clear error messages, cached data when available |
+
+The `/v1/health/detailed` endpoint checks all external services and returns their status. The Flutter app queries this on startup and caches the result for 5 minutes, automatically hiding features that depend on unavailable services.
+
+Backend clients have explicit 10-second timeouts to prevent hangs. The SpotService fetches data in parallel with per-source timeouts (5-8 seconds), falling back to defaults when individual sources fail.
 
 Deployment
 ----------
