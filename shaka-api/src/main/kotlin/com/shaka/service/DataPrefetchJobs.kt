@@ -224,8 +224,8 @@ class DataPrefetchJobs(
      */
     suspend fun prefetchSatelliteData() = withContext(Dispatchers.IO) {
         val spots = spotDb.getAllSpots()
-        // Use yesterday - Copernicus L3 NRT has 1-day latency
-        val yesterday = LocalDate.now().minusDays(1).toString()
+        // Date for SST/caching - the WMTS client auto-detects available satellite dates
+        val today = LocalDate.now().toString()
         
         logger.info("Starting SATELLITE prefetch for ${spots.size} spots (conservative: batch=${SATELLITE_BATCH_SIZE}, delay=${SATELLITE_BATCH_DELAY_MS}ms)")
         val startTime = System.currentTimeMillis()
@@ -234,11 +234,11 @@ class DataPrefetchJobs(
         var consecutiveFailures = 0
         
         // Health check - test Copernicus is responding (use a known ocean location)
-        // Bahamas (26.5, -77.5) - usually has good satellite coverage
+        // Bahamas (26.5, -77.5) - the WMTS client will auto-fallback to available dates
         try {
             logger.info("Testing Copernicus connectivity...")
-            val testResult = copernicus.getWaterQuality(26.5, -77.5, yesterday)
-            // Pass if we got ANY response (even null means Copernicus responded)
+            val testResult = copernicus.getWaterQuality(26.5, -77.5, today)
+            // Pass if we got ANY response (even null vis means Copernicus responded)
             logger.info("Copernicus health check passed (vis=${testResult.visibility}, chl=${testResult.chlorophyllA})")
         } catch (e: Exception) {
             logger.warn("Copernicus health check failed: ${e.message} - skipping satellite prefetch")
@@ -261,7 +261,7 @@ class DataPrefetchJobs(
                 
                 // Fetch SST from NOAA ERDDAP
                 try {
-                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, yesterday)
+                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
                     SpotDataCache.updateSST(
                         spot.id,
                         SpotDataCache.CachedValue(
@@ -277,7 +277,7 @@ class DataPrefetchJobs(
                 
                 // Fetch water quality from Copernicus - one request at a time
                 try {
-                    val waterQuality = copernicus.getWaterQuality(lat, lon, yesterday)
+                    val waterQuality = copernicus.getWaterQuality(lat, lon, today)
                     
                     waterQuality.visibility?.let { vis ->
                         SpotDataCache.updateVisibility(

@@ -129,31 +129,36 @@ class CopernicusWMTSClient {
     }
 
     /**
-     * Get visibility for yesterday (most recent satellite data).
-     * L3 NRT data has 1-day latency, so yesterday is the freshest available.
+     * Get visibility for the most recent available satellite data.
+     * Tries yesterday first, then goes back day by day until data is found.
      * 
-     * Returns null if satellite couldn't capture data (clouds, etc.)
-     * This is HONEST - we don't show stale data.
+     * Copernicus L3 NRT has 1-2 day latency depending on time of day/processing.
+     * This handles edge cases where today's "yesterday" isn't available yet.
      */
     suspend fun getLatestVisibility(lat: Double, lon: Double): VisibilityResult {
-        val yesterday = LocalDate.now().minusDays(1).toString()
-        val visibility = getVisibility(lat, lon, yesterday)
-        
-        return if (visibility != null) {
-            VisibilityResult(
-                visibilityM = visibility,
-                date = yesterday,
-                dataSource = "Copernicus L3 NRT satellite",
-                isActualMeasurement = true
-            )
-        } else {
-            VisibilityResult(
-                visibilityM = null,
-                date = yesterday,
-                dataSource = "No satellite data (cloud cover)",
-                isActualMeasurement = false
-            )
+        // Try up to 7 days back to find available data
+        for (daysBack in 1..7) {
+            val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
+            val visibility = getVisibility(lat, lon, date)
+            
+            if (visibility != null) {
+                logger.debug("Found visibility data from $date (${daysBack} days ago)")
+                return VisibilityResult(
+                    visibilityM = visibility,
+                    date = date,
+                    dataSource = "Copernicus L3 NRT satellite",
+                    isActualMeasurement = true
+                )
+            }
         }
+        
+        // No data found in the last 7 days
+        return VisibilityResult(
+            visibilityM = null,
+            date = LocalDate.now().minusDays(1).toString(),
+            dataSource = "No satellite data available",
+            isActualMeasurement = false
+        )
     }
 
     /**
@@ -201,27 +206,33 @@ class CopernicusWMTSClient {
     }
 
     /**
-     * Get chlorophyll for yesterday (most recent satellite data).
+     * Get chlorophyll for the most recent available satellite data.
+     * Tries yesterday first, then goes back day by day until data is found.
      */
     suspend fun getLatestChlorophyll(lat: Double, lon: Double): ChlorophyllResult {
-        val yesterday = LocalDate.now().minusDays(1).toString()
-        val chl = getChlorophyll(lat, lon, yesterday)
-        
-        return if (chl != null) {
-            ChlorophyllResult(
-                chlorophyllMgM3 = chl,
-                date = yesterday,
-                dataSource = "Copernicus L3 NRT satellite",
-                isActualMeasurement = true
-            )
-        } else {
-            ChlorophyllResult(
-                chlorophyllMgM3 = null,
-                date = yesterday,
-                dataSource = "No satellite data (cloud cover)",
-                isActualMeasurement = false
-            )
+        // Try up to 7 days back to find available data
+        for (daysBack in 1..7) {
+            val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
+            val chl = getChlorophyll(lat, lon, date)
+            
+            if (chl != null) {
+                logger.debug("Found chlorophyll data from $date (${daysBack} days ago)")
+                return ChlorophyllResult(
+                    chlorophyllMgM3 = chl,
+                    date = date,
+                    dataSource = "Copernicus L3 NRT satellite",
+                    isActualMeasurement = true
+                )
+            }
         }
+        
+        // No data found in the last 7 days
+        return ChlorophyllResult(
+            chlorophyllMgM3 = null,
+            date = LocalDate.now().minusDays(1).toString(),
+            dataSource = "No satellite data available",
+            isActualMeasurement = false
+        )
     }
 
     /**
