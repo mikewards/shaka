@@ -396,6 +396,24 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Test MPA fetch for a single spot (bypasses cache)
+            get("/admin/mpa/test/{spotId}") {
+                val spotId = call.parameters["spotId"] ?: return@get call.respond(
+                    HttpStatusCode.BadRequest, mapOf("error" to "spotId required")
+                )
+                val spot = SpotDatabase.findSpotById(spotId) ?: return@get call.respond(
+                    HttpStatusCode.NotFound, mapOf("error" to "Spot not found")
+                )
+                
+                val protectedSeasClient = com.shaka.data.client.ProtectedSeasClient()
+                val mpaInfo = protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                
+                call.respondText(
+                    """{"spotId":"$spotId","lat":${spot.coordinates.lat},"lon":${spot.coordinates.lon},"mpa":${if (mpaInfo != null) """{"siteName":"${mpaInfo.siteName}","designation":"${mpaInfo.designation}","spearfishingStatus":${mpaInfo.spearfishingStatus},"protectionLevel":${mpaInfo.protectionLevel}}""" else "null"}}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
             // Clear all MPA data and re-fetch everything (use after query changes)
             post("/admin/mpa/refetch-all") {
                 val allSpots = com.shaka.data.cache.SpotDataCache.getAllSpotIds()
@@ -439,7 +457,9 @@ fun Application.configureRouting() {
                             
                             // Small delay to be nice to the API
                             kotlinx.coroutines.delay(150)
-                        } catch (e: Exception) { /* continue */ }
+                        } catch (e: Exception) { 
+                            println("MPA refetch error for $spotId: ${e.message}")
+                        }
                     }
                     println("MPA refetch complete: $processed / $total spots updated")
                 }
