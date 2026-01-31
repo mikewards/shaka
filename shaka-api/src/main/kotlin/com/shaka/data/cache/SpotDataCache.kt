@@ -339,6 +339,53 @@ object SpotDataCache {
     // ==================== Database Persistence ====================
     
     /**
+     * Create the spot_cache table if it doesn't exist.
+     * Called on application startup to ensure schema is ready.
+     */
+    fun createTableIfNotExists() {
+        if (!DatabaseFactory.isConnected()) {
+            logger.info("Database not connected, skipping table creation")
+            return
+        }
+        
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                
+                val sql = """
+                    CREATE TABLE IF NOT EXISTS spot_cache (
+                        spot_id VARCHAR(100) PRIMARY KEY,
+                        tide_state VARCHAR(20),
+                        tide_height_ft DOUBLE PRECISION,
+                        tide_next_time TIMESTAMP,
+                        tide_fetched_at TIMESTAMP,
+                        swell_height_ft DOUBLE PRECISION,
+                        swell_period_sec DOUBLE PRECISION,
+                        swell_direction VARCHAR(10),
+                        wind_speed_kts DOUBLE PRECISION,
+                        wind_direction VARCHAR(10),
+                        weather_fetched_at TIMESTAMP,
+                        visibility_m DOUBLE PRECISION,
+                        sst_celsius DOUBLE PRECISION,
+                        chlorophyll_mg_m3 DOUBLE PRECISION,
+                        satellite_date DATE,
+                        satellite_fetched_at TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    );
+                    CREATE INDEX IF NOT EXISTS spot_cache_updated_idx ON spot_cache (updated_at);
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    stmt.execute(sql)
+                }
+            }
+            logger.info("spot_cache table ready")
+        } catch (e: Exception) {
+            logger.error("Failed to create spot_cache table: ${e.message}")
+        }
+    }
+    
+    /**
      * Save a spot's cached data to the database.
      * Uses UPSERT (INSERT ON CONFLICT UPDATE) for efficiency.
      */

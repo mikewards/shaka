@@ -34,6 +34,9 @@ fun Application.module() {
     // Try database connection (non-blocking - app works without it)
     tryInitDatabase()
     
+    // Ensure spot_cache table exists
+    SpotDataCache.createTableIfNotExists()
+    
     // Load cached data from database (survives restarts!)
     val cachedSpots = SpotDataCache.loadFromDatabase()
     if (cachedSpots > 0) {
