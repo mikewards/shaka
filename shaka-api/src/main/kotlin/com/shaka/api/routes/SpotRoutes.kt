@@ -210,6 +210,18 @@ fun Application.configureRouting() {
             get("/admin/cache/stats") {
                 call.respond(OceanDataCache.getStats())
             }
+            
+            // Clear all chlorophyll values (removes fake climatology data)
+            post("/admin/chlorophyll/clear") {
+                val cleared = com.shaka.data.cache.SpotDataCache.clearAllChlorophyll()
+                call.respond(mapOf("status" to "ok", "cleared" to cleared))
+            }
+            
+            // Get chlorophyll stats
+            get("/admin/chlorophyll/stats") {
+                val stats = com.shaka.data.cache.SpotDataCache.getChlorophyllStats()
+                call.respond(stats)
+            }
         }
     }
 }

@@ -309,6 +309,53 @@ object SpotDataCache {
         cache.remove(spotId)
     }
     
+    /**
+     * Clear all chlorophyll values from cache and database.
+     * Used to remove fake climatology fallback data.
+     */
+    fun clearAllChlorophyll(): Int {
+        var cleared = 0
+        cache.forEach { (spotId, data) ->
+            if (data.chlorophyll != null) {
+                cache[spotId] = data.copy(chlorophyll = null)
+                cleared++
+            }
+        }
+        
+        // Also clear from database
+        try {
+            val conn = java.sql.DriverManager.getConnection(
+                System.getenv("DATABASE_URL") ?: "",
+                System.getenv("PGUSER") ?: "",
+                System.getenv("PGPASSWORD") ?: ""
+            )
+            conn.prepareStatement("UPDATE spot_cache SET chlorophyll_mg_m3 = NULL").executeUpdate()
+            conn.close()
+            logger.info("Cleared chlorophyll from database")
+        } catch (e: Exception) {
+            logger.warn("Could not clear chlorophyll from database: ${e.message}")
+        }
+        
+        logger.info("Cleared chlorophyll from $cleared cached spots")
+        return cleared
+    }
+    
+    /**
+     * Get chlorophyll statistics.
+     */
+    fun getChlorophyllStats(): Map<String, Any> {
+        val total = cache.size
+        val withChlorophyll = cache.values.count { it.chlorophyll != null }
+        val withoutChlorophyll = total - withChlorophyll
+        
+        return mapOf(
+            "totalSpots" to total,
+            "withChlorophyll" to withChlorophyll,
+            "withoutChlorophyll" to withoutChlorophyll,
+            "percentageWithData" to if (total > 0) "%.1f%%".format(withChlorophyll.toDouble() / total * 100) else "0%"
+        )
+    }
+    
     // ==================== Utility Functions ====================
     
     /**
