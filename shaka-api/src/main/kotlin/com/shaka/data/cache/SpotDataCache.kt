@@ -103,6 +103,24 @@ object SpotDataCache {
     )
     
     /**
+     * GIBS satellite chlorophyll data from all 5 satellites for today and yesterday.
+     * Used for comparison with Copernicus data.
+     */
+    data class GIBSSatelliteData(
+        val paceToday: Double?,
+        val paceYesterday: Double?,
+        val noaa20Today: Double?,
+        val noaa20Yesterday: Double?,
+        val noaa21Today: Double?,
+        val noaa21Yesterday: Double?,
+        val sentinel3aToday: Double?,
+        val sentinel3aYesterday: Double?,
+        val sentinel3bToday: Double?,
+        val sentinel3bYesterday: Double?,
+        val dataDate: LocalDate   // "Today" when this was fetched
+    )
+    
+    /**
      * All cached data for a single spot.
      * Each field is nullable - data may not be available for all spots.
      */
@@ -112,7 +130,8 @@ object SpotDataCache {
         val sst: CachedValue<Double>? = null,             // Sea surface temp in Celsius
         val swell: CachedValue<SwellInfo>? = null,
         val wind: CachedValue<WindInfo>? = null,
-        val chlorophyll: CachedValue<Double>? = null      // Chlorophyll-a in mg/m³
+        val chlorophyll: CachedValue<Double>? = null,     // Chlorophyll-a in mg/m³ (Copernicus)
+        val gibsChlorophyll: CachedValue<GIBSSatelliteData>? = null  // GIBS satellite data
     ) {
         /**
          * Get the most recent fetch time across all data types.
@@ -147,23 +166,6 @@ object SpotDataCache {
     // Statistics
     private var hits = 0L
     private var misses = 0L
-    
-    // ==================== ERDDAP 300m Data (SEPARATE from Copernicus) ====================
-    // These are ADDITIONAL fields for comparison - they do NOT affect existing chlorophyll data
-    
-    /**
-     * ERDDAP chlorophyll result for comparison.
-     */
-    data class ERDDAPCacheEntry(
-        val chlorophyll: Double?,
-        val sector: String,
-        val dataDate: String?,
-        val fetchedAt: Instant,
-        val source: String
-    )
-    
-    // Separate cache for ERDDAP data - does not touch existing Copernicus data
-    private val erddapCache = ConcurrentHashMap<String, ERDDAPCacheEntry>()
     
     // ==================== Read Operations ====================
     
@@ -250,6 +252,24 @@ object SpotDataCache {
             (existing ?: SpotData()).copy(chlorophyll = chlorophyll)
         }
         logger.debug("Updated chlorophyll for spot $spotId: ${chlorophyll.value} mg/m³")
+    }
+    
+    /**
+     * Update GIBS satellite chlorophyll data for a spot.
+     */
+    fun updateGIBSChlorophyll(spotId: String, gibsData: CachedValue<GIBSSatelliteData>) {
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(gibsChlorophyll = gibsData)
+        }
+        val data = gibsData.value
+        val hasData = listOfNotNull(
+            data.paceToday, data.paceYesterday,
+            data.noaa20Today, data.noaa20Yesterday,
+            data.noaa21Today, data.noaa21Yesterday,
+            data.sentinel3aToday, data.sentinel3aYesterday,
+            data.sentinel3bToday, data.sentinel3bYesterday
+        ).size
+        logger.debug("Updated GIBS chlorophyll for spot $spotId: $hasData/10 satellites have data")
     }
     
     /**
@@ -453,109 +473,6 @@ object SpotDataCache {
         return cache.filter { (_, data) -> data.chlorophyll == null }.keys.toList()
     }
     
-    // ==================== ERDDAP Data Methods (ADDITIONAL - does not touch Copernicus) ====================
-    
-    /**
-     * Store ERDDAP chlorophyll result for a spot.
-     * This is separate from the main Copernicus chlorophyll data.
-     */
-    fun setErddapChlorophyll(spotId: String, chlorophyll: Double?, sector: String, dataDate: String?, source: String) {
-        erddapCache[spotId] = ERDDAPCacheEntry(
-            chlorophyll = chlorophyll,
-            sector = sector,
-            dataDate = dataDate,
-            fetchedAt = Instant.now(),
-            source = source
-        )
-        logger.debug("Set ERDDAP chlorophyll for $spotId: $chlorophyll (sector $sector)")
-    }
-    
-    /**
-     * Get ERDDAP chlorophyll data for a spot.
-     */
-    fun getErddapChlorophyll(spotId: String): ERDDAPCacheEntry? {
-        return erddapCache[spotId]
-    }
-    
-    /**
-     * Get comparison stats between ERDDAP and Copernicus.
-     */
-    fun getErddapComparisonStats(): Map<String, Any> {
-        val erddapSpots = erddapCache.keys
-        val copernicusSpots = cache.filter { it.value.chlorophyll != null }.keys
-        
-        var bothHaveData = 0
-        var onlyCopernicus = 0
-        var onlyErddap = 0
-        var neither = 0
-        var totalDifference = 0.0
-        var comparisonCount = 0
-        
-        val allSpotIds = (erddapSpots + cache.keys).toSet()
-        
-        for (spotId in allSpotIds) {
-            val copValue = cache[spotId]?.chlorophyll?.value
-            val erddapValue = erddapCache[spotId]?.chlorophyll
-            
-            when {
-                copValue != null && erddapValue != null -> {
-                    bothHaveData++
-                    totalDifference += kotlin.math.abs(copValue - erddapValue)
-                    comparisonCount++
-                }
-                copValue != null && erddapValue == null -> onlyCopernicus++
-                copValue == null && erddapValue != null -> onlyErddap++
-                else -> neither++
-            }
-        }
-        
-        val avgDifference = if (comparisonCount > 0) totalDifference / comparisonCount else 0.0
-        
-        return mapOf(
-            "totalSpots" to allSpotIds.size,
-            "bothHaveData" to bothHaveData,
-            "onlyCopernicus" to onlyCopernicus,
-            "onlyErddap" to onlyErddap,
-            "neither" to neither,
-            "erddapCached" to erddapCache.size,
-            "avgDifference" to "%.4f".format(avgDifference)
-        )
-    }
-    
-    /**
-     * Get detailed comparison data for all spots.
-     * Returns a list of comparison results.
-     */
-    fun getErddapComparisonDetails(): List<Map<String, Any?>> {
-        val allSpotIds = (erddapCache.keys + cache.keys).toSet()
-        
-        return allSpotIds.map { spotId ->
-            val copValue = cache[spotId]?.chlorophyll?.value
-            val erddapEntry = erddapCache[spotId]
-            val erddapValue = erddapEntry?.chlorophyll
-            
-            mapOf(
-                "spotId" to spotId,
-                "copernicus" to copValue,
-                "erddap" to erddapValue,
-                "erddapSector" to erddapEntry?.sector,
-                "erddapDataDate" to erddapEntry?.dataDate,
-                "difference" to if (copValue != null && erddapValue != null) 
-                    kotlin.math.abs(copValue - erddapValue) else null
-            )
-        }.sortedBy { it["spotId"] as String }
-    }
-    
-    /**
-     * Clear ERDDAP cache (for fresh comparison run).
-     */
-    fun clearErddapCache(): Int {
-        val count = erddapCache.size
-        erddapCache.clear()
-        logger.info("Cleared ERDDAP cache ($count entries)")
-        return count
-    }
-    
     // ==================== Utility Functions ====================
     
     /**
@@ -625,6 +542,30 @@ object SpotDataCache {
                 conn.createStatement().use { stmt ->
                     stmt.execute(sql)
                 }
+                
+                // Add GIBS satellite columns (if they don't exist)
+                val gibsColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_today DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_yesterday DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa20_today DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa20_yesterday DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa21_today DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa21_yesterday DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3a_today DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3a_yesterday DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3b_today DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3b_yesterday DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_data_date DATE;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_fetched_at TIMESTAMP;
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    gibsColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
+                logger.info("GIBS columns added to spot_cache table")
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
@@ -655,8 +596,11 @@ object SpotDataCache {
                         swell_height_ft, swell_period_sec, swell_direction,
                         wind_speed_kts, wind_direction, weather_fetched_at,
                         visibility_m, sst_celsius, chlorophyll_mg_m3, satellite_date, satellite_fetched_at,
+                        gibs_pace_today, gibs_pace_yesterday, gibs_noaa20_today, gibs_noaa20_yesterday,
+                        gibs_noaa21_today, gibs_noaa21_yesterday, gibs_sentinel3a_today, gibs_sentinel3a_yesterday,
+                        gibs_sentinel3b_today, gibs_sentinel3b_yesterday, gibs_data_date, gibs_fetched_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -673,6 +617,18 @@ object SpotDataCache {
                         chlorophyll_mg_m3 = COALESCE(EXCLUDED.chlorophyll_mg_m3, spot_cache.chlorophyll_mg_m3),
                         satellite_date = COALESCE(EXCLUDED.satellite_date, spot_cache.satellite_date),
                         satellite_fetched_at = COALESCE(EXCLUDED.satellite_fetched_at, spot_cache.satellite_fetched_at),
+                        gibs_pace_today = COALESCE(EXCLUDED.gibs_pace_today, spot_cache.gibs_pace_today),
+                        gibs_pace_yesterday = COALESCE(EXCLUDED.gibs_pace_yesterday, spot_cache.gibs_pace_yesterday),
+                        gibs_noaa20_today = COALESCE(EXCLUDED.gibs_noaa20_today, spot_cache.gibs_noaa20_today),
+                        gibs_noaa20_yesterday = COALESCE(EXCLUDED.gibs_noaa20_yesterday, spot_cache.gibs_noaa20_yesterday),
+                        gibs_noaa21_today = COALESCE(EXCLUDED.gibs_noaa21_today, spot_cache.gibs_noaa21_today),
+                        gibs_noaa21_yesterday = COALESCE(EXCLUDED.gibs_noaa21_yesterday, spot_cache.gibs_noaa21_yesterday),
+                        gibs_sentinel3a_today = COALESCE(EXCLUDED.gibs_sentinel3a_today, spot_cache.gibs_sentinel3a_today),
+                        gibs_sentinel3a_yesterday = COALESCE(EXCLUDED.gibs_sentinel3a_yesterday, spot_cache.gibs_sentinel3a_yesterday),
+                        gibs_sentinel3b_today = COALESCE(EXCLUDED.gibs_sentinel3b_today, spot_cache.gibs_sentinel3b_today),
+                        gibs_sentinel3b_yesterday = COALESCE(EXCLUDED.gibs_sentinel3b_yesterday, spot_cache.gibs_sentinel3b_yesterday),
+                        gibs_data_date = COALESCE(EXCLUDED.gibs_data_date, spot_cache.gibs_data_date),
+                        gibs_fetched_at = COALESCE(EXCLUDED.gibs_fetched_at, spot_cache.gibs_fetched_at),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -693,7 +649,7 @@ object SpotDataCache {
                     stmt.setString(10, data.wind?.value?.direction)
                     stmt.setTimestamp(11, data.swell?.fetchedAt?.let { Timestamp.from(it) })
                     
-                    // Satellite data
+                    // Satellite data (Copernicus)
                     stmt.setObject(12, data.visibility?.value)
                     stmt.setObject(13, data.sst?.value)
                     stmt.setObject(14, data.chlorophyll?.value)
@@ -701,6 +657,21 @@ object SpotDataCache {
                         java.sql.Date.valueOf(it.atZone(java.time.ZoneId.systemDefault()).toLocalDate())
                     })
                     stmt.setTimestamp(16, data.visibility?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    // GIBS satellite data
+                    val gibs = data.gibsChlorophyll?.value
+                    stmt.setObject(17, gibs?.paceToday)
+                    stmt.setObject(18, gibs?.paceYesterday)
+                    stmt.setObject(19, gibs?.noaa20Today)
+                    stmt.setObject(20, gibs?.noaa20Yesterday)
+                    stmt.setObject(21, gibs?.noaa21Today)
+                    stmt.setObject(22, gibs?.noaa21Yesterday)
+                    stmt.setObject(23, gibs?.sentinel3aToday)
+                    stmt.setObject(24, gibs?.sentinel3aYesterday)
+                    stmt.setObject(25, gibs?.sentinel3bToday)
+                    stmt.setObject(26, gibs?.sentinel3bYesterday)
+                    stmt.setObject(27, gibs?.dataDate?.let { java.sql.Date.valueOf(it) })
+                    stmt.setTimestamp(28, data.gibsChlorophyll?.fetchedAt?.let { Timestamp.from(it) })
                     
                     stmt.executeUpdate()
                 }
@@ -820,6 +791,47 @@ object SpotDataCache {
                                     fetchedAt = satelliteFetchedAt.toInstant()
                                 )
                             )
+                        }
+                        
+                        // GIBS satellite data
+                        val gibsFetchedAt = rs.getTimestamp("gibs_fetched_at")
+                        val gibsDataDate = rs.getDate("gibs_data_date")
+                        if (gibsFetchedAt != null && gibsDataDate != null) {
+                            // Read all GIBS columns - use try/catch in case columns don't exist yet
+                            try {
+                                val paceToday = rs.getDouble("gibs_pace_today").takeUnless { rs.wasNull() }
+                                val paceYesterday = rs.getDouble("gibs_pace_yesterday").takeUnless { rs.wasNull() }
+                                val noaa20Today = rs.getDouble("gibs_noaa20_today").takeUnless { rs.wasNull() }
+                                val noaa20Yesterday = rs.getDouble("gibs_noaa20_yesterday").takeUnless { rs.wasNull() }
+                                val noaa21Today = rs.getDouble("gibs_noaa21_today").takeUnless { rs.wasNull() }
+                                val noaa21Yesterday = rs.getDouble("gibs_noaa21_yesterday").takeUnless { rs.wasNull() }
+                                val sentinel3aToday = rs.getDouble("gibs_sentinel3a_today").takeUnless { rs.wasNull() }
+                                val sentinel3aYesterday = rs.getDouble("gibs_sentinel3a_yesterday").takeUnless { rs.wasNull() }
+                                val sentinel3bToday = rs.getDouble("gibs_sentinel3b_today").takeUnless { rs.wasNull() }
+                                val sentinel3bYesterday = rs.getDouble("gibs_sentinel3b_yesterday").takeUnless { rs.wasNull() }
+                                
+                                spotData = spotData.copy(
+                                    gibsChlorophyll = CachedValue(
+                                        value = GIBSSatelliteData(
+                                            paceToday = paceToday,
+                                            paceYesterday = paceYesterday,
+                                            noaa20Today = noaa20Today,
+                                            noaa20Yesterday = noaa20Yesterday,
+                                            noaa21Today = noaa21Today,
+                                            noaa21Yesterday = noaa21Yesterday,
+                                            sentinel3aToday = sentinel3aToday,
+                                            sentinel3aYesterday = sentinel3aYesterday,
+                                            sentinel3bToday = sentinel3bToday,
+                                            sentinel3bYesterday = sentinel3bYesterday,
+                                            dataDate = gibsDataDate.toLocalDate()
+                                        ),
+                                        fetchedAt = gibsFetchedAt.toInstant()
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                // GIBS columns may not exist yet
+                                logger.debug("Could not load GIBS data for $spotId: ${e.message}")
+                            }
                         }
                         
                         // Store in memory cache

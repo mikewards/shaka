@@ -318,6 +318,33 @@ class DataPrefetchJobs(
                     logger.debug("Water quality fetch failed for ${spot.name}: ${e.message}")
                 }
                 
+                // GIBS satellite chlorophyll (all 5 satellites, today + yesterday)
+                try {
+                    val gibsData = GIBSClient.getAllChlorophyll(lat, lon)
+                    SpotDataCache.updateGIBSChlorophyll(
+                        spot.id,
+                        SpotDataCache.CachedValue(
+                            value = SpotDataCache.GIBSSatelliteData(
+                                paceToday = gibsData.paceToday,
+                                paceYesterday = gibsData.paceYesterday,
+                                noaa20Today = gibsData.noaa20Today,
+                                noaa20Yesterday = gibsData.noaa20Yesterday,
+                                noaa21Today = gibsData.noaa21Today,
+                                noaa21Yesterday = gibsData.noaa21Yesterday,
+                                sentinel3aToday = gibsData.sentinel3aToday,
+                                sentinel3aYesterday = gibsData.sentinel3aYesterday,
+                                sentinel3bToday = gibsData.sentinel3bToday,
+                                sentinel3bYesterday = gibsData.sentinel3bYesterday,
+                                dataDate = gibsData.dataDate
+                            ),
+                            fetchedAt = now
+                        )
+                    )
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("GIBS fetch failed for ${spot.name}: ${e.message}")
+                }
+                
                 if (gotData) {
                     SpotDataCache.saveToDatabase(spot.id)
                     successCount++
