@@ -92,28 +92,53 @@ class ProtectedSeasClient {
             
             logger.debug("Found ${response.features.size} MPA features")
             
-            // Filter out generic jurisdictional zones and non-spearfishing-relevant zones
-            val specificMPAs = response.features.filter { feature ->
+            // PRIORITY 1: Find Marine Life Conservation Districts (MLCDs) - most relevant for spearfishing
+            val mlcds = response.features.filter { feature ->
+                val designation = feature.attributes.designation ?: ""
+                designation.contains("Marine Life Conservation District", ignoreCase = true) ||
+                designation.contains("MLCD", ignoreCase = true)
+            }
+            
+            // PRIORITY 2: If no MLCD, look for sanctuaries/reserves with spearfishing restrictions
+            val sanctuaries = response.features.filter { feature ->
+                val designation = feature.attributes.designation ?: ""
+                val spearStatus = feature.attributes.spear_fishing ?: 3
+                spearStatus == 1 && (  // Has spearfishing prohibition
+                    designation.contains("Sanctuary", ignoreCase = true) ||
+                    designation.contains("Reserve", ignoreCase = true) ||
+                    designation.contains("Conservation", ignoreCase = true)
+                )
+            }
+            
+            // PRIORITY 3: Filter out generic/irrelevant zones
+            val filtered = response.features.filter { feature ->
                 val designation = feature.attributes.designation ?: ""
                 val siteName = feature.attributes.site_name ?: ""
                 
                 designation != "Jurisdictional Authority" &&
+                designation != "Recreational Activity Area" &&
+                designation != "Restricted Area" &&
                 !siteName.contains("EEZ") &&
                 !siteName.contains("State Waters") &&
                 !siteName.contains("Territorial Sea") &&
-                !siteName.contains("Longline", ignoreCase = true) &&      // Commercial fishing zones
-                !siteName.contains("Thrill Craft", ignoreCase = true) &&  // Jet ski zones
-                !siteName.contains("Speed Zone", ignoreCase = true)       // Boating zones
+                !siteName.contains("Longline", ignoreCase = true) &&
+                !siteName.contains("Thrill Craft", ignoreCase = true) &&
+                !siteName.contains("Speed Zone", ignoreCase = true) &&
+                !siteName.contains("Zone A", ignoreCase = true) &&
+                !siteName.contains("Zone B", ignoreCase = true) &&
+                !siteName.contains("Zone C", ignoreCase = true) &&
+                !siteName.contains("Zone D", ignoreCase = true) &&
+                !siteName.contains("Zone E", ignoreCase = true)
             }
             
-            // If specific MPAs exist, use those; otherwise fall back to all features
-            val relevantMPAs = specificMPAs.ifEmpty { response.features }
+            // Select best result: MLCD > Sanctuary > Filtered > Any
+            val relevantMPAs = mlcds.ifEmpty { sanctuaries.ifEmpty { filtered.ifEmpty { response.features } } }
             
-            // Priority: highest LFP (5=most protected), then spearfishing=1 (prohibited)
+            // Sort by: spearfishing=1 first (prohibited), then highest LFP
             val selected = relevantMPAs
                 .sortedWith(
-                    compareByDescending<EsriFeature> { it.attributes.lfp ?: 0 }
-                        .thenBy { it.attributes.spear_fishing ?: 3 }  // 1 (prohibited) < 2 (restricted) < 3 (unknown)
+                    compareBy<EsriFeature> { it.attributes.spear_fishing ?: 3 }  // 1 (prohibited) first
+                        .thenByDescending { it.attributes.lfp ?: 0 }
                 )
                 .firstOrNull()
             
