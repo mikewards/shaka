@@ -120,7 +120,7 @@ object GIBSClient {
         layerId: String
     ): Double? {
         try {
-            // Use ~20km area to find data (handles cloud gaps)
+            // Use ~20km area to find data (accepts NULLs when cloud-covered)
             val delta = 0.1
             val bbox = "${lon - delta},${lat - delta},${lon + delta},${lat + delta}"
             
