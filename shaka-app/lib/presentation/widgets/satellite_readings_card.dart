@@ -150,77 +150,75 @@ class SatelliteReadingsCard extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           
-          // Values row
-          Row(
-            children: [
-              // Yesterday value
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Yesterday',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      yesterday != null ? yesterday.toStringAsFixed(2) : '—',
-                      style: TextStyle(
-                        color: yesterday != null ? Colors.white70 : Colors.white30,
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (observationTime != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatTime(observationTime),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.35),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ],
+          // Yesterday's reading (with exact observation time)
+          if (yesterday != null) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  yesterday.toStringAsFixed(2),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              
-              // Today value
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Today',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      today != null ? today.toStringAsFixed(2) : '—',
-                      style: TextStyle(
-                        color: today != null ? Colors.white70 : Colors.white30,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                Text(
+                  observationTime != null 
+                      ? _formatDateTime(observationTime)
+                      : 'Yesterday',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 11,
+                  ),
                 ),
+              ],
+            ),
+          ],
+          
+          // Today's reading (if available)
+          if (today != null) ...[
+            if (yesterday != null) const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  today.toStringAsFixed(2),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'Today',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          // Show "No data" if both are null (shouldn't reach here due to early return)
+          if (yesterday == null && today == null)
+            Text(
+              'No data',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.3),
+                fontSize: 12,
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  /// Format observation time in user's local timezone
-  String _formatTime(DateTime utcTime) {
+  /// Format observation time in user's local timezone with full date-time
+  String _formatDateTime(DateTime utcTime) {
     final local = utcTime.toLocal();
     final formatter = DateFormat('MMM d, h:mm a');
     return formatter.format(local);
