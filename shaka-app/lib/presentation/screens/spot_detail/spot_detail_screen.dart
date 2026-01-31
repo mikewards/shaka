@@ -688,21 +688,24 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     String statusText;
     IconData statusIcon;
     
+    // IMPORTANT: The buffer query finds MPAs within 1.5km
+    // The SPOT may be legal, but there's a sanctuary NEARBY
     if (mpa == null || mpa.spearfishingStatus == 0) {
       statusColor = Colors.green;
-      statusText = 'No MPA restrictions';
+      statusText = 'No MPA restrictions nearby';
       statusIcon = Icons.check_circle;
     } else if (mpa.spearfishingStatus == 1) {
-      statusColor = Colors.red;
-      statusText = 'Spearfishing PROHIBITED';
-      statusIcon = Icons.block;
+      // Sanctuary NEARBY - warn, don't prohibit (spot may be legal!)
+      statusColor = Colors.orange;
+      statusText = 'MARINE SANCTUARY NEARBY';
+      statusIcon = Icons.warning_amber;
     } else if (mpa.spearfishingStatus == 2) {
       statusColor = Colors.orange;
-      statusText = 'Spearfishing RESTRICTED';
+      statusText = 'RESTRICTED AREA NEARBY';
       statusIcon = Icons.warning;
     } else {
       statusColor = Colors.grey;
-      statusText = 'Check local regulations';
+      statusText = 'Verify local regulations';
       statusIcon = Icons.help_outline;
     }
     
@@ -739,29 +742,71 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               if (mpa != null && mpa.siteName != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  mpa.siteName!,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  '"${mpa.siteName!}" is within 1.5km',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 if (mpa.designation != null)
                   Text(
                     mpa.designation!,
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
+                if (mpa.spearfishingStatus == 1) ...[
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Spearfishing is PROHIBITED inside sanctuary boundaries.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Know exactly where the sanctuary begins and ends before entering the water.',
+                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
               if (mpa?.speciesOfConcern != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Protected: ${mpa!.speciesOfConcern}',
+                  'Protected species: ${mpa!.speciesOfConcern}',
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
               if (mpa?.detailsUrl != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 GestureDetector(
                   onTap: () => _launchUrl(mpa!.detailsUrl!),
-                  child: const Text(
-                    'View full MPA regulations →',
-                    style: TextStyle(color: Colors.blue, fontSize: 12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.map, color: Colors.blue, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'View official boundary map',
+                          style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -60,6 +60,8 @@ class ProtectedSeasClient {
                 "geometry=$geometry" +
                 "&geometryType=esriGeometryPoint" +
                 "&spatialRel=esriSpatialRelIntersects" +
+                "&distance=1500" +                    // 1.5km buffer - catches nearby MPAs
+                "&units=esriSRUnit_Meter" +           // Buffer distance in meters
                 "&outFields=site_name,spear_fishing,species_of_concern,purpose,lfp,navigator_link,designation" +
                 "&returnGeometry=false" +  // Don't return polygon geometry (huge!)
                 "&f=json"
@@ -90,7 +92,7 @@ class ProtectedSeasClient {
             
             logger.debug("Found ${response.features.size} MPA features")
             
-            // Filter out generic jurisdictional zones to find specific MPAs
+            // Filter out generic jurisdictional zones and non-spearfishing-relevant zones
             val specificMPAs = response.features.filter { feature ->
                 val designation = feature.attributes.designation ?: ""
                 val siteName = feature.attributes.site_name ?: ""
@@ -98,7 +100,10 @@ class ProtectedSeasClient {
                 designation != "Jurisdictional Authority" &&
                 !siteName.contains("EEZ") &&
                 !siteName.contains("State Waters") &&
-                !siteName.contains("Territorial Sea")
+                !siteName.contains("Territorial Sea") &&
+                !siteName.contains("Longline", ignoreCase = true) &&      // Commercial fishing zones
+                !siteName.contains("Thrill Craft", ignoreCase = true) &&  // Jet ski zones
+                !siteName.contains("Speed Zone", ignoreCase = true)       // Boating zones
             }
             
             // If specific MPAs exist, use those; otherwise fall back to all features
