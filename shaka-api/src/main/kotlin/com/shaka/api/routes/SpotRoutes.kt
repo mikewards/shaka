@@ -290,6 +290,49 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Trigger GIBS fetch for all spots without GIBS data
+            post("/admin/gibs/refetch") {
+                val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutGIBS()
+                val total = spotsToFetch.size
+                
+                kotlinx.coroutines.GlobalScope.launch {
+                    for (spotId in spotsToFetch) {
+                        try {
+                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            val gibsData = com.shaka.data.client.GIBSClient.getAllChlorophyll(
+                                spot.coordinates.lat, 
+                                spot.coordinates.lon
+                            )
+                            com.shaka.data.cache.SpotDataCache.updateGIBSChlorophyll(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(
+                                    value = com.shaka.data.cache.SpotDataCache.GIBSSatelliteData(
+                                        paceToday = gibsData.paceToday,
+                                        paceYesterday = gibsData.paceYesterday,
+                                        noaa20Today = gibsData.noaa20Today,
+                                        noaa20Yesterday = gibsData.noaa20Yesterday,
+                                        noaa21Today = gibsData.noaa21Today,
+                                        noaa21Yesterday = gibsData.noaa21Yesterday,
+                                        sentinel3aToday = gibsData.sentinel3aToday,
+                                        sentinel3aYesterday = gibsData.sentinel3aYesterday,
+                                        sentinel3bToday = gibsData.sentinel3bToday,
+                                        sentinel3bYesterday = gibsData.sentinel3bYesterday,
+                                        dataDate = gibsData.dataDate
+                                    ),
+                                    fetchedAt = java.time.Instant.now()
+                                )
+                            )
+                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                        } catch (e: Exception) { /* continue */ }
+                    }
+                }
+                
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"GIBS fetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
         }
     }
 }

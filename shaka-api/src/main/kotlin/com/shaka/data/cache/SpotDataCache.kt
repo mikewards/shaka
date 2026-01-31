@@ -473,6 +473,13 @@ object SpotDataCache {
         return cache.filter { (_, data) -> data.chlorophyll == null }.keys.toList()
     }
     
+    /**
+     * Get all spot IDs where GIBS chlorophyll is null.
+     */
+    fun getSpotsWithoutGIBS(): List<String> {
+        return cache.filter { (_, data) -> data.gibsChlorophyll == null }.keys.toList()
+    }
+    
     // ==================== Utility Functions ====================
     
     /**
