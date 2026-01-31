@@ -5,6 +5,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.zip.Inflater
@@ -13,6 +14,7 @@ import kotlin.math.pow
 
 /**
  * Result containing chlorophyll data from all GIBS satellites for today and yesterday.
+ * Includes observation timestamps from NASA CMR for NASA satellites.
  */
 data class GIBSChlorophyllData(
     val paceToday: Double?,
@@ -25,7 +27,12 @@ data class GIBSChlorophyllData(
     val sentinel3aYesterday: Double?,
     val sentinel3bToday: Double?,
     val sentinel3bYesterday: Double?,
-    val dataDate: LocalDate  // "Today" when this was fetched
+    val dataDate: LocalDate,  // "Today" when this was fetched
+    // Observation timestamps from NASA CMR (yesterday's pass times)
+    val paceObservationTime: Instant? = null,
+    val noaa20ObservationTime: Instant? = null,
+    val noaa21ObservationTime: Instant? = null
+    // Sentinel-3 times not available in NASA CMR
 )
 
 /**
@@ -62,6 +69,7 @@ object GIBSClient {
     
     /**
      * Fetch chlorophyll from ALL satellites for today and yesterday.
+     * Also fetches observation timestamps from NASA CMR for NASA satellites.
      * 
      * @param lat Latitude in decimal degrees
      * @param lon Longitude in decimal degrees
@@ -91,6 +99,15 @@ object GIBSClient {
             delay(50)
         }
         
+        // Fetch observation timestamps from NASA CMR (for yesterday's data)
+        // Only query if we have data for that satellite to minimize API calls
+        val observationTimes = try {
+            CMRClient.getAllObservationTimes(lat, lon, yesterdayStr)
+        } catch (e: Exception) {
+            logger.debug("CMR observation times fetch failed: ${e.message}")
+            emptyMap()
+        }
+        
         return GIBSChlorophyllData(
             paceToday = results["PACE_today"],
             paceYesterday = results["PACE_yesterday"],
@@ -102,7 +119,10 @@ object GIBSClient {
             sentinel3aYesterday = results["Sentinel-3A_yesterday"],
             sentinel3bToday = results["Sentinel-3B_today"],
             sentinel3bYesterday = results["Sentinel-3B_yesterday"],
-            dataDate = today
+            dataDate = today,
+            paceObservationTime = observationTimes["PACE"],
+            noaa20ObservationTime = observationTimes["NOAA-20"],
+            noaa21ObservationTime = observationTimes["NOAA-21"]
         )
     }
     

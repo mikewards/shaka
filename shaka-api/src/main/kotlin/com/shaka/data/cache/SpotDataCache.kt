@@ -105,6 +105,8 @@ object SpotDataCache {
     /**
      * GIBS satellite chlorophyll data from all 5 satellites for today and yesterday.
      * Used for comparison with Copernicus data.
+     * 
+     * Observation times are from NASA CMR granule metadata (only available for NASA satellites).
      */
     data class GIBSSatelliteData(
         val paceToday: Double?,
@@ -117,7 +119,12 @@ object SpotDataCache {
         val sentinel3aYesterday: Double?,
         val sentinel3bToday: Double?,
         val sentinel3bYesterday: Double?,
-        val dataDate: LocalDate   // "Today" when this was fetched
+        val dataDate: LocalDate,   // "Today" when this was fetched
+        // Observation timestamps from CMR (NASA satellites only)
+        val paceObservationTime: Instant? = null,
+        val noaa20ObservationTime: Instant? = null,
+        val noaa21ObservationTime: Instant? = null
+        // Sentinel-3 times not available in NASA CMR (would need ESA API)
     )
     
     /**
@@ -564,6 +571,9 @@ object SpotDataCache {
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3b_yesterday DOUBLE PRECISION;
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_data_date DATE;
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_fetched_at TIMESTAMP;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_obs_time TIMESTAMP;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa20_obs_time TIMESTAMP;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa21_obs_time TIMESTAMP;
                 """.trimIndent()
                 
                 conn.createStatement().use { stmt ->
@@ -606,8 +616,9 @@ object SpotDataCache {
                         gibs_pace_today, gibs_pace_yesterday, gibs_noaa20_today, gibs_noaa20_yesterday,
                         gibs_noaa21_today, gibs_noaa21_yesterday, gibs_sentinel3a_today, gibs_sentinel3a_yesterday,
                         gibs_sentinel3b_today, gibs_sentinel3b_yesterday, gibs_data_date, gibs_fetched_at,
+                        gibs_pace_obs_time, gibs_noaa20_obs_time, gibs_noaa21_obs_time,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -636,6 +647,9 @@ object SpotDataCache {
                         gibs_sentinel3b_yesterday = COALESCE(EXCLUDED.gibs_sentinel3b_yesterday, spot_cache.gibs_sentinel3b_yesterday),
                         gibs_data_date = COALESCE(EXCLUDED.gibs_data_date, spot_cache.gibs_data_date),
                         gibs_fetched_at = COALESCE(EXCLUDED.gibs_fetched_at, spot_cache.gibs_fetched_at),
+                        gibs_pace_obs_time = COALESCE(EXCLUDED.gibs_pace_obs_time, spot_cache.gibs_pace_obs_time),
+                        gibs_noaa20_obs_time = COALESCE(EXCLUDED.gibs_noaa20_obs_time, spot_cache.gibs_noaa20_obs_time),
+                        gibs_noaa21_obs_time = COALESCE(EXCLUDED.gibs_noaa21_obs_time, spot_cache.gibs_noaa21_obs_time),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -679,6 +693,11 @@ object SpotDataCache {
                     stmt.setObject(26, gibs?.sentinel3bYesterday)
                     stmt.setObject(27, gibs?.dataDate?.let { java.sql.Date.valueOf(it) })
                     stmt.setTimestamp(28, data.gibsChlorophyll?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    // GIBS observation timestamps from CMR
+                    stmt.setTimestamp(29, gibs?.paceObservationTime?.let { Timestamp.from(it) })
+                    stmt.setTimestamp(30, gibs?.noaa20ObservationTime?.let { Timestamp.from(it) })
+                    stmt.setTimestamp(31, gibs?.noaa21ObservationTime?.let { Timestamp.from(it) })
                     
                     stmt.executeUpdate()
                 }
@@ -817,6 +836,11 @@ object SpotDataCache {
                                 val sentinel3bToday = rs.getDouble("gibs_sentinel3b_today").takeUnless { rs.wasNull() }
                                 val sentinel3bYesterday = rs.getDouble("gibs_sentinel3b_yesterday").takeUnless { rs.wasNull() }
                                 
+                                // Read observation timestamps (may not exist in older schemas)
+                                val paceObsTime = try { rs.getTimestamp("gibs_pace_obs_time")?.toInstant() } catch (e: Exception) { null }
+                                val noaa20ObsTime = try { rs.getTimestamp("gibs_noaa20_obs_time")?.toInstant() } catch (e: Exception) { null }
+                                val noaa21ObsTime = try { rs.getTimestamp("gibs_noaa21_obs_time")?.toInstant() } catch (e: Exception) { null }
+                                
                                 spotData = spotData.copy(
                                     gibsChlorophyll = CachedValue(
                                         value = GIBSSatelliteData(
@@ -830,7 +854,10 @@ object SpotDataCache {
                                             sentinel3aYesterday = sentinel3aYesterday,
                                             sentinel3bToday = sentinel3bToday,
                                             sentinel3bYesterday = sentinel3bYesterday,
-                                            dataDate = gibsDataDate.toLocalDate()
+                                            dataDate = gibsDataDate.toLocalDate(),
+                                            paceObservationTime = paceObsTime,
+                                            noaa20ObservationTime = noaa20ObsTime,
+                                            noaa21ObservationTime = noaa21ObsTime
                                         ),
                                         fetchedAt = gibsFetchedAt.toInstant()
                                     )

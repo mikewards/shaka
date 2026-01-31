@@ -317,7 +317,10 @@ fun Application.configureRouting() {
                                         sentinel3aYesterday = gibsData.sentinel3aYesterday,
                                         sentinel3bToday = gibsData.sentinel3bToday,
                                         sentinel3bYesterday = gibsData.sentinel3bYesterday,
-                                        dataDate = gibsData.dataDate
+                                        dataDate = gibsData.dataDate,
+                                        paceObservationTime = gibsData.paceObservationTime,
+                                        noaa20ObservationTime = gibsData.noaa20ObservationTime,
+                                        noaa21ObservationTime = gibsData.noaa21ObservationTime
                                     ),
                                     fetchedAt = java.time.Instant.now()
                                 )

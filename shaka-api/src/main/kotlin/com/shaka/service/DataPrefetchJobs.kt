@@ -319,6 +319,7 @@ class DataPrefetchJobs(
                 }
                 
                 // GIBS satellite chlorophyll (all 5 satellites, today + yesterday)
+                // Also fetches observation timestamps from NASA CMR
                 try {
                     val gibsData = GIBSClient.getAllChlorophyll(lat, lon)
                     SpotDataCache.updateGIBSChlorophyll(
@@ -335,7 +336,10 @@ class DataPrefetchJobs(
                                 sentinel3aYesterday = gibsData.sentinel3aYesterday,
                                 sentinel3bToday = gibsData.sentinel3bToday,
                                 sentinel3bYesterday = gibsData.sentinel3bYesterday,
-                                dataDate = gibsData.dataDate
+                                dataDate = gibsData.dataDate,
+                                paceObservationTime = gibsData.paceObservationTime,
+                                noaa20ObservationTime = gibsData.noaa20ObservationTime,
+                                noaa21ObservationTime = gibsData.noaa21ObservationTime
                             ),
                             fetchedAt = now
                         )
