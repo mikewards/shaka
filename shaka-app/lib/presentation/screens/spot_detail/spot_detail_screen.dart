@@ -148,31 +148,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        spot.access.type.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      spot.bestTimeOfDay,
-                      style:
-                          const TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                  ],
+                Text(
+                  spot.bestTimeOfDay,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
             ),
@@ -221,7 +199,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         tabs: const [
           Tab(text: 'Conditions'),
           Tab(text: 'Forecast'),
-          Tab(text: 'Guide'),
+          Tab(text: 'Regulations'),
         ],
       ),
     );
@@ -305,6 +283,28 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             ),
           ],
         ),
+
+        const SizedBox(height: 24),
+
+        // About this spot
+        _buildSectionHeader('ABOUT'),
+        const SizedBox(height: 10),
+        Text(
+          spot.description,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+
+        // Expected Fish
+        if (spot.expectedFish.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildSectionHeader('FISH'),
+          const SizedBox(height: 10),
+          _buildFishList(spot.expectedFish),
+        ],
 
         const SizedBox(height: 40),
       ],
@@ -413,44 +413,13 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  /// GUIDE TAB - Description, fish, gear, access
+  /// REGULATIONS TAB - MPA warnings, regulations, fish info
   Widget _buildGuideTab(SpotDetail spot) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Description
-        _buildSectionHeader('ABOUT'),
-        const SizedBox(height: 10),
-        Text(
-          spot.description,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Expected Fish
-        if (spot.expectedFish.isNotEmpty) ...[
-          _buildSectionHeader('FISH'),
-          const SizedBox(height: 10),
-          _buildFishList(spot.expectedFish),
-          const SizedBox(height: 24),
-        ],
-
-        // Access
-        _buildSectionHeader('ACCESS'),
-        const SizedBox(height: 10),
-        _buildAccessInfo(spot.access),
-
-        const SizedBox(height: 24),
-
         // Regulations
         if (spot.regulations != null) ...[
-          _buildSectionHeader('REGULATIONS'),
-          const SizedBox(height: 10),
           _buildRegulationsInfo(spot.regulations!),
           const SizedBox(height: 24),
         ],
@@ -779,13 +748,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   ),
                 ),
               ],
-              if (mpa?.speciesOfConcern != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Protected species: ${mpa!.speciesOfConcern}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-              ],
               if (mpa?.detailsUrl != null) ...[
                 const SizedBox(height: 10),
                 GestureDetector(
@@ -946,7 +908,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Current tab with preloaded data
+          // Current tab with preloaded data (includes cached satellite readings)
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -954,9 +916,16 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               const SizedBox(height: 10),
               ConditionsCard(conditions: spot.conditions),
               const SizedBox(height: 20),
-              // Loading indicator
+              // Satellite readings from cache (instant!)
+              if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
+                _buildSectionHeader('VISIBILITY (CHLOROPHYLL-A) SATELLITE READINGS'),
+                const SizedBox(height: 10),
+                SatelliteReadingsCard(readings: spot.satelliteReadings),
+                const SizedBox(height: 20),
+              ],
+              // Loading indicator for remaining data
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: _cardColor,
                   borderRadius: BorderRadius.circular(12),
@@ -966,17 +935,17 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 14,
+                      height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Color(0xFF5B9BD5),
                       ),
                     ),
-                    SizedBox(width: 12),
+                    SizedBox(width: 10),
                     Text(
-                      'Loading full details...',
-                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                      'Loading forecast & details...',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],
                 ),

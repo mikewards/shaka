@@ -49,7 +49,8 @@ data class SpotSummary(
     val expectedFish: List<String>,
     val gearRecommendations: List<String>,
     val risks: List<String>,
-    val bestTimeOfDay: String
+    val bestTimeOfDay: String,
+    val satelliteReadings: GibsSatelliteReadings? = null  // Include cached GIBS data
 )
 
 @Serializable

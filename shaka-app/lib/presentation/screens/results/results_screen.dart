@@ -172,7 +172,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             HapticFeedback.lightImpact();
             context.push(
               '/spot/${spot.id}',
-              extra: {'date': widget.date},
+              extra: {'date': widget.date, 'spot': spot},
             );
           },
         );
@@ -190,7 +190,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         HapticFeedback.lightImpact();
         context.push(
           '/spot/${spot.id}',
-          extra: {'date': widget.date},
+          extra: {'date': widget.date, 'spot': spot},
         );
       },
     );

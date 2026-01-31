@@ -103,6 +103,7 @@ class SpotSummary {
   final List<String> gearRecommendations;
   final List<String> risks;
   final String bestTimeOfDay;
+  final GibsSatelliteReadings? satelliteReadings;  // Cached satellite data
 
   const SpotSummary({
     required this.id,
@@ -116,6 +117,7 @@ class SpotSummary {
     required this.gearRecommendations,
     required this.risks,
     required this.bestTimeOfDay,
+    this.satelliteReadings,
   });
 
   factory SpotSummary.fromJson(Map<String, dynamic> json) {
@@ -131,6 +133,9 @@ class SpotSummary {
       gearRecommendations: List<String>.from(json['gearRecommendations'] ?? []),
       risks: List<String>.from(json['risks'] ?? []),
       bestTimeOfDay: json['bestTimeOfDay'] ?? '',
+      satelliteReadings: json['satelliteReadings'] != null
+          ? GibsSatelliteReadings.fromJson(json['satelliteReadings'])
+          : null,
     );
   }
 }

@@ -223,6 +223,29 @@ class SpotService {
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
             val satelliteDataDate = cached?.sst?.dataDateString()
             
+            // Build GIBS satellite readings from cache (same as SpotDetail)
+            val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
+                val gibs = cached.gibsChlorophyll?.value
+                GibsSatelliteReadings(
+                    paceToday = gibs?.paceToday,
+                    paceYesterday = gibs?.paceYesterday,
+                    noaa20Today = gibs?.noaa20Today,
+                    noaa20Yesterday = gibs?.noaa20Yesterday,
+                    noaa21Today = gibs?.noaa21Today,
+                    noaa21Yesterday = gibs?.noaa21Yesterday,
+                    sentinel3aToday = gibs?.sentinel3aToday,
+                    sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                    sentinel3bToday = gibs?.sentinel3bToday,
+                    sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                    paceObservationTime = gibs?.paceObservationTime?.toString(),
+                    noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
+                    noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
+                    dataDate = gibs?.dataDate?.toString(),
+                    noaaErddapChlorophyll = cached.chlorophyll?.value,
+                    noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
+                )
+            } else null
+            
             SpotSummary(
                 id = spot.id,
                 name = spot.name,
@@ -251,7 +274,8 @@ class SpotService {
                 expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(actualSST, spot.depth),
                 risks = generateRisks(weather, ocean),
-                bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date))
+                bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
+                satelliteReadings = gibsReadings
             )
         }.sortedByDescending { it.shakaScore }
 
