@@ -1,0 +1,240 @@
+{
+  "USA": {
+    "Hawaii": {
+      "agency": "DLNR Division of Aquatic Resources",
+      "url": "https://dlnr.hawaii.gov/dar/fishing/fishing-regulations/",
+      "licensingUrl": "https://dlnr.hawaii.gov/dar/licenses-and-permits/",
+      "regions": ["Oahu", "Maui", "Bigisland", "Kauai", "Molokai", "Lanai"]
+    },
+    "California": {
+      "agency": "California Dept. of Fish and Wildlife",
+      "url": "https://wildlife.ca.gov/Fishing",
+      "licensingUrl": "https://wildlife.ca.gov/Licensing/Fishing",
+      "regions": ["California", "Sandiego", "Catalina", "Socal", "Norcal"]
+    },
+    "Florida": {
+      "agency": "Florida Fish and Wildlife Conservation Commission",
+      "url": "https://myfwc.com/fishing/saltwater/recreational/",
+      "licensingUrl": "https://myfwc.com/license/recreational/",
+      "regions": ["Keys", "Florida", "Miami", "Tampa"]
+    }
+  },
+  "Bahamas": {
+    "agency": "Bahamas Department of Marine Resources",
+    "url": "https://www.bahamas.gov.bs/marineresources",
+    "licensingUrl": null,
+    "note": "Foreign nationals prohibited from spearfishing. Bahamians only with permit.",
+    "regions": ["Andros", "Bimini", "Exuma", "Abaco", "Nassau", "Eleuthera", "Cat", "Conception", "Berry", "Crooked", "Acklins", "Inagua", "Mayaguana", "Longisland", "Sansalvador", "Rum"]
+  },
+  "Cayman": {
+    "agency": "Cayman Islands Department of Environment",
+    "url": "https://doe.ky/marine/",
+    "licensingUrl": null,
+    "note": "Spearfishing prohibited in Cayman Islands.",
+    "regions": ["Cayman", "Grandcayman", "Littlecayman", "Caymanbrac"]
+  },
+  "BVI": {
+    "agency": "BVI Conservation and Fisheries Department",
+    "url": "https://bvi.gov.vg/departments/conservation-and-fisheries",
+    "licensingUrl": null,
+    "regions": ["Bvi", "Tortola", "Virgingorda", "Jostvan"]
+  },
+  "USVI": {
+    "agency": "USVI Department of Planning and Natural Resources",
+    "url": "https://dpnr.vi.gov/fish-and-wildlife/",
+    "licensingUrl": null,
+    "regions": ["Usvi", "Stthomas", "Stcroix", "Stjohn"]
+  },
+  "Mexico": {
+    "agency": "CONAPESCA",
+    "url": "https://www.gob.mx/conapesca",
+    "licensingUrl": null,
+    "regions": ["Mexico", "Baja", "Cozumel", "Cancun", "Yucatan", "Seaofcortez"]
+  },
+  "Caribbean": {
+    "Curacao": {
+      "agency": "Curacao Ministry of Health, Environment and Nature",
+      "url": "https://www.gobiernu.cw/",
+      "regions": ["Curacao"]
+    },
+    "Bonaire": {
+      "agency": "STINAPA Bonaire",
+      "url": "https://stinapabonaire.org/",
+      "note": "Spearfishing prohibited in Bonaire National Marine Park.",
+      "regions": ["Bonaire"]
+    },
+    "Aruba": {
+      "agency": "Aruba Department of Nature and Environment",
+      "url": "https://www.aruba.com/us/our-island/nature",
+      "regions": ["Aruba"]
+    },
+    "Barbados": {
+      "agency": "Barbados Fisheries Division",
+      "url": "https://agriculture.gov.bb/Divisions/fisheries-division/",
+      "regions": ["Barbados"]
+    },
+    "Dominican": {
+      "agency": "Dominican Republic Ministry of Environment",
+      "url": "https://ambiente.gob.do/",
+      "regions": ["Dominican"]
+    },
+    "Turks": {
+      "agency": "DECR Turks and Caicos",
+      "url": "https://www.gov.tc/decr/",
+      "regions": ["Turks", "Providenciales", "Grandturk"]
+    }
+  },
+  "Pacific": {
+    "Fiji": {
+      "agency": "Fiji Ministry of Fisheries",
+      "url": "https://www.fisheries.gov.fj/",
+      "regions": ["Fiji", "Vitilevu", "Taveuni", "Yasawa"]
+    },
+    "FrenchPolynesia": {
+      "agency": "Direction des Ressources Marines",
+      "url": "https://www.service-public.pf/drm/",
+      "regions": ["Tahiti", "Moorea", "Bora", "Rangiroa", "Fakarava", "Marquesas", "Tuamotu"]
+    },
+    "Indonesia": {
+      "agency": "Indonesian Ministry of Marine Affairs and Fisheries",
+      "url": "https://kkp.go.id/",
+      "regions": ["Bali", "Komodo", "Rajaampat", "Lombok", "Sulawesi", "Flores"]
+    },
+    "Philippines": {
+      "agency": "Bureau of Fisheries and Aquatic Resources",
+      "url": "https://www.bfar.da.gov.ph/",
+      "regions": ["Philippines", "Palawan", "Cebu", "Bohol", "Apo"]
+    },
+    "Australia": {
+      "agency": "State Fisheries Authorities",
+      "url": "https://www.agriculture.gov.au/fisheries",
+      "regions": ["Aus", "Queensland", "Nsw", "Greatbarrierreef"]
+    },
+    "NewZealand": {
+      "agency": "Fisheries New Zealand",
+      "url": "https://www.mpi.govt.nz/fishing-aquaculture/",
+      "regions": ["Newzealand", "Northisland", "Southisland", "Poorknights"]
+    }
+  },
+  "Atlantic": {
+    "Azores": {
+      "agency": "Regional Directorate of Sea Affairs (Azores)",
+      "url": "https://portal.azores.gov.pt/web/drpm",
+      "regions": ["Azores", "Saomiguel", "Faial", "Pico"]
+    },
+    "Canary": {
+      "agency": "Canary Islands Government",
+      "url": "https://www.gobiernodecanarias.org/",
+      "regions": ["Canary", "Tenerife", "Lanzarote", "Fuerteventura", "Grancanaria"]
+    },
+    "CapeVerde": {
+      "agency": "Cape Verde Ministry of Sea",
+      "url": "https://www.governo.cv/",
+      "regions": ["Cape", "Sal", "Boavista", "Santiago"]
+    },
+    "Madeira": {
+      "agency": "Regional Directorate of Fisheries (Madeira)",
+      "url": "https://www.madeira.gov.pt/",
+      "regions": ["Madeira"]
+    }
+  },
+  "Mediterranean": {
+    "Croatia": {
+      "agency": "Croatian Ministry of Agriculture",
+      "url": "https://ribarstvo.mps.hr/",
+      "regions": ["Croatia", "Dalmatia", "Istria"]
+    },
+    "Greece": {
+      "agency": "Greek Ministry of Rural Development and Food",
+      "url": "https://www.minagric.gr/",
+      "regions": ["Greece", "Crete", "Cyclades", "Dodecanese"]
+    },
+    "Corsica": {
+      "agency": "French Maritime Affairs",
+      "url": "https://www.mer.gouv.fr/",
+      "regions": ["Corsica"]
+    },
+    "Sardinia": {
+      "agency": "Italian Coast Guard",
+      "url": "https://www.guardiacostiera.gov.it/",
+      "regions": ["Sardinia"]
+    },
+    "Malta": {
+      "agency": "Malta Fisheries Department",
+      "url": "https://agriculture.gov.mt/en/fisheries/Pages/home.aspx",
+      "regions": ["Malta", "Gozo"]
+    }
+  },
+  "CentralAmerica": {
+    "CostaRica": {
+      "agency": "INCOPESCA Costa Rica",
+      "url": "https://www.incopesca.go.cr/",
+      "regions": ["Costarica", "Cocos"]
+    },
+    "Panama": {
+      "agency": "Panama Authority of Aquatic Resources",
+      "url": "https://arap.gob.pa/",
+      "regions": ["Panama", "Coiba", "Bocas"]
+    },
+    "Belize": {
+      "agency": "Belize Fisheries Department",
+      "url": "https://fisheries.gov.bz/",
+      "regions": ["Belize"]
+    },
+    "Honduras": {
+      "agency": "Honduras SAG",
+      "url": "https://www.sag.gob.hn/",
+      "regions": ["Honduras", "Roatan", "Utila"]
+    }
+  },
+  "SouthAmerica": {
+    "Brazil": {
+      "agency": "IBAMA Brazil",
+      "url": "https://www.ibama.gov.br/",
+      "regions": ["Brazil", "Fernando"]
+    },
+    "Ecuador": {
+      "agency": "Ecuador Fisheries Ministry",
+      "url": "https://www.produccion.gob.ec/",
+      "regions": ["Ecuador", "Galapagos"]
+    }
+  },
+  "IndianOcean": {
+    "Maldives": {
+      "agency": "Maldives Fisheries Ministry",
+      "url": "https://www.fishagri.gov.mv/",
+      "regions": ["Maldives"]
+    },
+    "Mauritius": {
+      "agency": "Mauritius Fisheries Division",
+      "url": "https://fisheries.govmu.org/",
+      "regions": ["Mauritius"]
+    },
+    "Seychelles": {
+      "agency": "Seychelles Fishing Authority",
+      "url": "https://www.sfa.sc/",
+      "regions": ["Seychelles"]
+    },
+    "Mozambique": {
+      "agency": "Mozambique Ministry of Sea",
+      "url": "https://www.mimaip.gov.mz/",
+      "regions": ["Mozambique"]
+    }
+  },
+  "Africa": {
+    "SouthAfrica": {
+      "agency": "DFFE South Africa",
+      "url": "https://www.dffe.gov.za/",
+      "regions": ["Southafrica", "Capetown", "Sodwana"]
+    },
+    "Egypt": {
+      "agency": "Egyptian General Authority for Fish Resources Development",
+      "url": "https://www.gafrd.org/",
+      "regions": ["Egypt", "Redsea", "Sinai"]
+    }
+  },
+  "default": {
+    "message": "Check local fishing regulations before spearfishing",
+    "url": "https://navigatormap.org/"
+  }
+}

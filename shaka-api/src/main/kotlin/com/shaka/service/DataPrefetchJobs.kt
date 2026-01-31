@@ -27,7 +27,8 @@ class DataPrefetchJobs(
     private val tidesClient: NOAATidesClient,
     private val openMeteo: OpenMeteoClient,
     private val copernicus: CopernicusClient,
-    private val noaaClient: NOAAClient
+    private val noaaClient: NOAAClient,
+    private val protectedSeasClient: ProtectedSeasClient = ProtectedSeasClient()
 ) {
     private val logger = LoggerFactory.getLogger(DataPrefetchJobs::class.java)
     
@@ -40,6 +41,7 @@ class DataPrefetchJobs(
         const val TIDE_STALE_HOURS = 2      // Refetch if older than 2h
         const val WEATHER_STALE_HOURS = 4   // Refetch if older than 4h  
         const val SATELLITE_STALE_HOURS = 12 // Refetch if older than 12h
+        const val MPA_STALE_HOURS = 168     // Weekly (168 hours) - MPA boundaries rarely change
     }
     
     // ==================== HOURLY: Tide Prefetch ====================
@@ -374,6 +376,92 @@ class DataPrefetchJobs(
         logRateLimiterStats()
     }
     
+    // ==================== WEEKLY: MPA Prefetch ====================
+    
+    /**
+     * Prefetch MPA (Marine Protected Area) data for spots with stale or missing data.
+     * MPA boundaries rarely change, so weekly updates are sufficient.
+     */
+    suspend fun prefetchMPA() = withContext(Dispatchers.IO) {
+        val allSpots = spotDb.getAllSpots()
+        
+        // Filter to spots that need updating (no data or data older than 1 week)
+        val spotsToUpdate = SpotDataCache.getSpotsWithStaleMPA(MPA_STALE_HOURS.toLong())
+            .mapNotNull { spotId -> allSpots.find { it.id == spotId } }
+            .ifEmpty {
+                // If no stale spots in cache, check if any cached spots are missing MPA
+                SpotDataCache.getSpotsWithoutMPA()
+                    .mapNotNull { spotId -> allSpots.find { it.id == spotId } }
+            }
+            .ifEmpty {
+                // If all cached spots have MPA, check for any spots not yet in cache
+                allSpots.filter { spot -> SpotDataCache.get(spot.id)?.mpa == null }
+            }
+        
+        logger.info("MPA prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates")
+        
+        if (spotsToUpdate.isEmpty()) {
+            logger.info("MPA prefetch: All spots have fresh data, skipping")
+            return@withContext
+        }
+        
+        val startTime = System.currentTimeMillis()
+        var successCount = 0
+        var errorCount = 0
+        
+        // Process sequentially with small delays (conservative rate limiting for Esri API)
+        spotsToUpdate.forEachIndexed { index, spot ->
+            try {
+                withTimeout(SPOT_TIMEOUT_MS) {
+                    val mpaInfo = protectedSeasClient.getMPAStatus(
+                        spot.coordinates.lat,
+                        spot.coordinates.lon
+                    )
+                    
+                    // Convert to cache format (null mpaInfo is valid - means no specific MPA)
+                    val cacheInfo = mpaInfo?.let {
+                        SpotDataCache.MPACacheInfo(
+                            siteName = it.siteName,
+                            designation = it.designation,
+                            spearfishingStatus = it.spearfishingStatus,
+                            protectionLevel = it.protectionLevel,
+                            speciesOfConcern = it.speciesOfConcern,
+                            purpose = it.purpose,
+                            detailsUrl = it.detailsUrl
+                        )
+                    }
+                    
+                    SpotDataCache.updateMPA(
+                        spot.id,
+                        SpotDataCache.CachedValue(cacheInfo, Instant.now())
+                    )
+                    SpotDataCache.saveToDatabase(spot.id)
+                    successCount++
+                    
+                    if (mpaInfo != null) {
+                        logger.debug("MPA for ${spot.name}: ${mpaInfo.siteName} (spearfishing=${mpaInfo.spearfishingStatus})")
+                    } else {
+                        logger.debug("MPA for ${spot.name}: No specific MPA found")
+                    }
+                }
+            } catch (e: Exception) {
+                logger.debug("MPA fetch failed for ${spot.name}: ${e.message}")
+                errorCount++
+            }
+            
+            // Progress logging
+            if (index > 0 && index % 50 == 0) {
+                logger.info("MPA prefetch progress: $index/${spotsToUpdate.size} ($successCount success, $errorCount errors)")
+            }
+            
+            // Small delay between requests (Esri API has no published rate limit, but be conservative)
+            delay(200)
+        }
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        logger.info("MPA prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
+    }
+    
     // ==================== Full Prefetch (Startup) ====================
     
     /**
@@ -394,6 +482,9 @@ class DataPrefetchJobs(
         delay(3000)
         
         prefetchSatelliteData()
+        delay(3000)
+        
+        prefetchMPA()
         
         val elapsed = System.currentTimeMillis() - startTime
         logger.info("FULL prefetch complete in ${elapsed}ms. Cache now has ${SpotDataCache.size()} spots")

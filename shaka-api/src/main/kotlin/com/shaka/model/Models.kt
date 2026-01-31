@@ -68,7 +68,29 @@ data class SpotDetail(
     val communityReports: List<CommunityReport>,
     val bestTimeOfDay: String,
     val imageUrl: String? = null,
-    val satelliteReadings: GibsSatelliteReadings? = null
+    val satelliteReadings: GibsSatelliteReadings? = null,
+    val regulations: RegulationInfo? = null
+)
+
+@Serializable
+data class RegulationInfo(
+    val regulatoryAgency: String,           // e.g., "DLNR Division of Aquatic Resources"
+    val regulationsUrl: String,             // Link to official regulations page
+    val licensingUrl: String? = null,       // Link to licensing page (if separate)
+    val note: String? = null,               // e.g., "Spearfishing prohibited"
+    val mpaStatus: MPAStatus? = null        // From ProtectedSeas API
+)
+
+@Serializable
+data class MPAStatus(
+    val isProtected: Boolean,
+    val siteName: String? = null,           // e.g., "Hanauma Bay MLCD"
+    val designation: String? = null,        // e.g., "Marine Life Conservation District"
+    val spearfishingStatus: Int,            // 0=Allowed, 1=Prohibited, 2=Restricted, 3=Unknown
+    val protectionLevel: Int,               // 1-5 Level of Fishing Protection
+    val speciesOfConcern: String? = null,   // Protected species from ProtectedSeas
+    val purpose: String? = null,            // Description of why area is protected
+    val detailsUrl: String? = null          // navigator_link to full details
 )
 
 @Serializable

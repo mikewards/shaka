@@ -12,6 +12,10 @@ import com.shaka.scoring.ShakaScorer
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 
 /**
@@ -34,6 +38,23 @@ class SpotService {
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val spotDb = SpotDatabase
+    
+    // Lazy-load regulatory links from JSON resource
+    private val regulatoryLinks: JsonElement? by lazy {
+        try {
+            val stream = javaClass.classLoader.getResourceAsStream("regulatory_links.json")
+            if (stream != null) {
+                val json = stream.bufferedReader().use { it.readText() }
+                Json.parseToJsonElement(json)
+            } else {
+                logger.warn("Could not find regulatory_links.json")
+                null
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to load regulatory_links.json: ${e.message}")
+            null
+        }
+    }
 
     /**
      * Search for spots within radius of a location.
@@ -464,7 +485,8 @@ class SpotService {
             communityReports = communityReports,
             bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
             imageUrl = spot.imageUrl,
-            satelliteReadings = gibsReadings
+            satelliteReadings = gibsReadings,
+            regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId))
         )
     }
 
@@ -762,6 +784,81 @@ class SpotService {
             else -> "worldwide"
         }
     }
+    
+    /**
+     * Infer country from spot ID for regulatory lookup.
+     */
+    private fun inferCountryFromSpotId(spotId: String): String {
+        return when {
+            spotId.startsWith("oahu-") || spotId.startsWith("maui-") || 
+            spotId.startsWith("bigisland-") || spotId.startsWith("kauai-") ||
+            spotId.startsWith("molokai-") || spotId.startsWith("lanai-") ||
+            spotId.startsWith("keys-") || spotId.startsWith("fl-") ||
+            spotId.startsWith("cali-") -> "USA"
+            spotId.contains("bahamas") || spotId.startsWith("andros-") || 
+            spotId.startsWith("exuma-") || spotId.startsWith("bimini-") ||
+            spotId.startsWith("nassau-") -> "Bahamas"
+            spotId.startsWith("cayman-") -> "Cayman"
+            spotId.startsWith("bvi-") || spotId.startsWith("tortola-") -> "BVI"
+            spotId.startsWith("usvi-") || spotId.startsWith("stthomas-") ||
+            spotId.startsWith("stcroix-") || spotId.startsWith("stjohn-") -> "USVI"
+            spotId.startsWith("italy-") || spotId.startsWith("sardinia-") ||
+            spotId.startsWith("sicily-") -> "Italy"
+            spotId.startsWith("france-") || spotId.startsWith("corsica-") -> "France"
+            spotId.startsWith("aus-") -> "Australia"
+            spotId.startsWith("tahiti-") || spotId.startsWith("fakarava-") ||
+            spotId.startsWith("rangiroa-") || spotId.startsWith("moorea-") ||
+            spotId.startsWith("bora-") -> "FrenchPolynesia"
+            spotId.startsWith("fiji-") -> "Fiji"
+            spotId.startsWith("mexico-") || spotId.startsWith("cozumel-") ||
+            spotId.startsWith("cancun-") -> "Mexico"
+            spotId.startsWith("bonaire-") -> "Bonaire"
+            spotId.startsWith("curacao-") -> "Curacao"
+            spotId.startsWith("aruba-") -> "Aruba"
+            else -> "Unknown"
+        }
+    }
+    
+    /**
+     * Infer specific region (state/island/area) from spot ID for regulatory lookup.
+     */
+    private fun inferSpecificRegionFromSpotId(spotId: String): String {
+        return when {
+            spotId.startsWith("oahu-") -> "Oahu"
+            spotId.startsWith("maui-") -> "Maui"
+            spotId.startsWith("bigisland-") -> "Bigisland"
+            spotId.startsWith("kauai-") -> "Kauai"
+            spotId.startsWith("molokai-") -> "Molokai"
+            spotId.startsWith("lanai-") -> "Lanai"
+            spotId.startsWith("keys-") -> "Keys"
+            spotId.startsWith("fl-") -> "Florida"
+            spotId.startsWith("cali-") -> "California"
+            spotId.startsWith("andros-") -> "Andros"
+            spotId.startsWith("exuma-") -> "Exuma"
+            spotId.startsWith("bimini-") -> "Bimini"
+            spotId.startsWith("nassau-") -> "Nassau"
+            spotId.startsWith("cayman-") -> "Cayman"
+            spotId.startsWith("bvi-") || spotId.startsWith("tortola-") -> "Bvi"
+            spotId.startsWith("usvi-") || spotId.startsWith("stthomas-") ||
+            spotId.startsWith("stcroix-") || spotId.startsWith("stjohn-") -> "Usvi"
+            spotId.startsWith("sardinia-") -> "Sardinia"
+            spotId.startsWith("sicily-") -> "Sicily"
+            spotId.startsWith("corsica-") -> "Corsica"
+            spotId.startsWith("aus-") -> "Aus"
+            spotId.startsWith("tahiti-") -> "Tahiti"
+            spotId.startsWith("moorea-") -> "Moorea"
+            spotId.startsWith("bora-") -> "Bora"
+            spotId.startsWith("rangiroa-") -> "Rangiroa"
+            spotId.startsWith("fakarava-") -> "Fakarava"
+            spotId.startsWith("fiji-") -> "Fiji"
+            spotId.startsWith("cozumel-") -> "Cozumel"
+            spotId.startsWith("cancun-") -> "Cancun"
+            spotId.startsWith("bonaire-") -> "Bonaire"
+            spotId.startsWith("curacao-") -> "Curacao"
+            spotId.startsWith("aruba-") -> "Aruba"
+            else -> spotId.substringBefore("-").replaceFirstChar { it.uppercase() }
+        }
+    }
 
     /**
      * Get fish likelihood based on season and conditions.
@@ -826,6 +923,96 @@ class SpotService {
         }
     }
 
+    /**
+     * Get regulatory information for a spot based on its region and country.
+     * Combines regulatory links from JSON config with MPA data from cache.
+     */
+    private fun getRegulationInfo(spotId: String, region: String, country: String): RegulationInfo? {
+        // Get MPA data from cache
+        val cached = SpotDataCache.get(spotId)
+        val mpaCache = cached?.mpa?.value
+        
+        // Build MPA status from cache
+        val mpaStatus = mpaCache?.let {
+            MPAStatus(
+                isProtected = it.spearfishingStatus in 1..2,  // Prohibited or Restricted
+                siteName = it.siteName,
+                designation = it.designation,
+                spearfishingStatus = it.spearfishingStatus,
+                protectionLevel = it.protectionLevel,
+                speciesOfConcern = it.speciesOfConcern,
+                purpose = it.purpose,
+                detailsUrl = it.detailsUrl
+            )
+        }
+        
+        // Get regulatory links from JSON config
+        val links = regulatoryLinks?.jsonObject ?: return RegulationInfo(
+            regulatoryAgency = "Local Fisheries Authority",
+            regulationsUrl = "https://navigatormap.org/",
+            mpaStatus = mpaStatus
+        )
+        
+        // Try to find region-specific info
+        // First try country -> region (e.g., USA -> Hawaii)
+        val countryLinks = links[country]?.jsonObject
+        val regionLinks = countryLinks?.get(region)?.jsonObject
+            ?: countryLinks?.entries?.firstOrNull { (_, value) ->
+                value.jsonObject["regions"]?.toString()?.contains(region, ignoreCase = true) == true
+            }?.value?.jsonObject
+        
+        if (regionLinks != null) {
+            return RegulationInfo(
+                regulatoryAgency = regionLinks["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
+                regulationsUrl = regionLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
+                licensingUrl = regionLinks["licensingUrl"]?.jsonPrimitive?.content,
+                note = regionLinks["note"]?.jsonPrimitive?.content,
+                mpaStatus = mpaStatus
+            )
+        }
+        
+        // Try direct region match in other sections (Caribbean, Pacific, etc.)
+        for ((section, sectionData) in links) {
+            if (section == "default") continue
+            val sectionObj = sectionData.jsonObject
+            
+            // Check if this section directly matches the country
+            if (section.equals(country, ignoreCase = true)) {
+                return RegulationInfo(
+                    regulatoryAgency = sectionObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
+                    regulationsUrl = sectionObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
+                    licensingUrl = sectionObj["licensingUrl"]?.jsonPrimitive?.content,
+                    note = sectionObj["note"]?.jsonPrimitive?.content,
+                    mpaStatus = mpaStatus
+                )
+            }
+            
+            // Check subsections
+            for ((subRegion, subData) in sectionObj) {
+                val subObj = try { subData.jsonObject } catch (e: Exception) { continue }
+                val regions = subObj["regions"]?.toString() ?: ""
+                if (regions.contains(region, ignoreCase = true) || 
+                    subRegion.equals(region, ignoreCase = true)) {
+                    return RegulationInfo(
+                        regulatoryAgency = subObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
+                        regulationsUrl = subObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
+                        licensingUrl = subObj["licensingUrl"]?.jsonPrimitive?.content,
+                        note = subObj["note"]?.jsonPrimitive?.content,
+                        mpaStatus = mpaStatus
+                    )
+                }
+            }
+        }
+        
+        // Fallback to default
+        val defaultLinks = links["default"]?.jsonObject
+        return RegulationInfo(
+            regulatoryAgency = defaultLinks?.get("message")?.jsonPrimitive?.content ?: "Local Fisheries Authority",
+            regulationsUrl = defaultLinks?.get("url")?.jsonPrimitive?.content ?: "https://navigatormap.org/",
+            mpaStatus = mpaStatus
+        )
+    }
+    
     /**
      * Determine best time of day based on conditions.
      */

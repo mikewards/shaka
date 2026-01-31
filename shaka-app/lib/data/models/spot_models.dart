@@ -353,6 +353,81 @@ class GibsSatelliteReadings {
       noaaErddapChlorophyll != null;
 }
 
+/// Marine Protected Area status from ProtectedSeas Navigator
+class MPAStatus {
+  final bool isProtected;
+  final String? siteName;
+  final String? designation;
+  final int spearfishingStatus;  // 0=Allowed, 1=Prohibited, 2=Restricted, 3=Unknown
+  final int protectionLevel;     // 1-5 Level of Fishing Protection
+  final String? speciesOfConcern;
+  final String? purpose;
+  final String? detailsUrl;
+
+  const MPAStatus({
+    required this.isProtected,
+    this.siteName,
+    this.designation,
+    required this.spearfishingStatus,
+    required this.protectionLevel,
+    this.speciesOfConcern,
+    this.purpose,
+    this.detailsUrl,
+  });
+
+  factory MPAStatus.fromJson(Map<String, dynamic> json) {
+    return MPAStatus(
+      isProtected: json['isProtected'] ?? false,
+      siteName: json['siteName'],
+      designation: json['designation'],
+      spearfishingStatus: json['spearfishingStatus'] ?? 3,
+      protectionLevel: json['protectionLevel'] ?? 0,
+      speciesOfConcern: json['speciesOfConcern'],
+      purpose: json['purpose'],
+      detailsUrl: json['detailsUrl'],
+    );
+  }
+  
+  /// Get human-readable spearfishing status
+  String get spearfishingStatusText {
+    switch (spearfishingStatus) {
+      case 0: return 'Allowed';
+      case 1: return 'Prohibited';
+      case 2: return 'Restricted';
+      default: return 'Check regulations';
+    }
+  }
+}
+
+/// Regulatory information for a spot
+class RegulationInfo {
+  final String regulatoryAgency;
+  final String regulationsUrl;
+  final String? licensingUrl;
+  final String? note;
+  final MPAStatus? mpaStatus;
+
+  const RegulationInfo({
+    required this.regulatoryAgency,
+    required this.regulationsUrl,
+    this.licensingUrl,
+    this.note,
+    this.mpaStatus,
+  });
+
+  factory RegulationInfo.fromJson(Map<String, dynamic> json) {
+    return RegulationInfo(
+      regulatoryAgency: json['regulatoryAgency'] ?? 'Fisheries Authority',
+      regulationsUrl: json['regulationsUrl'] ?? 'https://navigatormap.org/',
+      licensingUrl: json['licensingUrl'],
+      note: json['note'],
+      mpaStatus: json['mpaStatus'] != null
+          ? MPAStatus.fromJson(json['mpaStatus'])
+          : null,
+    );
+  }
+}
+
 class SpotDetail {
   final String id;
   final String name;
@@ -369,6 +444,7 @@ class SpotDetail {
   final String bestTimeOfDay;
   final String? imageUrl;
   final GibsSatelliteReadings? satelliteReadings;
+  final RegulationInfo? regulations;
 
   const SpotDetail({
     required this.id,
@@ -386,6 +462,7 @@ class SpotDetail {
     required this.bestTimeOfDay,
     this.imageUrl,
     this.satelliteReadings,
+    this.regulations,
   });
 
   factory SpotDetail.fromJson(Map<String, dynamic> json) {
@@ -416,6 +493,9 @@ class SpotDetail {
       imageUrl: json['imageUrl'],
       satelliteReadings: json['satelliteReadings'] != null
           ? GibsSatelliteReadings.fromJson(json['satelliteReadings'])
+          : null,
+      regulations: json['regulations'] != null
+          ? RegulationInfo.fromJson(json['regulations'])
           : null,
     );
   }

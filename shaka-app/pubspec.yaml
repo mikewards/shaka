@@ -48,6 +48,7 @@ dependencies:
   # Utils
   intl: ^0.18.1
   geolocator: ^10.1.0
+  url_launcher: ^6.2.0
   permission_handler: ^11.1.0
 
   # Storage

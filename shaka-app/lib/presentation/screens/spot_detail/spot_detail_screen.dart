@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
@@ -439,18 +440,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           const SizedBox(height: 24),
         ],
 
-        // Gear
-        if (spot.gearRecommendations.isNotEmpty) ...[
-          _buildSectionHeader('GEAR'),
-          const SizedBox(height: 10),
-          _buildGearList(spot.gearRecommendations),
-          const SizedBox(height: 24),
-        ],
-
         // Access
         _buildSectionHeader('ACCESS'),
         const SizedBox(height: 10),
         _buildAccessInfo(spot.access),
+
+        const SizedBox(height: 24),
+
+        // Regulations
+        if (spot.regulations != null) ...[
+          _buildSectionHeader('REGULATIONS'),
+          const SizedBox(height: 10),
+          _buildRegulationsInfo(spot.regulations!),
+          const SizedBox(height: 24),
+        ],
 
         const SizedBox(height: 40),
       ],
@@ -651,49 +654,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  Widget _buildGearList(List<GearItem> gear) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Column(
-        children: gear
-            .map((g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        g.essential ? '•' : '○',
-                        style: TextStyle(
-                          color:
-                              g.essential ? Colors.white : Colors.white54,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          g.item,
-                          style: TextStyle(
-                            color: g.essential
-                                ? Colors.white
-                                : Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ))
-            .toList(),
-      ),
-    );
-  }
-
   Widget _buildAccessInfo(AccessInfo access) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -718,6 +678,200 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildRegulationsInfo(RegulationInfo regulations) {
+    final mpa = regulations.mpaStatus;
+    
+    // Determine MPA status color and text
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    
+    if (mpa == null || mpa.spearfishingStatus == 0) {
+      statusColor = Colors.green;
+      statusText = 'No MPA restrictions';
+      statusIcon = Icons.check_circle;
+    } else if (mpa.spearfishingStatus == 1) {
+      statusColor = Colors.red;
+      statusText = 'Spearfishing PROHIBITED';
+      statusIcon = Icons.block;
+    } else if (mpa.spearfishingStatus == 2) {
+      statusColor = Colors.orange;
+      statusText = 'Spearfishing RESTRICTED';
+      statusIcon = Icons.warning;
+    } else {
+      statusColor = Colors.grey;
+      statusText = 'Check local regulations';
+      statusIcon = Icons.help_outline;
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // MPA Protection Status Card
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (mpa != null && mpa.siteName != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  mpa.siteName!,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                if (mpa.designation != null)
+                  Text(
+                    mpa.designation!,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+              ],
+              if (mpa?.speciesOfConcern != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Protected: ${mpa!.speciesOfConcern}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+              if (mpa?.detailsUrl != null) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => _launchUrl(mpa!.detailsUrl!),
+                  child: const Text(
+                    'View full MPA regulations →',
+                    style: TextStyle(color: Colors.blue, fontSize: 12),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Regulatory Agency Info
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                regulations.regulatoryAgency,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (regulations.note != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  regulations.note!,
+                  style: const TextStyle(
+                    color: Colors.orange,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _launchUrl(regulations.regulationsUrl),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.public, color: Colors.blue, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'Regulations',
+                              style:
+                                  TextStyle(color: Colors.blue, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (regulations.licensingUrl != null) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _launchUrl(regulations.licensingUrl!),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.card_membership,
+                                  color: Colors.green, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'Licenses',
+                                style: TextStyle(
+                                    color: Colors.green, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   // ============ PRELOADED & LOADING STATES ============

@@ -128,6 +128,19 @@ object SpotDataCache {
     )
     
     /**
+     * Cached MPA (Marine Protected Area) info from ProtectedSeas.
+     */
+    data class MPACacheInfo(
+        val siteName: String?,
+        val designation: String?,
+        val spearfishingStatus: Int,        // 0=Allowed, 1=Prohibited, 2=Restricted, 3=Unknown
+        val protectionLevel: Int,           // 1-5 Level of Fishing Protection
+        val speciesOfConcern: String?,
+        val purpose: String?,
+        val detailsUrl: String?
+    )
+    
+    /**
      * All cached data for a single spot.
      * Each field is nullable - data may not be available for all spots.
      */
@@ -138,7 +151,8 @@ object SpotDataCache {
         val swell: CachedValue<SwellInfo>? = null,
         val wind: CachedValue<WindInfo>? = null,
         val chlorophyll: CachedValue<Double>? = null,     // Chlorophyll-a in mg/m³ (Copernicus)
-        val gibsChlorophyll: CachedValue<GIBSSatelliteData>? = null  // GIBS satellite data
+        val gibsChlorophyll: CachedValue<GIBSSatelliteData>? = null,  // GIBS satellite data
+        val mpa: CachedValue<MPACacheInfo?>? = null       // MPA data (null value = no specific MPA)
     ) {
         /**
          * Get the most recent fetch time across all data types.
@@ -277,6 +291,17 @@ object SpotDataCache {
             data.sentinel3bToday, data.sentinel3bYesterday
         ).size
         logger.debug("Updated GIBS chlorophyll for spot $spotId: $hasData/10 satellites have data")
+    }
+    
+    /**
+     * Update MPA (Marine Protected Area) data for a spot.
+     */
+    fun updateMPA(spotId: String, mpaData: CachedValue<MPACacheInfo?>) {
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(mpa = mpaData)
+        }
+        val siteName = mpaData.value?.siteName ?: "No specific MPA"
+        logger.debug("Updated MPA for spot $spotId: $siteName")
     }
     
     /**
@@ -494,6 +519,23 @@ object SpotDataCache {
         }.keys.toList()
     }
     
+    /**
+     * Get all spot IDs where MPA data is null (never fetched).
+     */
+    fun getSpotsWithoutMPA(): List<String> {
+        return cache.filter { (_, data) -> data.mpa == null }.keys.toList()
+    }
+    
+    /**
+     * Get all spot IDs where MPA data is stale (older than specified hours).
+     */
+    fun getSpotsWithStaleMPA(staleHours: Long = 168): List<String> {  // 168 hours = 1 week
+        val cutoff = Instant.now().minus(staleHours, java.time.temporal.ChronoUnit.HOURS)
+        return cache.filter { (_, data) -> 
+            data.mpa == null || data.mpa.fetchedAt.isBefore(cutoff)
+        }.keys.toList()
+    }
+    
     // ==================== Utility Functions ====================
     
     /**
@@ -601,7 +643,25 @@ object SpotDataCache {
                     }
                 }
                 
-                logger.info("GIBS columns added to spot_cache table")
+                // Add MPA (Marine Protected Area) columns (if they don't exist)
+                val mpaColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_site_name VARCHAR(500);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_designation VARCHAR(200);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_spearfishing_status INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_protection_level INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_species_of_concern TEXT;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_purpose TEXT;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_details_url VARCHAR(500);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_fetched_at TIMESTAMP;
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    mpaColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
+                logger.info("MPA columns added to spot_cache table")
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
@@ -637,8 +697,10 @@ object SpotDataCache {
                         gibs_sentinel3b_today, gibs_sentinel3b_yesterday, gibs_data_date, gibs_fetched_at,
                         gibs_pace_obs_time, gibs_noaa20_obs_time, gibs_noaa21_obs_time,
                         tide_next_high, tide_next_low,
+                        mpa_site_name, mpa_designation, mpa_spearfishing_status, mpa_protection_level,
+                        mpa_species_of_concern, mpa_purpose, mpa_details_url, mpa_fetched_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -672,6 +734,14 @@ object SpotDataCache {
                         gibs_noaa21_obs_time = COALESCE(EXCLUDED.gibs_noaa21_obs_time, spot_cache.gibs_noaa21_obs_time),
                         tide_next_high = COALESCE(EXCLUDED.tide_next_high, spot_cache.tide_next_high),
                         tide_next_low = COALESCE(EXCLUDED.tide_next_low, spot_cache.tide_next_low),
+                        mpa_site_name = COALESCE(EXCLUDED.mpa_site_name, spot_cache.mpa_site_name),
+                        mpa_designation = COALESCE(EXCLUDED.mpa_designation, spot_cache.mpa_designation),
+                        mpa_spearfishing_status = COALESCE(EXCLUDED.mpa_spearfishing_status, spot_cache.mpa_spearfishing_status),
+                        mpa_protection_level = COALESCE(EXCLUDED.mpa_protection_level, spot_cache.mpa_protection_level),
+                        mpa_species_of_concern = COALESCE(EXCLUDED.mpa_species_of_concern, spot_cache.mpa_species_of_concern),
+                        mpa_purpose = COALESCE(EXCLUDED.mpa_purpose, spot_cache.mpa_purpose),
+                        mpa_details_url = COALESCE(EXCLUDED.mpa_details_url, spot_cache.mpa_details_url),
+                        mpa_fetched_at = COALESCE(EXCLUDED.mpa_fetched_at, spot_cache.mpa_fetched_at),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -724,6 +794,17 @@ object SpotDataCache {
                     // Tide next high/low strings
                     stmt.setString(32, data.tide?.value?.nextHighTide)
                     stmt.setString(33, data.tide?.value?.nextLowTide)
+                    
+                    // MPA data
+                    val mpa = data.mpa?.value
+                    stmt.setString(34, mpa?.siteName)
+                    stmt.setString(35, mpa?.designation)
+                    stmt.setObject(36, mpa?.spearfishingStatus)
+                    stmt.setObject(37, mpa?.protectionLevel)
+                    stmt.setString(38, mpa?.speciesOfConcern)
+                    stmt.setString(39, mpa?.purpose)
+                    stmt.setString(40, mpa?.detailsUrl)
+                    stmt.setTimestamp(41, data.mpa?.fetchedAt?.let { Timestamp.from(it) })
                     
                     stmt.executeUpdate()
                 }
@@ -895,6 +976,45 @@ object SpotDataCache {
                                 // GIBS columns may not exist yet
                                 logger.debug("Could not load GIBS data for $spotId: ${e.message}")
                             }
+                        }
+                        
+                        // MPA data
+                        try {
+                            val mpaFetchedAt = rs.getTimestamp("mpa_fetched_at")
+                            if (mpaFetchedAt != null) {
+                                val mpaSiteName = rs.getString("mpa_site_name")
+                                val mpaDesignation = rs.getString("mpa_designation")
+                                val mpaSpearfishingStatus = rs.getInt("mpa_spearfishing_status")
+                                val mpaSpearfishingStatusWasNull = rs.wasNull()
+                                val mpaProtectionLevel = rs.getInt("mpa_protection_level")
+                                val mpaProtectionLevelWasNull = rs.wasNull()
+                                val mpaSpeciesOfConcern = rs.getString("mpa_species_of_concern")
+                                val mpaPurpose = rs.getString("mpa_purpose")
+                                val mpaDetailsUrl = rs.getString("mpa_details_url")
+                                
+                                // If spearfishing status was null, it means no specific MPA (just jurisdiction)
+                                val mpaInfo = if (!mpaSpearfishingStatusWasNull) {
+                                    MPACacheInfo(
+                                        siteName = mpaSiteName,
+                                        designation = mpaDesignation,
+                                        spearfishingStatus = mpaSpearfishingStatus,
+                                        protectionLevel = if (mpaProtectionLevelWasNull) 0 else mpaProtectionLevel,
+                                        speciesOfConcern = mpaSpeciesOfConcern,
+                                        purpose = mpaPurpose,
+                                        detailsUrl = mpaDetailsUrl
+                                    )
+                                } else null
+                                
+                                spotData = spotData.copy(
+                                    mpa = CachedValue(
+                                        value = mpaInfo,
+                                        fetchedAt = mpaFetchedAt.toInstant()
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            // MPA columns may not exist yet
+                            logger.debug("Could not load MPA data for $spotId: ${e.message}")
                         }
                         
                         // Store in memory cache
