@@ -9,6 +9,7 @@ import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
@@ -209,6 +210,51 @@ fun Application.configureRouting() {
             // Get cache stats
             get("/admin/cache/stats") {
                 call.respond(OceanDataCache.getStats())
+            }
+            
+            // Bulk upload chlorophyll data (admin endpoint)
+            // Format: POST body with lines of "spotId|lat|lon|chlorophyllValue"
+            post("/admin/chlorophyll/bulk") {
+                try {
+                    val body = call.receiveText()
+                    val lines = body.lines().filter { it.isNotBlank() }
+                    var successCount = 0
+                    var errorCount = 0
+                    
+                    for (line in lines) {
+                        try {
+                            val parts = line.split("|")
+                            if (parts.size >= 4) {
+                                val spotId = parts[0].trim()
+                                val chlorophyll = parts[3].trim().toDoubleOrNull()
+                                
+                                if (chlorophyll != null && spotId.isNotBlank()) {
+                                    com.shaka.data.cache.SpotDataCache.updateChlorophyll(
+                                        spotId,
+                                        com.shaka.data.cache.SpotDataCache.CachedValue(
+                                            value = chlorophyll,
+                                            fetchedAt = java.time.Instant.now(),
+                                            dataValidAt = java.time.Instant.now()
+                                        )
+                                    )
+                                    com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                                    successCount++
+                                }
+                            }
+                        } catch (e: Exception) {
+                            errorCount++
+                        }
+                    }
+                    
+                    call.respond(mapOf(
+                        "status" to "ok",
+                        "success" to successCount,
+                        "errors" to errorCount,
+                        "total" to lines.size
+                    ))
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
+                }
             }
         }
     }
