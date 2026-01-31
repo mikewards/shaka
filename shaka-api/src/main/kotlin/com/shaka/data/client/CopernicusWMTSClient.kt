@@ -129,7 +129,13 @@ class CopernicusWMTSClient {
         
         logger.debug("Fetching ZSD visibility: tile($tileCol,$tileRow) pixel($pixelX,$pixelY)")
         
-        val response: String = client.get(url).bodyAsText()
+        // Handle 400 errors gracefully - date may not be available yet
+        val httpResponse = client.get(url)
+        if (httpResponse.status.value == 400) {
+            logger.debug("Copernicus returned 400 for date $date - data not yet available")
+            return null
+        }
+        val response: String = httpResponse.bodyAsText()
         val visibility = parseZSDResponse(response)
         
         if (visibility != null) {
@@ -260,7 +266,14 @@ class CopernicusWMTSClient {
             append("&TIME=${date}T00:00:00Z")
         }
         
-        val response: String = client.get(url).bodyAsText()
+        // Handle 400 errors gracefully - date may not be available yet (expected)
+        // Don't let these trip the circuit breaker
+        val httpResponse = client.get(url)
+        if (httpResponse.status.value == 400) {
+            logger.debug("Copernicus returned 400 for date $date - data not yet available")
+            return null
+        }
+        val response: String = httpResponse.bodyAsText()
         return parseNumericValue(response, "milligram m-3")
     }
 
@@ -280,7 +293,7 @@ class CopernicusWMTSClient {
             )
         }
         
-        // Try yesterday first
+        // Try yesterday first (most common success case)
         val yesterday = LocalDate.now().minusDays(1).toString()
         var chl = getChlorophyll(lat, lon, yesterday)
         
