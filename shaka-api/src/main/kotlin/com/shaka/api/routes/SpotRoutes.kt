@@ -214,13 +214,16 @@ fun Application.configureRouting() {
             // Clear all chlorophyll values (removes fake climatology data)
             post("/admin/chlorophyll/clear") {
                 val cleared = com.shaka.data.cache.SpotDataCache.clearAllChlorophyll()
-                call.respond(mapOf("status" to "ok", "cleared" to cleared))
+                call.respondText("""{"status":"ok","cleared":$cleared}""", io.ktor.http.ContentType.Application.Json)
             }
             
             // Get chlorophyll stats
             get("/admin/chlorophyll/stats") {
                 val stats = com.shaka.data.cache.SpotDataCache.getChlorophyllStats()
-                call.respond(stats)
+                call.respondText(
+                    """{"totalSpots":${stats["totalSpots"]},"withChlorophyll":${stats["withChlorophyll"]},"withoutChlorophyll":${stats["withoutChlorophyll"]},"percentageWithData":"${stats["percentageWithData"]}"}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
         }
     }
