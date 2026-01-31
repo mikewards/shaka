@@ -105,9 +105,19 @@ private fun Application.configureScheduledJobs() {
     backgroundScope.launch {
         delay(5_000)  // Wait 5 seconds for app to fully start
         
+        // CRITICAL: Load cached data from database first!
+        // This restores chlorophyll/SST/visibility data from previous runs
+        try {
+            SpotDataCache.createTableIfNotExists()
+            val loadedCount = SpotDataCache.loadFromDatabase()
+            logger.info("Loaded $loadedCount spots from database cache")
+        } catch (e: Exception) {
+            logger.warn("Failed to load cache from database: ${e.message}")
+        }
+        
         val cacheSize = SpotDataCache.size()
         if (cacheSize > 0) {
-            logger.info("Cache already has $cacheSize spots from database - prefetch will update stale data only")
+            logger.info("Cache has $cacheSize spots - prefetch will update stale data only")
         } else {
             logger.info("Cache empty - starting full data prefetch...")
         }
