@@ -2,6 +2,7 @@ package com.shaka.api.routes
 
 import com.shaka.data.cache.OceanDataCache
 import com.shaka.data.client.CopernicusClient
+import com.shaka.data.client.ERDDAPSectorClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.service.SpotService
@@ -288,6 +289,138 @@ fun Application.configureRouting() {
                     """{"status":"started","spotsToFetch":$total,"message":"Refetch started in background. Check /admin/chlorophyll/stats for progress."}""",
                     io.ktor.http.ContentType.Application.Json
                 )
+            }
+            
+            // ==================== ERDDAP 300m Comparison Endpoints ====================
+            // These are for comparing ERDDAP data vs existing Copernicus data
+            // They do NOT modify any existing data
+            
+            // Get sector info for a specific location
+            get("/admin/erddap/sector-info") {
+                val lat = call.parameters["lat"]?.toDoubleOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "lat required"))
+                val lon = call.parameters["lon"]?.toDoubleOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "lon required"))
+                
+                val sectorInfo = ERDDAPSectorClient.getSectorInfo(lat, lon)
+                call.respond(sectorInfo)
+            }
+            
+            // Test ERDDAP fetch for a single spot
+            get("/admin/erddap/test/{spotId}") {
+                val spotId = call.parameters["spotId"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
+                
+                val spot = SpotDatabase.findSpotById(spotId)
+                    ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Spot not found"))
+                
+                val sectorInfo = ERDDAPSectorClient.getSectorInfo(spot.coordinates.lat, spot.coordinates.lon)
+                val erddapResult = ERDDAPSectorClient.getChlorophyll(spot.coordinates.lat, spot.coordinates.lon)
+                val copernicusValue = com.shaka.data.cache.SpotDataCache.get(spotId)?.chlorophyll?.value
+                
+                call.respond(mapOf(
+                    "spotId" to spotId,
+                    "spotName" to spot.name,
+                    "coordinates" to mapOf("lat" to spot.coordinates.lat, "lon" to spot.coordinates.lon),
+                    "sector" to sectorInfo,
+                    "erddap" to if (erddapResult != null) mapOf(
+                        "chlorophyll" to erddapResult.chlorophyll,
+                        "sector" to erddapResult.sector,
+                        "dataDate" to erddapResult.dataDate,
+                        "source" to erddapResult.source
+                    ) else null,
+                    "copernicus" to copernicusValue,
+                    "difference" to if (erddapResult != null && copernicusValue != null) 
+                        kotlin.math.abs(erddapResult.chlorophyll - copernicusValue) else null
+                ))
+            }
+            
+            // Get current comparison stats (from cached ERDDAP data)
+            get("/admin/erddap/stats") {
+                val stats = com.shaka.data.cache.SpotDataCache.getErddapComparisonStats()
+                call.respond(stats)
+            }
+            
+            // Clear ERDDAP cache (for fresh run)
+            post("/admin/erddap/clear") {
+                val cleared = com.shaka.data.cache.SpotDataCache.clearErddapCache()
+                call.respondText(
+                    """{"status":"ok","cleared":$cleared}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
+            // Fetch ERDDAP data for ALL spots and compare with Copernicus
+            // This runs in background and populates the ERDDAP cache
+            post("/admin/erddap/compare-all") {
+                val allSpots = SpotDatabase.getAllSpots()
+                val total = allSpots.size
+                
+                // Clear existing ERDDAP cache for fresh comparison
+                com.shaka.data.cache.SpotDataCache.clearErddapCache()
+                
+                // Return immediately - fetch happens in background
+                kotlinx.coroutines.GlobalScope.launch {
+                    var fetched = 0
+                    var withData = 0
+                    var noData = 0
+                    var errors = 0
+                    
+                    for (spot in allSpots) {
+                        try {
+                            val sectorInfo = ERDDAPSectorClient.getSectorInfo(spot.coordinates.lat, spot.coordinates.lon)
+                            val sector = sectorInfo["sector"] as String
+                            
+                            val result = ERDDAPSectorClient.getChlorophyll(
+                                spot.coordinates.lat,
+                                spot.coordinates.lon
+                            )
+                            
+                            if (result != null) {
+                                com.shaka.data.cache.SpotDataCache.setErddapChlorophyll(
+                                    spot.id,
+                                    result.chlorophyll,
+                                    result.sector,
+                                    result.dataDate,
+                                    result.source
+                                )
+                                withData++
+                            } else {
+                                // Store null result so we know we tried
+                                com.shaka.data.cache.SpotDataCache.setErddapChlorophyll(
+                                    spot.id,
+                                    null,
+                                    sector,
+                                    null,
+                                    "ERDDAP 300m (no data)"
+                                )
+                                noData++
+                            }
+                            fetched++
+                        } catch (e: Exception) {
+                            errors++
+                        }
+                        
+                        // Rate limit to avoid overwhelming ERDDAP
+                        kotlinx.coroutines.delay(100)
+                    }
+                }
+                
+                call.respondText(
+                    """{"status":"started","totalSpots":$total,"message":"ERDDAP comparison started in background. Check /admin/erddap/stats for progress."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
+            // Get detailed comparison results (after compare-all completes)
+            get("/admin/erddap/comparison-details") {
+                val limit = call.parameters["limit"]?.toIntOrNull() ?: 100
+                val details = com.shaka.data.cache.SpotDataCache.getErddapComparisonDetails().take(limit)
+                call.respond(mapOf(
+                    "total" to com.shaka.data.cache.SpotDataCache.getErddapComparisonDetails().size,
+                    "showing" to details.size,
+                    "results" to details
+                ))
             }
         }
     }

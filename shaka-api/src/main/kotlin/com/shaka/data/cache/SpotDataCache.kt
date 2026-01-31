@@ -148,6 +148,23 @@ object SpotDataCache {
     private var hits = 0L
     private var misses = 0L
     
+    // ==================== ERDDAP 300m Data (SEPARATE from Copernicus) ====================
+    // These are ADDITIONAL fields for comparison - they do NOT affect existing chlorophyll data
+    
+    /**
+     * ERDDAP chlorophyll result for comparison.
+     */
+    data class ERDDAPCacheEntry(
+        val chlorophyll: Double?,
+        val sector: String,
+        val dataDate: String?,
+        val fetchedAt: Instant,
+        val source: String
+    )
+    
+    // Separate cache for ERDDAP data - does not touch existing Copernicus data
+    private val erddapCache = ConcurrentHashMap<String, ERDDAPCacheEntry>()
+    
     // ==================== Read Operations ====================
     
     /**
@@ -434,6 +451,109 @@ object SpotDataCache {
      */
     fun getSpotsWithoutChlorophyll(): List<String> {
         return cache.filter { (_, data) -> data.chlorophyll == null }.keys.toList()
+    }
+    
+    // ==================== ERDDAP Data Methods (ADDITIONAL - does not touch Copernicus) ====================
+    
+    /**
+     * Store ERDDAP chlorophyll result for a spot.
+     * This is separate from the main Copernicus chlorophyll data.
+     */
+    fun setErddapChlorophyll(spotId: String, chlorophyll: Double?, sector: String, dataDate: String?, source: String) {
+        erddapCache[spotId] = ERDDAPCacheEntry(
+            chlorophyll = chlorophyll,
+            sector = sector,
+            dataDate = dataDate,
+            fetchedAt = Instant.now(),
+            source = source
+        )
+        logger.debug("Set ERDDAP chlorophyll for $spotId: $chlorophyll (sector $sector)")
+    }
+    
+    /**
+     * Get ERDDAP chlorophyll data for a spot.
+     */
+    fun getErddapChlorophyll(spotId: String): ERDDAPCacheEntry? {
+        return erddapCache[spotId]
+    }
+    
+    /**
+     * Get comparison stats between ERDDAP and Copernicus.
+     */
+    fun getErddapComparisonStats(): Map<String, Any> {
+        val erddapSpots = erddapCache.keys
+        val copernicusSpots = cache.filter { it.value.chlorophyll != null }.keys
+        
+        var bothHaveData = 0
+        var onlyCopernicus = 0
+        var onlyErddap = 0
+        var neither = 0
+        var totalDifference = 0.0
+        var comparisonCount = 0
+        
+        val allSpotIds = (erddapSpots + cache.keys).toSet()
+        
+        for (spotId in allSpotIds) {
+            val copValue = cache[spotId]?.chlorophyll?.value
+            val erddapValue = erddapCache[spotId]?.chlorophyll
+            
+            when {
+                copValue != null && erddapValue != null -> {
+                    bothHaveData++
+                    totalDifference += kotlin.math.abs(copValue - erddapValue)
+                    comparisonCount++
+                }
+                copValue != null && erddapValue == null -> onlyCopernicus++
+                copValue == null && erddapValue != null -> onlyErddap++
+                else -> neither++
+            }
+        }
+        
+        val avgDifference = if (comparisonCount > 0) totalDifference / comparisonCount else 0.0
+        
+        return mapOf(
+            "totalSpots" to allSpotIds.size,
+            "bothHaveData" to bothHaveData,
+            "onlyCopernicus" to onlyCopernicus,
+            "onlyErddap" to onlyErddap,
+            "neither" to neither,
+            "erddapCached" to erddapCache.size,
+            "avgDifference" to "%.4f".format(avgDifference)
+        )
+    }
+    
+    /**
+     * Get detailed comparison data for all spots.
+     * Returns a list of comparison results.
+     */
+    fun getErddapComparisonDetails(): List<Map<String, Any?>> {
+        val allSpotIds = (erddapCache.keys + cache.keys).toSet()
+        
+        return allSpotIds.map { spotId ->
+            val copValue = cache[spotId]?.chlorophyll?.value
+            val erddapEntry = erddapCache[spotId]
+            val erddapValue = erddapEntry?.chlorophyll
+            
+            mapOf(
+                "spotId" to spotId,
+                "copernicus" to copValue,
+                "erddap" to erddapValue,
+                "erddapSector" to erddapEntry?.sector,
+                "erddapDataDate" to erddapEntry?.dataDate,
+                "difference" to if (copValue != null && erddapValue != null) 
+                    kotlin.math.abs(copValue - erddapValue) else null
+            )
+        }.sortedBy { it["spotId"] as String }
+    }
+    
+    /**
+     * Clear ERDDAP cache (for fresh comparison run).
+     */
+    fun clearErddapCache(): Int {
+        val count = erddapCache.size
+        erddapCache.clear()
+        logger.info("Cleared ERDDAP cache ($count entries)")
+        return count
     }
     
     // ==================== Utility Functions ====================
