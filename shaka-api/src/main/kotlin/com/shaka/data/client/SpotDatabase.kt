@@ -170,7 +170,11 @@ object SpotDatabase {
         SpotRecord("keys-bahia-honda-bridge", "Bahia Honda Bridge", "Old bridge structure attracts fish.", Coordinates(24.6553, -81.2842), "shore", 8, listOf("Snapper", "Tarpon", "Permit", "Barracuda"), "Bahia Honda State Park", "State park lot"),
         SpotRecord("keys-newfound-harbor", "Newfound Harbor Keys", "Protected area with diverse reef.", Coordinates(24.6100, -81.3900), "boat", 10, listOf("Hogfish", "Yellowtail", "Lobster", "Grouper"), "Boat from Big Pine", "Marina"),
         SpotRecord("keys-marquesas", "Marquesas Keys", "Remote atoll west of Key West.", Coordinates(24.5500, -82.1000), "boat", 15, listOf("Hogfish", "Mutton Snapper", "Grouper", "Permit"), "Long boat run from Key West", "Key West Marina"),
-        SpotRecord("keys-dry-tortugas", "Dry Tortugas", "Remote national park. Pristine waters.", Coordinates(24.6283, -82.8781), "boat", 20, listOf("Hogfish", "Grouper", "Mutton Snapper", "Wahoo", "Permit"), "Ferry or boat from Key West", "Fort Jefferson"),
+        // Dry Tortugas - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("keys-dry-tortugas-north", "Dry Tortugas - North", "North side. Remote national park.", Coordinates(24.6433, -82.8781), "boat", 20, listOf("Hogfish", "Grouper", "Mutton Snapper", "Wahoo", "Permit"), "Ferry or boat from Key West", "Fort Jefferson"),
+        SpotRecord("keys-dry-tortugas-south", "Dry Tortugas - South", "South side. Pristine waters.", Coordinates(24.6133, -82.8781), "boat", 20, listOf("Hogfish", "Grouper", "Mutton Snapper", "Wahoo", "Permit"), "Ferry or boat from Key West", "Fort Jefferson"),
+        SpotRecord("keys-dry-tortugas-east", "Dry Tortugas - East", "East side. Loggerhead Key.", Coordinates(24.6283, -82.8531), "boat", 20, listOf("Hogfish", "Grouper", "Mutton Snapper", "Wahoo", "Permit"), "Ferry or boat from Key West", "Fort Jefferson"),
+        SpotRecord("keys-dry-tortugas-west", "Dry Tortugas - West", "West side. Open Gulf.", Coordinates(24.6283, -82.8931), "boat", 20, listOf("Hogfish", "Grouper", "Mutton Snapper", "Wahoo", "Permit"), "Ferry or boat from Key West", "Fort Jefferson"),
         SpotRecord("keys-tennessee-reef", "Tennessee Reef", "Large reef system off Islamorada.", Coordinates(24.7619, -80.7489), "boat", 8, listOf("Yellowtail", "Hogfish", "Grunt", "Lobster"), "Boat from Islamorada", "Bud N Marys"),
         SpotRecord("keys-alligator-reef", "Alligator Reef", "Lighthouse reef, excellent diving.", Coordinates(24.8481, -80.6186), "boat", 10, listOf("Hogfish", "Yellowtail", "Grouper", "Nurse Shark"), "Boat from Islamorada", "Marina"),
         SpotRecord("keys-davis-reef", "Davis Reef", "Popular reef off Upper Keys.", Coordinates(24.9244, -80.5028), "boat", 8, listOf("Yellowtail", "Hogfish", "Grunt", "Snapper"), "Boat from Islamorada or Key Largo", "Marina"),
@@ -506,7 +510,11 @@ object SpotDatabase {
         SpotRecord("cali-redondo-horseshoe", "Horseshoe Kelp (Redondo)", "Offshore kelp forest.", Coordinates(33.8000, -118.4500), "boat", 20, listOf("Yellowtail", "Calico Bass", "White Seabass", "Barracuda"), "Boat from Redondo", "Marina"),
         SpotRecord("cali-laguna-shaw-cove", "Shaw's Cove (Laguna)", "Marine preserve adjacent.", Coordinates(33.5433, -117.7967), "shore", 10, listOf("Calico Bass", "Garibaldi", "Sheephead", "Lobster"), "Laguna Beach", "Street"),
         SpotRecord("cali-laguna-divers-cove", "Diver's Cove (Laguna)", "Popular dive spot.", Coordinates(33.5383, -117.7933), "shore", 12, listOf("Calico Bass", "Sheephead", "Moray", "Lobster"), "Laguna Beach", "Street"),
-        SpotRecord("cali-san-clemente-island", "San Clemente Island - Pyramid Head", "VERIFIED GPS - Pyramid Head underwater reef structure. White seabass, calicos, yellowtail. Navy-controlled, check access.", Coordinates(32.8153, -118.3542), "boat", 25, listOf("Yellowtail", "White Seabass", "Calico Bass", "Barracuda", "Rockfish"), "Boat from San Diego or LA", "Marina"),
+        // San Clemente Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("cali-san-clemente-island-north", "San Clemente - North", "North end. Navy-controlled, check access.", Coordinates(32.9450, -118.5000), "boat", 25, listOf("Yellowtail", "White Seabass", "Calico Bass", "Barracuda", "Rockfish"), "Boat from San Diego or LA", "Marina"),
+        SpotRecord("cali-san-clemente-island-south", "San Clemente - South", "South end. Pyramid Head area.", Coordinates(32.8450, -118.5000), "boat", 25, listOf("Yellowtail", "White Seabass", "Calico Bass", "Barracuda", "Rockfish"), "Boat from San Diego or LA", "Marina"),
+        SpotRecord("cali-san-clemente-island-east", "San Clemente - East", "East coast. Facing mainland.", Coordinates(32.9000, -118.4450), "boat", 25, listOf("Yellowtail", "White Seabass", "Calico Bass", "Barracuda", "Rockfish"), "Boat from San Diego or LA", "Marina"),
+        SpotRecord("cali-san-clemente-island-west", "San Clemente - West", "West coast. Open Pacific.", Coordinates(32.9000, -118.5350), "boat", 25, listOf("Yellowtail", "White Seabass", "Calico Bass", "Barracuda", "Rockfish"), "Boat from San Diego or LA", "Marina"),
         // Santa Barbara Island - Split into directional spots (coastline + 500m offshore)
         SpotRecord("cali-santa-barbara-island-north", "Santa Barbara Island - North", "North coast. Remote Channel Island.", Coordinates(33.5017, -119.0125), "boat", 25, listOf("Yellowtail", "Calico Bass", "White Seabass", "Halibut", "Rockfish"), "Boat from Ventura - 38 miles offshore", "Harbor"),
         SpotRecord("cali-santa-barbara-island-south", "Santa Barbara Island - South", "South coast. Excellent reef.", Coordinates(33.4717, -119.0125), "boat", 25, listOf("Yellowtail", "Calico Bass", "White Seabass", "Halibut", "Rockfish"), "Boat from Ventura - 38 miles offshore", "Harbor"),
@@ -599,7 +607,11 @@ object SpotDatabase {
         SpotRecord("fiji-kadavu-astrolabe-south", "Astrolabe Reef - South", "South end. Remote diving.", Coordinates(-19.0650, 178.2500), "boat", 25, listOf("Manta Ray", "Grey Reef Shark", "Barracuda", "Trevally"), "Boat from Kadavu", "Resort"),
         SpotRecord("fiji-kadavu-astrolabe-east", "Astrolabe Reef - East", "East side. Open Pacific.", Coordinates(-19.0500, 178.2650), "boat", 25, listOf("Manta Ray", "Grey Reef Shark", "Barracuda", "Trevally"), "Boat from Kadavu", "Resort"),
         SpotRecord("fiji-kadavu-astrolabe-west", "Astrolabe Reef - West", "West side. Inside lagoon.", Coordinates(-19.0500, 178.2350), "boat", 25, listOf("Manta Ray", "Grey Reef Shark", "Barracuda", "Trevally"), "Boat from Kadavu", "Resort"),
-        SpotRecord("fiji-taveuni-rainbow", "Rainbow Reef (Taveuni)", "Soft coral capital.", Coordinates(-16.8333, -179.8833), "boat", 20, listOf("Reef Fish", "Shark", "Barracuda", "Grouper"), "Boat from Taveuni", "Resort"),
+        // Taveuni Rainbow Reef - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("fiji-taveuni-rainbow-north", "Taveuni Rainbow - North", "North side. Soft coral capital.", Coordinates(-16.8850, 179.9000), "boat", 20, listOf("Reef Fish", "Shark", "Barracuda", "Grouper"), "Boat from Taveuni", "Resort"),
+        SpotRecord("fiji-taveuni-rainbow-south", "Taveuni Rainbow - South", "South side. Great White Wall.", Coordinates(-16.9150, 179.9000), "boat", 20, listOf("Reef Fish", "Shark", "Barracuda", "Grouper"), "Boat from Taveuni", "Resort"),
+        SpotRecord("fiji-taveuni-rainbow-east", "Taveuni Rainbow - East", "East side. Somosomo Strait.", Coordinates(-16.9000, 179.9150), "boat", 20, listOf("Reef Fish", "Shark", "Barracuda", "Grouper"), "Boat from Taveuni", "Resort"),
+        SpotRecord("fiji-taveuni-rainbow-west", "Taveuni Rainbow - West", "West side. Taveuni shore.", Coordinates(-16.9000, 179.8850), "boat", 20, listOf("Reef Fish", "Shark", "Barracuda", "Grouper"), "Boat from Taveuni", "Resort"),
         SpotRecord("fiji-namena-marine", "Namena Marine Reserve", "Protected area.", Coordinates(-17.1000, 179.1000), "boat", 25, listOf("Hammerhead Shark", "Grey Reef Shark", "Manta Ray", "Tuna"), "Liveaboard or resort", "Various"),
 
         // Maldives
@@ -622,7 +634,11 @@ object SpotDatabase {
         SpotRecord("sa-cape-town-simons", "Simon's Town", "Cold water diving.", Coordinates(-34.1833, 18.4333), "boat", 15, listOf("Yellowtail", "Snoek", "Hottentot", "Galjoen"), "Boat from Simon's Town", "Marina"),
 
         // New Zealand
-        SpotRecord("nz-goat-island", "Goat Island", "Marine reserve, check boundaries.", Coordinates(-36.2667, 174.8000), "shore", 12, listOf("Snapper", "Kingfish", "Blue Maomao", "Crayfish"), "Leigh, north of Auckland", "Beach parking"),
+        // Goat Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("nz-goat-island-north", "Goat Island - North", "North coast. Marine reserve.", Coordinates(-36.2517, 174.8000), "shore", 12, listOf("Snapper", "Kingfish", "Blue Maomao", "Crayfish"), "Leigh, north of Auckland", "Beach parking"),
+        SpotRecord("nz-goat-island-south", "Goat Island - South", "South coast. Check boundaries.", Coordinates(-36.3117, 174.8000), "shore", 12, listOf("Snapper", "Kingfish", "Blue Maomao", "Crayfish"), "Leigh, north of Auckland", "Beach parking"),
+        SpotRecord("nz-goat-island-east", "Goat Island - East", "East coast. Ocean side.", Coordinates(-36.2667, 174.8150), "shore", 12, listOf("Snapper", "Kingfish", "Blue Maomao", "Crayfish"), "Leigh, north of Auckland", "Beach parking"),
+        SpotRecord("nz-goat-island-west", "Goat Island - West", "West coast. Mainland side.", Coordinates(-36.2667, 174.7850), "shore", 12, listOf("Snapper", "Kingfish", "Blue Maomao", "Crayfish"), "Leigh, north of Auckland", "Beach parking"),
         // Great Barrier Island - Split into directional spots (coastline + 500m offshore)
         SpotRecord("nz-great-barrier-north", "Great Barrier - North", "North coast. Remote with clear water.", Coordinates(-36.0450, 175.4000), "boat", 20, listOf("Kingfish", "Snapper", "Crayfish", "Hapuku"), "Ferry from Auckland", "Various"),
         SpotRecord("nz-great-barrier-south", "Great Barrier - South", "South coast. Sheltered.", Coordinates(-36.2750, 175.4000), "boat", 20, listOf("Kingfish", "Snapper", "Crayfish", "Hapuku"), "Ferry from Auckland", "Various"),
@@ -755,7 +771,11 @@ object SpotDatabase {
         // ==========================================
         // BRAZIL (50+ spots)
         // ==========================================
-        SpotRecord("brazil-fernando-noronha", "Fernando de Noronha", "UNESCO World Heritage marine park.", Coordinates(-3.8544, -32.4250), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Barracuda", "Dorado", "Grouper"), "Boat from island", "Limited permits"),
+        // Fernando de Noronha - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("brazil-fernando-noronha-north", "Fernando de Noronha - North", "North coast. UNESCO marine park.", Coordinates(-3.8294, -32.4250), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Barracuda", "Dorado", "Grouper"), "Boat from island", "Limited permits"),
+        SpotRecord("brazil-fernando-noronha-south", "Fernando de Noronha - South", "South coast. Baia dos Porcos.", Coordinates(-3.8894, -32.4250), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Barracuda", "Dorado", "Grouper"), "Boat from island", "Limited permits"),
+        SpotRecord("brazil-fernando-noronha-east", "Fernando de Noronha - East", "East coast. Mar de Dentro.", Coordinates(-3.8544, -32.3900), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Barracuda", "Dorado", "Grouper"), "Boat from island", "Limited permits"),
+        SpotRecord("brazil-fernando-noronha-west", "Fernando de Noronha - West", "West coast. Mar de Fora.", Coordinates(-3.8544, -32.4500), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Barracuda", "Dorado", "Grouper"), "Boat from island", "Limited permits"),
         SpotRecord("brazil-baia-sancho", "Baia do Sancho", "World's most beautiful beach.", Coordinates(-3.8450, -32.4333), "boat", 20, listOf("Snapper", "Grouper", "Barracuda", "Moray"), "Boat from Fernando de Noronha", "Park permit"),
         SpotRecord("brazil-baia-golfinhos", "Baia dos Golfinhos", "Spinner dolphin bay.", Coordinates(-3.8333, -32.4167), "boat", 15, listOf("Snapper", "Grunt", "Parrotfish", "Angelfish"), "Boat from FN", "Protected area"),
         SpotRecord("brazil-abrolhos", "Abrolhos Archipelago", "Humpback whale breeding ground.", Coordinates(-17.9667, -38.7000), "boat", 20, listOf("Grouper", "Snapper", "Barracuda", "Wahoo"), "Boat from Caravelas", "Marina"),
@@ -816,7 +836,11 @@ object SpotDatabase {
         SpotRecord("japan-zamami-south", "Zamami - South", "South coast. Whale watching.", Coordinates(26.2183, 127.3000), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Snapper"), "Ferry from Naha", "Zamami Port"),
         SpotRecord("japan-zamami-east", "Zamami - East", "East coast. Facing Okinawa.", Coordinates(26.2333, 127.3250), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Snapper"), "Ferry from Naha", "Zamami Port"),
         SpotRecord("japan-zamami-west", "Zamami - West", "West coast. Open sea.", Coordinates(26.2333, 127.2750), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Snapper"), "Ferry from Naha", "Zamami Port"),
-        SpotRecord("japan-tokashiki", "Tokashiki Island", "Largest Kerama island.", Coordinates(26.1833, 127.3667), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Napoleon Wrasse"), "Ferry from Naha", "Tokashiki Port"),
+        // Tokashiki Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("japan-tokashiki-north", "Tokashiki - North", "North coast. Largest Kerama island.", Coordinates(26.2283, 127.3667), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Napoleon Wrasse"), "Ferry from Naha", "Tokashiki Port"),
+        SpotRecord("japan-tokashiki-south", "Tokashiki - South", "South coast. Aharen Beach.", Coordinates(26.1683, 127.3667), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Napoleon Wrasse"), "Ferry from Naha", "Tokashiki Port"),
+        SpotRecord("japan-tokashiki-east", "Tokashiki - East", "East coast. Facing Okinawa.", Coordinates(26.1833, 127.3817), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Napoleon Wrasse"), "Ferry from Naha", "Tokashiki Port"),
+        SpotRecord("japan-tokashiki-west", "Tokashiki - West", "West coast. Open Pacific.", Coordinates(26.1833, 127.3317), "boat", 20, listOf("Coral Trout", "Giant Trevally", "Grouper", "Napoleon Wrasse"), "Ferry from Naha", "Tokashiki Port"),
         SpotRecord("japan-aka-geruma", "Aka and Geruma Islands", "Kerama group.", Coordinates(26.2000, 127.2833), "boat", 18, listOf("Coral Trout", "Grouper", "Snapper", "Manta Ray"), "Ferry from Naha", "Aka Port"),
 
         // ==========================================
@@ -825,7 +849,11 @@ object SpotDatabase {
         SpotRecord("indo-bali-tulamben", "Tulamben (USAT Liberty)", "Famous WWII wreck.", Coordinates(-8.2700, 115.5917), "shore", 25, listOf("Barracuda", "Trevally", "Grouper", "Sweetlips"), "Shore dive from beach", "Beach access"),
         SpotRecord("indo-bali-amed", "Amed", "Fishing village with reef.", Coordinates(-8.3500, 115.6333), "shore", 18, listOf("Coral Trout", "Grouper", "Snapper", "Sweetlips"), "Shore or boat", "Beach"),
         SpotRecord("indo-bali-nusa-penida", "Nusa Penida", "Manta rays and mola mola.", Coordinates(-8.7333, 115.5333), "boat", 25, listOf("Manta Ray", "Mola Mola", "Giant Trevally", "Barracuda"), "Boat from Sanur", "Sanur beach"),
-        SpotRecord("indo-bali-menjangan", "Menjangan Island", "Northwest Bali marine park.", Coordinates(-8.1000, 114.5000), "boat", 20, listOf("Grouper", "Snapper", "Sweetlips", "Napoleon Wrasse"), "Boat from Pemuteran", "Pemuteran"),
+        // Menjangan Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("indo-bali-menjangan-north", "Menjangan - North", "North coast. NW Bali marine park.", Coordinates(-8.0850, 114.5000), "boat", 20, listOf("Grouper", "Snapper", "Sweetlips", "Napoleon Wrasse"), "Boat from Pemuteran", "Pemuteran"),
+        SpotRecord("indo-bali-menjangan-south", "Menjangan - South", "South coast. Pos 2.", Coordinates(-8.3050, 114.5000), "boat", 20, listOf("Grouper", "Snapper", "Sweetlips", "Napoleon Wrasse"), "Boat from Pemuteran", "Pemuteran"),
+        SpotRecord("indo-bali-menjangan-east", "Menjangan - East", "East coast. Wall diving.", Coordinates(-8.1000, 114.5150), "boat", 20, listOf("Grouper", "Snapper", "Sweetlips", "Napoleon Wrasse"), "Boat from Pemuteran", "Pemuteran"),
+        SpotRecord("indo-bali-menjangan-west", "Menjangan - West", "West coast. Anchor wreck.", Coordinates(-8.1000, 114.4250), "boat", 20, listOf("Grouper", "Snapper", "Sweetlips", "Napoleon Wrasse"), "Boat from Pemuteran", "Pemuteran"),
         SpotRecord("indo-komodo-batu-bolong", "Batu Bolong (Komodo)", "Current-swept pinnacle.", Coordinates(-8.5333, 119.4833), "boat", 25, listOf("Giant Trevally", "Dogtooth Tuna", "Napoleon Wrasse", "Manta Ray"), "Liveaboard or Labuan Bajo", "Labuan Bajo"),
         SpotRecord("indo-komodo-manta-point", "Manta Point (Komodo)", "Manta cleaning station.", Coordinates(-8.6833, 119.4167), "boat", 15, listOf("Manta Ray", "Giant Trevally", "Grouper"), "Liveaboard", "Labuan Bajo"),
         SpotRecord("indo-komodo-castle-rock", "Castle Rock (Komodo)", "Submerged seamount.", Coordinates(-8.4667, 119.5167), "boat", 25, listOf("Giant Trevally", "Dogtooth Tuna", "Grey Reef Shark", "Barracuda"), "Liveaboard", "Labuan Bajo"),
@@ -847,7 +875,11 @@ object SpotDatabase {
         // PHILIPPINES - EXPANDED (40+ spots)
         // ==========================================
         SpotRecord("phil-anilao", "Anilao", "Macro diving capital.", Coordinates(13.7667, 120.9333), "boat", 18, listOf("Frogfish", "Nudibranchs", "Grouper", "Snapper"), "Boat from Anilao resorts", "Resort"),
-        SpotRecord("phil-verde-island", "Verde Island Passage", "Center of marine biodiversity.", Coordinates(13.5667, 121.0667), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Batangas", "Batangas pier"),
+        // Verde Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("phil-verde-island-north", "Verde Island - North", "North side. Center of marine biodiversity.", Coordinates(13.5817, 121.0667), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Batangas", "Batangas pier"),
+        SpotRecord("phil-verde-island-south", "Verde Island - South", "South side. Passage diving.", Coordinates(13.5317, 121.0667), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Batangas", "Batangas pier"),
+        SpotRecord("phil-verde-island-east", "Verde Island - East", "East side. Drop-offs.", Coordinates(13.5667, 121.1017), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Batangas", "Batangas pier"),
+        SpotRecord("phil-verde-island-west", "Verde Island - West", "West side. Wall diving.", Coordinates(13.5667, 121.0517), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Batangas", "Batangas pier"),
         SpotRecord("phil-puerto-galera", "Puerto Galera", "Dive capital of Philippines.", Coordinates(13.5217, 120.9500), "boat", 20, listOf("Giant Trevally", "Barracuda", "Reef Shark", "Grouper"), "Boat from Sabang", "Sabang beach"),
         SpotRecord("phil-dumaguete-dauin", "Dauin (Dumaguete)", "Muck diving and whale sharks.", Coordinates(9.1833, 123.2667), "shore", 15, listOf("Frogfish", "Seahorse", "Octopus", "Nudibranchs"), "Shore or boat", "Dauin beach"),
         SpotRecord("phil-moalboal", "Moalboal", "Sardine run and reef.", Coordinates(9.9500, 123.3833), "shore", 18, listOf("Sardine Ball", "Giant Trevally", "Thresher Shark", "Grouper"), "Shore or boat from Moalboal", "Beach"),
