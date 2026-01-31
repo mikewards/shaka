@@ -215,3 +215,5 @@ private fun Application.tryInitDatabase() {
         println("Continuing with in-memory database...")
     }
 }
+
+// Triggered redeploy 2026-01-31_04:46:13
