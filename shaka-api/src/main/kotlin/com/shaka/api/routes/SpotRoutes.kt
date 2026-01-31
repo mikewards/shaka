@@ -298,47 +298,48 @@ fun Application.configureRouting() {
             // Get sector info for a specific location
             get("/admin/erddap/sector-info") {
                 val lat = call.parameters["lat"]?.toDoubleOrNull()
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "lat required"))
+                    ?: return@get call.respondText("""{"error":"lat required"}""", io.ktor.http.ContentType.Application.Json, HttpStatusCode.BadRequest)
                 val lon = call.parameters["lon"]?.toDoubleOrNull()
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "lon required"))
+                    ?: return@get call.respondText("""{"error":"lon required"}""", io.ktor.http.ContentType.Application.Json, HttpStatusCode.BadRequest)
                 
                 val sectorInfo = ERDDAPSectorClient.getSectorInfo(lat, lon)
-                call.respond(sectorInfo)
+                call.respondText(
+                    """{"sector":"${sectorInfo["sector"]}","datasetId":"${sectorInfo["datasetId"]}","lonBand":${sectorInfo["lonBand"]},"latBand":${sectorInfo["latBand"]},"lonRange":"${sectorInfo["lonRange"]}","latRange":"${sectorInfo["latRange"]}"}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
             
             // Test ERDDAP fetch for a single spot
             get("/admin/erddap/test/{spotId}") {
                 val spotId = call.parameters["spotId"]
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
+                    ?: return@get call.respondText("""{"error":"spotId required"}""", io.ktor.http.ContentType.Application.Json, HttpStatusCode.BadRequest)
                 
                 val spot = SpotDatabase.findSpotById(spotId)
-                    ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Spot not found"))
+                    ?: return@get call.respondText("""{"error":"Spot not found"}""", io.ktor.http.ContentType.Application.Json, HttpStatusCode.NotFound)
                 
                 val sectorInfo = ERDDAPSectorClient.getSectorInfo(spot.coordinates.lat, spot.coordinates.lon)
                 val erddapResult = ERDDAPSectorClient.getChlorophyll(spot.coordinates.lat, spot.coordinates.lon)
                 val copernicusValue = com.shaka.data.cache.SpotDataCache.get(spotId)?.chlorophyll?.value
                 
-                call.respond(mapOf(
-                    "spotId" to spotId,
-                    "spotName" to spot.name,
-                    "coordinates" to mapOf("lat" to spot.coordinates.lat, "lon" to spot.coordinates.lon),
-                    "sector" to sectorInfo,
-                    "erddap" to if (erddapResult != null) mapOf(
-                        "chlorophyll" to erddapResult.chlorophyll,
-                        "sector" to erddapResult.sector,
-                        "dataDate" to erddapResult.dataDate,
-                        "source" to erddapResult.source
-                    ) else null,
-                    "copernicus" to copernicusValue,
-                    "difference" to if (erddapResult != null && copernicusValue != null) 
-                        kotlin.math.abs(erddapResult.chlorophyll - copernicusValue) else null
-                ))
+                val erddapJson = if (erddapResult != null) 
+                    """{"chlorophyll":${erddapResult.chlorophyll},"sector":"${erddapResult.sector}","dataDate":"${erddapResult.dataDate}","source":"${erddapResult.source}"}"""
+                else "null"
+                val diff = if (erddapResult != null && copernicusValue != null) 
+                    kotlin.math.abs(erddapResult.chlorophyll - copernicusValue).toString() else "null"
+                
+                call.respondText(
+                    """{"spotId":"$spotId","spotName":"${spot.name}","lat":${spot.coordinates.lat},"lon":${spot.coordinates.lon},"sector":"${sectorInfo["sector"]}","erddap":$erddapJson,"copernicus":${copernicusValue ?: "null"},"difference":$diff}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
             
             // Get current comparison stats (from cached ERDDAP data)
             get("/admin/erddap/stats") {
                 val stats = com.shaka.data.cache.SpotDataCache.getErddapComparisonStats()
-                call.respond(stats)
+                call.respondText(
+                    """{"totalSpots":${stats["totalSpots"]},"bothHaveData":${stats["bothHaveData"]},"onlyCopernicus":${stats["onlyCopernicus"]},"onlyErddap":${stats["onlyErddap"]},"neither":${stats["neither"]},"erddapCached":${stats["erddapCached"]},"avgDifference":"${stats["avgDifference"]}"}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
             
             // Clear ERDDAP cache (for fresh run)
@@ -415,12 +416,22 @@ fun Application.configureRouting() {
             // Get detailed comparison results (after compare-all completes)
             get("/admin/erddap/comparison-details") {
                 val limit = call.parameters["limit"]?.toIntOrNull() ?: 100
-                val details = com.shaka.data.cache.SpotDataCache.getErddapComparisonDetails().take(limit)
-                call.respond(mapOf(
-                    "total" to com.shaka.data.cache.SpotDataCache.getErddapComparisonDetails().size,
-                    "showing" to details.size,
-                    "results" to details
-                ))
+                val allDetails = com.shaka.data.cache.SpotDataCache.getErddapComparisonDetails()
+                val details = allDetails.take(limit)
+                
+                val resultsJson = details.joinToString(",") { d ->
+                    val cop = d["copernicus"]?.toString() ?: "null"
+                    val erd = d["erddap"]?.toString() ?: "null"
+                    val sec = d["erddapSector"]?.let { "\"$it\"" } ?: "null"
+                    val date = d["erddapDataDate"]?.let { "\"$it\"" } ?: "null"
+                    val diff = d["difference"]?.toString() ?: "null"
+                    """{"spotId":"${d["spotId"]}","copernicus":$cop,"erddap":$erd,"sector":$sec,"dataDate":$date,"difference":$diff}"""
+                }
+                
+                call.respondText(
+                    """{"total":${allDetails.size},"showing":${details.size},"results":[$resultsJson]}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
         }
     }
