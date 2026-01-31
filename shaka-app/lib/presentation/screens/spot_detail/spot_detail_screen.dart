@@ -298,14 +298,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           ),
         ),
 
-        // Expected Fish
-        if (spot.expectedFish.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _buildSectionHeader('FISH'),
-          const SizedBox(height: 10),
-          _buildFishList(spot.expectedFish),
-        ],
-
         const SizedBox(height: 40),
       ],
     );
@@ -324,6 +316,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
+      physics: const ClampingScrollPhysics(),
       itemCount: spot.forecast.length,
       itemBuilder: (context, index) {
         final day = spot.forecast[index];
@@ -337,11 +330,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFF1E3A5F).withOpacity(0.3) : _cardColor,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isToday ? const Color(0xFF5B9BD5) : _borderColor,
-        ),
+        border: Border.all(color: _borderColor),
       ),
       child: Row(
         children: [
@@ -353,8 +344,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               children: [
                 Text(
                   isToday ? 'Today' : _formatDate(day.date),
-                  style: TextStyle(
-                    color: isToday ? const Color(0xFF5B9BD5) : Colors.white,
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -391,20 +382,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
           const SizedBox(width: 14),
 
-          // Conditions summary
+          // Conditions summary with icons
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  day.conditions.visibility.split(' ').first,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${day.conditions.swell} • ${day.conditions.wind}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
-                ),
+                _buildForecastCondition(Icons.visibility, day.conditions.visibility.split(' ').first),
+                const SizedBox(width: 10),
+                _buildForecastCondition(Icons.waves, day.conditions.swell.split('@').first.trim()),
+                const SizedBox(width: 10),
+                _buildForecastCondition(Icons.air, day.conditions.wind),
               ],
             ),
           ),
@@ -413,14 +399,41 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
+  Widget _buildForecastCondition(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white54, size: 14),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// REGULATIONS TAB - MPA warnings, regulations, fish info
   Widget _buildGuideTab(SpotDetail spot) {
     return ListView(
       padding: const EdgeInsets.all(16),
+      physics: const ClampingScrollPhysics(),
       children: [
         // Regulations
         if (spot.regulations != null) ...[
           _buildRegulationsInfo(spot.regulations!),
+          const SizedBox(height: 24),
+        ],
+
+        // Expected Fish
+        if (spot.expectedFish.isNotEmpty) ...[
+          _buildSectionHeader('FISH'),
+          const SizedBox(height: 10),
+          _buildFishList(spot.expectedFish),
           const SizedBox(height: 24),
         ],
 

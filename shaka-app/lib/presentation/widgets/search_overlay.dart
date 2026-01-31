@@ -169,6 +169,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   onPressed: widget.onClose,
                   icon: const Icon(Icons.arrow_back, color: Colors.white70),
                 ),
+                const SizedBox(width: 4),
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -179,7 +180,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                       hintText: 'Search spots or regions...',
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                      contentPadding: const EdgeInsets.only(left: 0, right: 8),
                     ),
                   ),
                 ),

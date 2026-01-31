@@ -926,35 +926,20 @@ class _SpotCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Icon(
-                          spot.access == 'boat' ? Icons.sailing : Icons.directions_walk,
-                          color: Colors.white54,
-                          size: 12,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _getScoreColor(spot.shakaScore).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _getScoreLabel(spot.shakaScore),
+                        style: TextStyle(
+                          color: _getScoreColor(spot.shakaScore),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          spot.access == 'boat' ? 'Boat' : 'Shore',
-                          style: const TextStyle(color: Colors.white54, fontSize: 11),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _getScoreColor(spot.shakaScore).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            _getScoreLabel(spot.shakaScore),
-                            style: TextStyle(
-                              color: _getScoreColor(spot.shakaScore),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -963,23 +948,25 @@ class _SpotCard extends StatelessWidget {
             ],
           ),
           
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _ConditionChip(
                 icon: Icons.visibility,
                 value: spot.conditions.visibility.split(' ').first,
               ),
+              const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.thermostat,
                 value: spot.conditions.waterTemp.split(' ').first,
               ),
+              const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.waves,
                 value: spot.conditions.swell.split('@').first.trim(),
               ),
+              const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.air,
                 value: spot.conditions.wind,
@@ -1001,7 +988,7 @@ class _ConditionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(6),
@@ -1009,15 +996,17 @@ class _ConditionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white38, size: 12),
+          Icon(icon, color: Colors.white54, size: 18),
           const SizedBox(width: 4),
           Text(
             value,
             style: const TextStyle(
               color: Colors.white70,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

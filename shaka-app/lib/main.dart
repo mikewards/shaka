@@ -18,8 +18,14 @@ import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
 import 'presentation/screens/charts/ocean_charts_webview.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock orientation to portrait only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   // Set status bar style for dark theme
   SystemChrome.setSystemUIOverlayStyle(
@@ -31,14 +37,14 @@ void main() {
     ),
   );
 
-  // Check health of external services in background
-  // This enables auto-degradation of features when services are down
-  HealthProvider().checkHealthInBackground();
-  
-  // Initialize map background service (loads saved preference)
-  MapBackgroundService().init();
-
+  // Start the app FIRST, then initialize services in background
   runApp(const ShakaApp());
+  
+  // Initialize services AFTER app starts (non-blocking)
+  Future.microtask(() {
+    HealthProvider().checkHealthInBackground();
+    MapBackgroundService().init();
+  });
 }
 
 class ShakaApp extends StatelessWidget {
