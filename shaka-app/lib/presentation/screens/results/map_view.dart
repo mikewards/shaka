@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/spot_models.dart';
 import '../../widgets/shaka_score_badge.dart';
@@ -24,77 +23,72 @@ class MapView extends StatefulWidget {
 }
 
 class _MapViewState extends State<MapView> {
-  final MapController _mapController = MapController();
+  MapLibreMapController? _mapController;
   SpotSummary? _selectedSpot;
+  final List<Circle> _circles = [];
+  bool _isMapReady = false;
 
-  List<Marker> _buildMarkers() {
-    return widget.spots.map((spot) {
-      final color = _getMarkerColor(spot.shakaScore);
-      return Marker(
-        point: LatLng(spot.coordinates.lat, spot.coordinates.lon),
-        width: 40,
-        height: 40,
-        child: GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedSpot = spot;
-            });
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                '${spot.shakaScore}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+  void _onMapCreated(MapLibreMapController controller) {
+    _mapController = controller;
+  }
+
+  void _onStyleLoaded() {
+    setState(() => _isMapReady = true);
+    _addMarkers();
+  }
+
+  Future<void> _addMarkers() async {
+    if (_mapController == null) return;
+
+    // Clear existing circles
+    for (final circle in _circles) {
+      try {
+        await _mapController!.removeCircle(circle);
+      } catch (_) {}
+    }
+    _circles.clear();
+
+    // Add circles for each spot
+    for (final spot in widget.spots) {
+      final color = _getMarkerColorHex(spot.shakaScore);
+      try {
+        final circle = await _mapController!.addCircle(
+          CircleOptions(
+            geometry: LatLng(spot.coordinates.lat, spot.coordinates.lon),
+            circleRadius: 14.0,
+            circleColor: color,
+            circleStrokeColor: '#FFFFFF',
+            circleStrokeWidth: 2.0,
+            circleOpacity: 1.0,
           ),
-        ),
-      );
-    }).toList();
+        );
+        _circles.add(circle);
+      } catch (e) {
+        debugPrint('Failed to add marker: $e');
+      }
+    }
   }
 
   Color _getMarkerColor(int score) => AppColors.getScoreColor(score);
+
+  String _getMarkerColorHex(int score) {
+    final color = AppColors.getScoreColor(score);
+    return '#${color.value.toRadixString(16).substring(2)}';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: LatLng(widget.centerLat, widget.centerLon),
-            initialZoom: 10,
-            onTap: (_, __) {
-              setState(() {
-                _selectedSpot = null;
-              });
-            },
+        MapLibreMap(
+          onMapCreated: _onMapCreated,
+          onStyleLoadedCallback: _onStyleLoaded,
+          initialCameraPosition: CameraPosition(
+            target: LatLng(widget.centerLat, widget.centerLon),
+            zoom: 10,
           ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}@2x.png',
-              userAgentPackageName: 'com.shaka.app',
-            ),
-            MarkerLayer(
-              markers: _buildMarkers(),
-            ),
-          ],
+          styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+          compassEnabled: false,
         ),
 
         // Selected spot preview card

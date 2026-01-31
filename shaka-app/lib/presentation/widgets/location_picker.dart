@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Location picker with Quiet Luxury styling.
@@ -79,9 +78,10 @@ class _LocationPickerSheet extends StatefulWidget {
 
 class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final TextEditingController _zipController = TextEditingController();
-  final MapController _mapController = MapController();
+  MapLibreMapController? _mapController;
   bool _showMap = false;
   LatLng? _selectedPoint;
+  Circle? _selectedCircle;
 
   // Popular spearfishing locations
   static const _popularLocations = [
@@ -163,10 +163,35 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     }
   }
 
-  void _onMapTap(TapPosition tapPosition, LatLng point) {
+  void _onMapCreated(MapLibreMapController controller) {
+    _mapController = controller;
+  }
+
+  Future<void> _onMapClick(point, LatLng coordinates) async {
     setState(() {
-      _selectedPoint = point;
+      _selectedPoint = coordinates;
     });
+    
+    // Update marker
+    if (_mapController != null) {
+      // Remove old marker
+      if (_selectedCircle != null) {
+        try {
+          await _mapController!.removeCircle(_selectedCircle!);
+        } catch (_) {}
+      }
+      
+      // Add new marker
+      _selectedCircle = await _mapController!.addCircle(
+        CircleOptions(
+          geometry: coordinates,
+          circleRadius: 10.0,
+          circleColor: '#FF6B6B',
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 2.0,
+        ),
+      );
+    }
   }
 
   void _confirmMapSelection() {
@@ -298,34 +323,15 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 height: 200,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: const LatLng(21.4389, -158.0001), // Oahu
-                      initialZoom: 5,
-                      onTap: _onMapTap,
+                  child: MapLibreMap(
+                    onMapCreated: _onMapCreated,
+                    onMapClick: _onMapClick,
+                    initialCameraPosition: const CameraPosition(
+                      target: LatLng(21.4389, -158.0001), // Oahu
+                      zoom: 5,
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.shaka.app',
-                      ),
-                      if (_selectedPoint != null)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: _selectedPoint!,
-                              width: 40,
-                              height: 40,
-                              child: const Icon(
-                                Icons.location_on,
-                                color: AppColors.coral,
-                                size: 40,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+                    styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                    compassEnabled: false,
                   ),
                 ),
               ),

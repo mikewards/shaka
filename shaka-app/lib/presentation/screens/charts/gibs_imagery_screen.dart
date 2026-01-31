@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/api/gibs_service.dart';
 import '../../../data/models/gibs_layer.dart';
+import '../../../data/models/map_background.dart';
+import '../../../data/services/map_background_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
+import '../../widgets/background_picker.dart';
 
 /// GIBS Satellite Imagery Screen
 /// Uses MapLibre GL to display NASA GIBS satellite imagery layers
@@ -25,6 +28,7 @@ class GibsImageryScreen extends StatefulWidget {
 
 class _GibsImageryScreenState extends State<GibsImageryScreen> {
   MaplibreMapController? _mapController;
+  final MapBackgroundService _bgService = MapBackgroundService();
   
   // Active layers (supports multiple for stacking)
   // Default to Full Coverage preset for maximum satellite coverage
@@ -50,6 +54,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   static const _defaultZoom = 5.0;
   static const _spotZoom = 8.0; // Closer zoom when viewing a spot
   
+  // Key to force map rebuild when background changes
+  int _mapKey = 0;
+  
+  // Store camera position to restore after style change
+  CameraPosition? _lastCameraPosition;
+  
   // Helper getters
   bool get _hasMultipleLayers => _activeLayers.length > 1;
   GibsLayer get _primaryLayer => _activeLayers.first;
@@ -58,6 +68,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   void initState() {
     super.initState();
     _selectedDate = GibsService.yesterdayUtc;
+    _bgService.addListener(_onBackgroundChanged);
     
     // Set initial center from spot coordinates or default to Catalina Islands, CA
     _initialCenter = (widget.initialLat != null && widget.initialLon != null)
@@ -73,27 +84,80 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
   
+  void _onBackgroundChanged() {
+    // Save current camera position before rebuilding map
+    if (_mapController != null) {
+      _lastCameraPosition = _mapController!.cameraPosition;
+    }
+    _mapController = null;
+    setState(() {
+      _mapKey++;
+      _isLoading = true;
+    });
+  }
+  
   // Check if opened from a spot
   bool get _hasSpotContext => widget.spotName != null;
 
   @override
   void dispose() {
-    // Note: MapLibre controller is managed by the MaplibreMap widget
-    // and disposed automatically when the widget is unmounted
+    _bgService.removeListener(_onBackgroundChanged);
     _mapController = null;
     super.dispose();
   }
 
   void _onMapCreated(MaplibreMapController controller) {
     _mapController = controller;
-    _addGibsLayer();
+    // Note: Layers are added in _onStyleLoaded, not here
   }
 
-  void _onStyleLoaded() {
+  void _onStyleLoaded() async {
+    // First add background overlays (satellite, terrain, etc.)
+    await _addBackgroundOverlays();
+    
+    // Then add GIBS layers on top
+    await _addGibsLayers();
+    
     setState(() => _isLoading = false);
+    
     // Add spot marker if opened from a spot
     if (_hasSpotContext) {
       _addSpotMarker();
+    }
+  }
+  
+  /// Add background overlays based on selected map style
+  Future<void> _addBackgroundOverlays() async {
+    if (_mapController == null) return;
+    
+    final overlays = _bgService.getOverlays(_bgService.current);
+    
+    for (final overlay in overlays) {
+      try {
+        // Remove existing if present
+        try {
+          await _mapController!.removeLayer('${overlay.id}-layer');
+          await _mapController!.removeSource(overlay.id);
+        } catch (_) {}
+        
+        await _mapController!.addSource(
+          overlay.id,
+          RasterSourceProperties(
+            tiles: [overlay.urlTemplate],
+            tileSize: overlay.tileSize.toDouble(),
+            minzoom: overlay.minZoom,
+            maxzoom: overlay.maxZoom,
+          ),
+        );
+        
+        await _mapController!.addRasterLayer(
+          overlay.id,
+          '${overlay.id}-layer',
+          RasterLayerProperties(rasterOpacity: overlay.opacity),
+        );
+      } catch (e) {
+        debugPrint('Failed to add background overlay ${overlay.id}: $e');
+      }
     }
   }
   
@@ -119,9 +183,19 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
   }
 
+  // Prevent concurrent layer additions
+  bool _isAddingLayers = false;
+  
   /// Add GIBS raster layers to the map (supports multiple stacked layers)
   Future<void> _addGibsLayers() async {
     if (_mapController == null) return;
+    
+    // Prevent concurrent calls
+    if (_isAddingLayers) {
+      debugPrint('GIBS: Skipping duplicate _addGibsLayers call');
+      return;
+    }
+    _isAddingLayers = true;
 
     final dateStr = GibsService.formatDate(_selectedDate);
 
@@ -135,16 +209,21 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       for (int i = 0; i < 10; i++) {
         try {
           await _mapController!.removeLayer('gibs-layer-$i');
+        } catch (_) {}
+        try {
           await _mapController!.removeSource('gibs-source-$i');
-        } catch (_) {
-          // Ignore if doesn't exist
-        }
+        } catch (_) {}
       }
       // Also remove old single layer format if exists
       try {
         await _mapController!.removeLayer('gibs-layer');
+      } catch (_) {}
+      try {
         await _mapController!.removeSource('gibs-source');
       } catch (_) {}
+      
+      // Small delay to let removals complete
+      await Future.delayed(const Duration(milliseconds: 100));
 
       // Add layers in reverse order (bottom first, top last)
       // This way, the first layer in _activeLayers (highest priority) ends up on top
@@ -174,6 +253,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       }
     } catch (e) {
       debugPrint('Error adding GIBS layers: $e');
+    } finally {
+      _isAddingLayers = false;
     }
   }
   
@@ -304,10 +385,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // MapLibre Map
+          // MapLibre Map - keyed to rebuild on background change
           MaplibreMap(
-            styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            initialCameraPosition: CameraPosition(
+            key: ValueKey('gibs_map_$_mapKey'),
+            styleString: _bgService.getStyleUrl(_bgService.current),
+            initialCameraPosition: _lastCameraPosition ?? CameraPosition(
               target: _initialCenter,
               zoom: _hasSpotContext ? _spotZoom : _defaultZoom,
             ),
@@ -364,80 +446,83 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           ),
         ),
         const Spacer(),
-        // Date and satellite info - floating pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Satellite color dots
-              if (_hasMultipleLayers)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: 20 + (_activeLayers.length.clamp(0, 3) - 1) * 6.0,
-                    height: 14,
-                    child: Stack(
-                      children: [
-                        for (int i = 0; i < _activeLayers.length.clamp(0, 3); i++)
-                          Positioned(
-                            left: i * 6.0,
-                            top: 1,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: _activeLayers[i].color,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black54, width: 1),
+        // Date and satellite info - floating pill (tappable to change date)
+        GestureDetector(
+          onTap: _showDatePicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Satellite color dots
+                if (_hasMultipleLayers)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 20 + (_activeLayers.length.clamp(0, 3) - 1) * 6.0,
+                      height: 14,
+                      child: Stack(
+                        children: [
+                          for (int i = 0; i < _activeLayers.length.clamp(0, 3); i++)
+                            Positioned(
+                              left: i * 6.0,
+                              top: 1,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: _activeLayers[i].color,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.black54, width: 1),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: _primaryLayer.color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              // Date (and spot name if available)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_hasSpotContext)
-                    Text(
-                      widget.spotName!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        ],
                       ),
                     ),
-                  Text(
-                    _formatDate(_selectedDate),
-                    style: TextStyle(
-                      color: _hasSpotContext ? Colors.white70 : Colors.white,
-                      fontSize: _hasSpotContext ? 11 : 13,
-                      fontWeight: FontWeight.w500,
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _primaryLayer.color,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ],
+                // Date (and spot name if available)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_hasSpotContext)
+                      Text(
+                        widget.spotName!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    Text(
+                      _formatDate(_selectedDate),
+                      style: TextStyle(
+                        color: _hasSpotContext ? Colors.white70 : Colors.white,
+                        fontSize: _hasSpotContext ? 11 : 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -586,7 +671,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       children: categoriesWithLegends.values.map((layer) {
         // Get category display name
         final categoryName = layer.category == GibsLayerCategory.chlorophyll 
-            ? 'Chl' 
+            ? 'Chlorophyll' 
             : layer.category == GibsLayerCategory.seaSurfaceTemp 
                 ? 'SST' 
                 : '';
@@ -645,8 +730,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: _SquareButton(
-            icon: Icons.calendar_today,
-            onTap: _showDatePicker,
+            icon: Icons.map,
+            onTap: _showBackgroundPicker,
           ),
         ),
         const SizedBox(width: 8),
@@ -658,6 +743,10 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         ),
       ],
     );
+  }
+  
+  void _showBackgroundPicker() {
+    showBackgroundPicker(context);
   }
   
   /// Build date warning widget

@@ -1,7 +1,9 @@
 package com.shaka
 
 import com.shaka.api.routes.configureRouting
+import com.shaka.data.client.*
 import com.shaka.data.db.DatabaseFactory
+import com.shaka.service.DataPrefetchJobs
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -11,6 +13,7 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.http.*
 import io.ktor.server.response.*
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
@@ -59,7 +62,95 @@ fun Application.module() {
 
     configureRouting()
     
+    // Start background data prefetch jobs
+    configureScheduledJobs()
+    
     logger.info("Shaka API initialized successfully")
+}
+
+/**
+ * Configure background prefetch jobs for ocean data.
+ * 
+ * Schedule:
+ * - Startup: Full prefetch of all data types (staggered)
+ * - Hourly: Tide data (changes frequently)
+ * - Every 3 hours: Weather/swell data
+ * - Every 6 hours: Satellite data (SST, visibility)
+ * 
+ * Uses SupervisorJob to prevent failures from cancelling other jobs.
+ */
+private fun Application.configureScheduledJobs() {
+    val prefetchJobs = DataPrefetchJobs(
+        SpotDatabase,
+        NOAATidesClient(),
+        OpenMeteoClient(),
+        CopernicusClient(),
+        NOAAClient()
+    )
+    
+    // Create isolated scope for background jobs - failures won't affect other jobs or the app
+    val backgroundScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    
+    // Run full prefetch on startup (after a brief delay to let the app initialize)
+    backgroundScope.launch {
+        delay(5_000)  // Wait 5 seconds for app to fully start
+        logger.info("Starting initial data prefetch...")
+        try {
+            prefetchJobs.prefetchAll()
+        } catch (e: Exception) {
+            logger.error("Initial prefetch failed: ${e.message}", e)
+        }
+    }
+    
+    // HOURLY: Tide refresh
+    backgroundScope.launch {
+        delay(60_000)  // Initial 1 minute delay (after startup prefetch starts)
+        while (true) {
+            delay(3_600_000)  // 1 hour = 3,600,000 ms
+            try {
+                logger.info("Running scheduled TIDE prefetch")
+                prefetchJobs.prefetchTides()
+            } catch (e: Exception) {
+                logger.error("Scheduled tide prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
+    // EVERY 3 HOURS: Weather/swell refresh
+    backgroundScope.launch {
+        delay(120_000)  // Initial 2 minute delay
+        while (true) {
+            delay(10_800_000)  // 3 hours = 10,800,000 ms
+            try {
+                logger.info("Running scheduled WEATHER prefetch")
+                prefetchJobs.prefetchWeather()
+            } catch (e: Exception) {
+                logger.error("Scheduled weather prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
+    // EVERY 6 HOURS: Satellite data refresh
+    backgroundScope.launch {
+        delay(180_000)  // Initial 3 minute delay
+        while (true) {
+            delay(21_600_000)  // 6 hours = 21,600,000 ms
+            try {
+                logger.info("Running scheduled SATELLITE prefetch")
+                prefetchJobs.prefetchSatelliteData()
+            } catch (e: Exception) {
+                logger.error("Scheduled satellite prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
+    // Clean up when application stops
+    environment.monitor.subscribe(ApplicationStopped) {
+        backgroundScope.cancel()
+        logger.info("Background prefetch jobs stopped")
+    }
+    
+    logger.info("Background prefetch jobs configured: hourly (tide), 3h (weather), 6h (satellite)")
 }
 
 private fun Application.tryInitDatabase() {

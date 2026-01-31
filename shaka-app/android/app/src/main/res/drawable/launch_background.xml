@@ -5,10 +5,10 @@
         <color android:color="#0D0D0D" />
     </item>
 
-    <!-- App icon centered on dark background -->
+    <!-- Splash icon from drawable folder (160dp = 640px on xxxhdpi) -->
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/splash_icon" />
     </item>
 </layer-list>

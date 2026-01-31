@@ -8,6 +8,28 @@ Download
 
 Coming soon to iOS and Android.
 
+Recent Changes
+--------------
+
+### v0.3.0 - Data Pre-fetch System
+
+- **Instant spot loading**: All 631 spots now load instantly from pre-fetched cache
+- **Background data refresh**: Staggered prefetch jobs keep data fresh
+  - Tides: Hourly refresh
+  - Weather/Swell: Every 3 hours
+  - Satellite data: Every 6 hours
+- **Data freshness indicators**: Shows "Updated X min ago" in spot details
+- **Unified map backgrounds**: Satellite, Terrain, Nautical, and Default styles across all map views
+- **Improved splash screen**: Properly sized icon for Android 12+ adaptive splash
+- **Fixed map tap detection**: Accurate spot selection with devicePixelRatio correction
+
+### v0.2.0 - Charts Overhaul
+
+- **NASA GIBS integration**: Multi-layer satellite imagery with 5 chlorophyll sources
+- **Copernicus WebView**: Animated ocean conditions with save/share
+- **Unified date picker**: Tap date indicator in top-right to change dates
+- **Dynamic legends**: Auto-extracted from data sources with proper units
+
 Features
 --------
 
@@ -29,16 +51,17 @@ Features include type-ahead search, region browsing, and filter chips (All, Shor
 
 High-resolution satellite imagery from NASA's Global Imagery Browse Services (GIBS):
 
-- **Chlorophyll-a** - PACE OCI, VIIRS SNPP/NOAA-20, MODIS Terra/Aqua
+- **Chlorophyll-a** - PACE OCI, VIIRS NOAA-20/21, Sentinel-3A/3B
 - **Sea Surface Temperature** - MUR SST (0.01 degree resolution), GHRSST
 - **True Color** - Daily composites from MODIS and VIIRS
 
 Features include:
-- Multi-layer stacking (combine chlorophyll + SST + true color)
-- Layer presets for common combinations
+- Multi-layer stacking (combine up to 5 chlorophyll satellites for full coverage)
+- Layer presets: Full Coverage, Afternoon Pass, Morning Pass
 - Historical data scrubbing back to 2012
 - Dynamic legends with units
 - Opacity controls per layer
+- Multiple map backgrounds (Satellite, Terrain, Nautical, Default)
 
 ### Copernicus Ocean Conditions
 
@@ -52,9 +75,10 @@ Animated ocean data visualization from Copernicus Marine Service:
 
 Features include:
 - Hourly snapshots for time-series viewing
-- Save snapshots for offline reference
+- Save snapshots to device gallery
+- Share snapshots directly
 - Layer opacity controls
-- Tap-for-data at any point
+- Tap date indicator to change dates
 
 Data Sources
 ------------
@@ -148,21 +172,24 @@ Architecture
 shaka/
 ├── shaka-api/              Kotlin backend (Ktor)
 │   ├── data/
-│   │   ├── client/         External API clients (OpenMeteo, NOAA, Copernicus)
-│   │   ├── cache/          In-memory caching with TTL
+│   │   ├── client/         External API clients (OpenMeteo, NOAA, Copernicus, GIBS)
+│   │   ├── cache/          
+│   │   │   ├── SpotDataCache    Pre-fetched data for all spots (in-memory)
+│   │   │   └── OceanDataCache   TTL-based fallback cache
 │   │   └── db/             PostgreSQL repositories
 │   ├── model/              Domain models
 │   ├── scoring/            Shaka Score algorithm
 │   └── service/
-│       ├── SpotService     Spot search and details
+│       ├── SpotService     Spot search and details (cache-first)
 │       ├── ForecastService 7-day forecasts
+│       ├── DataPrefetchJobs Background data refresh scheduler
 │       └── HealthService   External service health checks
 │
 └── shaka-app/              Flutter mobile app
     ├── data/
-    │   ├── api/            Backend client, GIBS service, tile caching
-    │   ├── models/         Data models (spots, forecasts, layers)
-    │   └── services/       Health monitoring
+    │   ├── api/            Backend client, GIBS service
+    │   ├── models/         Data models (spots, forecasts, layers, map backgrounds)
+    │   └── services/       Health monitoring, map background service
     └── presentation/
         ├── screens/
         │   ├── explore/    Map + carousel spot discovery
@@ -170,13 +197,32 @@ shaka/
         │   ├── spot_detail/ Individual spot view with tabs
         │   └── profile/    User settings
         ├── shell/          Bottom navigation shell
-        └── widgets/        Reusable components
+        └── widgets/        Reusable components (legends, pickers, cards)
 ```
 
 App Navigation:
 - Explore tab: Interactive map with spot carousel
 - Charts tab: Selection between NASA GIBS and Copernicus viewers
 - Profile tab: Settings and preferences
+
+Data Pre-fetch System
+---------------------
+
+The backend pre-fetches ocean data for all 631 spots on startup and refreshes on a schedule:
+
+| Data Type | Refresh Interval | Source | Cache Duration |
+|-----------|-----------------|--------|----------------|
+| Tides | Hourly | NOAA CO-OPS | Until next refresh |
+| Weather/Swell | Every 3 hours | Open-Meteo | Until next refresh |
+| SST/Visibility | Every 6 hours | Copernicus, NOAA ERDDAP | Until next refresh |
+
+On server startup, all data is pre-fetched in parallel (~45 seconds for full cache). Requests during this warmup period fall back to live API calls.
+
+The cache stores dual timestamps:
+- `fetchedAt`: When the server retrieved the data
+- `dataValidAt`: When the external provider recorded the data
+
+This enables showing "Updated 5 min ago" and "Satellite: Jan 27" in the app.
 
 Graceful Degradation
 --------------------

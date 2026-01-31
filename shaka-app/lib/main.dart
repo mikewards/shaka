@@ -7,6 +7,7 @@ import 'data/api/shaka_api_client.dart';
 import 'data/models/spot_models.dart';
 import 'data/repositories/spot_repository.dart';
 import 'data/services/health_service.dart';
+import 'data/services/map_background_service.dart';
 import 'presentation/bloc/search_bloc.dart';
 import 'presentation/shell/main_shell.dart';
 import 'presentation/screens/explore/explore_screen.dart';
@@ -33,6 +34,9 @@ void main() {
   // Check health of external services in background
   // This enables auto-degradation of features when services are down
   HealthProvider().checkHealthInBackground();
+  
+  // Initialize map background service (loads saved preference)
+  MapBackgroundService().init();
 
   runApp(const ShakaApp());
 }

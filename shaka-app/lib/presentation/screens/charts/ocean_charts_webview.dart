@@ -1797,52 +1797,55 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           ),
         ),
         const Spacer(),
-        // Date and layer info - floating pill
+        // Date and layer info - floating pill (tappable to change date)
         if (_hasValidLayerData)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Layer color dot
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: layerColor,
-                    shape: BoxShape.circle,
+          GestureDetector(
+            onTap: _showDatePicker,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Layer color dot
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: layerColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                // Date/time (and spot name if available)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_hasSpotContext)
+                  const SizedBox(width: 8),
+                  // Date/time (and spot name if available)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_hasSpotContext)
+                        Text(
+                          widget.spotName!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       Text(
-                        widget.spotName!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        _formatLayerDateTime(),
+                        style: TextStyle(
+                          color: _hasSpotContext ? Colors.white70 : Colors.white,
+                          fontSize: _hasSpotContext ? 11 : 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    Text(
-                      _formatLayerDateTime(),
-                      style: TextStyle(
-                        color: _hasSpotContext ? Colors.white70 : Colors.white,
-                        fontSize: _hasSpotContext ? 11 : 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
       ],
@@ -2020,13 +2023,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           child: _SquareButton(
             icon: Icons.layers,
             onTap: _showLayerSheet,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.calendar_today,
-            onTap: _showDatePicker,
           ),
         ),
         const SizedBox(width: 8),

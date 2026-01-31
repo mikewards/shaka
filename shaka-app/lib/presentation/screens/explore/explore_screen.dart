@@ -1,17 +1,20 @@
 import 'dart:async';
+import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/map_background_service.dart';
 import '../../widgets/search_overlay.dart';
+import '../../widgets/background_picker.dart';
 
 /// Full-screen explore map for discovering dive spots.
 /// Surfline-style: Map 70% top, horizontal spot carousel 30% bottom.
+/// Now using MapLibre for consistent map experience across the app.
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
 
@@ -20,9 +23,10 @@ class ExploreScreen extends StatefulWidget {
 }
 
 class _ExploreScreenState extends State<ExploreScreen> {
-  final MapController _mapController = MapController();
+  MaplibreMapController? _mapController;
   final ShakaApiClient _apiClient = ShakaApiClient();
   final PageController _carouselController = PageController(viewportFraction: 0.85);
+  final MapBackgroundService _bgService = MapBackgroundService();
   
   // Default to Hawaii
   static const _defaultCenter = LatLng(21.3069, -157.8583);
@@ -30,26 +34,206 @@ class _ExploreScreenState extends State<ExploreScreen> {
   
   List<SpotSummary> _spots = [];
   bool _isLoading = true;
+  bool _isMapReady = false;
   String? _error;
-  int? _selectedSpotIndex = 0; // null = no selection
+  int? _selectedSpotIndex = 0;
   String _selectedFilter = 'All';
   bool _showSearch = false;
   
-  // Debounce timer for map animations (prevents excessive animations during rapid carousel swiping)
+  // Debounce timer for map animations
   Timer? _mapAnimationDebounce;
-  bool _isFromMarkerTap = false; // Track if selection came from marker tap
+  bool _isFromMarkerTap = false;
+  
+  // Track last search center to detect significant map movement
+  LatLng _lastSearchCenter = _defaultCenter;
+  Timer? _mapMoveDebounce;
+  
+  // Key to force map rebuild when background changes
+  int _mapKey = 0;
+  
+  // Store camera position to restore after style change
+  CameraPosition? _lastCameraPosition;
+  
+  // Track pointer for tap detection (to distinguish taps from pans)
+  Offset? _pointerDownPosition;
+  DateTime? _pointerDownTime;
 
   @override
   void initState() {
     super.initState();
+    _bgService.addListener(_onBackgroundChanged);
     _loadSpots();
   }
   
   @override
   void dispose() {
     _mapAnimationDebounce?.cancel();
+    _mapMoveDebounce?.cancel();
     _carouselController.dispose();
+    _bgService.removeListener(_onBackgroundChanged);
+    _mapController = null;
     super.dispose();
+  }
+  
+  void _onBackgroundChanged() {
+    // Save current camera position before rebuilding map
+    if (_mapController != null) {
+      _lastCameraPosition = _mapController!.cameraPosition;
+    }
+    
+    // Clear map controller (map will be rebuilt)
+    _mapController = null;
+    _isMapReady = false;
+    
+    // Increment key to force MapLibreMap widget rebuild with new style
+    // Also clear any error state so it doesn't persist
+    setState(() {
+      _mapKey++;
+      _error = null;
+    });
+  }
+  
+  void _onMapCreated(MaplibreMapController controller) {
+    _mapController = controller;
+  }
+  
+  void _onStyleLoaded() async {
+    debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
+    setState(() => _isMapReady = true);
+    
+    // Add overlays first (raster tile layers)
+    await _addOverlays();
+    
+    // Wait for raster layers to be registered before adding circle annotations
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Add markers on top - circle annotations should render above raster layers
+    await _updateMarkers();
+    
+    debugPrint('_onStyleLoaded: Complete for ${_bgService.current}');
+  }
+  
+  /// Add raster overlays based on current background
+  Future<void> _addOverlays() async {
+    if (_mapController == null) return;
+    
+    final overlays = _bgService.getOverlays(_bgService.current);
+    debugPrint('Adding ${overlays.length} overlays for ${_bgService.current}');
+    
+    for (final overlay in overlays) {
+      try {
+        // Remove existing source/layer if present
+        try {
+          await _mapController!.removeLayer('${overlay.id}-layer');
+          await _mapController!.removeSource(overlay.id);
+        } catch (_) {}
+        
+        debugPrint('Adding overlay: ${overlay.id} from ${overlay.urlTemplate}');
+        
+        // Add raster source
+        await _mapController!.addSource(
+          overlay.id,
+          RasterSourceProperties(
+            tiles: [overlay.urlTemplate],
+            tileSize: overlay.tileSize.toDouble(),
+            minzoom: overlay.minZoom,
+            maxzoom: overlay.maxZoom,
+          ),
+        );
+        
+        // Add raster layer
+        await _mapController!.addRasterLayer(
+          overlay.id,
+          '${overlay.id}-layer',
+          RasterLayerProperties(
+            rasterOpacity: overlay.opacity,
+          ),
+        );
+        
+        debugPrint('Successfully added overlay: ${overlay.id}');
+      } catch (e) {
+        debugPrint('Failed to add overlay ${overlay.id}: $e');
+      }
+    }
+  }
+  
+  /// Handle map camera changes - reload spots only if panned significantly
+  void _onCameraIdle() {
+    if (_mapController == null || !_isMapReady) return;
+    
+    // NOTE: We do NOT update markers here - the GeoJSON layer auto-renders at correct positions
+    // We only reload spots if the user panned significantly to a new area
+    
+    _mapMoveDebounce?.cancel();
+    _mapMoveDebounce = Timer(const Duration(milliseconds: 800), () async {
+      if (!mounted || _mapController == null) return;
+      
+      final camera = _mapController!.cameraPosition;
+      if (camera == null) return;
+      
+      final newCenter = camera.target;
+      
+      // Calculate distance from last search (rough km estimate)
+      final latDiff = (newCenter.latitude - _lastSearchCenter.latitude).abs();
+      final lonDiff = (newCenter.longitude - _lastSearchCenter.longitude).abs();
+      final roughDistanceKm = (latDiff + lonDiff) * 111;
+      
+      // Only re-search if panned significantly (>100km) - increased threshold
+      if (roughDistanceKm > 100) {
+        _lastSearchCenter = newCenter;
+        _loadSpotsForLocation(newCenter.latitude, newCenter.longitude);
+      }
+    });
+  }
+  
+  /// Load spots for a specific location with retry
+  Future<void> _loadSpotsForLocation(double lat, double lon, {int retryCount = 0}) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      debugPrint('🌊 Loading spots for: $lat, $lon (attempt ${retryCount + 1})');
+      final response = await _apiClient.searchSpots(
+        lat: lat,
+        lon: lon,
+        date: today,
+        radiusKm: 160,
+      );
+      
+      if (mounted) {
+        debugPrint('✅ Loaded ${response.spots.length} spots');
+        setState(() {
+          _spots = response.spots;
+          _isLoading = false;
+          _selectedSpotIndex = _spots.isNotEmpty ? 0 : null;
+        });
+        
+        // Only jump to page if controller is attached
+        if (_spots.isNotEmpty && _carouselController.hasClients) {
+          _carouselController.jumpToPage(0);
+        }
+        
+        await _updateMarkers();
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading spots (attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3 && mounted) {
+        final delay = Duration(milliseconds: 500 * (retryCount + 1));
+        await Future.delayed(delay);
+        return _loadSpotsForLocation(lat, lon, retryCount: retryCount + 1);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _error = 'Could not load spots. Tap to retry.';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadSpots({int retryCount = 0}) async {
@@ -60,32 +244,117 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      debugPrint('🌊 Initial load (attempt ${retryCount + 1})');
       final response = await _apiClient.searchSpots(
         lat: _defaultCenter.latitude,
         lon: _defaultCenter.longitude,
         date: today,
-        radiusKm: 160, // ~100 miles, reasonable area
+        radiusKm: 160,
       );
       
       if (mounted) {
+        debugPrint('✅ Initial load: ${response.spots.length} spots');
         setState(() {
           _spots = response.spots;
           _isLoading = false;
         });
+        
+        if (_isMapReady) {
+          await _updateMarkers();
+        }
       }
     } catch (e) {
-      // Auto-retry once on initial load
-      if (retryCount < 1 && mounted) {
-        await Future.delayed(const Duration(milliseconds: 500));
+      debugPrint('❌ Initial load failed (attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3 && mounted) {
+        final delay = Duration(milliseconds: 500 * (retryCount + 1));
+        await Future.delayed(delay);
         return _loadSpots(retryCount: retryCount + 1);
       }
       
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Could not load spots. Tap to retry.';
           _isLoading = false;
         });
       }
+    }
+  }
+  
+  /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
+  /// This replaces the annotation approach which got buried under raster layers
+  Future<void> _updateMarkers() async {
+    if (_mapController == null || !_isMapReady) {
+      return;
+    }
+    
+    final spots = _filteredSpots;
+    
+    // Remove existing marker layer and source
+    try {
+      await _mapController!.removeLayer('spots-layer');
+    } catch (_) {}
+    try {
+      await _mapController!.removeSource('spots-source');
+    } catch (_) {}
+    
+    if (spots.isEmpty) {
+      return;
+    }
+    
+    // Build GeoJSON features for all spots
+    // Selected markers are MUCH larger with cyan accent stroke for clear visibility
+    final features = spots.asMap().entries.map((entry) {
+      final i = entry.key;
+      final spot = entry.value;
+      final isSelected = i == _selectedSpotIndex;
+      final color = _getScoreColorHex(spot.shakaScore);
+      
+      return {
+        'type': 'Feature',
+        'properties': {
+          'index': i,
+          'name': spot.name,
+          'color': color,
+          // Selected: 2x larger with thick cyan stroke
+          'radius': isSelected ? 24 : 12,
+          'strokeWidth': isSelected ? 6 : 2,
+          'strokeColor': isSelected ? '#00BCD4' : '#FFFFFF',
+        },
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
+        },
+      };
+    }).toList();
+    
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    
+    try {
+      // Add GeoJSON source
+      await _mapController!.addSource(
+        'spots-source',
+        GeojsonSourceProperties(data: geojson),
+      );
+      
+      // Add circle layer - this renders ON TOP because it's added last
+      await _mapController!.addCircleLayer(
+        'spots-source',
+        'spots-layer',
+        const CircleLayerProperties(
+          circleRadius: ['get', 'radius'],
+          circleColor: ['get', 'color'],
+          circleStrokeColor: ['get', 'strokeColor'],
+          circleStrokeWidth: ['get', 'strokeWidth'],
+          circleOpacity: 1.0,
+          circleStrokeOpacity: 1.0,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to add spots layer: $e');
     }
   }
 
@@ -104,36 +373,115 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Color _getScoreColor(int score) => AppColors.getScoreColor(score);
+  
+  String _getScoreColorHex(int score) {
+    final color = AppColors.getScoreColor(score);
+    return '#${color.value.toRadixString(16).substring(2)}';
+  }
 
-  /// Handle spot selection from carousel swipes (debounced map animation)
   void _onSpotSelected(int index) {
     if (index == _selectedSpotIndex) return;
+    
+    // Check marker tap flag BEFORE haptic to avoid double-buzz
+    if (_isFromMarkerTap) {
+      _isFromMarkerTap = false;
+      setState(() => _selectedSpotIndex = index);
+      return;
+    }
     
     HapticFeedback.selectionClick();
     setState(() => _selectedSpotIndex = index);
     
-    // Skip map animation if triggered from marker tap (already handled)
-    if (_isFromMarkerTap) {
-      _isFromMarkerTap = false;
-      return;
-    }
-    
-    // Debounce map animation for carousel swipes (300ms delay)
     _mapAnimationDebounce?.cancel();
     _mapAnimationDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
+      if (!mounted || _mapController == null) return;
       final spots = _filteredSpots;
       if (index < spots.length) {
         final spot = spots[index];
-        _mapController.move(
-          LatLng(spot.coordinates.lat, spot.coordinates.lon),
-          10.0,
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            LatLng(spot.coordinates.lat, spot.coordinates.lon),
+            10.0,
+          ),
         );
+        _updateMarkers();
       }
     });
   }
   
-  /// Handle spot selection from marker tap (immediate map animation)
+  /// Handle map taps - test both with and without devicePixelRatio scaling
+  Future<void> _handleMapTap(Offset screenPoint) async {
+    if (_mapController == null || !_isMapReady) return;
+    
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    
+    // Try BOTH coordinate interpretations to find which one works
+    final tapLogical = screenPoint;
+    final tapPhysical = screenPoint * devicePixelRatio;
+    
+    debugPrint('');
+    debugPrint('=== TAP DIAGNOSTIC ===');
+    debugPrint('Device pixel ratio: $devicePixelRatio');
+    debugPrint('Tap LOGICAL (raw): (${tapLogical.dx.toStringAsFixed(1)}, ${tapLogical.dy.toStringAsFixed(1)})');
+    debugPrint('Tap PHYSICAL (*dpr): (${tapPhysical.dx.toStringAsFixed(1)}, ${tapPhysical.dy.toStringAsFixed(1)})');
+    
+    final spots = _filteredSpots;
+    if (spots.isEmpty) return;
+    
+    // Find closest spot using BOTH coordinate systems
+    int? closestLogicalIndex;
+    double closestLogicalDist = double.infinity;
+    int? closestPhysicalIndex;
+    double closestPhysicalDist = double.infinity;
+    
+    for (int i = 0; i < spots.length; i++) {
+      final spot = spots[i];
+      final spotLatLng = LatLng(spot.coordinates.lat, spot.coordinates.lon);
+      final spotScreenPos = await _mapController!.toScreenLocation(spotLatLng);
+      
+      // Distance using logical tap
+      final dxL = tapLogical.dx - spotScreenPos.x;
+      final dyL = tapLogical.dy - spotScreenPos.y;
+      final distLogical = sqrt(dxL * dxL + dyL * dyL);
+      
+      // Distance using physical tap
+      final dxP = tapPhysical.dx - spotScreenPos.x;
+      final dyP = tapPhysical.dy - spotScreenPos.y;
+      final distPhysical = sqrt(dxP * dxP + dyP * dyP);
+      
+      if (i < 3) {
+        debugPrint('Spot $i: mapPos=(${spotScreenPos.x.toStringAsFixed(0)}, ${spotScreenPos.y.toStringAsFixed(0)}) distL=${distLogical.toStringAsFixed(0)} distP=${distPhysical.toStringAsFixed(0)}');
+      }
+      
+      if (distLogical < closestLogicalDist) {
+        closestLogicalDist = distLogical;
+        closestLogicalIndex = i;
+      }
+      if (distPhysical < closestPhysicalDist) {
+        closestPhysicalDist = distPhysical;
+        closestPhysicalIndex = i;
+      }
+    }
+    
+    debugPrint('--- RESULTS ---');
+    debugPrint('LOGICAL closest: spot $closestLogicalIndex at ${closestLogicalDist.toStringAsFixed(1)}px');
+    debugPrint('PHYSICAL closest: spot $closestPhysicalIndex at ${closestPhysicalDist.toStringAsFixed(1)}px');
+    
+    // Use whichever coordinate system gives a match within threshold
+    const threshold = 50.0; // Generous threshold to find ANY match
+    
+    if (closestPhysicalDist < threshold && closestPhysicalIndex != null) {
+      debugPrint('SELECTING via PHYSICAL coordinates');
+      _onMarkerTapped(closestPhysicalIndex);
+    } else if (closestLogicalDist < threshold && closestLogicalIndex != null) {
+      debugPrint('SELECTING via LOGICAL coordinates');
+      _onMarkerTapped(closestLogicalIndex);
+    } else {
+      debugPrint('NO MATCH within ${threshold}px threshold');
+    }
+    debugPrint('=== END ===');
+  }
+  
   void _onMarkerTapped(int index) {
     if (index == _selectedSpotIndex) return;
     
@@ -141,53 +489,51 @@ class _ExploreScreenState extends State<ExploreScreen> {
     HapticFeedback.selectionClick();
     setState(() => _selectedSpotIndex = index);
     
-    // Immediate map animation for marker taps
     final spot = _filteredSpots[index];
-    _mapController.move(
-      LatLng(spot.coordinates.lat, spot.coordinates.lon),
-      10.0,
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(spot.coordinates.lat, spot.coordinates.lon),
+        10.0,
+      ),
     );
     
-    // Sync carousel to marker
     _carouselController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+    
+    _updateMarkers();
   }
 
   void _openSpotDetail(SpotSummary spot) {
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     context.push('/spot/${spot.id}', extra: {
       'date': today,
-      'spot': spot, // Pass preloaded data for instant display
+      'spot': spot,
     });
   }
   
-  /// Handle filter changes - try to keep current spot if it passes the filter
   void _onFilterChanged(String filter) {
     if (filter == _selectedFilter) return;
     
     HapticFeedback.selectionClick();
     
-    // Get currently selected spot before changing filter
     SpotSummary? currentSpot;
     final currentIndex = _selectedSpotIndex;
     if (currentIndex != null && currentIndex < _filteredSpots.length) {
       currentSpot = _filteredSpots[currentIndex];
     }
     
-    // Apply the new filter
     setState(() => _selectedFilter = filter);
     
-    // Check if current spot is still in filtered list
     final newFilteredSpots = _filteredSpots;
     if (newFilteredSpots.isEmpty) {
       setState(() => _selectedSpotIndex = null);
+      _updateMarkers();
       return;
     }
     
-    // Try to find current spot in new filtered list
     int newIndex = 0;
     if (currentSpot != null) {
       final foundIndex = newFilteredSpots.indexWhere((s) => s.id == currentSpot!.id);
@@ -198,13 +544,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     setState(() => _selectedSpotIndex = newIndex);
     
-    // Sync carousel and map (without jarring animation if staying on same spot)
     _carouselController.jumpToPage(newIndex);
     final spot = newFilteredSpots[newIndex];
-    _mapController.move(
-      LatLng(spot.coordinates.lat, spot.coordinates.lon),
-      10.0,
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(spot.coordinates.lat, spot.coordinates.lon),
+        10.0,
+      ),
     );
+    
+    _updateMarkers();
+  }
+  
+  void _showBackgroundPicker() {
+    showBackgroundPicker(context);
   }
 
   @override
@@ -213,15 +566,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     
-    // 70% map, 30% carousel
     final mapHeight = screenHeight * 0.65;
-    final carouselHeight = screenHeight * 0.35 - bottomPadding;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
       body: Stack(
         children: [
-          // Main content
           Column(
             children: [
               // Map section (65%)
@@ -229,166 +579,144 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 height: mapHeight,
                 child: Stack(
                   children: [
-                    // Map
-                    FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _defaultCenter,
-                    initialZoom: _defaultZoom,
-                    minZoom: 3,
-                    maxZoom: 18,
-                    backgroundColor: const Color(0xFF191A1A),
-                    onTap: (_, __) {
-                      // Tap on empty map area deselects current spot
-                      if (_selectedSpotIndex != null) {
-                        HapticFeedback.lightImpact();
-                        setState(() => _selectedSpotIndex = null);
-                      }
-                    },
-                  ),
-                  children: [
-                    // OpenStreetMap with dark styling
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.shaka.app',
-                      maxZoom: 19,
+                    // MapLibre Map with Listener for tap detection
+                    // Using Listener at pointer level to detect taps without blocking map gestures
+                    Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerDown: (event) {
+                        _pointerDownPosition = event.localPosition;
+                        _pointerDownTime = DateTime.now();
+                      },
+                      onPointerUp: (event) {
+                        // Only handle quick taps (not pan gestures)
+                        final downPos = _pointerDownPosition;
+                        final downTime = _pointerDownTime;
+                        _pointerDownPosition = null;
+                        _pointerDownTime = null;
+                        
+                        if (downPos == null || downTime == null) return;
+                        
+                        // Check if it was a tap (short duration, small movement)
+                        final duration = DateTime.now().difference(downTime);
+                        final distance = (event.localPosition - downPos).distance;
+                        
+                        if (duration.inMilliseconds < 300 && distance < 20) {
+                          debugPrint('TAP DETECTED at ${event.localPosition}');
+                          _handleMapTap(event.localPosition);
+                        }
+                      },
+                      child: MaplibreMap(
+                        key: ValueKey('map_$_mapKey'),
+                        onMapCreated: _onMapCreated,
+                        onStyleLoadedCallback: _onStyleLoaded,
+                        onCameraIdle: _onCameraIdle,
+                        initialCameraPosition: _lastCameraPosition ?? const CameraPosition(
+                          target: _defaultCenter,
+                          zoom: _defaultZoom,
+                        ),
+                        styleString: _bgService.getStyleUrl(_bgService.current),
+                        minMaxZoomPreference: const MinMaxZoomPreference(3, 18),
+                        trackCameraPosition: true,
+                        compassEnabled: false,
+                        attributionButtonMargins: const Point(-100, -100),
+                        logoViewMargins: const Point(-100, -100),
+                      ),
                     ),
-                    // Spot markers
-                    if (_filteredSpots.isNotEmpty)
-                      MarkerLayer(
-                        markers: _filteredSpots.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final spot = entry.value;
-                          final isSelected = index == _selectedSpotIndex;
-                          
-                          return Marker(
-                            point: LatLng(spot.coordinates.lat, spot.coordinates.lon),
-                            width: isSelected ? 48 : 36,
-                            height: isSelected ? 48 : 36,
-                            child: GestureDetector(
-                              onTap: () => _onMarkerTapped(index),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: _getScoreColor(spot.shakaScore),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected ? Colors.white : Colors.white54,
-                                    width: isSelected ? 3 : 2,
-                                  ),
-                                  boxShadow: isSelected ? [
-                                    BoxShadow(
-                                      color: _getScoreColor(spot.shakaScore).withOpacity(0.5),
-                                      blurRadius: 12,
-                                      spreadRadius: 2,
-                                    ),
-                                  ] : null,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${spot.shakaScore}',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: isSelected ? 14 : 11,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                    
+                    // Search bar overlay
+                    Positioned(
+                      top: topPadding + 12,
+                      left: 16,
+                      right: 16,
+                      child: _buildSearchBar(),
+                    ),
+                    
+                    // Filter chips
+                    Positioned(
+                      top: topPadding + 68,
+                      left: 0,
+                      right: 0,
+                      child: _buildFilterChips(),
+                    ),
+                    
+                    // Background picker button
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: _buildBackgroundButton(),
+                    ),
+                    
+                    // Loading indicator
+                    if (_isLoading || !_isMapReady)
+                      const Positioned.fill(
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF5B9BD5),
+                          ),
+                        ),
                       ),
                   ],
                 ),
-                
-                // Search bar overlay
-                Positioned(
-                  top: topPadding + 12,
-                  left: 16,
-                  right: 16,
-                  child: _buildSearchBar(),
-                ),
-                
-                // Filter chips
-                Positioned(
-                  top: topPadding + 68,
-                  left: 0,
-                  right: 0,
-                  child: _buildFilterChips(),
-                ),
-                
-                // Loading indicator
-                if (_isLoading)
-                  const Positioned.fill(
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF5B9BD5),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          
-          // Carousel section (35%)
-          Expanded(
-            child: Container(
-              color: const Color(0xFF0D0D0D),
-              child: _isLoading
-                  ? const Center(
-                      child: Text(
-                        'Loading spots...',
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    )
-                  : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.white38, size: 32),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Failed to load spots',
-                                style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                              ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: _loadSpots,
-                                child: const Text('Retry'),
-                              ),
-                            ],
+              ),
+              
+              // Carousel section (35%)
+              Expanded(
+                child: Container(
+                  color: const Color(0xFF0D0D0D),
+                  child: _isLoading
+                      ? const Center(
+                          child: Text(
+                            'Loading spots...',
+                            style: TextStyle(color: Colors.white54),
                           ),
                         )
-                      : _filteredSpots.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No spots found',
-                                style: TextStyle(color: Colors.white54),
+                      : _error != null
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.error_outline, color: Colors.white38, size: 32),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Failed to load spots',
+                                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextButton(
+                                    onPressed: _loadSpots,
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
                               ),
                             )
-                          : _buildSpotCarousel(),
-            ),
+                          : _filteredSpots.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'No spots found',
+                                    style: TextStyle(color: Colors.white54),
+                                  ),
+                                )
+                              : _buildSpotCarousel(),
+                ),
+              ),
+            ],
           ),
+
+          // Search overlay
+          if (_showSearch)
+            SearchOverlay(
+              onSpotSelected: (spot) {
+                setState(() => _showSearch = false);
+                _navigateToSpot(spot);
+              },
+              onRegionSelected: (region) {
+                setState(() => _showSearch = false);
+                _navigateToRegion(region);
+              },
+              onClose: () => setState(() => _showSearch = false),
+            ),
         ],
       ),
-
-      // Search overlay
-      if (_showSearch)
-        SearchOverlay(
-          onSpotSelected: (spot) {
-            setState(() => _showSearch = false);
-            _navigateToSpot(spot);
-          },
-          onRegionSelected: (region) {
-            setState(() => _showSearch = false);
-            _navigateToRegion(region);
-          },
-          onClose: () => setState(() => _showSearch = false),
-        ),
-      ],
-    ),
     );
   }
 
@@ -398,12 +726,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _navigateToRegion(RegionInfo region) {
-    // Move map to region center
-    _mapController.move(
-      LatLng(region.centerLat, region.centerLon),
-      9.0,
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(region.centerLat, region.centerLon),
+        9.0,
+      ),
     );
-    // Reload spots for this region
     _loadSpotsForRegion(region);
   }
 
@@ -431,6 +759,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (_spots.isNotEmpty) {
           _carouselController.jumpToPage(0);
         }
+        await _updateMarkers();
       }
     } catch (e) {
       if (mounted) {
@@ -511,12 +840,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ),
     );
   }
+  
+  Widget _buildBackgroundButton() {
+    return GestureDetector(
+      onTap: _showBackgroundPicker,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Icon(
+          Icons.layers,
+          color: Colors.white70,
+          size: 22,
+        ),
+      ),
+    );
+  }
 
   Widget _buildSpotCarousel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
@@ -541,7 +889,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
         
-        // Carousel
         Expanded(
           child: PageView.builder(
             controller: _carouselController,
@@ -563,13 +910,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
         
-        // Page indicator dots
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
-              _filteredSpots.length.clamp(0, 10), // Max 10 dots
+              _filteredSpots.length.clamp(0, 10),
               (index) => AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -590,7 +936,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 }
 
-/// Individual spot card in the carousel - compact design
+/// Individual spot card in the carousel
 class _SpotCard extends StatelessWidget {
   final SpotSummary spot;
 
@@ -619,10 +965,8 @@ class _SpotCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: Score + Name + Arrow
           Row(
             children: [
-              // Score badge (compact)
               Container(
                 width: 44,
                 height: 44,
@@ -646,7 +990,6 @@ class _SpotCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              // Name and access
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,7 +1045,6 @@ class _SpotCard extends StatelessWidget {
           
           const SizedBox(height: 10),
           
-          // Conditions row (compact)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
