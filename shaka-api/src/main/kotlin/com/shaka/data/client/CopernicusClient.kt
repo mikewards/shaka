@@ -2,15 +2,11 @@ package com.shaka.data.client
 
 import com.shaka.data.cache.OceanDataCache
 import com.shaka.model.WaterQuality
-import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -27,31 +23,24 @@ import org.slf4j.LoggerFactory
  * 
  * NO ESTIMATES. If satellite data unavailable (clouds), we say so honestly.
  * 
- * Update frequency: Daily at 22:00 UTC
- * Resolution: 4km global coverage
- * Latency: ~1 day (yesterday's satellite pass)
+ * ENTERPRISE PATTERNS:
+ * - Uses shared HttpClient (HttpClientFactory.shared)
+ * - Dependencies injected (not created internally)
+ * - Rate limited through underlying WMTS client
  * 
  * @see https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/description
  */
 class CopernicusClient(
     private val clientId: String = System.getenv("COPERNICUS_CLIENT_ID") ?: "",
-    private val clientSecret: String = System.getenv("COPERNICUS_CLIENT_SECRET") ?: ""
+    private val clientSecret: String = System.getenv("COPERNICUS_CLIENT_SECRET") ?: "",
+    // Dependencies injected - not created internally (prevents client proliferation)
+    private val wmtsClient: CopernicusWMTSClient = CopernicusWMTSClient(),
+    private val noaaClient: NOAAClient = NOAAClient()
 ) {
     private val logger = LoggerFactory.getLogger(CopernicusClient::class.java)
-    private val noaaClient = NOAAClient()
-    private val wmtsClient = CopernicusWMTSClient()
     
-    private val client = HttpClient(CIO) {
-        engine {
-            requestTimeout = 10_000 // 10 seconds
-        }
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-    }
+    // Use shared HTTP client - DO NOT create a new one
+    private val client = HttpClientFactory.shared
 
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0
@@ -215,6 +204,9 @@ class CopernicusClient(
 
         logger.info("Authenticating with Copernicus Data Space...")
         
+        // Rate limit authentication requests
+        RateLimiters.copernicus.acquire()
+        
         val response: CopernicusAuthResponse = client.submitForm(
             url = AUTH_URL,
             formParameters = Parameters.build {
@@ -236,6 +228,9 @@ class CopernicusClient(
      * Returns null if data is unavailable (e.g., cloud cover).
      */
     private suspend fun queryChlorophyllFromSentinel(lat: Double, lon: Double, date: String): Double? {
+        // Rate limit
+        RateLimiters.copernicus.acquire()
+        
         val bbox = listOf(lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01)
         
         val evalscript = """
@@ -329,39 +324,11 @@ class CopernicusClient(
     }
 
     /**
-     * Estimate chlorophyll from real visibility data using inverse Secchi relationship.
-     * This is used when we have real visibility but no chlorophyll satellite data.
-     * 
-     * The relationship: visibility ≈ 1.7/Kd where Kd ≈ 0.04 + 0.027*Chl^0.6
-     * Solving for Chl: Chl ≈ ((1.7/visibility - 0.04) / 0.027)^(1/0.6)
-     */
-    private fun estimateChlorophyllFromVisibility(visibilityM: Double): Double {
-        // Inverse Secchi-chlorophyll relationship
-        val secchiDepth = visibilityM / 2.7  // Convert visibility to Secchi depth
-        val kd = 1.7 / secchiDepth
-        val chlComponent = (kd - 0.04) / 0.027
-        
-        return if (chlComponent > 0) {
-            Math.pow(chlComponent, 1.0 / 0.6).coerceIn(0.05, 30.0)
-        } else {
-            0.1  // Very clear water
-        }
-    }
-
-    /**
      * Regional chlorophyll climatological averages based on published oceanographic research.
      * Used when satellite data is unavailable (common near coastlines due to land interference).
-     * 
-     * Sources:
-     * - Hawaii: NASA Ocean Color Web, typical oligotrophic values 0.08-0.15 mg/m³
-     * - California: CalCOFI long-term averages, upwelling zone 0.5-2.5 mg/m³
-     * - Florida/Caribbean: NOAA AOML, typical values 0.1-0.3 mg/m³
-     * 
-     * These are NOT random - they are scientifically-validated regional means.
      */
     private fun getRegionalChlorophyllClimatology(lat: Double, lon: Double): Double {
         // Hawaii - oligotrophic clear waters
-        // Source: NASA Ocean Color climatology
         if (lat in 18.0..23.0 && lon in -161.0..-154.0) {
             return 0.10  // Very clear, low productivity
         }

@@ -2,19 +2,19 @@ package com.shaka.data.client
 
 import com.shaka.model.OceanData
 import com.shaka.model.WeatherData
-import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
  * Client for Open-Meteo weather and marine APIs.
  * Free, no API key required.
+ * 
+ * ENTERPRISE PATTERNS:
+ * - Uses shared HttpClient (HttpClientFactory.shared)
+ * - Rate limited (5 req/sec via RateLimiters.openMeteo)
+ * - Graceful fallback to default values on failure
  * 
  * Weather: https://api.open-meteo.com/v1/forecast
  * Marine: https://marine-api.open-meteo.com/v1/marine (includes real SST data!)
@@ -23,23 +23,17 @@ class OpenMeteoClient {
 
     private val logger = LoggerFactory.getLogger(OpenMeteoClient::class.java)
 
-    private val client = HttpClient(CIO) {
-        engine {
-            requestTimeout = 10_000 // 10 seconds
-        }
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-    }
+    // Use shared HTTP client - DO NOT create a new one
+    private val client = HttpClientFactory.shared
 
     /**
      * Get weather forecast for a location and date.
      */
     suspend fun getWeather(lat: Double, lon: Double, date: String): WeatherData {
         return try {
+            // Rate limit
+            RateLimiters.openMeteo.acquire()
+            
             val response: OpenMeteoWeatherResponse = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
@@ -61,6 +55,7 @@ class OpenMeteoClient {
                 visibility = response.hourly.visibility?.getOrNull(idx) ?: 10000.0
             )
         } catch (e: Exception) {
+            logger.warn("Open-Meteo weather API failed for ($lat, $lon): ${e.message}")
             // Return default values if API fails
             WeatherData(
                 temperature = 25.0,
@@ -79,12 +74,14 @@ class OpenMeteoClient {
      */
     suspend fun getMarineData(lat: Double, lon: Double, date: String): OceanData {
         return try {
+            // Rate limit
+            RateLimiters.openMeteo.acquire()
+            
             val response: OpenMeteoMarineResponse = client.get("https://marine-api.open-meteo.com/v1/marine") {
                 parameter("latitude", lat)
                 parameter("longitude", lon)
                 parameter("start_date", date)
                 parameter("end_date", date)
-                // Added sea_surface_temperature - this is REAL SST data!
                 parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_direction,ocean_current_velocity,sea_surface_temperature")
                 parameter("daily", "wave_height_max,wave_period_max")
                 parameter("timezone", "auto")
@@ -98,25 +95,25 @@ class OpenMeteoClient {
             if (sst != null) {
                 logger.info("Open-Meteo SST for ($lat, $lon): ${String.format("%.1f", sst)}°C / ${String.format("%.0f", sst * 9/5 + 32)}°F")
             } else {
-                logger.warn("Open-Meteo SST unavailable for ($lat, $lon)")
+                logger.debug("Open-Meteo SST unavailable for ($lat, $lon)")
             }
 
             OceanData(
                 waveHeight = response.hourly.wave_height?.getOrNull(idx) ?: 1.0,
                 wavePeriod = response.hourly.wave_period?.getOrNull(idx) ?: 8.0,
                 waveDirection = response.hourly.wave_direction?.getOrNull(idx)?.toInt() ?: 0,
-                waterTemperature = sst ?: 20.0, // Real SST, fallback only if API fails
+                waterTemperature = sst ?: 20.0,
                 swellHeight = response.hourly.swell_wave_height?.getOrNull(idx) ?: 0.5,
                 swellDirection = response.hourly.swell_wave_direction?.getOrNull(idx)?.toInt() ?: 0
             )
         } catch (e: Exception) {
-            logger.error("Open-Meteo Marine API failed: ${e.message}")
+            logger.warn("Open-Meteo Marine API failed for ($lat, $lon): ${e.message}")
             // Return default values if API fails
             OceanData(
                 waveHeight = 1.0,
                 wavePeriod = 8.0,
                 waveDirection = 270,
-                waterTemperature = 18.0, // Conservative fallback
+                waterTemperature = 18.0,
                 swellHeight = 0.5,
                 swellDirection = 270
             )
@@ -152,5 +149,5 @@ data class OpenMeteoHourlyMarine(
     val swell_wave_height: List<Double>? = null,
     val swell_wave_direction: List<Double>? = null,
     val ocean_current_velocity: List<Double>? = null,
-    val sea_surface_temperature: List<Double>? = null  // Real SST data!
+    val sea_surface_temperature: List<Double>? = null
 )
