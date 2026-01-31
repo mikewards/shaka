@@ -396,6 +396,60 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Clear all MPA data and re-fetch everything (use after query changes)
+            post("/admin/mpa/refetch-all") {
+                val allSpots = com.shaka.data.cache.SpotDataCache.getAllSpotIds()
+                val total = allSpots.size
+                
+                val protectedSeasClient = com.shaka.data.client.ProtectedSeasClient()
+                
+                kotlinx.coroutines.GlobalScope.launch {
+                    var processed = 0
+                    for (spotId in allSpots) {
+                        try {
+                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            val mpaInfo = protectedSeasClient.getMPAStatus(
+                                spot.coordinates.lat, 
+                                spot.coordinates.lon
+                            )
+                            
+                            val cacheInfo = mpaInfo?.let {
+                                com.shaka.data.cache.SpotDataCache.MPACacheInfo(
+                                    siteName = it.siteName,
+                                    designation = it.designation,
+                                    spearfishingStatus = it.spearfishingStatus,
+                                    protectionLevel = it.protectionLevel,
+                                    speciesOfConcern = it.speciesOfConcern,
+                                    purpose = it.purpose,
+                                    detailsUrl = it.detailsUrl
+                                )
+                            }
+                            
+                            com.shaka.data.cache.SpotDataCache.updateMPA(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(cacheInfo, java.time.Instant.now())
+                            )
+                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                            processed++
+                            
+                            // Log progress every 50 spots
+                            if (processed % 50 == 0) {
+                                println("MPA refetch progress: $processed / $total")
+                            }
+                            
+                            // Small delay to be nice to the API
+                            kotlinx.coroutines.delay(150)
+                        } catch (e: Exception) { /* continue */ }
+                    }
+                    println("MPA refetch complete: $processed / $total spots updated")
+                }
+                
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"Full MPA refetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
         }
     }
 }
