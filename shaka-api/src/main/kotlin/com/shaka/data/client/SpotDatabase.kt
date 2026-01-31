@@ -904,15 +904,28 @@ object SpotDatabase {
         SpotRecord("aus-jervis-bay", "Jervis Bay", "Marine park with seals.", Coordinates(-35.0833, 150.7167), "boat", 18, listOf("Blue Groper", "Snapper", "Kingfish", "Cuttlefish"), "Boat from Huskisson", "Marina"),
         SpotRecord("aus-melbourne-portsea", "Portsea Pier", "Port Phillip Bay diving.", Coordinates(-38.3167, 144.7167), "shore", 12, listOf("Snapper", "Squid", "Octopus", "Cuttlefish"), "Portsea pier", "Pier parking"),
         SpotRecord("aus-adelaide-rapid-bay", "Rapid Bay Jetty", "Leafy sea dragon.", Coordinates(-35.5167, 138.1833), "shore", 10, listOf("Leafy Sea Dragon", "Snapper", "Squid", "Cuttlefish"), "Rapid Bay jetty", "Beach"),
-        SpotRecord("aus-perth-rottnest", "Rottnest Island", "Perth's dive island.", Coordinates(-32.0000, 115.5000), "boat", 20, listOf("Dhufish", "Baldchin Groper", "Samson Fish", "Snapper"), "Ferry from Fremantle", "Rottnest"),
+        // Rottnest Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("aus-perth-rottnest-north", "Rottnest - North", "North coast. Perth's dive island.", Coordinates(-31.9850, 115.5000), "boat", 20, listOf("Dhufish", "Baldchin Groper", "Samson Fish", "Snapper"), "Ferry from Fremantle", "Rottnest"),
+        SpotRecord("aus-perth-rottnest-south", "Rottnest - South", "South coast. More exposed.", Coordinates(-32.0250, 115.5000), "boat", 20, listOf("Dhufish", "Baldchin Groper", "Samson Fish", "Snapper"), "Ferry from Fremantle", "Rottnest"),
+        SpotRecord("aus-perth-rottnest-east", "Rottnest - East", "East coast. Facing Perth.", Coordinates(-32.0000, 115.5350), "boat", 20, listOf("Dhufish", "Baldchin Groper", "Samson Fish", "Snapper"), "Ferry from Fremantle", "Rottnest"),
+        SpotRecord("aus-perth-rottnest-west", "Rottnest - West", "West coast. Open Indian Ocean.", Coordinates(-32.0000, 115.4850), "boat", 20, listOf("Dhufish", "Baldchin Groper", "Samson Fish", "Snapper"), "Ferry from Fremantle", "Rottnest"),
         SpotRecord("aus-perth-abrolhos", "Abrolhos Islands", "Remote WA diving.", Coordinates(-28.7167, 113.7783), "boat", 25, listOf("Coral Trout", "Baldchin Groper", "Spanish Mackerel", "Crayfish"), "Boat from Geraldton", "Charter"),
         SpotRecord("aus-broome-rowley", "Rowley Shoals", "Remote WA atolls.", Coordinates(-17.3333, 119.3333), "boat", 30, listOf("Giant Trevally", "Dogtooth Tuna", "Coral Trout", "Wahoo"), "Liveaboard from Broome", "Charter"),
         SpotRecord("aus-darwin-gove", "Gove Peninsula", "Remote NT diving.", Coordinates(-12.2000, 136.7833), "boat", 20, listOf("Barramundi", "Giant Trevally", "Coral Trout", "Spanish Mackerel"), "Boat from Nhulunbuy", "Marina"),
         SpotRecord("aus-townsville-yongala", "SS Yongala", "Australia's best wreck.", Coordinates(-19.3000, 147.6167), "boat", 28, listOf("Giant Trevally", "Barracuda", "Bull Shark", "Manta Ray"), "Boat from Townsville or Ayr", "Marina"),
         SpotRecord("aus-cairns-cod-hole", "Cod Hole", "Potato cod feeding.", Coordinates(-14.6833, 145.6333), "boat", 20, listOf("Potato Cod", "Giant Trevally", "Coral Trout", "Napoleon Wrasse"), "Liveaboard from Cairns", "Cairns"),
         SpotRecord("aus-cairns-osprey", "Osprey Reef", "Coral Sea pinnacle.", Coordinates(-13.8833, 146.5500), "boat", 35, listOf("Grey Reef Shark", "Silvertip Shark", "Giant Trevally", "Dogtooth Tuna"), "Liveaboard from Cairns", "Charter"),
-        SpotRecord("aus-lady-elliot", "Lady Elliot Island", "Southern GBR.", Coordinates(-24.1167, 152.7167), "boat", 20, listOf("Manta Ray", "Coral Trout", "Leopard Shark", "Turtle"), "Flight from Bundaberg", "Resort"),
-        SpotRecord("aus-heron-island", "Heron Island", "Research station diving.", Coordinates(-23.4333, 151.9167), "boat", 18, listOf("Coral Trout", "Turtle", "Leopard Shark", "Giant Trevally"), "Boat or heli from Gladstone", "Resort"),
+        // Lady Elliot Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("aus-lady-elliot-north", "Lady Elliot - North", "North side. Southern GBR.", Coordinates(-24.1017, 152.7167), "boat", 20, listOf("Manta Ray", "Coral Trout", "Leopard Shark", "Turtle"), "Flight from Bundaberg", "Resort"),
+        SpotRecord("aus-lady-elliot-south", "Lady Elliot - South", "South side. Manta cleaning.", Coordinates(-24.1317, 152.7167), "boat", 20, listOf("Manta Ray", "Coral Trout", "Leopard Shark", "Turtle"), "Flight from Bundaberg", "Resort"),
+        SpotRecord("aus-lady-elliot-east", "Lady Elliot - East", "East side. Coral bombies.", Coordinates(-24.1167, 152.7317), "boat", 20, listOf("Manta Ray", "Coral Trout", "Leopard Shark", "Turtle"), "Flight from Bundaberg", "Resort"),
+        SpotRecord("aus-lady-elliot-west", "Lady Elliot - West", "West side. Lighthouse.", Coordinates(-24.1167, 152.7017), "boat", 20, listOf("Manta Ray", "Coral Trout", "Leopard Shark", "Turtle"), "Flight from Bundaberg", "Resort"),
+        
+        // Heron Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("aus-heron-island-north", "Heron Island - North", "North side. Research station.", Coordinates(-23.4183, 151.9167), "boat", 18, listOf("Coral Trout", "Turtle", "Leopard Shark", "Giant Trevally"), "Boat or heli from Gladstone", "Resort"),
+        SpotRecord("aus-heron-island-south", "Heron Island - South", "South side. Heron Bommie.", Coordinates(-23.4583, 151.9167), "boat", 18, listOf("Coral Trout", "Turtle", "Leopard Shark", "Giant Trevally"), "Boat or heli from Gladstone", "Resort"),
+        SpotRecord("aus-heron-island-east", "Heron Island - East", "East side. Blue pools.", Coordinates(-23.4333, 151.9317), "boat", 18, listOf("Coral Trout", "Turtle", "Leopard Shark", "Giant Trevally"), "Boat or heli from Gladstone", "Resort"),
+        SpotRecord("aus-heron-island-west", "Heron Island - West", "West side. Harbour area.", Coordinates(-23.4333, 151.9017), "boat", 18, listOf("Coral Trout", "Turtle", "Leopard Shark", "Giant Trevally"), "Boat or heli from Gladstone", "Resort"),
 
         // ==========================================
         // NEW ZEALAND - EXPANDED (25+ spots)
@@ -925,13 +938,21 @@ object SpotDatabase {
         SpotRecord("nz-tutukaka", "Tutukaka Coast", "Gateway to Poor Knights.", Coordinates(-35.6167, 174.5333), "boat", 20, listOf("Snapper", "Kingfish", "Crayfish", "Blue Maomao"), "Boat from Tutukaka", "Marina"),
         SpotRecord("nz-leigh-coast", "Leigh Marine Reserve", "First NZ marine reserve.", Coordinates(-36.2667, 174.8000), "shore", 15, listOf("Snapper", "Blue Maomao", "Crayfish", "Leather Jacket"), "Cape Rodney", "Beach parking"),
         SpotRecord("nz-hahei", "Hahei Marine Reserve", "Cathedral Cove area.", Coordinates(-36.8500, 175.8000), "shore", 12, listOf("Snapper", "Kingfish", "Crayfish", "Leather Jacket"), "Hahei Beach", "Beach parking"),
-        SpotRecord("nz-white-island", "White Island", "Active volcano diving.", Coordinates(-37.5167, 177.1833), "boat", 25, listOf("Kingfish", "Snapper", "Blue Maomao", "Marlin"), "Boat from Whakatane", "Marina"),
+        // White Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("nz-white-island-north", "White Island - North", "North side. Active volcano.", Coordinates(-37.5017, 177.1833), "boat", 25, listOf("Kingfish", "Snapper", "Blue Maomao", "Marlin"), "Boat from Whakatane", "Marina"),
+        SpotRecord("nz-white-island-south", "White Island - South", "South side. Crater view.", Coordinates(-37.5417, 177.1833), "boat", 25, listOf("Kingfish", "Snapper", "Blue Maomao", "Marlin"), "Boat from Whakatane", "Marina"),
+        SpotRecord("nz-white-island-east", "White Island - East", "East side. Open ocean.", Coordinates(-37.5167, 177.1983), "boat", 25, listOf("Kingfish", "Snapper", "Blue Maomao", "Marlin"), "Boat from Whakatane", "Marina"),
+        SpotRecord("nz-white-island-west", "White Island - West", "West side. Facing NZ.", Coordinates(-37.5167, 177.1583), "boat", 25, listOf("Kingfish", "Snapper", "Blue Maomao", "Marlin"), "Boat from Whakatane", "Marina"),
         SpotRecord("nz-wellington-south", "Wellington South Coast", "Wellington diving.", Coordinates(-41.3500, 174.8000), "shore", 15, listOf("Blue Cod", "Butterfish", "Crayfish", "Paua"), "Island Bay area", "Various"),
         SpotRecord("nz-kaikoura", "Kaikoura", "Whale watching and diving.", Coordinates(-42.4167, 173.6833), "boat", 20, listOf("Crayfish", "Blue Cod", "Groper", "Paua"), "Boat from Kaikoura", "Marina"),
         SpotRecord("nz-marlborough-sounds", "Marlborough Sounds", "Sheltered diving.", Coordinates(-41.1500, 174.0000), "boat", 18, listOf("Blue Cod", "Snapper", "Crayfish", "Kingfish"), "Boat from Picton", "Marina"),
         SpotRecord("nz-milford-sound", "Milford Sound", "Black coral and fiords.", Coordinates(-44.6333, 167.8500), "boat", 25, listOf("Black Coral", "Fiordland Crested Penguin", "Blue Cod"), "Boat from Milford", "Cruise"),
         SpotRecord("nz-doubtful-sound", "Doubtful Sound", "Remote fiord diving.", Coordinates(-45.3000, 166.9667), "boat", 30, listOf("Black Coral", "Red Coral", "Blue Cod", "Crayfish"), "Boat from Te Anau", "Cruise"),
-        SpotRecord("nz-stewart-island", "Stewart Island", "Remote southern diving.", Coordinates(-47.0000, 167.8500), "boat", 20, listOf("Blue Cod", "Crayfish", "Paua", "Groper"), "Ferry from Bluff", "Oban"),
+        // Stewart Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("nz-stewart-island-north", "Stewart Island - North", "North coast. Remote southern diving.", Coordinates(-46.5950, 167.8500), "boat", 20, listOf("Blue Cod", "Crayfish", "Paua", "Groper"), "Ferry from Bluff", "Oban"),
+        SpotRecord("nz-stewart-island-south", "Stewart Island - South", "South coast. Sub-Antarctic waters.", Coordinates(-47.2050, 167.8500), "boat", 20, listOf("Blue Cod", "Crayfish", "Paua", "Groper"), "Ferry from Bluff", "Oban"),
+        SpotRecord("nz-stewart-island-east", "Stewart Island - East", "East coast. Paterson Inlet.", Coordinates(-47.0000, 168.2550), "boat", 20, listOf("Blue Cod", "Crayfish", "Paua", "Groper"), "Ferry from Bluff", "Oban"),
+        SpotRecord("nz-stewart-island-west", "Stewart Island - West", "West coast. Fiordland style.", Coordinates(-47.0000, 167.6450), "boat", 20, listOf("Blue Cod", "Crayfish", "Paua", "Groper"), "Ferry from Bluff", "Oban"),
         SpotRecord("nz-chatham-islands", "Chatham Islands", "Remote Pacific outpost.", Coordinates(-43.9500, -176.5500), "boat", 25, listOf("Blue Cod", "Crayfish", "Paua", "Kingfish"), "Flight from mainland", "Waitangi"),
 
         // ==========================================
@@ -943,10 +964,23 @@ object SpotDatabase {
         SpotRecord("moz-inhambane", "Inhambane Coast", "Historic Portuguese town.", Coordinates(-23.8667, 35.3783), "boat", 18, listOf("Giant Trevally", "Potato Bass", "Kingfish", "Barracuda"), "Boat from Inhambane", "Various"),
         SpotRecord("moz-ponta-ouro", "Ponta do Ouro", "SA border with dolphins.", Coordinates(-26.8333, 32.8883), "boat", 20, listOf("Dolphin", "Giant Trevally", "Kingfish", "Potato Bass"), "Boat from Ponta", "Beach"),
         SpotRecord("moz-pemba", "Pemba (Quirimbas)", "Northern Mozambique.", Coordinates(-12.9667, 40.5167), "boat", 25, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Wahoo"), "Boat from Pemba", "Marina"),
-        SpotRecord("moz-ibo-island", "Ibo Island", "Historic island fortress.", Coordinates(-12.3500, 40.6000), "boat", 20, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Ibo", "Island"),
-        SpotRecord("tanzania-mafia-island", "Mafia Island", "Whale shark marine park.", Coordinates(-7.9167, 39.7833), "boat", 20, listOf("Whale Shark", "Giant Trevally", "Grouper", "Snapper"), "Flight from Dar es Salaam", "Lodges"),
+        // Ibo Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("moz-ibo-island-north", "Ibo Island - North", "North coast. Historic fortress.", Coordinates(-12.3150, 40.6000), "boat", 20, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Ibo", "Island"),
+        SpotRecord("moz-ibo-island-south", "Ibo Island - South", "South coast. Quirimbas.", Coordinates(-12.3950, 40.6000), "boat", 20, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Ibo", "Island"),
+        SpotRecord("moz-ibo-island-east", "Ibo Island - East", "East coast. Indian Ocean.", Coordinates(-12.3500, 40.6250), "boat", 20, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Ibo", "Island"),
+        SpotRecord("moz-ibo-island-west", "Ibo Island - West", "West coast. Channel side.", Coordinates(-12.3500, 40.5850), "boat", 20, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Ibo", "Island"),
+        
+        // Mafia Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("tanzania-mafia-island-north", "Mafia Island - North", "North coast. Whale shark park.", Coordinates(-7.9017, 39.7833), "boat", 20, listOf("Whale Shark", "Giant Trevally", "Grouper", "Snapper"), "Flight from Dar es Salaam", "Lodges"),
+        SpotRecord("tanzania-mafia-island-south", "Mafia Island - South", "South coast. Chole Bay.", Coordinates(-7.9317, 39.7833), "boat", 20, listOf("Whale Shark", "Giant Trevally", "Grouper", "Snapper"), "Flight from Dar es Salaam", "Lodges"),
+        SpotRecord("tanzania-mafia-island-east", "Mafia Island - East", "East coast. Open ocean.", Coordinates(-7.9167, 39.7983), "boat", 20, listOf("Whale Shark", "Giant Trevally", "Grouper", "Snapper"), "Flight from Dar es Salaam", "Lodges"),
+        SpotRecord("tanzania-mafia-island-west", "Mafia Island - West", "West coast. Mainland side.", Coordinates(-7.9167, 39.7683), "boat", 20, listOf("Whale Shark", "Giant Trevally", "Grouper", "Snapper"), "Flight from Dar es Salaam", "Lodges"),
         SpotRecord("tanzania-zanzibar-mnemba", "Mnemba Atoll", "Private island diving.", Coordinates(-5.8167, 39.3833), "boat", 25, listOf("Giant Trevally", "Barracuda", "Grouper", "Snapper"), "Boat from Zanzibar", "Various"),
-        SpotRecord("tanzania-pemba-island", "Pemba Island", "Clove island diving.", Coordinates(-5.0333, 39.7500), "boat", 30, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Napoleon Wrasse"), "Flight from Zanzibar", "Various"),
+        // Pemba Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("tanzania-pemba-island-north", "Pemba Island - North", "North coast. Clove island.", Coordinates(-4.8783, 39.7500), "boat", 30, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Napoleon Wrasse"), "Flight from Zanzibar", "Various"),
+        SpotRecord("tanzania-pemba-island-south", "Pemba Island - South", "South coast. Deep walls.", Coordinates(-5.5383, 39.7500), "boat", 30, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Napoleon Wrasse"), "Flight from Zanzibar", "Various"),
+        SpotRecord("tanzania-pemba-island-east", "Pemba Island - East", "East coast. Misali Island.", Coordinates(-5.0333, 39.8450), "boat", 30, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Napoleon Wrasse"), "Flight from Zanzibar", "Various"),
+        SpotRecord("tanzania-pemba-island-west", "Pemba Island - West", "West coast. Shimba Hills.", Coordinates(-5.0333, 39.6850), "boat", 30, listOf("Giant Trevally", "Sailfish", "Dogtooth Tuna", "Napoleon Wrasse"), "Flight from Zanzibar", "Various"),
         SpotRecord("kenya-watamu", "Watamu Marine Park", "Kenya's premier diving.", Coordinates(-3.3500, 40.0167), "boat", 18, listOf("Giant Trevally", "Sailfish", "Grouper", "Snapper"), "Boat from Watamu", "Beach"),
         SpotRecord("kenya-malindi", "Malindi", "Historic Swahili coast.", Coordinates(-3.2167, 40.1167), "boat", 15, listOf("Grouper", "Snapper", "Barracuda", "Kingfish"), "Boat from Malindi", "Marina"),
         SpotRecord("kenya-diani", "Diani Beach", "South coast diving.", Coordinates(-4.3167, 39.5833), "boat", 18, listOf("Giant Trevally", "Grouper", "Snapper", "Barracuda"), "Boat from Diani", "Beach"),
@@ -967,7 +1001,11 @@ object SpotDatabase {
         // ==========================================
         SpotRecord("usvi-st-thomas-coki", "Coki Beach (St. Thomas)", "Popular snorkel spot.", Coordinates(18.3500, -64.8667), "shore", 12, listOf("Snapper", "Grunt", "Parrotfish", "Barracuda"), "Coki Point Beach", "Beach lot"),
         SpotRecord("usvi-st-john-trunk-bay", "Trunk Bay (St. John)", "Underwater trail.", Coordinates(18.3550, -64.7717), "shore", 10, listOf("Snapper", "Grunt", "Parrotfish", "Turtle"), "Trunk Bay Beach", "National Park"),
-        SpotRecord("usvi-buck-island", "Buck Island (St. Croix)", "National monument.", Coordinates(17.7833, -64.6167), "boat", 15, listOf("Snapper", "Grunt", "Barracuda", "Turtle"), "Boat from St. Croix", "Christiansted"),
+        // Buck Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("usvi-buck-island-north", "Buck Island - North", "North side. National monument.", Coordinates(17.7983, -64.6167), "boat", 15, listOf("Snapper", "Grunt", "Barracuda", "Turtle"), "Boat from St. Croix", "Christiansted"),
+        SpotRecord("usvi-buck-island-south", "Buck Island - South", "South side. Elkhorn coral.", Coordinates(17.7683, -64.6167), "boat", 15, listOf("Snapper", "Grunt", "Barracuda", "Turtle"), "Boat from St. Croix", "Christiansted"),
+        SpotRecord("usvi-buck-island-east", "Buck Island - East", "East side. Underwater trail.", Coordinates(17.7833, -64.6017), "boat", 15, listOf("Snapper", "Grunt", "Barracuda", "Turtle"), "Boat from St. Croix", "Christiansted"),
+        SpotRecord("usvi-buck-island-west", "Buck Island - West", "West side. Facing St. Croix.", Coordinates(17.7833, -64.6317), "boat", 15, listOf("Snapper", "Grunt", "Barracuda", "Turtle"), "Boat from St. Croix", "Christiansted"),
         SpotRecord("bvi-rhone-wreck", "RMS Rhone (BVI)", "Famous wreck.", Coordinates(18.3833, -64.5500), "boat", 25, listOf("Barracuda", "Snapper", "Grouper", "Tarpon"), "Boat from Tortola", "Various"),
         SpotRecord("bvi-dogs-islands", "The Dogs (BVI)", "Uninhabited island group.", Coordinates(18.4667, -64.4333), "boat", 18, listOf("Snapper", "Grouper", "Barracuda", "Lobster"), "Boat from Virgin Gorda", "Marina"),
         SpotRecord("cayman-stingray-city", "Stingray City (Grand Cayman)", "Stingray sandbar.", Coordinates(19.3833, -81.3000), "boat", 4, listOf("Stingray", "Snapper", "Permit"), "Boat from Georgetown", "Various"),
