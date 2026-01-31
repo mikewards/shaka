@@ -273,6 +273,79 @@ class CommunityReport {
   }
 }
 
+/// GIBS satellite chlorophyll readings from multiple satellites
+class GibsSatelliteReadings {
+  final double? paceToday;
+  final double? paceYesterday;
+  final double? noaa20Today;
+  final double? noaa20Yesterday;
+  final double? noaa21Today;
+  final double? noaa21Yesterday;
+  final double? sentinel3aToday;
+  final double? sentinel3aYesterday;
+  final double? sentinel3bToday;
+  final double? sentinel3bYesterday;
+  final DateTime? paceObservationTime;
+  final DateTime? noaa20ObservationTime;
+  final DateTime? noaa21ObservationTime;
+  final String? dataDate; // The date "today" refers to
+
+  const GibsSatelliteReadings({
+    this.paceToday,
+    this.paceYesterday,
+    this.noaa20Today,
+    this.noaa20Yesterday,
+    this.noaa21Today,
+    this.noaa21Yesterday,
+    this.sentinel3aToday,
+    this.sentinel3aYesterday,
+    this.sentinel3bToday,
+    this.sentinel3bYesterday,
+    this.paceObservationTime,
+    this.noaa20ObservationTime,
+    this.noaa21ObservationTime,
+    this.dataDate,
+  });
+
+  factory GibsSatelliteReadings.fromJson(Map<String, dynamic> json) {
+    return GibsSatelliteReadings(
+      paceToday: (json['paceToday'] as num?)?.toDouble(),
+      paceYesterday: (json['paceYesterday'] as num?)?.toDouble(),
+      noaa20Today: (json['noaa20Today'] as num?)?.toDouble(),
+      noaa20Yesterday: (json['noaa20Yesterday'] as num?)?.toDouble(),
+      noaa21Today: (json['noaa21Today'] as num?)?.toDouble(),
+      noaa21Yesterday: (json['noaa21Yesterday'] as num?)?.toDouble(),
+      sentinel3aToday: (json['sentinel3aToday'] as num?)?.toDouble(),
+      sentinel3aYesterday: (json['sentinel3aYesterday'] as num?)?.toDouble(),
+      sentinel3bToday: (json['sentinel3bToday'] as num?)?.toDouble(),
+      sentinel3bYesterday: (json['sentinel3bYesterday'] as num?)?.toDouble(),
+      paceObservationTime: json['paceObservationTime'] != null
+          ? DateTime.tryParse(json['paceObservationTime'])
+          : null,
+      noaa20ObservationTime: json['noaa20ObservationTime'] != null
+          ? DateTime.tryParse(json['noaa20ObservationTime'])
+          : null,
+      noaa21ObservationTime: json['noaa21ObservationTime'] != null
+          ? DateTime.tryParse(json['noaa21ObservationTime'])
+          : null,
+      dataDate: json['dataDate'],
+    );
+  }
+
+  /// Check if we have any data at all
+  bool get hasAnyData =>
+      paceToday != null ||
+      paceYesterday != null ||
+      noaa20Today != null ||
+      noaa20Yesterday != null ||
+      noaa21Today != null ||
+      noaa21Yesterday != null ||
+      sentinel3aToday != null ||
+      sentinel3aYesterday != null ||
+      sentinel3bToday != null ||
+      sentinel3bYesterday != null;
+}
+
 class SpotDetail {
   final String id;
   final String name;
@@ -288,6 +361,7 @@ class SpotDetail {
   final List<CommunityReport> communityReports;
   final String bestTimeOfDay;
   final String? imageUrl;
+  final GibsSatelliteReadings? satelliteReadings;
 
   const SpotDetail({
     required this.id,
@@ -304,6 +378,7 @@ class SpotDetail {
     required this.communityReports,
     required this.bestTimeOfDay,
     this.imageUrl,
+    this.satelliteReadings,
   });
 
   factory SpotDetail.fromJson(Map<String, dynamic> json) {
@@ -332,6 +407,9 @@ class SpotDetail {
           .toList(),
       bestTimeOfDay: json['bestTimeOfDay'] ?? '',
       imageUrl: json['imageUrl'],
+      satelliteReadings: json['satelliteReadings'] != null
+          ? GibsSatelliteReadings.fromJson(json['satelliteReadings'])
+          : null,
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/shaka_score_badge.dart';
 import '../../widgets/conditions_card.dart';
+import '../../widgets/satellite_readings_card.dart';
 import '../charts/charts_hub_screen.dart';
 
 class SpotDetailScreen extends StatefulWidget {
@@ -236,6 +237,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ConditionsCard(conditions: spot.conditions),
 
         const SizedBox(height: 20),
+
+        // Satellite Readings
+        if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
+          _buildSectionHeader('SATELLITE READINGS'),
+          const SizedBox(height: 10),
+          SatelliteReadingsCard(readings: spot.satelliteReadings),
+          const SizedBox(height: 20),
+        ],
 
         // Score Breakdown
         _buildSectionHeader('SCORE BREAKDOWN'),

@@ -68,7 +68,26 @@ data class SpotDetail(
     val risks: List<RiskInfo>,
     val communityReports: List<CommunityReport>,
     val bestTimeOfDay: String,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val satelliteReadings: GibsSatelliteReadings? = null
+)
+
+@Serializable
+data class GibsSatelliteReadings(
+    val paceToday: Double? = null,
+    val paceYesterday: Double? = null,
+    val noaa20Today: Double? = null,
+    val noaa20Yesterday: Double? = null,
+    val noaa21Today: Double? = null,
+    val noaa21Yesterday: Double? = null,
+    val sentinel3aToday: Double? = null,
+    val sentinel3aYesterday: Double? = null,
+    val sentinel3bToday: Double? = null,
+    val sentinel3bYesterday: Double? = null,
+    val paceObservationTime: String? = null,      // ISO 8601 timestamp
+    val noaa20ObservationTime: String? = null,
+    val noaa21ObservationTime: String? = null,
+    val dataDate: String? = null                   // The date that "today" refers to
 )
 
 @Serializable

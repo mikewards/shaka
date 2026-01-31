@@ -398,6 +398,26 @@ class SpotService {
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
+        // Build GIBS satellite readings from cache
+        val gibsReadings = cached?.gibsChlorophyll?.let { gibs ->
+            GibsSatelliteReadings(
+                paceToday = gibs.value.paceToday,
+                paceYesterday = gibs.value.paceYesterday,
+                noaa20Today = gibs.value.noaa20Today,
+                noaa20Yesterday = gibs.value.noaa20Yesterday,
+                noaa21Today = gibs.value.noaa21Today,
+                noaa21Yesterday = gibs.value.noaa21Yesterday,
+                sentinel3aToday = gibs.value.sentinel3aToday,
+                sentinel3aYesterday = gibs.value.sentinel3aYesterday,
+                sentinel3bToday = gibs.value.sentinel3bToday,
+                sentinel3bYesterday = gibs.value.sentinel3bYesterday,
+                paceObservationTime = gibs.value.paceObservationTime?.toString(),
+                noaa20ObservationTime = gibs.value.noaa20ObservationTime?.toString(),
+                noaa21ObservationTime = gibs.value.noaa21ObservationTime?.toString(),
+                dataDate = gibs.value.dataDate.toString()
+            )
+        }
+
         SpotDetail(
             id = spot.id,
             name = spot.name,
@@ -445,7 +465,8 @@ class SpotService {
             },
             communityReports = communityReports,
             bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
-            imageUrl = spot.imageUrl
+            imageUrl = spot.imageUrl,
+            satelliteReadings = gibsReadings
         )
     }
 
