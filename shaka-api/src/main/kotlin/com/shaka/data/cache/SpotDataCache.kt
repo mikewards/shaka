@@ -481,10 +481,17 @@ object SpotDataCache {
     }
     
     /**
-     * Get all spot IDs where GIBS chlorophyll is null.
+     * Get all spot IDs where GIBS chlorophyll is null OR missing observation times.
+     * This ensures spots get refetched to pick up CMR observation timestamps.
      */
     fun getSpotsWithoutGIBS(): List<String> {
-        return cache.filter { (_, data) -> data.gibsChlorophyll == null }.keys.toList()
+        return cache.filter { (_, data) -> 
+            data.gibsChlorophyll == null || 
+            (data.gibsChlorophyll != null && 
+             data.gibsChlorophyll.value.paceObservationTime == null &&
+             data.gibsChlorophyll.value.noaa20ObservationTime == null &&
+             data.gibsChlorophyll.value.noaa21ObservationTime == null)
+        }.keys.toList()
     }
     
     // ==================== Utility Functions ====================
