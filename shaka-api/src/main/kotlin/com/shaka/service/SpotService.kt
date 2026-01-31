@@ -464,7 +464,7 @@ class SpotService {
         SpotDetail(
             id = spot.id,
             name = spot.name,
-            description = "${spot.description}\n\nData: ${waterQuality.dataSource}",
+            description = spot.description,
             coordinates = spot.coordinates,
             score = score,
             access = AccessInfo(
