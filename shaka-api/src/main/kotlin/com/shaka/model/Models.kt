@@ -87,7 +87,10 @@ data class GibsSatelliteReadings(
     val paceObservationTime: String? = null,      // ISO 8601 timestamp
     val noaa20ObservationTime: String? = null,
     val noaa21ObservationTime: String? = null,
-    val dataDate: String? = null                   // The date that "today" refers to
+    val dataDate: String? = null,                  // The date that "today" refers to
+    // NOAA ERDDAP chlorophyll (separate from GIBS imagery)
+    val noaaErddapChlorophyll: Double? = null,     // mg/m³ from NOAA CoastWatch ERDDAP
+    val noaaErddapFetchTime: String? = null        // When we fetched this data
 )
 
 @Serializable

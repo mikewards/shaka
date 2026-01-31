@@ -289,6 +289,9 @@ class GibsSatelliteReadings {
   final DateTime? noaa20ObservationTime;
   final DateTime? noaa21ObservationTime;
   final String? dataDate; // The date "today" refers to
+  // NOAA ERDDAP chlorophyll (separate from GIBS imagery)
+  final double? noaaErddapChlorophyll;
+  final DateTime? noaaErddapFetchTime;
 
   const GibsSatelliteReadings({
     this.paceToday,
@@ -305,6 +308,8 @@ class GibsSatelliteReadings {
     this.noaa20ObservationTime,
     this.noaa21ObservationTime,
     this.dataDate,
+    this.noaaErddapChlorophyll,
+    this.noaaErddapFetchTime,
   });
 
   factory GibsSatelliteReadings.fromJson(Map<String, dynamic> json) {
@@ -329,6 +334,10 @@ class GibsSatelliteReadings {
           ? DateTime.tryParse(json['noaa21ObservationTime'])
           : null,
       dataDate: json['dataDate'],
+      noaaErddapChlorophyll: (json['noaaErddapChlorophyll'] as num?)?.toDouble(),
+      noaaErddapFetchTime: json['noaaErddapFetchTime'] != null
+          ? DateTime.tryParse(json['noaaErddapFetchTime'])
+          : null,
     );
   }
 
@@ -343,7 +352,8 @@ class GibsSatelliteReadings {
       sentinel3aToday != null ||
       sentinel3aYesterday != null ||
       sentinel3bToday != null ||
-      sentinel3bYesterday != null;
+      sentinel3bYesterday != null ||
+      noaaErddapChlorophyll != null;
 }
 
 class SpotDetail {

@@ -398,25 +398,29 @@ class SpotService {
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
-        // Build GIBS satellite readings from cache
-        val gibsReadings = cached?.gibsChlorophyll?.let { gibs ->
+        // Build GIBS satellite readings from cache, include NOAA ERDDAP chlorophyll
+        val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
+            val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
-                paceToday = gibs.value.paceToday,
-                paceYesterday = gibs.value.paceYesterday,
-                noaa20Today = gibs.value.noaa20Today,
-                noaa20Yesterday = gibs.value.noaa20Yesterday,
-                noaa21Today = gibs.value.noaa21Today,
-                noaa21Yesterday = gibs.value.noaa21Yesterday,
-                sentinel3aToday = gibs.value.sentinel3aToday,
-                sentinel3aYesterday = gibs.value.sentinel3aYesterday,
-                sentinel3bToday = gibs.value.sentinel3bToday,
-                sentinel3bYesterday = gibs.value.sentinel3bYesterday,
-                paceObservationTime = gibs.value.paceObservationTime?.toString(),
-                noaa20ObservationTime = gibs.value.noaa20ObservationTime?.toString(),
-                noaa21ObservationTime = gibs.value.noaa21ObservationTime?.toString(),
-                dataDate = gibs.value.dataDate.toString()
+                paceToday = gibs?.paceToday,
+                paceYesterday = gibs?.paceYesterday,
+                noaa20Today = gibs?.noaa20Today,
+                noaa20Yesterday = gibs?.noaa20Yesterday,
+                noaa21Today = gibs?.noaa21Today,
+                noaa21Yesterday = gibs?.noaa21Yesterday,
+                sentinel3aToday = gibs?.sentinel3aToday,
+                sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                sentinel3bToday = gibs?.sentinel3bToday,
+                sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                paceObservationTime = gibs?.paceObservationTime?.toString(),
+                noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
+                noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
+                dataDate = gibs?.dataDate?.toString(),
+                // NOAA ERDDAP chlorophyll (from Copernicus/NOAA fallback)
+                noaaErddapChlorophyll = cached.chlorophyll?.value,
+                noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
-        }
+        } else null
 
         SpotDetail(
             id = spot.id,
@@ -445,7 +449,7 @@ class SpotService {
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${weather.windSpeed.toInt()} knots",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                currentStrength = "Chlorophyll: ${waterQuality.chlorophyllA?.let { String.format("%.2f", it) + " mg/m³" } ?: "N/A"}",
+                currentStrength = "",  // Chlorophyll moved to satellite readings section
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),

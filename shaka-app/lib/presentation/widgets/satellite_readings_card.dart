@@ -131,6 +131,14 @@ class SatelliteReadingsCard extends StatelessWidget {
             value: readings!.sentinel3bYesterday ?? readings!.sentinel3bToday,
             observationTime: null,
             isToday: readings!.sentinel3bYesterday == null && readings!.sentinel3bToday != null,
+            isLast: readings!.noaaErddapChlorophyll == null,
+          ),
+          // NOAA ERDDAP (separate data source from GIBS imagery)
+          _buildSatelliteRow(
+            name: 'NOAA-ERDDAP',
+            value: readings!.noaaErddapChlorophyll,
+            observationTime: readings!.noaaErddapFetchTime,
+            isToday: false, // This is fetched data, not "today's" observation
             isLast: true,
           ),
         ],
