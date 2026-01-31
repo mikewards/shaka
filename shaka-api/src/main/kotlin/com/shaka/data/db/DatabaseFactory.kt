@@ -53,6 +53,9 @@ object DatabaseFactory {
         transaction {
             SchemaUtils.create(SpotsTable, ReportsTable)
         }
+        
+        // Seed spots data if table is empty
+        seedSpotsIfEmpty()
 
         logger.info("Database connection initialized successfully")
     }
@@ -93,7 +96,74 @@ object DatabaseFactory {
             SchemaUtils.create(SpotsTable, ReportsTable)
         }
         
+        // Seed spots data if table is empty
+        seedSpotsIfEmpty()
+        
         logger.info("Database initialization complete")
+    }
+    
+    /**
+     * Seed spots table from SpotDatabase if empty.
+     * This ensures all 789 spots with corrected water coordinates are in PostgreSQL.
+     */
+    private fun seedSpotsIfEmpty() {
+        transaction {
+            val count = exec("SELECT COUNT(*) FROM spots") { rs ->
+                if (rs.next()) rs.getLong(1) else 0L
+            } ?: 0L
+            
+            if (count == 0L) {
+                logger.info("Spots table empty - seeding from SpotDatabase...")
+                
+                val spots = com.shaka.data.client.SpotDatabase.getAllSpots()
+                var inserted = 0
+                
+                for (spot in spots) {
+                    try {
+                        val region = spot.id.split("-").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "Unknown"
+                        val country = mapRegionToCountry(region)
+                        
+                        exec("""
+                            INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
+                            VALUES (
+                                '${spot.name.replace("'", "''")}',
+                                '${spot.description.replace("'", "''").take(500)}',
+                                ${spot.coordinates.lat},
+                                ${spot.coordinates.lon},
+                                '$region',
+                                '$country',
+                                '${spot.access}',
+                                ${spot.depth},
+                                ${spot.depth}
+                            )
+                        """.trimIndent())
+                        inserted++
+                    } catch (e: Exception) {
+                        logger.warn("Failed to insert spot ${spot.id}: ${e.message}")
+                    }
+                }
+                
+                logger.info("Seeded $inserted spots into PostgreSQL")
+            } else {
+                logger.info("Spots table has $count entries - skipping seed")
+            }
+        }
+    }
+    
+    private fun mapRegionToCountry(region: String): String = when (region.lowercase()) {
+        "oahu", "maui", "bigisland", "kauai", "molokai", "lanai", "cali", "florida", "carolinas", "texas", "gulf" -> "USA"
+        "baja", "mexico", "yucatan", "cozumel" -> "Mexico"
+        "fiji" -> "Fiji"
+        "tahiti", "moorea", "fakarava", "rangiroa", "tikehau", "bora" -> "French Polynesia"
+        "indonesia", "bali", "komodo", "raja" -> "Indonesia"
+        "philippines", "palawan", "cebu" -> "Philippines"
+        "thailand" -> "Thailand"
+        "australia", "gbr" -> "Australia"
+        "maldives" -> "Maldives"
+        "bahamas" -> "Bahamas"
+        "galapagos" -> "Ecuador"
+        "cocos" -> "Costa Rica"
+        else -> region
     }
     
     /**
