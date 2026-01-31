@@ -463,10 +463,12 @@ class SpotService {
     
     /**
      * Search spots by name (for type-ahead search).
-     * Returns basic spot info without fetching live conditions.
+     * Returns basic spot info with shaka score from prefetch cache.
      */
     fun searchSpotsByName(query: String, limit: Int): List<SpotSearchResult> {
         val queryLower = query.lowercase()
+        val today = java.time.LocalDate.now().toString()
+        
         return spotDb.getAllSpots()
             .filter { spot ->
                 spot.name.lowercase().contains(queryLower) ||
@@ -475,12 +477,55 @@ class SpotService {
             }
             .take(limit)
             .map { spot ->
+                // Get cached data for score calculation
+                val cached = SpotDataCache.get(spot.id)
+                
+                // Calculate score using cached data if available
+                val score = if (cached != null) {
+                    val visM = cached.visibility?.value ?: 15.0
+                    val swellHeightFt = cached.swell?.value?.heightFt ?: 2.0
+                    val windKts = cached.wind?.value?.speedKnots ?: 5.0
+                    
+                    // Simple weighted score from key factors
+                    val visScore = when {
+                        visM >= 25 -> 100
+                        visM >= 20 -> 90
+                        visM >= 15 -> 80
+                        visM >= 10 -> 70
+                        visM >= 7 -> 60
+                        visM >= 5 -> 50
+                        else -> 35
+                    }
+                    val swellScore = when {
+                        swellHeightFt <= 1 -> 100
+                        swellHeightFt <= 2 -> 90
+                        swellHeightFt <= 3 -> 80
+                        swellHeightFt <= 4 -> 65
+                        swellHeightFt <= 6 -> 45
+                        else -> 25
+                    }
+                    val windScore = when {
+                        windKts <= 5 -> 100
+                        windKts <= 10 -> 85
+                        windKts <= 15 -> 65
+                        windKts <= 20 -> 45
+                        else -> 25
+                    }
+                    
+                    // Weighted average: visibility 40%, swell 35%, wind 25%
+                    ((visScore * 0.40) + (swellScore * 0.35) + (windScore * 0.25)).toInt()
+                } else {
+                    // Default score when no cache - use reasonable estimate
+                    65
+                }
+                
                 SpotSearchResult(
                     id = spot.id,
                     name = spot.name,
                     region = inferRegionFromSpotId(spot.id),
                     coordinates = spot.coordinates,
-                    access = spot.access
+                    access = spot.access,
+                    shakaScore = score
                 )
             }
     }
@@ -568,20 +613,33 @@ class SpotService {
     
     /**
      * Get all unique regions for search autocomplete.
+     * Includes center coordinates calculated from spot positions.
      */
     fun getAllRegions(): List<RegionInfo> {
-        val regionMap = mutableMapOf<String, MutableList<String>>()
+        data class RegionData(
+            val spotIds: MutableList<String> = mutableListOf(),
+            var totalLat: Double = 0.0,
+            var totalLon: Double = 0.0
+        )
+        
+        val regionMap = mutableMapOf<String, RegionData>()
         
         spotDb.getAllSpots().forEach { spot ->
             val region = inferRegionFromSpotId(spot.id)
-            regionMap.getOrPut(region) { mutableListOf() }.add(spot.id)
+            val data = regionMap.getOrPut(region) { RegionData() }
+            data.spotIds.add(spot.id)
+            data.totalLat += spot.coordinates.lat
+            data.totalLon += spot.coordinates.lon
         }
         
-        return regionMap.map { (region, spotIds) ->
+        return regionMap.map { (region, data) ->
+            val count = data.spotIds.size
             RegionInfo(
                 id = region,
                 name = region.replaceFirstChar { it.uppercase() },
-                spotCount = spotIds.size
+                spotCount = count,
+                centerLat = if (count > 0) data.totalLat / count else 0.0,
+                centerLon = if (count > 0) data.totalLon / count else 0.0
             )
         }.sortedBy { it.name }
     }

@@ -40,6 +40,10 @@ class DataPrefetchJobs(
         const val BATCH_SIZE = 10
         const val BATCH_DELAY_MS = 500L  // 500ms between batches
         const val SPOT_TIMEOUT_MS = 8000L  // 8s timeout per spot
+        
+        // Satellite prefetch is more conservative - Copernicus doesn't like concurrency
+        const val SATELLITE_BATCH_SIZE = 2
+        const val SATELLITE_BATCH_DELAY_MS = 2000L  // 2s between batches
     }
     
     // ==================== HOURLY: Tide Prefetch ====================
@@ -92,6 +96,8 @@ class DataPrefetchJobs(
                                     dataValidAt = null
                                 )
                             )
+                            // Persist to database
+                            SpotDataCache.saveToDatabase(spot.id)
                             true
                         }
                     } catch (e: Exception) {
@@ -180,6 +186,8 @@ class DataPrefetchJobs(
                                 )
                             )
                             
+                            // Persist to database
+                            SpotDataCache.saveToDatabase(spot.id)
                             true
                         }
                     } catch (e: Exception) {
@@ -216,84 +224,112 @@ class DataPrefetchJobs(
      */
     suspend fun prefetchSatelliteData() = withContext(Dispatchers.IO) {
         val spots = spotDb.getAllSpots()
-        val today = LocalDate.now().toString()
+        // Use yesterday - Copernicus L3 NRT has 1-day latency
+        val yesterday = LocalDate.now().minusDays(1).toString()
         
-        logger.info("Starting SATELLITE prefetch for ${spots.size} spots")
+        logger.info("Starting SATELLITE prefetch for ${spots.size} spots (conservative: batch=${SATELLITE_BATCH_SIZE}, delay=${SATELLITE_BATCH_DELAY_MS}ms)")
         val startTime = System.currentTimeMillis()
         var successCount = 0
         var errorCount = 0
+        var consecutiveFailures = 0
         
-        spots.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
-            val results = batch.map { spot ->
-                async {
-                    try {
-                        withTimeout(SPOT_TIMEOUT_MS * 2) {  // Longer timeout for satellite data
-                            val lat = spot.coordinates.lat
-                            val lon = spot.coordinates.lon
-                            val now = Instant.now()
-                            
-                            // Fetch SST from NOAA ERDDAP
-                            try {
-                                val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
-                                SpotDataCache.updateSST(
-                                    spot.id,
-                                    SpotDataCache.CachedValue(
-                                        value = sst,
-                                        fetchedAt = now,
-                                        // MUR SST is typically 1-2 days old
-                                        dataValidAt = Instant.now().minusSeconds(86400)  // Approximate
-                                    )
-                                )
-                            } catch (e: Exception) {
-                                logger.debug("SST fetch failed for ${spot.name}: ${e.message}")
-                            }
-                            
-                            // Fetch water quality from Copernicus
-                            try {
-                                val waterQuality = copernicus.getWaterQuality(lat, lon, today)
-                                
-                                waterQuality.visibility?.let { vis ->
-                                    SpotDataCache.updateVisibility(
-                                        spot.id,
-                                        SpotDataCache.CachedValue(
-                                            value = vis,
-                                            fetchedAt = now,
-                                            // Copernicus L3 NRT is typically 1 day old
-                                            dataValidAt = Instant.now().minusSeconds(86400)
-                                        )
-                                    )
-                                }
-                                
-                                waterQuality.chlorophyllA?.let { chl ->
-                                    SpotDataCache.updateChlorophyll(
-                                        spot.id,
-                                        SpotDataCache.CachedValue(
-                                            value = chl,
-                                            fetchedAt = now,
-                                            dataValidAt = Instant.now().minusSeconds(86400)
-                                        )
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                logger.debug("Water quality fetch failed for ${spot.name}: ${e.message}")
-                            }
-                            
-                            true
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Satellite fetch failed for ${spot.name}: ${e.message}")
-                        false
-                    }
-                }
-            }.awaitAll()
-            
-            successCount += results.count { it }
-            errorCount += results.count { !it }
-            
-            // Rate limiting delay
-            if (batchIndex < spots.size / BATCH_SIZE) {
-                delay(BATCH_DELAY_MS)
+        // Health check - test Copernicus is responding (use a known ocean location)
+        // Bahamas (26.5, -77.5) - usually has good satellite coverage
+        try {
+            logger.info("Testing Copernicus connectivity...")
+            val testResult = copernicus.getWaterQuality(26.5, -77.5, yesterday)
+            // Pass if we got ANY response (even null means Copernicus responded)
+            logger.info("Copernicus health check passed (vis=${testResult.visibility}, chl=${testResult.chlorophyllA})")
+        } catch (e: Exception) {
+            logger.warn("Copernicus health check failed: ${e.message} - skipping satellite prefetch")
+            return@withContext
+        }
+        
+        // Process ONE spot at a time - slow and steady
+        for ((index, spot) in spots.withIndex()) {
+            // Circuit breaker - stop if too many consecutive failures
+            if (consecutiveFailures >= 5) {
+                logger.warn("Circuit breaker triggered after $consecutiveFailures consecutive failures - stopping satellite prefetch")
+                break
             }
+            
+            try {
+                val lat = spot.coordinates.lat
+                val lon = spot.coordinates.lon
+                val now = Instant.now()
+                var gotData = false
+                
+                // Fetch SST from NOAA ERDDAP
+                try {
+                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, yesterday)
+                    SpotDataCache.updateSST(
+                        spot.id,
+                        SpotDataCache.CachedValue(
+                            value = sst,
+                            fetchedAt = now,
+                            dataValidAt = Instant.now().minusSeconds(86400)
+                        )
+                    )
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("SST fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // Fetch water quality from Copernicus - one request at a time
+                try {
+                    val waterQuality = copernicus.getWaterQuality(lat, lon, yesterday)
+                    
+                    waterQuality.visibility?.let { vis ->
+                        SpotDataCache.updateVisibility(
+                            spot.id,
+                            SpotDataCache.CachedValue(
+                                value = vis,
+                                fetchedAt = now,
+                                dataValidAt = Instant.now().minusSeconds(86400)
+                            )
+                        )
+                        gotData = true
+                        logger.info("Cached visibility for ${spot.name}: ${vis}m")
+                    }
+                    
+                    waterQuality.chlorophyllA?.let { chl ->
+                        SpotDataCache.updateChlorophyll(
+                            spot.id,
+                            SpotDataCache.CachedValue(
+                                value = chl,
+                                fetchedAt = now,
+                                dataValidAt = Instant.now().minusSeconds(86400)
+                            )
+                        )
+                        gotData = true
+                    }
+                } catch (e: Exception) {
+                    logger.debug("Water quality fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                if (gotData) {
+                    // Persist to database
+                    SpotDataCache.saveToDatabase(spot.id)
+                    successCount++
+                    consecutiveFailures = 0  // Reset on success
+                } else {
+                    errorCount++
+                    consecutiveFailures++
+                }
+                
+            } catch (e: Exception) {
+                logger.debug("Satellite fetch failed for ${spot.name}: ${e.message}")
+                errorCount++
+                consecutiveFailures++
+            }
+            
+            // Log progress every 50 spots
+            if (index > 0 && index % 50 == 0) {
+                logger.info("Satellite prefetch progress: $index/${spots.size} spots ($successCount success, $errorCount errors)")
+            }
+            
+            // Wait between each request - be gentle
+            delay(1000)  // 1 second between each spot
         }
         
         val elapsed = System.currentTimeMillis() - startTime

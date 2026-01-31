@@ -1,6 +1,7 @@
 package com.shaka
 
 import com.shaka.api.routes.configureRouting
+import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.*
 import com.shaka.data.db.DatabaseFactory
 import com.shaka.service.DataPrefetchJobs
@@ -32,6 +33,12 @@ fun Application.module() {
     
     // Try database connection (non-blocking - app works without it)
     tryInitDatabase()
+    
+    // Load cached data from database (survives restarts!)
+    val cachedSpots = SpotDataCache.loadFromDatabase()
+    if (cachedSpots > 0) {
+        logger.info("Restored $cachedSpots spots from database cache")
+    }
     
     install(CORS) {
         anyHost()
@@ -94,7 +101,14 @@ private fun Application.configureScheduledJobs() {
     // Run full prefetch on startup (after a brief delay to let the app initialize)
     backgroundScope.launch {
         delay(5_000)  // Wait 5 seconds for app to fully start
-        logger.info("Starting initial data prefetch...")
+        
+        val cacheSize = SpotDataCache.size()
+        if (cacheSize > 0) {
+            logger.info("Cache already has $cacheSize spots from database - prefetch will update stale data only")
+        } else {
+            logger.info("Cache empty - starting full data prefetch...")
+        }
+        
         try {
             prefetchJobs.prefetchAll()
         } catch (e: Exception) {

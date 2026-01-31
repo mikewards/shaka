@@ -1,12 +1,16 @@
 package com.shaka.data.cache
 
+import com.shaka.data.db.DatabaseFactory
 import com.shaka.model.TideData
 import com.shaka.model.OceanData
 import com.shaka.model.WeatherData
 import com.shaka.model.WaterQuality
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -331,4 +335,220 @@ object SpotDataCache {
      * Convert meters to feet.
      */
     fun metersToFeet(meters: Double): Double = meters * 3.28084
+    
+    // ==================== Database Persistence ====================
+    
+    /**
+     * Save a spot's cached data to the database.
+     * Uses UPSERT (INSERT ON CONFLICT UPDATE) for efficiency.
+     */
+    fun saveToDatabase(spotId: String) {
+        if (!DatabaseFactory.isConnected()) {
+            logger.debug("Database not connected, skipping persist for $spotId")
+            return
+        }
+        
+        val data = cache[spotId] ?: return
+        
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                
+                val sql = """
+                    INSERT INTO spot_cache (
+                        spot_id,
+                        tide_state, tide_height_ft, tide_next_time, tide_fetched_at,
+                        swell_height_ft, swell_period_sec, swell_direction,
+                        wind_speed_kts, wind_direction, weather_fetched_at,
+                        visibility_m, sst_celsius, chlorophyll_mg_m3, satellite_date, satellite_fetched_at,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ON CONFLICT (spot_id) DO UPDATE SET
+                        tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
+                        tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
+                        tide_next_time = COALESCE(EXCLUDED.tide_next_time, spot_cache.tide_next_time),
+                        tide_fetched_at = COALESCE(EXCLUDED.tide_fetched_at, spot_cache.tide_fetched_at),
+                        swell_height_ft = COALESCE(EXCLUDED.swell_height_ft, spot_cache.swell_height_ft),
+                        swell_period_sec = COALESCE(EXCLUDED.swell_period_sec, spot_cache.swell_period_sec),
+                        swell_direction = COALESCE(EXCLUDED.swell_direction, spot_cache.swell_direction),
+                        wind_speed_kts = COALESCE(EXCLUDED.wind_speed_kts, spot_cache.wind_speed_kts),
+                        wind_direction = COALESCE(EXCLUDED.wind_direction, spot_cache.wind_direction),
+                        weather_fetched_at = COALESCE(EXCLUDED.weather_fetched_at, spot_cache.weather_fetched_at),
+                        visibility_m = COALESCE(EXCLUDED.visibility_m, spot_cache.visibility_m),
+                        sst_celsius = COALESCE(EXCLUDED.sst_celsius, spot_cache.sst_celsius),
+                        chlorophyll_mg_m3 = COALESCE(EXCLUDED.chlorophyll_mg_m3, spot_cache.chlorophyll_mg_m3),
+                        satellite_date = COALESCE(EXCLUDED.satellite_date, spot_cache.satellite_date),
+                        satellite_fetched_at = COALESCE(EXCLUDED.satellite_fetched_at, spot_cache.satellite_fetched_at),
+                        updated_at = NOW()
+                """.trimIndent()
+                
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, spotId)
+                    
+                    // Tide data
+                    stmt.setString(2, data.tide?.value?.state)
+                    stmt.setObject(3, data.tide?.value?.currentHeight)
+                    stmt.setTimestamp(4, null) // tide_next_time - simplified
+                    stmt.setTimestamp(5, data.tide?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    // Weather data
+                    stmt.setObject(6, data.swell?.value?.heightFt)
+                    stmt.setObject(7, data.swell?.value?.periodSec)
+                    stmt.setString(8, data.swell?.value?.direction)
+                    stmt.setObject(9, data.wind?.value?.speedKnots)
+                    stmt.setString(10, data.wind?.value?.direction)
+                    stmt.setTimestamp(11, data.swell?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    // Satellite data
+                    stmt.setObject(12, data.visibility?.value)
+                    stmt.setObject(13, data.sst?.value)
+                    stmt.setObject(14, data.chlorophyll?.value)
+                    stmt.setObject(15, data.visibility?.dataValidAt?.let { 
+                        java.sql.Date.valueOf(it.atZone(java.time.ZoneId.systemDefault()).toLocalDate())
+                    })
+                    stmt.setTimestamp(16, data.visibility?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    stmt.executeUpdate()
+                }
+            }
+            logger.debug("Persisted cache for spot $spotId to database")
+        } catch (e: Exception) {
+            logger.warn("Failed to persist cache for $spotId: ${e.message}")
+        }
+    }
+    
+    /**
+     * Load all cached data from database into memory.
+     * Called on server startup to restore cache state.
+     */
+    fun loadFromDatabase(): Int {
+        if (!DatabaseFactory.isConnected()) {
+            logger.info("Database not connected, starting with empty cache")
+            return 0
+        }
+        
+        var loadedCount = 0
+        
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                
+                val sql = "SELECT * FROM spot_cache"
+                
+                conn.prepareStatement(sql).use { stmt ->
+                    val rs = stmt.executeQuery()
+                    
+                    while (rs.next()) {
+                        val spotId = rs.getString("spot_id")
+                        
+                        // Build SpotData from database row
+                        var spotData = SpotData()
+                        
+                        // Tide data
+                        val tideState = rs.getString("tide_state")
+                        val tideHeight = rs.getDouble("tide_height_ft")
+                        val tideFetchedAt = rs.getTimestamp("tide_fetched_at")
+                        if (tideState != null && tideFetchedAt != null) {
+                            spotData = spotData.copy(
+                                tide = CachedValue(
+                                    value = TideInfo(
+                                        state = tideState,
+                                        nextHighTide = "Loading...",
+                                        nextLowTide = "Loading...",
+                                        currentHeight = if (rs.wasNull()) 0.0 else tideHeight
+                                    ),
+                                    fetchedAt = tideFetchedAt.toInstant()
+                                )
+                            )
+                        }
+                        
+                        // Weather data
+                        val swellHeight = rs.getDouble("swell_height_ft")
+                        val swellPeriod = rs.getDouble("swell_period_sec")
+                        val swellDir = rs.getString("swell_direction")
+                        val weatherFetchedAt = rs.getTimestamp("weather_fetched_at")
+                        if (!rs.wasNull() && weatherFetchedAt != null) {
+                            spotData = spotData.copy(
+                                swell = CachedValue(
+                                    value = SwellInfo(
+                                        heightFt = swellHeight,
+                                        periodSec = swellPeriod,
+                                        direction = swellDir ?: "N"
+                                    ),
+                                    fetchedAt = weatherFetchedAt.toInstant()
+                                )
+                            )
+                        }
+                        
+                        val windSpeed = rs.getDouble("wind_speed_kts")
+                        val windDir = rs.getString("wind_direction")
+                        if (!rs.wasNull() && weatherFetchedAt != null) {
+                            spotData = spotData.copy(
+                                wind = CachedValue(
+                                    value = WindInfo(
+                                        speedKnots = windSpeed,
+                                        direction = windDir ?: "N"
+                                    ),
+                                    fetchedAt = weatherFetchedAt.toInstant()
+                                )
+                            )
+                        }
+                        
+                        // Satellite data
+                        val visibility = rs.getDouble("visibility_m")
+                        val satelliteFetchedAt = rs.getTimestamp("satellite_fetched_at")
+                        val satelliteDate = rs.getDate("satellite_date")
+                        if (!rs.wasNull() && satelliteFetchedAt != null) {
+                            spotData = spotData.copy(
+                                visibility = CachedValue(
+                                    value = visibility,
+                                    fetchedAt = satelliteFetchedAt.toInstant(),
+                                    dataValidAt = satelliteDate?.toLocalDate()?.atStartOfDay(java.time.ZoneId.systemDefault())?.toInstant()
+                                )
+                            )
+                        }
+                        
+                        val sst = rs.getDouble("sst_celsius")
+                        if (!rs.wasNull() && satelliteFetchedAt != null) {
+                            spotData = spotData.copy(
+                                sst = CachedValue(
+                                    value = sst,
+                                    fetchedAt = satelliteFetchedAt.toInstant()
+                                )
+                            )
+                        }
+                        
+                        val chlorophyll = rs.getDouble("chlorophyll_mg_m3")
+                        if (!rs.wasNull() && satelliteFetchedAt != null) {
+                            spotData = spotData.copy(
+                                chlorophyll = CachedValue(
+                                    value = chlorophyll,
+                                    fetchedAt = satelliteFetchedAt.toInstant()
+                                )
+                            )
+                        }
+                        
+                        // Store in memory cache
+                        cache[spotId] = spotData
+                        loadedCount++
+                    }
+                }
+            }
+            
+            logger.info("Loaded $loadedCount spots from database into cache")
+        } catch (e: Exception) {
+            logger.warn("Failed to load cache from database: ${e.message}")
+        }
+        
+        return loadedCount
+    }
+    
+    /**
+     * Check if data for a spot is stale (older than given hours).
+     */
+    fun isStale(spotId: String, maxAgeHours: Int): Boolean {
+        val data = cache[spotId] ?: return true
+        val oldest = data.oldestFetch() ?: return true
+        return Duration.between(oldest, Instant.now()).toHours() >= maxAgeHours
+    }
 }

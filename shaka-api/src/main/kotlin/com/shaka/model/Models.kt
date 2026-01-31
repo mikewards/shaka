@@ -140,7 +140,8 @@ data class SpotSearchResult(
     val name: String,
     val region: String,
     val coordinates: Coordinates,
-    val access: String
+    val access: String,
+    val shakaScore: Int = 0
 )
 
 @Serializable
@@ -154,7 +155,9 @@ data class BatchSpotsResponse(
 data class RegionInfo(
     val id: String,
     val name: String,
-    val spotCount: Int
+    val spotCount: Int,
+    val centerLat: Double = 0.0,
+    val centerLon: Double = 0.0
 )
 
 @Serializable

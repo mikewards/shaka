@@ -129,36 +129,31 @@ class CopernicusWMTSClient {
     }
 
     /**
-     * Get visibility for the most recent available date.
-     * L3 NRT data typically available from yesterday (1 day latency).
+     * Get visibility for yesterday (most recent satellite data).
+     * L3 NRT data has 1-day latency, so yesterday is the freshest available.
      * 
      * Returns null if satellite couldn't capture data (clouds, etc.)
-     * This is HONEST - we don't make up numbers!
+     * This is HONEST - we don't show stale data.
      */
     suspend fun getLatestVisibility(lat: Double, lon: Double): VisibilityResult {
-        val today = LocalDate.now()
+        val yesterday = LocalDate.now().minusDays(1).toString()
+        val visibility = getVisibility(lat, lon, yesterday)
         
-        // Try yesterday first (most recent typically available)
-        for (daysBack in 1..3) {
-            val date = today.minusDays(daysBack.toLong()).toString()
-            val visibility = getVisibility(lat, lon, date)
-            if (visibility != null) {
-                return VisibilityResult(
-                    visibilityM = visibility,
-                    date = date,
-                    dataSource = "Copernicus L3 NRT satellite (OCEANCOLOUR_GLO_BGC_L3_NRT_009_101)",
-                    isActualMeasurement = true
-                )
-            }
+        return if (visibility != null) {
+            VisibilityResult(
+                visibilityM = visibility,
+                date = yesterday,
+                dataSource = "Copernicus L3 NRT satellite",
+                isActualMeasurement = true
+            )
+        } else {
+            VisibilityResult(
+                visibilityM = null,
+                date = yesterday,
+                dataSource = "No satellite data (cloud cover)",
+                isActualMeasurement = false
+            )
         }
-        
-        // No data available - be honest about it!
-        return VisibilityResult(
-            visibilityM = null,
-            date = today.minusDays(1).toString(),
-            dataSource = "No satellite data available (cloud cover or land mask)",
-            isActualMeasurement = false
-        )
     }
 
     /**
@@ -206,30 +201,27 @@ class CopernicusWMTSClient {
     }
 
     /**
-     * Get chlorophyll for most recent available date.
+     * Get chlorophyll for yesterday (most recent satellite data).
      */
     suspend fun getLatestChlorophyll(lat: Double, lon: Double): ChlorophyllResult {
-        val today = LocalDate.now()
+        val yesterday = LocalDate.now().minusDays(1).toString()
+        val chl = getChlorophyll(lat, lon, yesterday)
         
-        for (daysBack in 1..3) {
-            val date = today.minusDays(daysBack.toLong()).toString()
-            val chl = getChlorophyll(lat, lon, date)
-            if (chl != null) {
-                return ChlorophyllResult(
-                    chlorophyllMgM3 = chl,
-                    date = date,
-                    dataSource = "Copernicus L3 NRT satellite (OCEANCOLOUR_GLO_BGC_L3_NRT_009_101)",
-                    isActualMeasurement = true
-                )
-            }
+        return if (chl != null) {
+            ChlorophyllResult(
+                chlorophyllMgM3 = chl,
+                date = yesterday,
+                dataSource = "Copernicus L3 NRT satellite",
+                isActualMeasurement = true
+            )
+        } else {
+            ChlorophyllResult(
+                chlorophyllMgM3 = null,
+                date = yesterday,
+                dataSource = "No satellite data (cloud cover)",
+                isActualMeasurement = false
+            )
         }
-        
-        return ChlorophyllResult(
-            chlorophyllMgM3 = null,
-            date = today.minusDays(1).toString(),
-            dataSource = "No satellite data available (cloud cover or land mask)",
-            isActualMeasurement = false
-        )
     }
 
     /**

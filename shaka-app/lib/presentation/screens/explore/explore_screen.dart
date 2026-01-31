@@ -37,7 +37,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _isMapReady = false;
   String? _error;
   int? _selectedSpotIndex = 0;
-  String _selectedFilter = 'All';
   bool _showSearch = false;
   
   // Debounce timer for map animations
@@ -290,7 +289,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     final spots = _filteredSpots;
     
-    // Remove existing marker layer and source
+    // Remove existing marker layers and source
+    try {
+      await _mapController!.removeLayer('spots-labels');
+    } catch (_) {}
     try {
       await _mapController!.removeLayer('spots-layer');
     } catch (_) {}
@@ -315,11 +317,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'properties': {
           'index': i,
           'name': spot.name,
+          'score': spot.shakaScore.toString(),
           'color': color,
           // Selected: 2x larger with thick cyan stroke
-          'radius': isSelected ? 24 : 12,
-          'strokeWidth': isSelected ? 6 : 2,
+          'radius': isSelected ? 24 : 14,
+          'strokeWidth': isSelected ? 5 : 2,
           'strokeColor': isSelected ? '#00BCD4' : '#FFFFFF',
+          'textSize': isSelected ? 13 : 11,
         },
         'geometry': {
           'type': 'Point',
@@ -340,7 +344,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         GeojsonSourceProperties(data: geojson),
       );
       
-      // Add circle layer - this renders ON TOP because it's added last
+      // Add circle layer - base circles with score colors
       await _mapController!.addCircleLayer(
         'spots-source',
         'spots-layer',
@@ -353,24 +357,28 @@ class _ExploreScreenState extends State<ExploreScreen> {
           circleStrokeOpacity: 1.0,
         ),
       );
+      
+      // Add symbol layer for score text on top of circles
+      await _mapController!.addSymbolLayer(
+        'spots-source',
+        'spots-labels',
+        const SymbolLayerProperties(
+          textField: ['get', 'score'],
+          textSize: ['get', 'textSize'],
+          textColor: '#FFFFFF',
+          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          textHaloColor: '#000000',
+          textHaloWidth: 1.0,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+        ),
+      );
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
   }
 
-  List<SpotSummary> get _filteredSpots {
-    if (_selectedFilter == 'All') return _spots;
-    if (_selectedFilter == 'Shore') {
-      return _spots.where((s) => s.access == 'shore').toList();
-    }
-    if (_selectedFilter == 'Boat') {
-      return _spots.where((s) => s.access == 'boat').toList();
-    }
-    if (_selectedFilter == '80+') {
-      return _spots.where((s) => s.shakaScore >= 80).toList();
-    }
-    return _spots;
-  }
+  List<SpotSummary> get _filteredSpots => _spots;
 
   Color _getScoreColor(int score) => AppColors.getScoreColor(score);
   
@@ -514,48 +522,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     });
   }
   
-  void _onFilterChanged(String filter) {
-    if (filter == _selectedFilter) return;
-    
-    HapticFeedback.selectionClick();
-    
-    SpotSummary? currentSpot;
-    final currentIndex = _selectedSpotIndex;
-    if (currentIndex != null && currentIndex < _filteredSpots.length) {
-      currentSpot = _filteredSpots[currentIndex];
-    }
-    
-    setState(() => _selectedFilter = filter);
-    
-    final newFilteredSpots = _filteredSpots;
-    if (newFilteredSpots.isEmpty) {
-      setState(() => _selectedSpotIndex = null);
-      _updateMarkers();
-      return;
-    }
-    
-    int newIndex = 0;
-    if (currentSpot != null) {
-      final foundIndex = newFilteredSpots.indexWhere((s) => s.id == currentSpot!.id);
-      if (foundIndex >= 0) {
-        newIndex = foundIndex;
-      }
-    }
-    
-    setState(() => _selectedSpotIndex = newIndex);
-    
-    _carouselController.jumpToPage(newIndex);
-    final spot = newFilteredSpots[newIndex];
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(
-        LatLng(spot.coordinates.lat, spot.coordinates.lon),
-        10.0,
-      ),
-    );
-    
-    _updateMarkers();
-  }
-  
   void _showBackgroundPicker() {
     showBackgroundPicker(context);
   }
@@ -629,14 +595,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       left: 16,
                       right: 16,
                       child: _buildSearchBar(),
-                    ),
-                    
-                    // Filter chips
-                    Positioned(
-                      top: topPadding + 68,
-                      left: 0,
-                      right: 0,
-                      child: _buildFilterChips(),
                     ),
                     
                     // Background picker button
@@ -726,10 +684,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _navigateToRegion(RegionInfo region) {
+    // Zoom out more for regions to show all spots (zoom 6 for large regions)
     _mapController?.animateCamera(
       CameraUpdate.newLatLngZoom(
         LatLng(region.centerLat, region.centerLon),
-        9.0,
+        6.0,
       ),
     );
     _loadSpotsForRegion(region);
@@ -743,11 +702,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      // Use larger radius (500km) for regions - some like Tahiti/French Polynesia span many islands
       final response = await _apiClient.searchSpots(
         lat: region.centerLat,
         lon: region.centerLon,
         date: today,
-        radiusKm: 150,
+        radiusKm: 500,
       );
       
       if (mounted) {
@@ -801,46 +761,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  Widget _buildFilterChips() {
-    final filters = ['All', 'Shore', 'Boat', '80+'];
-    
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: filters.map((filter) {
-          final isSelected = _selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => _onFilterChanged(filter),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF5B9BD5).withOpacity(0.25)
-                      : const Color(0xFF1A1A1A).withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFF5B9BD5) : Colors.white24,
-                  ),
-                ),
-                child: Text(
-                  filter,
-                  style: TextStyle(
-                    color: isSelected ? const Color(0xFF5B9BD5) : Colors.white70,
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-  
   Widget _buildBackgroundButton() {
     return GestureDetector(
       onTap: _showBackgroundPicker,

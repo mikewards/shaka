@@ -71,6 +71,38 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS reports_spot_idx ON reports (spot_id);
 CREATE INDEX IF NOT EXISTS reports_date_idx ON reports (report_date DESC);
 
+-- Spot cache table for persisting prefetched data
+-- This survives server restarts and can rebuild in-memory cache
+CREATE TABLE IF NOT EXISTS spot_cache (
+    spot_id VARCHAR(100) PRIMARY KEY,
+    
+    -- Tide data
+    tide_state VARCHAR(20),
+    tide_height_ft DOUBLE PRECISION,
+    tide_next_time TIMESTAMP,
+    tide_fetched_at TIMESTAMP,
+    
+    -- Weather/Swell data  
+    swell_height_ft DOUBLE PRECISION,
+    swell_period_sec DOUBLE PRECISION,
+    swell_direction VARCHAR(10),
+    wind_speed_kts DOUBLE PRECISION,
+    wind_direction VARCHAR(10),
+    weather_fetched_at TIMESTAMP,
+    
+    -- Satellite data
+    visibility_m DOUBLE PRECISION,
+    sst_celsius DOUBLE PRECISION,
+    chlorophyll_mg_m3 DOUBLE PRECISION,
+    satellite_date DATE,
+    satellite_fetched_at TIMESTAMP,
+    
+    -- Metadata
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS spot_cache_updated_idx ON spot_cache (updated_at);
+
 -- Function to find spots within radius using PostGIS
 CREATE OR REPLACE FUNCTION find_spots_within_radius(
     search_lat DOUBLE PRECISION,
