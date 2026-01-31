@@ -161,20 +161,56 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
   }
   
-  /// Add a marker for the spot location
+  /// Add a marker for the spot location - pin style with outer glow
   Future<void> _addSpotMarker() async {
     if (_mapController == null || !_hasSpotContext) return;
     
     try {
-      // Add a circle annotation for the spot
+      // Outer glow ring (larger, semi-transparent)
       await _mapController!.addCircle(
         CircleOptions(
           geometry: _initialCenter,
-          circleRadius: 12,
-          circleColor: '#FF5722',
+          circleRadius: 24,
+          circleColor: '#00BCD4',
+          circleStrokeColor: '#00BCD4',
+          circleStrokeWidth: 2,
+          circleOpacity: 0.15,
+        ),
+      );
+      
+      // Middle ring (white border)
+      await _mapController!.addCircle(
+        CircleOptions(
+          geometry: _initialCenter,
+          circleRadius: 14,
+          circleColor: '#FFFFFF',
           circleStrokeColor: '#FFFFFF',
-          circleStrokeWidth: 3,
-          circleOpacity: 0.9,
+          circleStrokeWidth: 0,
+          circleOpacity: 1.0,
+        ),
+      );
+      
+      // Inner dot (cyan accent - matches app theme)
+      await _mapController!.addCircle(
+        CircleOptions(
+          geometry: _initialCenter,
+          circleRadius: 10,
+          circleColor: '#00BCD4',
+          circleStrokeColor: '#00838F',
+          circleStrokeWidth: 2,
+          circleOpacity: 1.0,
+        ),
+      );
+      
+      // Center dot (white)
+      await _mapController!.addCircle(
+        CircleOptions(
+          geometry: _initialCenter,
+          circleRadius: 4,
+          circleColor: '#FFFFFF',
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 0,
+          circleOpacity: 1.0,
         ),
       );
     } catch (e) {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
 /// Card displaying satellite chlorophyll readings from multiple NASA/ESA satellites.
@@ -12,6 +11,20 @@ class SatelliteReadingsCard extends StatelessWidget {
   // Dark theme colors (matching ConditionsCard)
   static const _cardColor = Color(0xFF1A1A1A);
   static const _borderColor = Color(0xFF2A2A2A);
+
+  // Chlorophyll legend colors (matching GIBS layer)
+  static const _legendColors = [
+    Color(0xFF4400AA), // Purple - very low (clearest)
+    Color(0xFF0044FF), // Blue - low
+    Color(0xFF00AAFF), // Light blue
+    Color(0xFF00FFAA), // Cyan-green
+    Color(0xFF00FF00), // Green - medium
+    Color(0xFFAAFF00), // Yellow-green
+    Color(0xFFFFFF00), // Yellow
+    Color(0xFFFFAA00), // Orange
+    Color(0xFFFF4400), // Red-orange - high
+    Color(0xFF880000), // Dark red - very high (murky)
+  ];
 
   const SatelliteReadingsCard({super.key, this.readings});
 
@@ -44,7 +57,11 @@ class SatelliteReadingsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Legend at top
+          _buildLegend(),
+          const SizedBox(height: 14),
+          
+          // Header row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -61,52 +78,59 @@ class SatelliteReadingsCard extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   _showInfo(context);
                 },
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'About data',
-                      style: TextStyle(color: Colors.white38, fontSize: 11),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(Icons.info_outline, size: 12, color: Colors.white38),
-                  ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.info_outline, size: 12, color: Colors.white54),
+                      SizedBox(width: 4),
+                      Text(
+                        'About data',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           
-          // Satellite rows
+          // Satellite rows - each on one line
           _buildSatelliteRow(
             name: 'PACE',
-            today: readings!.paceToday,
-            yesterday: readings!.paceYesterday,
+            value: readings!.paceYesterday ?? readings!.paceToday,
             observationTime: readings!.paceObservationTime,
+            isToday: readings!.paceYesterday == null && readings!.paceToday != null,
           ),
           _buildSatelliteRow(
             name: 'NOAA-20',
-            today: readings!.noaa20Today,
-            yesterday: readings!.noaa20Yesterday,
+            value: readings!.noaa20Yesterday ?? readings!.noaa20Today,
             observationTime: readings!.noaa20ObservationTime,
+            isToday: readings!.noaa20Yesterday == null && readings!.noaa20Today != null,
           ),
           _buildSatelliteRow(
             name: 'NOAA-21',
-            today: readings!.noaa21Today,
-            yesterday: readings!.noaa21Yesterday,
+            value: readings!.noaa21Yesterday ?? readings!.noaa21Today,
             observationTime: readings!.noaa21ObservationTime,
+            isToday: readings!.noaa21Yesterday == null && readings!.noaa21Today != null,
           ),
           _buildSatelliteRow(
             name: 'Sentinel-3A',
-            today: readings!.sentinel3aToday,
-            yesterday: readings!.sentinel3aYesterday,
-            observationTime: null, // Not available from CMR
+            value: readings!.sentinel3aYesterday ?? readings!.sentinel3aToday,
+            observationTime: null,
+            isToday: readings!.sentinel3aYesterday == null && readings!.sentinel3aToday != null,
           ),
           _buildSatelliteRow(
             name: 'Sentinel-3B',
-            today: readings!.sentinel3bToday,
-            yesterday: readings!.sentinel3bYesterday,
-            observationTime: null, // Not available from CMR
+            value: readings!.sentinel3bYesterday ?? readings!.sentinel3bToday,
+            observationTime: null,
+            isToday: readings!.sentinel3bYesterday == null && readings!.sentinel3bToday != null,
             isLast: true,
           ),
         ],
@@ -114,15 +138,61 @@ class SatelliteReadingsCard extends StatelessWidget {
     );
   }
 
+  /// Build the chlorophyll color legend
+  Widget _buildLegend() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Gradient bar
+        Container(
+          height: 12,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: _legendColors),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Labels
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '0.01',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Clearer ← → Murkier',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 9,
+              ),
+            ),
+            Text(
+              '50+',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Build a single satellite row with name, value, and datetime all aligned
   Widget _buildSatelliteRow({
     required String name,
-    required double? today,
-    required double? yesterday,
+    required double? value,
     required DateTime? observationTime,
+    bool isToday = false,
     bool isLast = false,
   }) {
-    // Skip entirely empty satellites
-    if (today == null && yesterday == null) {
+    // Skip if no data
+    if (value == null) {
       return const SizedBox.shrink();
     }
     
@@ -138,86 +208,50 @@ class SatelliteReadingsCard extends StatelessWidget {
                 bottom: BorderSide(color: Colors.white10),
               ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Satellite name
-          Text(
-            name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          
-          // Yesterday's reading (with exact observation time)
-          if (yesterday != null) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  yesterday.toStringAsFixed(2),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  observationTime != null 
-                      ? _formatDateTime(observationTime)
-                      : 'Yesterday',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          
-          // Today's reading (if available)
-          if (today != null) ...[
-            if (yesterday != null) const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  today.toStringAsFixed(2),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Today',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          
-          // Show "No data" if both are null (shouldn't reach here due to early return)
-          if (yesterday == null && today == null)
-            Text(
-              'No data',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.3),
-                fontSize: 12,
+          // Satellite name (fixed width)
+          SizedBox(
+            width: 90,
+            child: Text(
+              name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
             ),
+          ),
+          // Value (3 decimal places)
+          SizedBox(
+            width: 60,
+            child: Text(
+              value.toStringAsFixed(3),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          // Timestamp or "Today"/"Yesterday"
+          Expanded(
+            child: Text(
+              observationTime != null 
+                  ? _formatDateTime(observationTime)
+                  : (isToday ? 'Today' : 'Yesterday'),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Format observation time in user's local timezone with full date-time
+  /// Format observation time in user's local timezone
   String _formatDateTime(DateTime utcTime) {
     final local = utcTime.toLocal();
     final formatter = DateFormat('MMM d, h:mm a');
@@ -227,11 +261,11 @@ class SatelliteReadingsCard extends StatelessWidget {
   void _showInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
+      builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -239,53 +273,59 @@ class SatelliteReadingsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Text(
-                    'Satellite Readings',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    'Satellite Chlorophyll Data',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                  color: AppColors.textMuted,
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.close, color: Colors.white54),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow(context, 'Source', 'NASA GIBS & CMR'),
-            _buildInfoRow(context, 'Updates', 'Daily satellite passes'),
+            _buildInfoRow('Source', 'NASA GIBS & CMR'),
+            _buildInfoRow('Updates', 'Daily satellite passes'),
             const SizedBox(height: 12),
-            Text(
-              'Chlorophyll-a concentration from multiple ocean-color satellites. '
-              'Lower values (< 0.5 mg/m³) indicate clearer water with better visibility. '
-              'Higher values suggest more plankton activity.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textMuted,
+            const Text(
+              'Chlorophyll-a concentration indicates plankton density, which affects water clarity. '
+              'Lower values (< 0.5 mg/m³) mean clearer water with better visibility for diving and snorkeling. '
+              'Higher values suggest more plankton activity, potentially attracting baitfish.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                height: 1.4,
               ),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Satellites:',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    'SATELLITES',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  _buildSatelliteInfo(context, 'PACE', 'NASA hyperspectral (newest)'),
-                  _buildSatelliteInfo(context, 'NOAA-20/21', 'VIIRS ocean color'),
-                  _buildSatelliteInfo(context, 'Sentinel-3A/B', 'ESA OLCI sensor'),
+                  SizedBox(height: 8),
+                  _SatelliteInfoRow(name: 'PACE', desc: 'NASA hyperspectral (2024)'),
+                  _SatelliteInfoRow(name: 'NOAA-20/21', desc: 'VIIRS ocean color'),
+                  _SatelliteInfoRow(name: 'Sentinel-3A/B', desc: 'ESA OLCI sensor'),
                 ],
               ),
             ),
@@ -296,7 +336,7 @@ class SatelliteReadingsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
+  Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -306,15 +346,18 @@ class SatelliteReadingsCard extends StatelessWidget {
             width: 80,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textMuted,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 13,
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -323,23 +366,35 @@ class SatelliteReadingsCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildSatelliteInfo(BuildContext context, String name, String desc) {
+/// Helper widget for satellite info in the modal
+class _SatelliteInfoRow extends StatelessWidget {
+  final String name;
+  final String desc;
+
+  const _SatelliteInfoRow({required this.name, required this.desc});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
           Text(
             '$name: ',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
           Expanded(
             child: Text(
               desc,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textMuted,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
               ),
             ),
           ),

@@ -218,7 +218,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           fontWeight: FontWeight.w600,
         ),
         tabs: const [
-          Tab(text: 'Current'),
+          Tab(text: 'Conditions'),
           Tab(text: 'Forecast'),
           Tab(text: 'Guide'),
         ],
@@ -238,9 +238,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         const SizedBox(height: 20),
 
-        // Satellite Readings
+        // Satellite Readings (Visibility)
         if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
-          _buildSectionHeader('SATELLITE READINGS'),
+          _buildSectionHeader('VISIBILITY (CHLOROPHYLL-A) SATELLITE READINGS'),
           const SizedBox(height: 10),
           SatelliteReadingsCard(readings: spot.satelliteReadings),
           const SizedBox(height: 20),
