@@ -356,6 +356,86 @@ object SpotDataCache {
         )
     }
     
+    /**
+     * Get chlorophyll stats as JSON string (avoids serialization issues).
+     */
+    fun getChlorophyllStatsJson(): String {
+        val stats = getChlorophyllStats()
+        return """{"totalSpots":${stats["totalSpots"]},"withChlorophyll":${stats["withChlorophyll"]},"withoutChlorophyll":${stats["withoutChlorophyll"]},"percentageWithData":"${stats["percentageWithData"]}"}"""
+    }
+    
+    /**
+     * Known fake climatology values that were used as fallbacks.
+     */
+    private val FAKE_CLIMATOLOGY_VALUES = setOf(0.10, 0.15, 0.20, 0.25, 0.30, 0.60, 0.80, 1.20, 1.50, 2.00, 2.50)
+    
+    /**
+     * Identify spots with fake climatology chlorophyll values.
+     * Returns list of (spotId, value) pairs where value matches a known fake.
+     */
+    fun identifyFakeChlorophyll(spotDb: com.shaka.data.client.SpotDatabase): List<Pair<String, Double>> {
+        val fakeSpots = mutableListOf<Pair<String, Double>>()
+        
+        cache.forEach { (spotId, data) ->
+            val chlValue = data.chlorophyll?.value
+            if (chlValue != null) {
+                // Check if value matches a known climatology fallback
+                // Use small epsilon for floating point comparison
+                val isFake = FAKE_CLIMATOLOGY_VALUES.any { fake -> 
+                    kotlin.math.abs(chlValue - fake) < 0.001 
+                }
+                if (isFake) {
+                    fakeSpots.add(spotId to chlValue)
+                }
+            }
+        }
+        
+        return fakeSpots
+    }
+    
+    /**
+     * Clear only fake climatology chlorophyll values.
+     * Preserves real Copernicus data.
+     */
+    fun clearFakeChlorophyll(spotDb: com.shaka.data.client.SpotDatabase): Int {
+        val fakeSpots = identifyFakeChlorophyll(spotDb)
+        var cleared = 0
+        
+        for ((spotId, _) in fakeSpots) {
+            cache[spotId]?.let { data ->
+                cache[spotId] = data.copy(chlorophyll = null)
+                cleared++
+            }
+        }
+        
+        // Also clear from database
+        if (fakeSpots.isNotEmpty()) {
+            try {
+                val conn = java.sql.DriverManager.getConnection(
+                    System.getenv("DATABASE_URL") ?: "",
+                    System.getenv("PGUSER") ?: "",
+                    System.getenv("PGPASSWORD") ?: ""
+                )
+                val spotIds = fakeSpots.map { "'${it.first}'" }.joinToString(",")
+                conn.prepareStatement("UPDATE spot_cache SET chlorophyll_mg_m3 = NULL WHERE spot_id IN ($spotIds)").executeUpdate()
+                conn.close()
+                logger.info("Cleared fake chlorophyll from database for ${fakeSpots.size} spots")
+            } catch (e: Exception) {
+                logger.warn("Could not clear fake chlorophyll from database: ${e.message}")
+            }
+        }
+        
+        logger.info("Cleared fake chlorophyll from $cleared cached spots")
+        return cleared
+    }
+    
+    /**
+     * Get all spot IDs where chlorophyll is null.
+     */
+    fun getSpotsWithoutChlorophyll(): List<String> {
+        return cache.filter { (_, data) -> data.chlorophyll == null }.keys.toList()
+    }
+    
     // ==================== Utility Functions ====================
     
     /**

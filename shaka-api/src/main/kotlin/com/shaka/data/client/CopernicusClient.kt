@@ -155,8 +155,8 @@ class CopernicusClient(
         // Authenticate with Copernicus
         ensureAuthenticated()
         
-        // Query Sentinel-3 OLCI for latest chlorophyll, fall back to NOAA VIIRS, then climatology
-        var chlorophyll = try {
+        // Query Sentinel-3 OLCI for latest chlorophyll, fall back to NOAA VIIRS
+        val chlorophyll = try {
             queryChlorophyllFromSentinel(lat, lon, date)
         } catch (e: Exception) {
             logger.warn("Sentinel-3 query failed: ${e.message}")
@@ -164,14 +164,14 @@ class CopernicusClient(
             noaaClient.getChlorophyll(lat, lon, date)
         }
         
-        var dataSource = "Copernicus Sentinel-3 OLCI (Real-time)"
-        if (chlorophyll == null) {
-            chlorophyll = getRegionalChlorophyllClimatology(lat, lon)
-            dataSource = "Regional climatology (satellite obstructed)"
+        val dataSource = if (chlorophyll != null) {
+            "Copernicus Sentinel-3 OLCI (Real-time)"
+        } else {
+            "Unavailable (satellite obstructed)"
         }
         
-        val turbidity = calculateTurbidity(chlorophyll, lat, lon)
-        val visibility = calculateVisibility(chlorophyll, turbidity)
+        val turbidity = if (chlorophyll != null) calculateTurbidity(chlorophyll, lat, lon) else null
+        val visibility = if (chlorophyll != null && turbidity != null) calculateVisibility(chlorophyll, turbidity) else null
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
@@ -184,7 +184,9 @@ class CopernicusClient(
         // Cache this premium data too
         OceanDataCache.putWaterQuality(lat, lon, date, result)
         
-        logger.info("REAL-TIME water quality for ($lat, $lon): chl=${String.format("%.2f", chlorophyll)} mg/m³, vis=${String.format("%.0f", visibility)}m (source: $dataSource)")
+        val chlStr = chlorophyll?.let { String.format("%.2f", it) } ?: "N/A"
+        val visStr = visibility?.let { String.format("%.0f", it) } ?: "N/A"
+        logger.info("REAL-TIME water quality for ($lat, $lon): chl=$chlStr mg/m³, vis=${visStr}m (source: $dataSource)")
         
         return result
     }
@@ -321,66 +323,6 @@ class CopernicusClient(
                  0.04
         val secchiDepth = 1.7 / kd
         return (secchiDepth * 2.7).coerceIn(1.0, 45.0)
-    }
-
-    /**
-     * Regional chlorophyll climatological averages based on published oceanographic research.
-     * Used when satellite data is unavailable (common near coastlines due to land interference).
-     */
-    private fun getRegionalChlorophyllClimatology(lat: Double, lon: Double): Double {
-        // Hawaii - oligotrophic clear waters
-        if (lat in 18.0..23.0 && lon in -161.0..-154.0) {
-            return 0.10  // Very clear, low productivity
-        }
-        
-        // Channel Islands & Catalina
-        if (lat in 32.5..34.2 && lon in -120.5..-117.5) {
-            return 0.80  // Moderate upwelling influence
-        }
-        
-        // Southern California mainland coast
-        if (lat in 32.0..34.5 && lon in -118.5..-117.0) {
-            return 1.20  // Productive coastal waters
-        }
-        
-        // Central California - strong upwelling zone
-        if (lat in 34.5..38.0 && lon in -124.0..-121.0) {
-            return 2.50  // High productivity
-        }
-        
-        // Florida Keys - relatively clear
-        if (lat in 24.0..26.0 && lon in -82.0..-79.5) {
-            return 0.25  // Clear tropical waters
-        }
-        
-        // Caribbean - oligotrophic
-        if (lat in 15.0..25.0 && lon in -90.0..-60.0) {
-            return 0.15  // Very clear
-        }
-        
-        // Mediterranean
-        if (lat in 30.0..45.0 && lon in -5.0..35.0) {
-            return 0.25  // Moderately clear
-        }
-        
-        // Indonesia/Philippines - tropical
-        if (lat in -10.0..20.0 && lon in 95.0..140.0) {
-            return 0.20  // Clear tropical
-        }
-        
-        // Great Barrier Reef
-        if (lat in -25.0..-10.0 && lon in 142.0..155.0) {
-            return 0.30  // Low-moderate
-        }
-        
-        // Default based on latitude (general oceanographic patterns)
-        return when {
-            lat in -10.0..10.0 -> 0.20                           // Equatorial
-            lat in 10.0..23.0 || lat in -23.0..-10.0 -> 0.25     // Tropical
-            lat in 23.0..35.0 || lat in -35.0..-23.0 -> 0.60     // Subtropical
-            lat in 35.0..50.0 || lat in -50.0..-35.0 -> 1.50     // Temperate
-            else -> 2.00                                          // Subpolar
-        }
     }
 }
 
