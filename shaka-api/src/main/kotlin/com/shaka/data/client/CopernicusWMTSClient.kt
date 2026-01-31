@@ -1,17 +1,12 @@
 package com.shaka.data.client
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.serialization.kotlinx.json.*
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
 import kotlin.math.floor
+import kotlin.random.Random
 
 /**
  * Client for Copernicus Marine WMTS service - L3 NRT (Near Real Time) data.
@@ -28,8 +23,11 @@ import kotlin.math.floor
  * - May return null for cloud-covered areas (this is honest, not an estimate!)
  * - 4km resolution, global coverage
  * 
- * API: WMTS GetFeatureInfo
- * Free, no authentication required.
+ * ENTERPRISE PATTERNS:
+ * - Uses shared HttpClient (no connection pool proliferation)
+ * - Rate limited (1 req/sec via RateLimiters.copernicus)
+ * - Circuit breaker protected (fails fast when API is down)
+ * - Smart retry with exponential backoff
  * 
  * @see https://data.marine.copernicus.eu/product/OCEANCOLOUR_GLO_BGC_L3_NRT_009_101/description
  */
@@ -37,17 +35,16 @@ class CopernicusWMTSClient {
 
     private val logger = LoggerFactory.getLogger(CopernicusWMTSClient::class.java)
 
-    private val client = HttpClient(CIO) {
-        engine {
-            requestTimeout = 10_000 // 10 seconds
-        }
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-    }
+    // Use shared HTTP client - DO NOT create a new one
+    private val client = HttpClientFactory.shared
+    
+    // Circuit breaker for this API
+    private val circuitBreaker = CircuitBreaker(
+        name = "copernicus-wmts",
+        failureThreshold = 5,
+        successThreshold = 2,
+        resetTimeoutMs = 120_000  // 2 minutes before retry after circuit opens
+    )
 
     companion object {
         private const val WMTS_BASE = "https://wmts.marine.copernicus.eu/teroWmts"
@@ -62,6 +59,11 @@ class CopernicusWMTSClient {
         private const val TILES_X = 512  // Number of tiles at level 8
         private const val TILES_Y = 256
         private const val TILE_SIZE = 256
+        
+        // Retry configuration
+        private const val MAX_RETRIES = 3
+        private const val INITIAL_BACKOFF_MS = 1000L
+        private const val MAX_BACKOFF_MS = 8000L
     }
 
     /**
@@ -74,72 +76,117 @@ class CopernicusWMTSClient {
      * @return Visibility in meters, or null if unavailable
      */
     suspend fun getVisibility(lat: Double, lon: Double, date: String): Double? {
+        // Rate limit - wait for token
+        RateLimiters.copernicus.acquire()
+        
         return try {
-            // Calculate tile coordinates for EPSG:4326
-            // At level 8: 512 tiles x 256 tiles covering -180 to 180, -90 to 90
-            val tileWidth = 360.0 / TILES_X
-            val tileHeight = 180.0 / TILES_Y
-            
-            val tileCol = floor((lon + 180.0) / tileWidth).toInt().coerceIn(0, TILES_X - 1)
-            val tileRow = floor((90.0 - lat) / tileHeight).toInt().coerceIn(0, TILES_Y - 1)
-            
-            // Calculate pixel position within tile (0-255)
-            val tileLonMin = -180.0 + (tileCol * tileWidth)
-            val tileLatMax = 90.0 - (tileRow * tileHeight)
-            
-            val pixelX = ((lon - tileLonMin) / tileWidth * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
-            val pixelY = ((tileLatMax - lat) / tileHeight * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
-            
-            // Build WMTS GetFeatureInfo request
-            val url = buildString {
-                append(WMTS_BASE)
-                append("?SERVICE=WMTS")
-                append("&VERSION=1.0.0")
-                append("&REQUEST=GetFeatureInfo")
-                append("&LAYER=$ZSD_LAYER")
-                append("&STYLE=cmap:viridis")
-                append("&FORMAT=image/png")
-                append("&TILEMATRIXSET=EPSG:4326")
-                append("&TILEMATRIX=$TILE_MATRIX_LEVEL")
-                append("&TILEROW=$tileRow")
-                append("&TILECOL=$tileCol")
-                append("&I=$pixelX")
-                append("&J=$pixelY")
-                append("&INFOFORMAT=application/json")
-                // Use most recent time - data has 1-2 day latency
-                append("&TIME=${date}T00:00:00Z")
+            // Circuit breaker - fail fast if API is down
+            circuitBreaker.execute {
+                fetchVisibility(lat, lon, date)
             }
-            
-            logger.debug("Fetching ZSD visibility: tile($tileCol,$tileRow) pixel($pixelX,$pixelY)")
-            
-            val response: String = client.get(url).bodyAsText()
-            val visibility = parseZSDResponse(response)
-            
-            if (visibility != null) {
-                logger.info("Copernicus ZSD for ($lat, $lon): ${String.format("%.1f", visibility)}m visibility")
-            } else {
-                logger.debug("Copernicus ZSD unavailable for ($lat, $lon)")
-            }
-            
-            visibility
+        } catch (e: CircuitBreakerOpenException) {
+            logger.debug("Circuit breaker open for Copernicus WMTS - skipping request")
+            null
         } catch (e: Exception) {
-            logger.warn("Copernicus WMTS request failed: ${e.message}")
+            logger.warn("Copernicus WMTS visibility request failed: ${e.message}")
             null
         }
+    }
+    
+    private suspend fun fetchVisibility(lat: Double, lon: Double, date: String): Double? {
+        // Calculate tile coordinates for EPSG:4326
+        val tileWidth = 360.0 / TILES_X
+        val tileHeight = 180.0 / TILES_Y
+        
+        val tileCol = floor((lon + 180.0) / tileWidth).toInt().coerceIn(0, TILES_X - 1)
+        val tileRow = floor((90.0 - lat) / tileHeight).toInt().coerceIn(0, TILES_Y - 1)
+        
+        // Calculate pixel position within tile (0-255)
+        val tileLonMin = -180.0 + (tileCol * tileWidth)
+        val tileLatMax = 90.0 - (tileRow * tileHeight)
+        
+        val pixelX = ((lon - tileLonMin) / tileWidth * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
+        val pixelY = ((tileLatMax - lat) / tileHeight * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
+        
+        // Build WMTS GetFeatureInfo request
+        val url = buildString {
+            append(WMTS_BASE)
+            append("?SERVICE=WMTS")
+            append("&VERSION=1.0.0")
+            append("&REQUEST=GetFeatureInfo")
+            append("&LAYER=$ZSD_LAYER")
+            append("&STYLE=cmap:viridis")
+            append("&FORMAT=image/png")
+            append("&TILEMATRIXSET=EPSG:4326")
+            append("&TILEMATRIX=$TILE_MATRIX_LEVEL")
+            append("&TILEROW=$tileRow")
+            append("&TILECOL=$tileCol")
+            append("&I=$pixelX")
+            append("&J=$pixelY")
+            append("&INFOFORMAT=application/json")
+            append("&TIME=${date}T00:00:00Z")
+        }
+        
+        logger.debug("Fetching ZSD visibility: tile($tileCol,$tileRow) pixel($pixelX,$pixelY)")
+        
+        val response: String = client.get(url).bodyAsText()
+        val visibility = parseZSDResponse(response)
+        
+        if (visibility != null) {
+            logger.info("Copernicus ZSD for ($lat, $lon): ${String.format("%.1f", visibility)}m visibility")
+        } else {
+            logger.debug("Copernicus ZSD unavailable for ($lat, $lon)")
+        }
+        
+        return visibility
     }
 
     /**
      * Get visibility for the most recent available satellite data.
-     * Tries yesterday first, then goes back day by day until data is found.
+     * Uses smart retry with exponential backoff instead of naive loop.
      * 
      * Copernicus L3 NRT has 1-2 day latency depending on time of day/processing.
-     * This handles edge cases where today's "yesterday" isn't available yet.
      */
     suspend fun getLatestVisibility(lat: Double, lon: Double): VisibilityResult {
-        // Try up to 7 days back to find available data
-        for (daysBack in 1..7) {
+        // Check circuit breaker before starting
+        if (!circuitBreaker.allowsRequests()) {
+            logger.debug("Circuit breaker open - returning no data")
+            return VisibilityResult(
+                visibilityM = null,
+                date = LocalDate.now().minusDays(1).toString(),
+                dataSource = "Circuit breaker open",
+                isActualMeasurement = false
+            )
+        }
+        
+        // Try yesterday first (most common success case)
+        val yesterday = LocalDate.now().minusDays(1).toString()
+        var visibility = getVisibility(lat, lon, yesterday)
+        
+        if (visibility != null) {
+            return VisibilityResult(
+                visibilityM = visibility,
+                date = yesterday,
+                dataSource = "Copernicus L3 NRT satellite",
+                isActualMeasurement = true
+            )
+        }
+        
+        // If yesterday failed, try 2 days ago with backoff
+        // Only try a few more days, not 7 (that was excessive)
+        for (daysBack in 2..4) {
+            // Exponential backoff between retries
+            val backoffMs = INITIAL_BACKOFF_MS * (1 shl (daysBack - 2)) + Random.nextLong(500)
+            delay(backoffMs.coerceAtMost(MAX_BACKOFF_MS))
+            
+            // Check circuit breaker again
+            if (!circuitBreaker.allowsRequests()) {
+                logger.debug("Circuit breaker opened during retry - stopping")
+                break
+            }
+            
             val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
-            val visibility = getVisibility(lat, lon, date)
+            visibility = getVisibility(lat, lon, date)
             
             if (visibility != null) {
                 logger.debug("Found visibility data from $date (${daysBack} days ago)")
@@ -152,10 +199,10 @@ class CopernicusWMTSClient {
             }
         }
         
-        // No data found in the last 7 days
+        // No data found
         return VisibilityResult(
             visibilityM = null,
-            date = LocalDate.now().minusDays(1).toString(),
+            date = yesterday,
             dataSource = "No satellite data available",
             isActualMeasurement = false
         )
@@ -166,54 +213,98 @@ class CopernicusWMTSClient {
      * Returns mg/m³ - actual satellite measurement.
      */
     suspend fun getChlorophyll(lat: Double, lon: Double, date: String): Double? {
+        // Rate limit
+        RateLimiters.copernicus.acquire()
+        
         return try {
-            val tileWidth = 360.0 / TILES_X
-            val tileHeight = 180.0 / TILES_Y
-            
-            val tileCol = floor((lon + 180.0) / tileWidth).toInt().coerceIn(0, TILES_X - 1)
-            val tileRow = floor((90.0 - lat) / tileHeight).toInt().coerceIn(0, TILES_Y - 1)
-            
-            val tileLonMin = -180.0 + (tileCol * tileWidth)
-            val tileLatMax = 90.0 - (tileRow * tileHeight)
-            
-            val pixelX = ((lon - tileLonMin) / tileWidth * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
-            val pixelY = ((tileLatMax - lat) / tileHeight * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
-            
-            val url = buildString {
-                append(WMTS_BASE)
-                append("?SERVICE=WMTS")
-                append("&VERSION=1.0.0")
-                append("&REQUEST=GetFeatureInfo")
-                append("&LAYER=$CHL_LAYER")
-                append("&STYLE=cmap:viridis")
-                append("&FORMAT=image/png")
-                append("&TILEMATRIXSET=EPSG:4326")
-                append("&TILEMATRIX=$TILE_MATRIX_LEVEL")
-                append("&TILEROW=$tileRow")
-                append("&TILECOL=$tileCol")
-                append("&I=$pixelX")
-                append("&J=$pixelY")
-                append("&INFOFORMAT=application/json")
-                append("&TIME=${date}T00:00:00Z")
+            circuitBreaker.execute {
+                fetchChlorophyll(lat, lon, date)
             }
-            
-            val response: String = client.get(url).bodyAsText()
-            parseNumericValue(response, "milligram m-3")
+        } catch (e: CircuitBreakerOpenException) {
+            logger.debug("Circuit breaker open for Copernicus WMTS - skipping chlorophyll request")
+            null
         } catch (e: Exception) {
             logger.warn("Copernicus CHL request failed: ${e.message}")
             null
         }
     }
+    
+    private suspend fun fetchChlorophyll(lat: Double, lon: Double, date: String): Double? {
+        val tileWidth = 360.0 / TILES_X
+        val tileHeight = 180.0 / TILES_Y
+        
+        val tileCol = floor((lon + 180.0) / tileWidth).toInt().coerceIn(0, TILES_X - 1)
+        val tileRow = floor((90.0 - lat) / tileHeight).toInt().coerceIn(0, TILES_Y - 1)
+        
+        val tileLonMin = -180.0 + (tileCol * tileWidth)
+        val tileLatMax = 90.0 - (tileRow * tileHeight)
+        
+        val pixelX = ((lon - tileLonMin) / tileWidth * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
+        val pixelY = ((tileLatMax - lat) / tileHeight * TILE_SIZE).toInt().coerceIn(0, TILE_SIZE - 1)
+        
+        val url = buildString {
+            append(WMTS_BASE)
+            append("?SERVICE=WMTS")
+            append("&VERSION=1.0.0")
+            append("&REQUEST=GetFeatureInfo")
+            append("&LAYER=$CHL_LAYER")
+            append("&STYLE=cmap:viridis")
+            append("&FORMAT=image/png")
+            append("&TILEMATRIXSET=EPSG:4326")
+            append("&TILEMATRIX=$TILE_MATRIX_LEVEL")
+            append("&TILEROW=$tileRow")
+            append("&TILECOL=$tileCol")
+            append("&I=$pixelX")
+            append("&J=$pixelY")
+            append("&INFOFORMAT=application/json")
+            append("&TIME=${date}T00:00:00Z")
+        }
+        
+        val response: String = client.get(url).bodyAsText()
+        return parseNumericValue(response, "milligram m-3")
+    }
 
     /**
      * Get chlorophyll for the most recent available satellite data.
-     * Tries yesterday first, then goes back day by day until data is found.
+     * Uses smart retry with exponential backoff.
      */
     suspend fun getLatestChlorophyll(lat: Double, lon: Double): ChlorophyllResult {
-        // Try up to 7 days back to find available data
-        for (daysBack in 1..7) {
+        // Check circuit breaker before starting
+        if (!circuitBreaker.allowsRequests()) {
+            logger.debug("Circuit breaker open - returning no chlorophyll data")
+            return ChlorophyllResult(
+                chlorophyllMgM3 = null,
+                date = LocalDate.now().minusDays(1).toString(),
+                dataSource = "Circuit breaker open",
+                isActualMeasurement = false
+            )
+        }
+        
+        // Try yesterday first
+        val yesterday = LocalDate.now().minusDays(1).toString()
+        var chl = getChlorophyll(lat, lon, yesterday)
+        
+        if (chl != null) {
+            return ChlorophyllResult(
+                chlorophyllMgM3 = chl,
+                date = yesterday,
+                dataSource = "Copernicus L3 NRT satellite",
+                isActualMeasurement = true
+            )
+        }
+        
+        // Try 2-4 days ago with backoff
+        for (daysBack in 2..4) {
+            val backoffMs = INITIAL_BACKOFF_MS * (1 shl (daysBack - 2)) + Random.nextLong(500)
+            delay(backoffMs.coerceAtMost(MAX_BACKOFF_MS))
+            
+            if (!circuitBreaker.allowsRequests()) {
+                logger.debug("Circuit breaker opened during chlorophyll retry - stopping")
+                break
+            }
+            
             val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
-            val chl = getChlorophyll(lat, lon, date)
+            chl = getChlorophyll(lat, lon, date)
             
             if (chl != null) {
                 logger.debug("Found chlorophyll data from $date (${daysBack} days ago)")
@@ -226,14 +317,18 @@ class CopernicusWMTSClient {
             }
         }
         
-        // No data found in the last 7 days
         return ChlorophyllResult(
             chlorophyllMgM3 = null,
-            date = LocalDate.now().minusDays(1).toString(),
+            date = yesterday,
             dataSource = "No satellite data available",
             isActualMeasurement = false
         )
     }
+    
+    /**
+     * Get circuit breaker status (for monitoring).
+     */
+    fun getCircuitBreakerStats(): Map<String, Any> = circuitBreaker.getStats()
 
     /**
      * Parse ZSD value from WMTS GetFeatureInfo JSON response.
