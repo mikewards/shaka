@@ -876,7 +876,59 @@ object SpotDatabase {
         SpotRecord("st-lucia-anse-chastanet", "Anse Chastanet (St. Lucia)", "Piton area diving.", Coordinates(13.8667, -61.0667), "shore", 20, listOf("Snapper", "Grouper", "Barracuda", "Seahorse"), "Resort beach", "Resort"),
         SpotRecord("grenada-bianca-c", "Bianca C Wreck (Grenada)", "Titanic of Caribbean.", Coordinates(12.0333, -61.7550), "boat", 40, listOf("Snapper", "Grouper", "Barracuda", "Shark"), "Boat from St. George's", "Marina"),
         SpotRecord("barbados-carlisle-bay", "Carlisle Bay (Barbados)", "Multiple wrecks.", Coordinates(13.0833, -59.6167), "shore", 15, listOf("Turtle", "Snapper", "Grouper", "Barracuda"), "Shore from beach", "Beach"),
-        SpotRecord("trinidad-buccoo-reef", "Buccoo Reef (Tobago)", "Glass bottom boat area.", Coordinates(11.1833, -60.8333), "boat", 10, listOf("Snapper", "Grunt", "Parrotfish", "Stingray"), "Boat from Buccoo", "Beach")
+        SpotRecord("trinidad-buccoo-reef", "Buccoo Reef (Tobago)", "Glass bottom boat area.", Coordinates(11.1833, -60.8333), "boat", 10, listOf("Snapper", "Grunt", "Parrotfish", "Stingray"), "Boat from Buccoo", "Beach"),
+
+        // ==========================================
+        // WORLD-CLASS REMOTE DESTINATIONS (directional spots)
+        // ==========================================
+        
+        // Cocos Island, Costa Rica - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("cocos-island-north", "Cocos Island - North", "North side. World's best hammerhead diving.", Coordinates(5.5400, -87.0583), "boat", 35, listOf("Hammerhead Shark", "Silky Shark", "Whale Shark", "Giant Manta"), "Liveaboard from Puntarenas", "Liveaboard"),
+        SpotRecord("cocos-island-south", "Cocos Island - South", "South side. Manuelita Island nearby.", Coordinates(5.5100, -87.0583), "boat", 35, listOf("Hammerhead Shark", "Silky Shark", "Whale Shark", "Giant Manta"), "Liveaboard from Puntarenas", "Liveaboard"),
+        SpotRecord("cocos-island-east", "Cocos Island - East", "East side. Dirty Rock.", Coordinates(5.5250, -87.0433), "boat", 35, listOf("Hammerhead Shark", "Silky Shark", "Whale Shark", "Giant Manta"), "Liveaboard from Puntarenas", "Liveaboard"),
+        SpotRecord("cocos-island-west", "Cocos Island - West", "West side. Bajo Alcyone.", Coordinates(5.5250, -87.0733), "boat", 35, listOf("Hammerhead Shark", "Silky Shark", "Whale Shark", "Giant Manta"), "Liveaboard from Puntarenas", "Liveaboard"),
+        
+        // Galapagos Santa Cruz - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("galapagos-santa-cruz-north", "Galapagos Santa Cruz - North", "North side. Gordon Rocks nearby.", Coordinates(-0.4450, -90.3000), "boat", 30, listOf("Hammerhead Shark", "Mola Mola", "Sea Lion", "Marine Iguana"), "Boat from Puerto Ayora", "Harbor"),
+        SpotRecord("galapagos-santa-cruz-south", "Galapagos Santa Cruz - South", "South side. Closer to town.", Coordinates(-0.7650, -90.3000), "boat", 30, listOf("Hammerhead Shark", "Mola Mola", "Sea Lion", "Marine Iguana"), "Boat from Puerto Ayora", "Harbor"),
+        SpotRecord("galapagos-santa-cruz-east", "Galapagos Santa Cruz - East", "East side. Seymour Channel.", Coordinates(-0.7500, -90.2850), "boat", 30, listOf("Hammerhead Shark", "Mola Mola", "Sea Lion", "Marine Iguana"), "Boat from Puerto Ayora", "Harbor"),
+        SpotRecord("galapagos-santa-cruz-west", "Galapagos Santa Cruz - West", "West side. Open ocean.", Coordinates(-0.7500, -90.3150), "boat", 30, listOf("Hammerhead Shark", "Mola Mola", "Sea Lion", "Marine Iguana"), "Boat from Puerto Ayora", "Harbor"),
+        
+        // Guadalupe Island, Mexico - Split into directional spots (coastline + 500m offshore)  
+        SpotRecord("guadalupe-north", "Guadalupe Island - North", "North side. Great white shark cage diving.", Coordinates(29.1350, -118.2833), "boat", 20, listOf("Great White Shark", "Yellowtail", "Calico Bass"), "Liveaboard from San Diego/Ensenada", "Liveaboard"),
+        SpotRecord("guadalupe-south", "Guadalupe Island - South", "South side. More sheltered.", Coordinates(28.8950, -118.2833), "boat", 20, listOf("Great White Shark", "Yellowtail", "Calico Bass"), "Liveaboard from San Diego/Ensenada", "Liveaboard"),
+        SpotRecord("guadalupe-east", "Guadalupe Island - East", "East side. Facing mainland.", Coordinates(29.1000, -118.2683), "boat", 20, listOf("Great White Shark", "Yellowtail", "Calico Bass"), "Liveaboard from San Diego/Ensenada", "Liveaboard"),
+        SpotRecord("guadalupe-west", "Guadalupe Island - West", "West side. Open Pacific.", Coordinates(29.1000, -118.3583), "boat", 20, listOf("Great White Shark", "Yellowtail", "Calico Bass"), "Liveaboard from San Diego/Ensenada", "Liveaboard"),
+        
+        // Easter Island (Rapa Nui) - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("easter-island-north", "Easter Island - North", "North coast. Moai underwater.", Coordinates(-27.0517, -109.3500), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Giant Trevally", "Lobster"), "Boat from Hanga Roa", "Harbor"),
+        SpotRecord("easter-island-south", "Easter Island - South", "South coast. Rougher conditions.", Coordinates(-27.1717, -109.3500), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Giant Trevally", "Lobster"), "Boat from Hanga Roa", "Harbor"),
+        SpotRecord("easter-island-east", "Easter Island - East", "East coast. Less visited.", Coordinates(-27.1167, -109.1950), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Giant Trevally", "Lobster"), "Boat from Hanga Roa", "Harbor"),
+        SpotRecord("easter-island-west", "Easter Island - West", "West coast. Near town.", Coordinates(-27.1167, -109.4350), "boat", 25, listOf("Yellowfin Tuna", "Wahoo", "Giant Trevally", "Lobster"), "Boat from Hanga Roa", "Harbor"),
+        
+        // Azores Pico Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("azores-pico-north", "Pico Island - North", "North coast. Blue shark diving.", Coordinates(38.5117, -28.2500), "boat", 25, listOf("Blue Shark", "Mako Shark", "Mobula Ray", "Sperm Whale"), "Boat from Madalena", "Marina"),
+        SpotRecord("azores-pico-south", "Pico Island - South", "South coast. Calmer conditions.", Coordinates(38.3817, -28.2500), "boat", 25, listOf("Blue Shark", "Mako Shark", "Mobula Ray", "Sperm Whale"), "Boat from Madalena", "Marina"),
+        SpotRecord("azores-pico-east", "Pico Island - East", "East coast. Princess Alice Bank.", Coordinates(38.4667, -28.1850), "boat", 25, listOf("Blue Shark", "Mako Shark", "Mobula Ray", "Sperm Whale"), "Boat from Madalena", "Marina"),
+        SpotRecord("azores-pico-west", "Pico Island - West", "West coast. Faial channel.", Coordinates(38.4667, -28.5550), "boat", 25, listOf("Blue Shark", "Mako Shark", "Mobula Ray", "Sperm Whale"), "Boat from Madalena", "Marina"),
+        
+        // Canary Islands El Hierro - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("canary-hierro-north", "El Hierro - North", "North coast. Mar de las Calmas.", Coordinates(27.7983, -18.0000), "boat", 25, listOf("Angel Shark", "Butterfly Ray", "Grouper", "Barracuda"), "Boat from La Restinga", "Marina"),
+        SpotRecord("canary-hierro-south", "El Hierro - South", "South coast. Marine reserve.", Coordinates(27.6383, -18.0000), "boat", 25, listOf("Angel Shark", "Butterfly Ray", "Grouper", "Barracuda"), "Boat from La Restinga", "Marina"),
+        SpotRecord("canary-hierro-east", "El Hierro - East", "East coast. El Bajón.", Coordinates(27.7333, -17.9150), "boat", 25, listOf("Angel Shark", "Butterfly Ray", "Grouper", "Barracuda"), "Boat from La Restinga", "Marina"),
+        SpotRecord("canary-hierro-west", "El Hierro - West", "West coast. Open Atlantic.", Coordinates(27.7333, -18.2050), "boat", 25, listOf("Angel Shark", "Butterfly Ray", "Grouper", "Barracuda"), "Boat from La Restinga", "Marina"),
+        
+        // Cape Verde Sal Island - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("cape-verde-sal-north", "Sal Island - North", "North coast. Lemon sharks.", Coordinates(16.8550, -22.9333), "boat", 20, listOf("Lemon Shark", "Nurse Shark", "Wahoo", "Tuna"), "Boat from Santa Maria", "Marina"),
+        SpotRecord("cape-verde-sal-south", "Sal Island - South", "South coast. Santa Maria.", Coordinates(16.5950, -22.9333), "boat", 20, listOf("Lemon Shark", "Nurse Shark", "Wahoo", "Tuna"), "Boat from Santa Maria", "Marina"),
+        SpotRecord("cape-verde-sal-east", "Sal Island - East", "East coast. Trade wind side.", Coordinates(16.7500, -22.8883), "boat", 20, listOf("Lemon Shark", "Nurse Shark", "Wahoo", "Tuna"), "Boat from Santa Maria", "Marina"),
+        SpotRecord("cape-verde-sal-west", "Sal Island - West", "West coast. Calmer conditions.", Coordinates(16.7500, -22.9883), "boat", 20, listOf("Lemon Shark", "Nurse Shark", "Wahoo", "Tuna"), "Boat from Santa Maria", "Marina"),
+        
+        // Sipadan Island, Malaysia - Split into directional spots (coastline + 500m offshore)
+        SpotRecord("sipadan-north", "Sipadan - North", "North side. Barracuda Point.", Coordinates(4.1300, 118.6283), "boat", 30, listOf("Barracuda", "Giant Trevally", "Hammerhead Shark", "Bumphead Parrotfish"), "Boat from Semporna", "Resort"),
+        SpotRecord("sipadan-south", "Sipadan - South", "South side. South Point.", Coordinates(4.1000, 118.6283), "boat", 30, listOf("Barracuda", "Giant Trevally", "Hammerhead Shark", "Bumphead Parrotfish"), "Boat from Semporna", "Resort"),
+        SpotRecord("sipadan-east", "Sipadan - East", "East side. Drop Off.", Coordinates(4.1150, 118.6433), "boat", 30, listOf("Barracuda", "Giant Trevally", "Hammerhead Shark", "Bumphead Parrotfish"), "Boat from Semporna", "Resort"),
+        SpotRecord("sipadan-west", "Sipadan - West", "West side. Turtle Cavern.", Coordinates(4.1150, 118.6133), "boat", 30, listOf("Barracuda", "Giant Trevally", "Hammerhead Shark", "Bumphead Parrotfish"), "Boat from Semporna", "Resort")
     )
 
     fun getAllSpots() = spots
