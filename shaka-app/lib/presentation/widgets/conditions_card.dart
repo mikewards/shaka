@@ -18,9 +18,9 @@ class _ConditionSource {
 
 const _conditionSources = {
   'visibility': _ConditionSource(
-    source: 'NOAA CoastWatch (VIIRS Satellite)',
+    source: 'Copernicus Marine (Satellite)',
     updateFrequency: 'Daily',
-    description: 'Estimated from chlorophyll-a concentration and sea surface temperature. Clear water has low chlorophyll levels.',
+    description: 'Secchi disk depth measured by ocean color satellites. This is actual underwater visibility, not an estimate.',
   ),
   'water': _ConditionSource(
     source: 'Open-Meteo Marine API',

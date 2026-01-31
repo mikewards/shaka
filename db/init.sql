@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS spot_cache (
     tide_state VARCHAR(20),
     tide_height_ft DOUBLE PRECISION,
     tide_next_time TIMESTAMP,
+    tide_next_high VARCHAR(50),
+    tide_next_low VARCHAR(50),
     tide_fetched_at TIMESTAMP,
     
     -- Weather/Swell data  

@@ -135,53 +135,22 @@ object ShakaScorer {
     }
 
     /**
-     * Calculate safety score based on currents, hazards.
-     */
-    fun scoreSafety(currentStrength: Double, hasHazards: Boolean, sharkRisk: String): Int {
-        var score = 100
-
-        // Current penalty
-        score -= when {
-            currentStrength <= 0.5 -> 0
-            currentStrength <= 1.0 -> 15
-            currentStrength <= 2.0 -> 35
-            else -> 60
-        }
-
-        // Hazards
-        if (hasHazards) score -= 20
-
-        // Shark risk
-        score -= when (sharkRisk.lowercase()) {
-            "low" -> 0
-            "moderate" -> 10
-            "high" -> 30
-            else -> 5
-        }
-
-        return score.coerceIn(0, 100)
-    }
-
-    /**
      * Calculate overall Shaka Score from all components.
      * 
-     * Weights:
-     * - Visibility: 25% (most important for spearfishing)
-     * - Weather: 20% (affects surface conditions and comfort)
-     * - Swell: 15% (affects underwater visibility and safety)
+     * Weights (total 100%):
+     * - Visibility: 30% (most important for spearfishing)
+     * - Weather: 25% (affects surface conditions and comfort)
+     * - Swell: 20% (affects underwater visibility and entry safety)
      * - Fish Activity: 15% (moon phase, season, recent sightings)
      * - Accessibility: 10% (ease of entry)
-     * - Safety: 15% (currents, hazards, shark risk)
      */
     fun calculateOverall(breakdown: ScoreBreakdown): Int {
-        // Direct weighted calculation (NOT using map to avoid key collision!)
         val weightedSum = 
-            breakdown.visibility * 0.25 +
-            breakdown.weather * 0.20 +
-            breakdown.swell * 0.15 +
+            breakdown.visibility * 0.30 +
+            breakdown.weather * 0.25 +
+            breakdown.swell * 0.20 +
             breakdown.fishActivity * 0.15 +
-            breakdown.accessibility * 0.10 +
-            breakdown.safety * 0.15
+            breakdown.accessibility * 0.10
         
         return weightedSum.toInt()
     }
@@ -199,18 +168,14 @@ object ShakaScorer {
         recentSightings: Int,
         isShore: Boolean,
         hasParking: Boolean,
-        permitRequired: Boolean,
-        currentStrength: Double,
-        hasHazards: Boolean,
-        sharkRisk: String
+        permitRequired: Boolean
     ): ShakaScore {
         val breakdown = ScoreBreakdown(
             visibility = scoreVisibility(waterQuality, null),
             weather = scoreWeather(weather),
             swell = scoreSwell(ocean),
             fishActivity = scoreFishActivity(moonPhase, seasonalMultiplier, recentSightings),
-            accessibility = scoreAccessibility(isShore, hasParking, permitRequired),
-            safety = scoreSafety(currentStrength, hasHazards, sharkRisk)
+            accessibility = scoreAccessibility(isShore, hasParking, permitRequired)
         )
 
         return ShakaScore(

@@ -564,6 +564,18 @@ object SpotDataCache {
                     stmt.execute(sql)
                 }
                 
+                // Add tide next high/low columns (if they don't exist)
+                val tideColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_high VARCHAR(50);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_low VARCHAR(50);
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    tideColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
                 // Add GIBS satellite columns (if they don't exist)
                 val gibsColumns = """
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_today DOUBLE PRECISION;
@@ -624,8 +636,9 @@ object SpotDataCache {
                         gibs_noaa21_today, gibs_noaa21_yesterday, gibs_sentinel3a_today, gibs_sentinel3a_yesterday,
                         gibs_sentinel3b_today, gibs_sentinel3b_yesterday, gibs_data_date, gibs_fetched_at,
                         gibs_pace_obs_time, gibs_noaa20_obs_time, gibs_noaa21_obs_time,
+                        tide_next_high, tide_next_low,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -657,6 +670,8 @@ object SpotDataCache {
                         gibs_pace_obs_time = COALESCE(EXCLUDED.gibs_pace_obs_time, spot_cache.gibs_pace_obs_time),
                         gibs_noaa20_obs_time = COALESCE(EXCLUDED.gibs_noaa20_obs_time, spot_cache.gibs_noaa20_obs_time),
                         gibs_noaa21_obs_time = COALESCE(EXCLUDED.gibs_noaa21_obs_time, spot_cache.gibs_noaa21_obs_time),
+                        tide_next_high = COALESCE(EXCLUDED.tide_next_high, spot_cache.tide_next_high),
+                        tide_next_low = COALESCE(EXCLUDED.tide_next_low, spot_cache.tide_next_low),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -706,6 +721,10 @@ object SpotDataCache {
                     stmt.setTimestamp(30, gibs?.noaa20ObservationTime?.let { Timestamp.from(it) })
                     stmt.setTimestamp(31, gibs?.noaa21ObservationTime?.let { Timestamp.from(it) })
                     
+                    // Tide next high/low strings
+                    stmt.setString(32, data.tide?.value?.nextHighTide)
+                    stmt.setString(33, data.tide?.value?.nextLowTide)
+                    
                     stmt.executeUpdate()
                 }
             }
@@ -745,15 +764,18 @@ object SpotDataCache {
                         // Tide data
                         val tideState = rs.getString("tide_state")
                         val tideHeight = rs.getDouble("tide_height_ft")
+                        val tideHeightWasNull = rs.wasNull()
+                        val tideNextHigh = rs.getString("tide_next_high")
+                        val tideNextLow = rs.getString("tide_next_low")
                         val tideFetchedAt = rs.getTimestamp("tide_fetched_at")
                         if (tideState != null && tideFetchedAt != null) {
                             spotData = spotData.copy(
                                 tide = CachedValue(
                                     value = TideInfo(
                                         state = tideState,
-                                        nextHighTide = "Loading...",
-                                        nextLowTide = "Loading...",
-                                        currentHeight = if (rs.wasNull()) 0.0 else tideHeight
+                                        nextHighTide = tideNextHigh ?: "Check local source",
+                                        nextLowTide = tideNextLow ?: "Check local source",
+                                        currentHeight = if (tideHeightWasNull) 0.0 else tideHeight
                                     ),
                                     fetchedAt = tideFetchedAt.toInstant()
                                 )

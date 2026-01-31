@@ -81,10 +81,7 @@ class ForecastService {
                 recentSightings = 0,
                 isShore = spot.access == "shore",
                 hasParking = true,
-                permitRequired = false,
-                currentStrength = 0.5,
-                hasHazards = false,
-                sharkRisk = "low"
+                permitRequired = false
             )
             
             forecasts += DayForecast(
@@ -140,10 +137,7 @@ class ForecastService {
                         recentSightings = 0,
                         isShore = spot.access == "shore",
                         hasParking = true,
-                        permitRequired = false,
-                        currentStrength = 0.5,
-                        hasHazards = false,
-                        sharkRisk = "low"
+                        permitRequired = false
                     )
                     
                     forecasts += DayForecast(

@@ -192,10 +192,7 @@ class SpotService {
                 recentSightings = recentSightingsCount,
                 isShore = spot.access == "shore",
                 hasParking = true,
-                permitRequired = false,
-                currentStrength = 0.5,
-                hasHazards = false,
-                sharkRisk = "low"
+                permitRequired = false
             )
 
             // Use real SST - prefer cached satellite data
@@ -386,10 +383,7 @@ class SpotService {
             recentSightings = communityReports.size.coerceAtLeast(1),
             isShore = spot.access == "shore",
             hasParking = true,
-            permitRequired = false,
-            currentStrength = 0.5,
-            hasHazards = false,
-            sharkRisk = "low"
+            permitRequired = false
         )
         
         val actualSST = cached?.sst?.value ?: waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
@@ -594,10 +588,7 @@ class SpotService {
                     recentSightings = 1,
                     isShore = spot.access == "shore",
                     hasParking = true,
-                    permitRequired = false,
-                    currentStrength = 0.5,
-                    hasHazards = false,
-                    sharkRisk = "low"
+                    permitRequired = false
                 )
                 
                 val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
