@@ -336,6 +336,66 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Get MPA cache stats
+            get("/admin/mpa/stats") {
+                val withMPA = com.shaka.data.cache.SpotDataCache.getAllSpotIds().count { spotId ->
+                    com.shaka.data.cache.SpotDataCache.get(spotId)?.mpa != null
+                }
+                val withoutMPA = com.shaka.data.cache.SpotDataCache.getSpotsWithoutMPA().size
+                val total = com.shaka.data.cache.SpotDataCache.size()
+                
+                call.respondText(
+                    """{"total":$total,"withMPA":$withMPA,"withoutMPA":$withoutMPA}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
+            // Trigger MPA fetch for all spots without MPA data
+            post("/admin/mpa/refetch") {
+                val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutMPA()
+                val total = spotsToFetch.size
+                
+                val protectedSeasClient = com.shaka.data.client.ProtectedSeasClient()
+                
+                kotlinx.coroutines.GlobalScope.launch {
+                    for (spotId in spotsToFetch) {
+                        try {
+                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            val mpaInfo = protectedSeasClient.getMPAStatus(
+                                spot.coordinates.lat, 
+                                spot.coordinates.lon
+                            )
+                            
+                            val cacheInfo = mpaInfo?.let {
+                                com.shaka.data.cache.SpotDataCache.MPACacheInfo(
+                                    siteName = it.siteName,
+                                    designation = it.designation,
+                                    spearfishingStatus = it.spearfishingStatus,
+                                    protectionLevel = it.protectionLevel,
+                                    speciesOfConcern = it.speciesOfConcern,
+                                    purpose = it.purpose,
+                                    detailsUrl = it.detailsUrl
+                                )
+                            }
+                            
+                            com.shaka.data.cache.SpotDataCache.updateMPA(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(cacheInfo, java.time.Instant.now())
+                            )
+                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                            
+                            // Small delay to be nice to the API
+                            kotlinx.coroutines.delay(200)
+                        } catch (e: Exception) { /* continue */ }
+                    }
+                }
+                
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"MPA fetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
         }
     }
 }
