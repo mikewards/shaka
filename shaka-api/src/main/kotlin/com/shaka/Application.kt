@@ -163,8 +163,18 @@ private fun Application.configureScheduledJobs() {
     
     // Clean up when application stops
     environment.monitor.subscribe(ApplicationStopped) {
+        logger.info("Shutting down Shaka API...")
+        
+        // Cancel background jobs
         backgroundScope.cancel()
         logger.info("Background prefetch jobs stopped")
+        
+        // Close shared HTTP client (releases connection pool)
+        HttpClientFactory.close()
+        logger.info("HTTP client closed")
+        
+        // Log final rate limiter stats
+        logger.info("Final rate limiter stats: ${RateLimiters.getAllStats()}")
     }
     
     logger.info("Background prefetch jobs configured: hourly (tide), 3h (weather), 6h (satellite)")
