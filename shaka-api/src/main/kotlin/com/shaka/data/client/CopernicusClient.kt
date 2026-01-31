@@ -94,29 +94,32 @@ class CopernicusClient(
         }
         
         val visibility = visibilityResult.visibilityM
-        val chlorophyll = chlorophyllResult.chlorophyllMgM3
         
-        // Build data source string - be clear about what's real vs unavailable
+        // Use satellite chlorophyll if available, otherwise fall back to regional climatology
+        val chlorophyll: Double
+        val chlorophyllSource: String
+        if (chlorophyllResult.chlorophyllMgM3 != null) {
+            chlorophyll = chlorophyllResult.chlorophyllMgM3
+            chlorophyllSource = "Copernicus L3 NRT (${chlorophyllResult.date})"
+        } else {
+            // Fallback to regional climatology - always returns a value
+            chlorophyll = getRegionalChlorophyllClimatology(lat, lon)
+            chlorophyllSource = "Regional climatology"
+            logger.debug("Using climatology fallback for ($lat, $lon): $chlorophyll mg/m³")
+        }
+        
+        // Build data source string
         val dataSource = buildString {
             if (visibilityResult.isActualMeasurement) {
                 append("Visibility: Copernicus L3 NRT (${visibilityResult.date})")
             } else {
                 append("Visibility: Unavailable (${visibilityResult.dataSource})")
             }
-            append(" | ")
-            if (chlorophyllResult.isActualMeasurement) {
-                append("Chlorophyll: Copernicus L3 NRT (${chlorophyllResult.date})")
-            } else {
-                append("Chlorophyll: Unavailable")
-            }
+            append(" | Chlorophyll: $chlorophyllSource")
         }
         
-        // Calculate turbidity from chlorophyll if we have it (this is a physical relationship, not an estimate)
-        val turbidity = if (chlorophyll != null) {
-            calculateTurbidity(chlorophyll, lat, lon)
-        } else {
-            null
-        }
+        // Calculate turbidity from chlorophyll (always have a value now with fallback)
+        val turbidity = calculateTurbidity(chlorophyll, lat, lon)
         
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
