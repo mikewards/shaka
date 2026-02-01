@@ -230,4 +230,4 @@ private fun Application.tryInitDatabase() {
     }
 }
 
-// Triggered redeploy 2026-01-31_04:46:13
+// Triggered redeploy 2026-01-31_user_spots
