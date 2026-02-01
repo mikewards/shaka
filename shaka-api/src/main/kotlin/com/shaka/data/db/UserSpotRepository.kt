@@ -245,6 +245,43 @@ class UserSpotRepository {
     }
 
     companion object {
+        private val companionLogger = LoggerFactory.getLogger(UserSpotRepository::class.java)
+        
+        /**
+         * Get ALL user spots across all devices (for prefetch jobs).
+         * This is a static method for use by DataPrefetchJobs.
+         */
+        suspend fun getAllUserSpots(): List<UserSpotRecord> {
+            return try {
+                if (!DatabaseFactory.isConnected()) {
+                    return emptyList()
+                }
+
+                DatabaseFactory.dbQuery {
+                    UserSpotsTable.selectAll()
+                        .map { row ->
+                            UserSpotRecord(
+                                id = row[UserSpotsTable.id].value,
+                                deviceId = row[UserSpotsTable.deviceId],
+                                name = row[UserSpotsTable.name],
+                                coordinates = Coordinates(
+                                    row[UserSpotsTable.latitude],
+                                    row[UserSpotsTable.longitude]
+                                ),
+                                region = row[UserSpotsTable.region],
+                                country = row[UserSpotsTable.country],
+                                accessType = row[UserSpotsTable.accessType],
+                                createdAt = row[UserSpotsTable.createdAt],
+                                updatedAt = row[UserSpotsTable.updatedAt]
+                            )
+                        }
+                }
+            } catch (e: Exception) {
+                companionLogger.warn("Failed to get all user spots: ${e.message}")
+                emptyList()
+            }
+        }
+        
         /**
          * Infer region and country from coordinates.
          * Used when creating user spots to assign them to a region.
