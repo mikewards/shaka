@@ -26,8 +26,7 @@ class UserSpotRepository {
         val region: String,
         val country: String,
         val accessType: String,
-        val createdAt: LocalDateTime,
-        val updatedAt: LocalDateTime
+        val createdAt: LocalDateTime
     )
 
     /**
@@ -71,7 +70,6 @@ class UserSpotRepository {
                     it[UserSpotsTable.country] = country
                     it[UserSpotsTable.accessType] = accessType
                     it[UserSpotsTable.createdAt] = now
-                    it[UserSpotsTable.updatedAt] = now
                 }.value
 
                 UserSpotRecord(
@@ -82,8 +80,7 @@ class UserSpotRepository {
                     region = region,
                     country = country,
                     accessType = accessType,
-                    createdAt = now,
-                    updatedAt = now
+                    createdAt = now
                 )
             }
         } catch (e: Exception) {
@@ -239,8 +236,7 @@ class UserSpotRepository {
             region = row[UserSpotsTable.region],
             country = row[UserSpotsTable.country],
             accessType = row[UserSpotsTable.accessType],
-            createdAt = row[UserSpotsTable.createdAt],
-            updatedAt = row[UserSpotsTable.updatedAt]
+            createdAt = row[UserSpotsTable.createdAt]
         )
     }
 
@@ -271,8 +267,7 @@ class UserSpotRepository {
                                 region = row[UserSpotsTable.region],
                                 country = row[UserSpotsTable.country],
                                 accessType = row[UserSpotsTable.accessType],
-                                createdAt = row[UserSpotsTable.createdAt],
-                                updatedAt = row[UserSpotsTable.updatedAt]
+                                createdAt = row[UserSpotsTable.createdAt]
                             )
                         }
                 }

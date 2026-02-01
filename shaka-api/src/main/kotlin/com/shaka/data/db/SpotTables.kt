@@ -63,5 +63,4 @@ object UserSpotsTable : UUIDTable("user_spots") {
     val country: Column<String> = varchar("country", 100).default("Custom")
     val accessType: Column<String> = varchar("access_type", 50).default("shore")
     val createdAt: Column<LocalDateTime> = datetime("created_at").default(LocalDateTime.now())
-    val updatedAt: Column<LocalDateTime> = datetime("updated_at").default(LocalDateTime.now())
 }
