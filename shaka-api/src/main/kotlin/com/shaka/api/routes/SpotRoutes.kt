@@ -1,25 +1,30 @@
 package com.shaka.api.routes
 
 import com.shaka.data.cache.OceanDataCache
+import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.SpotDatabase
+import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import java.util.UUID
 
 fun Application.configureRouting() {
     val spotService = SpotService()
     val forecastService = ForecastService()
     val copernicusClient = CopernicusClient()
     val healthService = HealthService()
+    val userSpotRepository = UserSpotRepository()
 
     routing {
         route("/v1") {
@@ -468,6 +473,278 @@ fun Application.configureRouting() {
                     """{"status":"started","spotsToFetch":$total,"message":"Full MPA refetch started in background."}""",
                     io.ktor.http.ContentType.Application.Json
                 )
+            }
+            
+            // ============================================
+            // USER SPOTS ENDPOINTS
+            // ============================================
+            
+            /**
+             * Create a new user spot.
+             * Requires X-Device-ID header.
+             * Validates coordinates and enforces 100 spot limit per device.
+             */
+            post("/user-spots") {
+                val deviceId = call.request.header("X-Device-ID")
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "X-Device-ID header required")
+                    )
+                
+                val request = try {
+                    call.receive<CreateUserSpotRequest>()
+                } catch (e: Exception) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Invalid request body: ${e.message}")
+                    )
+                }
+                
+                // Validate name
+                if (request.name.isBlank() || request.name.length > 100) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Name must be 1-100 characters")
+                    )
+                }
+                
+                // Validate coordinates
+                if (request.latitude < -90 || request.latitude > 90) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Latitude must be between -90 and 90")
+                    )
+                }
+                if (request.longitude < -180 || request.longitude > 180) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Longitude must be between -180 and 180")
+                    )
+                }
+                
+                // Validate access type
+                val validAccessTypes = setOf("shore", "boat", "kayak")
+                if (request.accessType !in validAccessTypes) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Access type must be one of: shore, boat, kayak")
+                    )
+                }
+                
+                // Check limit
+                val currentCount = userSpotRepository.countByDevice(deviceId)
+                if (currentCount >= 100) {
+                    return@post call.respond(
+                        HttpStatusCode.Conflict,
+                        mapOf(
+                            "error" to "Maximum 100 spots per device",
+                            "currentCount" to currentCount
+                        )
+                    )
+                }
+                
+                // Infer region/country from coordinates
+                val (region, country) = UserSpotRepository.inferRegionAndCountry(
+                    request.latitude, request.longitude
+                )
+                
+                // Create the spot
+                val created = userSpotRepository.create(
+                    deviceId = deviceId,
+                    name = request.name,
+                    latitude = request.latitude,
+                    longitude = request.longitude,
+                    region = region,
+                    country = country,
+                    accessType = request.accessType
+                )
+                
+                if (created == null) {
+                    return@post call.respond(
+                        HttpStatusCode.InternalServerError,
+                        mapOf("error" to "Failed to create spot")
+                    )
+                }
+                
+                // Trigger background prefetch for the new spot
+                val cacheId = userSpotRepository.getCacheId(created.id.toString())
+                GlobalScope.launch {
+                    try {
+                        spotService.prefetchSingleSpot(
+                            spotId = cacheId,
+                            lat = created.coordinates.lat,
+                            lon = created.coordinates.lon
+                        )
+                    } catch (e: Exception) {
+                        // Log but don't fail - prefetch is best-effort
+                        println("Background prefetch failed for user spot ${created.id}: ${e.message}")
+                    }
+                }
+                
+                val response = UserSpotResponse(
+                    id = created.id.toString(),
+                    name = created.name,
+                    coordinates = created.coordinates,
+                    region = created.region,
+                    country = created.country,
+                    accessType = created.accessType,
+                    createdAt = created.createdAt.toString(),
+                    isUserSpot = true
+                )
+                
+                call.respond(HttpStatusCode.Created, response)
+            }
+            
+            /**
+             * List all user spots for the device.
+             * Requires X-Device-ID header.
+             */
+            get("/user-spots") {
+                val deviceId = call.request.header("X-Device-ID")
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "X-Device-ID header required")
+                    )
+                
+                val spots = userSpotRepository.findByDeviceId(deviceId)
+                val response = UserSpotListResponse(
+                    spots = spots.map { spot ->
+                        UserSpotResponse(
+                            id = spot.id.toString(),
+                            name = spot.name,
+                            coordinates = spot.coordinates,
+                            region = spot.region,
+                            country = spot.country,
+                            accessType = spot.accessType,
+                            createdAt = spot.createdAt.toString(),
+                            isUserSpot = true
+                        )
+                    },
+                    count = spots.size,
+                    limit = 100
+                )
+                
+                call.respond(response)
+            }
+            
+            /**
+             * Search user spots by name.
+             * Requires X-Device-ID header.
+             */
+            get("/user-spots/search") {
+                val deviceId = call.request.header("X-Device-ID")
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "X-Device-ID header required")
+                    )
+                
+                val query = call.parameters["q"]
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Query parameter 'q' required")
+                    )
+                
+                val limit = call.parameters["limit"]?.toIntOrNull() ?: 20
+                
+                val spots = userSpotRepository.searchByName(deviceId, query, limit)
+                val response = UserSpotListResponse(
+                    spots = spots.map { spot ->
+                        UserSpotResponse(
+                            id = spot.id.toString(),
+                            name = spot.name,
+                            coordinates = spot.coordinates,
+                            region = spot.region,
+                            country = spot.country,
+                            accessType = spot.accessType,
+                            createdAt = spot.createdAt.toString(),
+                            isUserSpot = true
+                        )
+                    },
+                    count = spots.size,
+                    limit = limit
+                )
+                
+                call.respond(response)
+            }
+            
+            /**
+             * Get user spot detail with full conditions.
+             * Requires X-Device-ID header.
+             */
+            get("/user-spots/{id}") {
+                val deviceId = call.request.header("X-Device-ID")
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "X-Device-ID header required")
+                    )
+                
+                val spotId = call.parameters["id"]
+                    ?: return@get call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Spot ID required")
+                    )
+                
+                val date = call.parameters["date"] ?: java.time.LocalDate.now().toString()
+                
+                // Find the user spot
+                val userSpot = userSpotRepository.findByIdAndDevice(spotId, deviceId)
+                    ?: return@get call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf("error" to "Spot not found")
+                    )
+                
+                // Get detailed conditions using the service
+                val cacheId = userSpotRepository.getCacheId(spotId)
+                val spotDetail = spotService.getUserSpotDetail(userSpot, cacheId, date)
+                
+                if (spotDetail == null) {
+                    return@get call.respond(
+                        HttpStatusCode.InternalServerError,
+                        mapOf("error" to "Failed to fetch spot conditions")
+                    )
+                }
+                
+                val response = UserSpotDetailResponse(
+                    spot = spotDetail,
+                    isUserSpot = true
+                )
+                
+                call.respond(response)
+            }
+            
+            /**
+             * Delete a user spot.
+             * Requires X-Device-ID header.
+             * Also removes the spot from cache.
+             */
+            delete("/user-spots/{id}") {
+                val deviceId = call.request.header("X-Device-ID")
+                    ?: return@delete call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "X-Device-ID header required")
+                    )
+                
+                val spotId = call.parameters["id"]
+                    ?: return@delete call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "Spot ID required")
+                    )
+                
+                // Delete from database
+                val deleted = userSpotRepository.delete(spotId, deviceId)
+                
+                if (!deleted) {
+                    return@delete call.respond(
+                        HttpStatusCode.NotFound,
+                        mapOf("error" to "Spot not found or already deleted")
+                    )
+                }
+                
+                // Remove from cache
+                val cacheId = userSpotRepository.getCacheId(spotId)
+                SpotDataCache.remove(cacheId)
+                
+                call.respond(mapOf("status" to "ok", "deleted" to spotId))
             }
             
         }

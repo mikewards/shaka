@@ -48,3 +48,39 @@ object ReportsTable : UUIDTable("reports") {
     val conditionsNotes: Column<String?> = text("conditions_notes").nullable()
     val createdAt: Column<LocalDateTime> = datetime("created_at").default(LocalDateTime.now())
 }
+
+/**
+ * User-saved spots table for custom fishing locations.
+ * Each device can save up to 100 custom spots.
+ */
+object UserSpotsTable : UUIDTable("user_spots") {
+    val deviceId: Column<String> = varchar("device_id", 255)
+    val name: Column<String> = varchar("name", 255)
+    val latitude: Column<Double> = double("latitude")
+    val longitude: Column<Double> = double("longitude")
+    val region: Column<String> = varchar("region", 100)
+    val country: Column<String> = varchar("country", 100)
+    val accessType: Column<String> = varchar("access_type", 50).default("shore")
+    val createdAt: Column<LocalDateTime> = datetime("created_at").default(LocalDateTime.now())
+    val updatedAt: Column<LocalDateTime> = datetime("updated_at").default(LocalDateTime.now())
+    
+    init {
+        // Index for fast device lookups
+        index(isUnique = false, deviceId)
+    }
+}
+
+/**
+ * User-created custom spots.
+ * These spots function identically to regular spots but are private to the device that created them.
+ */
+object UserSpotsTable : UUIDTable("user_spots") {
+    val deviceId: Column<String> = varchar("device_id", 64)
+    val name: Column<String> = varchar("name", 255)
+    val latitude: Column<Double> = double("latitude")
+    val longitude: Column<Double> = double("longitude")
+    val region: Column<String> = varchar("region", 100).default("Custom")
+    val country: Column<String> = varchar("country", 100).default("Custom")
+    val accessType: Column<String> = varchar("access_type", 50).default("shore")
+    val createdAt: Column<LocalDateTime> = datetime("created_at").default(LocalDateTime.now())
+}

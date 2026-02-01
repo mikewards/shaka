@@ -4,9 +4,12 @@ import com.shaka.data.cache.OceanDataCache
 import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
+import com.shaka.data.client.GIBSClient
 import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
+import com.shaka.data.client.ProtectedSeasClient
 import com.shaka.data.client.SpotDatabase
+import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.scoring.ShakaScorer
 import kotlinx.coroutines.async
@@ -17,6 +20,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Service for searching and retrieving spearfishing spots.
@@ -37,6 +42,7 @@ class SpotService {
     private val tidesClient = NOAATidesClient()
     private val community = CommunityClient()
     private val forecastService = ForecastService()
+    private val protectedSeasClient = ProtectedSeasClient()
     private val spotDb = SpotDatabase
     
     // Lazy-load regulatory links from JSON resource
@@ -1092,6 +1098,451 @@ class SpotService {
         if (risks.isEmpty()) risks += "No significant risks identified"
 
         return risks
+    }
+
+    // ============================================
+    // USER SPOT METHODS
+    // ============================================
+
+    /**
+     * Get detailed information for a user-created spot.
+     * Similar to getSpotDetail but works with UserSpotRecord instead of in-memory spot.
+     * 
+     * @param userSpot The user spot record from the database
+     * @param cacheId The cache ID for this spot (prefixed with "user-")
+     * @param date The date for conditions lookup
+     * @return SpotDetail with full conditions, or null on error
+     */
+    suspend fun getUserSpotDetail(
+        userSpot: UserSpotRepository.UserSpotRecord,
+        cacheId: String,
+        date: String
+    ): SpotDetail? = coroutineScope {
+        val lat = userSpot.coordinates.lat
+        val lon = userSpot.coordinates.lon
+        val region = userSpot.region
+        
+        // Check prefetched cache first (instant!)
+        val cached = SpotDataCache.get(cacheId)
+        
+        // Build data from cache or fetch live
+        val weather: WeatherData
+        val ocean: OceanData
+        val waterQuality: WaterQuality
+        val tideData: TideData
+        
+        if (cached != null && cached.tide != null) {
+            // Use prefetched data - instant lookup, no API calls!
+            logger.debug("Using prefetched data for user spot detail: ${userSpot.name}")
+            
+            weather = if (cached.wind != null) {
+                WeatherData(
+                    temperature = 25.0,
+                    windSpeed = cached.wind.value.speedKnots / 0.539957,
+                    windDirection = 0,
+                    precipitation = 0.0,
+                    cloudCover = 50,
+                    visibility = 10000.0
+                )
+            } else {
+                WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
+            }
+            
+            ocean = if (cached.swell != null) {
+                OceanData(
+                    waveHeight = cached.swell.value.heightFt / 3.28084,
+                    wavePeriod = cached.swell.value.periodSec,
+                    waveDirection = 0,
+                    waterTemperature = cached.sst?.value ?: 24.0,
+                    swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
+                    swellDirection = 0
+                )
+            } else {
+                OceanData(1.0, 8.0, 0, cached.sst?.value ?: 24.0, 1.0, 0)
+            }
+            
+            waterQuality = WaterQuality(
+                chlorophyllA = cached.chlorophyll?.value,
+                turbidity = null,
+                visibility = cached.visibility?.value,
+                seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
+                dataSource = "Prefetched (updated ${cached.tide.ageString()})"
+            )
+            
+            tideData = TideData(
+                currentHeight = cached.tide.value.currentHeight,
+                nextHighTide = cached.tide.value.nextHighTide,
+                nextLowTide = cached.tide.value.nextLowTide,
+                tideState = cached.tide.value.state
+            )
+        } else {
+            // Cache miss - fetch live
+            logger.info("Prefetch cache miss for user spot ${userSpot.name}, fetching live")
+            
+            val weatherDeferred = async {
+                withTimeoutOrNull(5000) {
+                    OceanDataCache.getWeather(lat, lon, date) ?: run {
+                        val data = openMeteo.getWeather(lat, lon, date)
+                        OceanDataCache.putWeather(lat, lon, date, data)
+                        data
+                    }
+                }
+            }
+            
+            val oceanDeferred = async {
+                withTimeoutOrNull(5000) {
+                    OceanDataCache.getOcean(lat, lon, date) ?: run {
+                        val data = openMeteo.getMarineData(lat, lon, date)
+                        OceanDataCache.putOcean(lat, lon, date, data)
+                        data
+                    }
+                }
+            }
+            
+            val waterQualityDeferred = async {
+                withTimeoutOrNull(8000) {
+                    copernicus.getWaterQuality(lat, lon, date)
+                }
+            }
+            
+            val tideDeferred = async {
+                withTimeoutOrNull(5000) {
+                    OceanDataCache.getTide(lat, lon, date) ?: run {
+                        val data = tidesClient.getTideData(lat, lon, date)
+                        OceanDataCache.putTide(lat, lon, date, data)
+                        data
+                    }
+                }
+            }
+            
+            weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
+            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+            waterQuality = waterQualityDeferred.await() ?: WaterQuality(
+                null, null, null, ocean.waterTemperature, "Data temporarily unavailable"
+            )
+            tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
+        }
+        
+        // Forecast (fetched live)
+        val forecastDeferred = async {
+            withTimeoutOrNull(6000) {
+                try { 
+                    // User spots don't have a DB ID, generate forecast based on coordinates
+                    forecastService.getForecastForLocation(lat, lon, 5) 
+                } catch (e: Exception) { 
+                    emptyList() 
+                }
+            }
+        }
+        
+        val forecast = forecastDeferred.await() ?: emptyList()
+
+        logger.info("User spot detail loaded: ${userSpot.name} (${if (cached != null) "from cache" else "live fetch"})")
+
+        val score = ShakaScorer.generateScore(
+            targetDate = date,
+            weather = weather,
+            ocean = ocean,
+            waterQuality = waterQuality,
+            moonPhase = getMoonPhase(date),
+            seasonalMultiplier = 1.0, // User spots don't have seasonal data
+            recentSightings = 1,
+            isShore = userSpot.accessType == "shore",
+            hasParking = true,
+            permitRequired = false
+        )
+        
+        val actualSST = cached?.sst?.value ?: waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+        
+        // Data freshness from cache
+        val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
+        val satelliteDataDate = cached?.sst?.dataDateString()
+
+        // Build GIBS satellite readings from cache
+        val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
+            val gibs = cached.gibsChlorophyll?.value
+            GibsSatelliteReadings(
+                paceToday = gibs?.paceToday,
+                paceYesterday = gibs?.paceYesterday,
+                noaa20Today = gibs?.noaa20Today,
+                noaa20Yesterday = gibs?.noaa20Yesterday,
+                noaa21Today = gibs?.noaa21Today,
+                noaa21Yesterday = gibs?.noaa21Yesterday,
+                sentinel3aToday = gibs?.sentinel3aToday,
+                sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                sentinel3bToday = gibs?.sentinel3bToday,
+                sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                paceObservationTime = gibs?.paceObservationTime?.toString(),
+                noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
+                noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
+                dataDate = gibs?.dataDate?.toString(),
+                noaaErddapChlorophyll = cached.chlorophyll?.value,
+                noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
+            )
+        } else null
+
+        // Get MPA status from cache
+        val mpaStatus = cached?.mpa?.value?.let {
+            MPAStatus(
+                isProtected = it.spearfishingStatus in 1..2,
+                siteName = it.siteName,
+                designation = it.designation,
+                spearfishingStatus = it.spearfishingStatus,
+                protectionLevel = it.protectionLevel,
+                speciesOfConcern = it.speciesOfConcern,
+                purpose = it.purpose,
+                detailsUrl = it.detailsUrl
+            )
+        }
+
+        SpotDetail(
+            id = cacheId, // Use cache ID which includes "user-" prefix
+            name = userSpot.name,
+            description = "Custom saved spot in ${userSpot.region}",
+            coordinates = userSpot.coordinates,
+            score = score,
+            access = AccessInfo(
+                type = userSpot.accessType,
+                directions = "User-saved location",
+                parkingInfo = "Check locally",
+                permitRequired = false,
+                boatLaunchNearby = userSpot.accessType == "boat"
+            ),
+            conditions = SpotConditions(
+                visibility = cached?.visibility?.let { 
+                    "${it.value.toInt()}m (${waterQuality.visibilityCategory})" 
+                } ?: waterQuality.visibility?.let { 
+                    "${it.toInt()}m (${waterQuality.visibilityCategory})" 
+                } ?: "Data unavailable",
+                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                swell = cached?.swell?.let { 
+                    "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
+                } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                wind = cached?.wind?.let { 
+                    "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
+                } ?: "${weather.windSpeed.toInt()} knots",
+                tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
+                currentStrength = "",
+                dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
+                satelliteDataDate = satelliteDataDate
+            ),
+            forecast = forecast,
+            expectedFish = emptyList(), // User spots don't have fish data
+            gearRecommendations = generateGearRecs(actualSST, 10).map { item ->
+                GearItem(item = item, reason = "Recommended for conditions", essential = true)
+            },
+            risks = generateRisks(weather, ocean).map { risk ->
+                RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
+            },
+            communityReports = emptyList(), // No community data for user spots
+            bestTimeOfDay = getBestTimeOfDay(userSpot.accessType, getMoonPhase(date)),
+            imageUrl = null,
+            satelliteReadings = gibsReadings,
+            regulations = RegulationInfo(
+                regulatoryAgency = "Local Fisheries Authority",
+                regulationsUrl = "https://navigatormap.org/",
+                mpaStatus = mpaStatus
+            )
+        )
+    }
+
+    /**
+     * Prefetch all data for a single spot and save to cache.
+     * Used after creating a new user spot to immediately populate the cache.
+     * 
+     * Fetches:
+     * - Tide data (NOAA)
+     * - Weather/swell data (Open-Meteo)
+     * - Satellite SST/visibility/chlorophyll (Copernicus)
+     * - GIBS chlorophyll from all satellites
+     * - MPA status (ProtectedSeas)
+     * 
+     * @param spotId The cache ID for the spot
+     * @param lat Latitude
+     * @param lon Longitude
+     */
+    suspend fun prefetchSingleSpot(spotId: String, lat: Double, lon: Double) = coroutineScope {
+        val today = LocalDate.now().toString()
+        val now = Instant.now()
+        
+        logger.info("Prefetching data for spot $spotId at ($lat, $lon)")
+        
+        // Fetch all data in parallel
+        val tideDeferred = async {
+            withTimeoutOrNull(10000) {
+                try {
+                    tidesClient.getTideData(lat, lon, today)
+                } catch (e: Exception) {
+                    logger.warn("Tide fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
+        val weatherDeferred = async {
+            withTimeoutOrNull(10000) {
+                try {
+                    openMeteo.getMarineData(lat, lon, today) to openMeteo.getWeather(lat, lon, today)
+                } catch (e: Exception) {
+                    logger.warn("Weather fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
+        val satelliteDeferred = async {
+            withTimeoutOrNull(15000) {
+                try {
+                    copernicus.getWaterQuality(lat, lon, today)
+                } catch (e: Exception) {
+                    logger.warn("Satellite fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
+        val gibsDeferred = async {
+            withTimeoutOrNull(30000) {
+                try {
+                    GIBSClient.getAllChlorophyll(lat, lon)
+                } catch (e: Exception) {
+                    logger.warn("GIBS fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
+        val mpaDeferred = async {
+            withTimeoutOrNull(10000) {
+                try {
+                    protectedSeasClient.getMPAStatus(lat, lon)
+                } catch (e: Exception) {
+                    logger.warn("MPA fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
+        // Await all results
+        val tideData = tideDeferred.await()
+        val weatherData = weatherDeferred.await()
+        val satelliteData = satelliteDeferred.await()
+        val gibsData = gibsDeferred.await()
+        val mpaData = mpaDeferred.await()
+        
+        // Save to cache
+        if (tideData != null) {
+            SpotDataCache.updateTide(
+                spotId,
+                SpotDataCache.CachedValue(
+                    value = SpotDataCache.TideInfo(
+                        state = tideData.tideState,
+                        nextHighTide = tideData.nextHighTide,
+                        nextLowTide = tideData.nextLowTide,
+                        currentHeight = tideData.currentHeight
+                    ),
+                    fetchedAt = now
+                )
+            )
+        }
+        
+        if (weatherData != null) {
+            val (ocean, weather) = weatherData
+            
+            SpotDataCache.updateSwell(
+                spotId,
+                SpotDataCache.CachedValue(
+                    value = SpotDataCache.SwellInfo(
+                        heightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
+                        periodSec = ocean.wavePeriod,
+                        direction = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                        swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                    ),
+                    fetchedAt = now
+                )
+            )
+            
+            SpotDataCache.updateWind(
+                spotId,
+                SpotDataCache.CachedValue(
+                    value = SpotDataCache.WindInfo(
+                        speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
+                        direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
+                    ),
+                    fetchedAt = now
+                )
+            )
+        }
+        
+        if (satelliteData != null) {
+            satelliteData.visibility?.let { vis ->
+                SpotDataCache.updateVisibility(
+                    spotId,
+                    SpotDataCache.CachedValue(value = vis, fetchedAt = now)
+                )
+            }
+            
+            satelliteData.seaSurfaceTemp?.let { sst ->
+                SpotDataCache.updateSST(
+                    spotId,
+                    SpotDataCache.CachedValue(value = sst, fetchedAt = now)
+                )
+            }
+            
+            satelliteData.chlorophyllA?.let { chl ->
+                SpotDataCache.updateChlorophyll(
+                    spotId,
+                    SpotDataCache.CachedValue(value = chl, fetchedAt = now)
+                )
+            }
+        }
+        
+        if (gibsData != null) {
+            SpotDataCache.updateGIBSChlorophyll(
+                spotId,
+                SpotDataCache.CachedValue(
+                    value = SpotDataCache.GIBSSatelliteData(
+                        paceToday = gibsData.paceToday,
+                        paceYesterday = gibsData.paceYesterday,
+                        noaa20Today = gibsData.noaa20Today,
+                        noaa20Yesterday = gibsData.noaa20Yesterday,
+                        noaa21Today = gibsData.noaa21Today,
+                        noaa21Yesterday = gibsData.noaa21Yesterday,
+                        sentinel3aToday = gibsData.sentinel3aToday,
+                        sentinel3aYesterday = gibsData.sentinel3aYesterday,
+                        sentinel3bToday = gibsData.sentinel3bToday,
+                        sentinel3bYesterday = gibsData.sentinel3bYesterday,
+                        dataDate = gibsData.dataDate,
+                        paceObservationTime = gibsData.paceObservationTime,
+                        noaa20ObservationTime = gibsData.noaa20ObservationTime,
+                        noaa21ObservationTime = gibsData.noaa21ObservationTime
+                    ),
+                    fetchedAt = now
+                )
+            )
+        }
+        
+        // MPA data (null value means no specific MPA found, but we still cache the result)
+        val mpaCacheInfo = mpaData?.let {
+            SpotDataCache.MPACacheInfo(
+                siteName = it.siteName,
+                designation = it.designation,
+                spearfishingStatus = it.spearfishingStatus,
+                protectionLevel = it.protectionLevel,
+                speciesOfConcern = it.speciesOfConcern,
+                purpose = it.purpose,
+                detailsUrl = it.detailsUrl
+            )
+        }
+        SpotDataCache.updateMPA(
+            spotId,
+            SpotDataCache.CachedValue(value = mpaCacheInfo, fetchedAt = now)
+        )
+        
+        // Persist to database
+        SpotDataCache.saveToDatabase(spotId)
+        
+        logger.info("Prefetch complete for spot $spotId - tide:${tideData != null}, weather:${weatherData != null}, satellite:${satelliteData != null}, gibs:${gibsData != null}, mpa:${mpaData != null}")
     }
 
 }

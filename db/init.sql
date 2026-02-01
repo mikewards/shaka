@@ -2554,3 +2554,33 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Sipadan - West', 'West side. Turtle Cavern.', 4.1150, 118.6133, 'Sipadan', 'Sipadan', 'boat', 30, 30);
 
 -- Total: 789 spots
+
+-- ============================================
+-- USER SPOTS TABLE
+-- Stores user-created custom spots
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_spots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    region VARCHAR(100) NOT NULL DEFAULT 'Custom',
+    country VARCHAR(100) NOT NULL DEFAULT 'Custom',
+    access_type VARCHAR(50) NOT NULL DEFAULT 'shore',
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    -- Prevent same device from saving exact same location twice
+    CONSTRAINT user_spots_unique_location UNIQUE(device_id, latitude, longitude)
+);
+
+-- Index for fast lookup by device
+CREATE INDEX IF NOT EXISTS user_spots_device_idx ON user_spots(device_id);
+
+-- Spatial index for nearby queries (uses PostGIS)
+CREATE INDEX IF NOT EXISTS user_spots_location_idx ON user_spots USING GIST (
+    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+);
+
+-- Index for name search
+CREATE INDEX IF NOT EXISTS user_spots_name_idx ON user_spots(name);

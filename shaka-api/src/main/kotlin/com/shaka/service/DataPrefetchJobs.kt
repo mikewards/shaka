@@ -462,6 +462,169 @@ class DataPrefetchJobs(
         logger.info("MPA prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
     }
     
+    // ==================== EVERY 3 HOURS: User Spots Prefetch ====================
+    
+    /**
+     * Prefetch data for all user-created spots.
+     * Runs on same schedule as weather but in separate loop.
+     */
+    suspend fun prefetchUserSpots() = withContext(Dispatchers.IO) {
+        val userSpots = com.shaka.data.db.UserSpotRepository.getAllUserSpots()
+        
+        if (userSpots.isEmpty()) {
+            logger.info("USER SPOTS prefetch: No user spots to prefetch")
+            return@withContext
+        }
+        
+        logger.info("USER SPOTS prefetch: ${userSpots.size} user spots to check")
+        
+        val startTime = System.currentTimeMillis()
+        var successCount = 0
+        var skippedCount = 0
+        var errorCount = 0
+        val today = LocalDate.now().toString()
+        
+        for (spot in userSpots) {
+            val cacheId = "user-${spot.id}"
+            
+            // Check if data is stale (same threshold as weather: 4 hours)
+            val cached = SpotDataCache.get(cacheId)
+            if (cached?.swell != null && !isStale(cached.swell.fetchedAt, WEATHER_STALE_HOURS)) {
+                skippedCount++
+                continue
+            }
+            
+            try {
+                val lat = spot.coordinates.lat
+                val lon = spot.coordinates.lon
+                val now = Instant.now()
+                var gotData = false
+                
+                // Tide
+                try {
+                    val tideData = tidesClient.getTideData(lat, lon, today)
+                    SpotDataCache.updateTide(
+                        cacheId,
+                        SpotDataCache.CachedValue(
+                            value = SpotDataCache.TideInfo(
+                                state = tideData.tideState,
+                                nextHighTide = tideData.nextHighTide,
+                                nextLowTide = tideData.nextLowTide,
+                                currentHeight = tideData.currentHeight,
+                                stationId = null
+                            ),
+                            fetchedAt = now
+                        )
+                    )
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("User spot tide fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // Weather
+                try {
+                    val ocean = openMeteo.getMarineData(lat, lon, today)
+                    val weather = openMeteo.getWeather(lat, lon, today)
+                    
+                    SpotDataCache.updateSwell(
+                        cacheId,
+                        SpotDataCache.CachedValue(
+                            value = SpotDataCache.SwellInfo(
+                                heightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
+                                periodSec = ocean.wavePeriod,
+                                direction = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                                swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                            ),
+                            fetchedAt = now
+                        )
+                    )
+                    
+                    SpotDataCache.updateWind(
+                        cacheId,
+                        SpotDataCache.CachedValue(
+                            value = SpotDataCache.WindInfo(
+                                speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
+                                direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                                gustKnots = null
+                            ),
+                            fetchedAt = now
+                        )
+                    )
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("User spot weather fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // GIBS Chlorophyll
+                try {
+                    val gibsData = GIBSClient.getAllChlorophyll(lat, lon)
+                    SpotDataCache.updateGIBSChlorophyll(
+                        cacheId,
+                        SpotDataCache.CachedValue(
+                            value = SpotDataCache.GIBSSatelliteData(
+                                paceToday = gibsData.paceToday,
+                                paceYesterday = gibsData.paceYesterday,
+                                noaa20Today = gibsData.noaa20Today,
+                                noaa20Yesterday = gibsData.noaa20Yesterday,
+                                noaa21Today = gibsData.noaa21Today,
+                                noaa21Yesterday = gibsData.noaa21Yesterday,
+                                sentinel3aToday = gibsData.sentinel3aToday,
+                                sentinel3aYesterday = gibsData.sentinel3aYesterday,
+                                sentinel3bToday = gibsData.sentinel3bToday,
+                                sentinel3bYesterday = gibsData.sentinel3bYesterday,
+                                dataDate = gibsData.dataDate,
+                                paceObservationTime = gibsData.paceObservationTime,
+                                noaa20ObservationTime = gibsData.noaa20ObservationTime,
+                                noaa21ObservationTime = gibsData.noaa21ObservationTime
+                            ),
+                            fetchedAt = now
+                        )
+                    )
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("User spot GIBS fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // MPA
+                try {
+                    val mpaInfo = protectedSeasClient.getMPAStatus(lat, lon)
+                    val cacheInfo = mpaInfo?.let {
+                        SpotDataCache.MPACacheInfo(
+                            siteName = it.siteName,
+                            designation = it.designation,
+                            spearfishingStatus = it.spearfishingStatus,
+                            protectionLevel = it.protectionLevel,
+                            speciesOfConcern = it.speciesOfConcern,
+                            purpose = it.purpose,
+                            detailsUrl = it.detailsUrl
+                        )
+                    }
+                    SpotDataCache.updateMPA(cacheId, SpotDataCache.CachedValue(cacheInfo, now))
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("User spot MPA fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                if (gotData) {
+                    SpotDataCache.saveToDatabase(cacheId)
+                    successCount++
+                } else {
+                    errorCount++
+                }
+                
+                // Rate limit
+                delay(500)
+                
+            } catch (e: Exception) {
+                logger.debug("User spot prefetch failed for ${spot.name}: ${e.message}")
+                errorCount++
+            }
+        }
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        logger.info("USER SPOTS prefetch complete: $successCount updated, $skippedCount skipped (fresh), $errorCount errors in ${elapsed}ms")
+    }
+    
     // ==================== Full Prefetch (Startup) ====================
     
     /**
@@ -485,6 +648,10 @@ class DataPrefetchJobs(
         delay(3000)
         
         prefetchMPA()
+        delay(3000)
+        
+        // Also prefetch user spots
+        prefetchUserSpots()
         
         val elapsed = System.currentTimeMillis() - startTime
         logger.info("FULL prefetch complete in ${elapsed}ms. Cache now has ${SpotDataCache.size()} spots")

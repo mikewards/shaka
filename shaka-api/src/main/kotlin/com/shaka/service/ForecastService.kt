@@ -174,4 +174,72 @@ class ForecastService {
             else -> "Poor"
         }
     }
+
+    /**
+     * Generate forecast for a location by coordinates.
+     * Used for user-created spots that don't exist in the spot database.
+     * 
+     * @param lat Latitude
+     * @param lon Longitude
+     * @param days Number of days to forecast
+     * @return List of day forecasts
+     */
+    suspend fun getForecastForLocation(lat: Double, lon: Double, days: Int): List<DayForecast> {
+        val forecasts = mutableListOf<DayForecast>()
+        val today = LocalDate.now()
+        
+        try {
+            val endDate = today.plusDays((days - 1).toLong())
+            
+            // Batch weather fetch for all days
+            val weatherData = openMeteo.getWeatherRange(lat, lon, today.toString(), endDate.toString())
+            val oceanData = openMeteo.getMarineDataRange(lat, lon, today.toString(), endDate.toString())
+            
+            for (i in 0 until days) {
+                val date = today.plusDays(i.toLong())
+                val dateStr = date.toString()
+                
+                val weather = weatherData.getOrNull(i) ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10000.0)
+                val ocean = oceanData.getOrNull(i) ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+                val sst = ocean.waterTemperature
+                
+                val waterQuality = WaterQuality(
+                    chlorophyllA = null,
+                    turbidity = null,
+                    visibility = null,
+                    seaSurfaceTemp = sst,
+                    dataSource = "Forecast"
+                )
+                
+                val score = ShakaScorer.generateScore(
+                    targetDate = dateStr,
+                    weather = weather,
+                    ocean = ocean,
+                    waterQuality = waterQuality,
+                    moonPhase = getMoonPhase(dateStr),
+                    seasonalMultiplier = 1.0,
+                    recentSightings = 0,
+                    isShore = true, // Default to shore
+                    hasParking = true,
+                    permitRequired = false
+                )
+                
+                forecasts += DayForecast(
+                    date = dateStr,
+                    shakaScore = score.overall,
+                    confidence = score.confidence - (i * 5), // Confidence decreases further out
+                    conditions = SpotConditions(
+                        visibility = "Check conditions",
+                        waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
+                        swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                        wind = "${weather.windSpeed.toInt()} knots"
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            logger.warn("Forecast fetch failed for ($lat, $lon): ${e.message}")
+        }
+
+        return forecasts
+    }
 }

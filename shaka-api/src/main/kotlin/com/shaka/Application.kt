@@ -171,6 +171,20 @@ private fun Application.configureScheduledJobs() {
         }
     }
     
+    // EVERY 3 HOURS: User spots refresh (same as weather)
+    backgroundScope.launch {
+        delay(240_000)  // Initial 4 minute delay (after startup prefetch)
+        while (true) {
+            delay(10_800_000)  // 3 hours = 10,800,000 ms
+            try {
+                logger.info("Running scheduled USER SPOTS prefetch")
+                prefetchJobs.prefetchUserSpots()
+            } catch (e: Exception) {
+                logger.error("Scheduled user spots prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
     // Clean up when application stops
     environment.monitor.subscribe(ApplicationStopped) {
         logger.info("Shutting down Shaka API...")
@@ -187,7 +201,7 @@ private fun Application.configureScheduledJobs() {
         logger.info("Final rate limiter stats: ${RateLimiters.getAllStats()}")
     }
     
-    logger.info("Background prefetch jobs configured: hourly (tide), 3h (weather), 6h (satellite)")
+    logger.info("Background prefetch jobs configured: hourly (tide), 3h (weather + user spots), 6h (satellite)")
 }
 
 private fun Application.tryInitDatabase() {

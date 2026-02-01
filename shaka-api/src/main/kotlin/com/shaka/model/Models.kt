@@ -274,3 +274,40 @@ data class WaterQuality(
         }
     }
 }
+
+// ============================================
+// USER SPOTS MODELS
+// ============================================
+
+@Serializable
+data class CreateUserSpotRequest(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val accessType: String = "shore"  // shore, boat, kayak
+)
+
+@Serializable
+data class UserSpotResponse(
+    val id: String,
+    val name: String,
+    val coordinates: Coordinates,
+    val region: String,
+    val country: String,
+    val accessType: String,
+    val createdAt: String,
+    val isUserSpot: Boolean = true  // Always true, used by frontend to show "Saved" badge
+)
+
+@Serializable
+data class UserSpotListResponse(
+    val spots: List<UserSpotResponse>,
+    val count: Int,
+    val limit: Int = 100
+)
+
+@Serializable
+data class UserSpotDetailResponse(
+    val spot: SpotDetail,
+    val isUserSpot: Boolean = true
+)
