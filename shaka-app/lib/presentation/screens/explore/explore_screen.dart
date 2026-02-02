@@ -479,9 +479,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
     double closestPhysicalDist = double.infinity;
     
     for (int i = 0; i < spots.length; i++) {
+      // Bail out if controller was nulled (style change)
+      if (_mapController == null) return;
+      
       final spot = spots[i];
       final spotLatLng = LatLng(spot.coordinates.lat, spot.coordinates.lon);
       final spotScreenPos = await _mapController!.toScreenLocation(spotLatLng);
+      
+      // Check again after await
+      if (_mapController == null) return;
       
       // Distance using logical tap
       final dxL = tapLogical.dx - spotScreenPos.x;

@@ -913,27 +913,33 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   Widget _buildTopBar() {
     return Row(
       children: [
-        // Back button - floating pill style
+        // Back button - matches floating button size (48x48)
         GestureDetector(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
-            padding: const EdgeInsets.all(10),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withOpacity(0.7),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: const Center(
+              child: Icon(Icons.arrow_back, color: Colors.white, size: 24),
+            ),
           ),
         ),
         const Spacer(),
-        // Date and satellite info - floating pill (tappable to change date)
+        // Date and satellite info - same height as back button (48px)
         GestureDetector(
           onTap: _showDatePicker,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withOpacity(0.7),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
