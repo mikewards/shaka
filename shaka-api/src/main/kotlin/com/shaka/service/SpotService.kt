@@ -44,6 +44,8 @@ class SpotService {
     private val forecastService = ForecastService()
     private val protectedSeasClient = ProtectedSeasClient()
     private val spotDb = SpotDatabase
+    // Note: GlobalFishingWatchClient and SolunarClient are used by DataPrefetchJobs
+    // SpotService reads the cached data from SpotDataCache
     
     // Lazy-load regulatory links from JSON resource
     private val regulatoryLinks: JsonElement? by lazy {
@@ -421,6 +423,36 @@ class SpotService {
         
         val communityReports = communityDeferred.await() ?: emptyList()
         val forecast = forecastDeferred.await() ?: emptyList()
+        
+        // Build fishing intel from cache (prefetched daily)
+        val vesselActivity = cached?.vessel?.value?.let { vessel ->
+            VesselActivity(
+                count = vessel.count,
+                radiusNm = vessel.radiusNm,
+                updatedAt = cached.vessel.fetchedAt.toString()
+            )
+        }
+        
+        val solunarData = cached?.solunar?.value?.let { sol ->
+            SolunarData(
+                moonPhase = sol.moonPhase,
+                illumination = sol.illumination,
+                majorPeriods = listOfNotNull(
+                    if (sol.majorStart1 != null && sol.majorEnd1 != null) 
+                        TimePeriod(sol.majorStart1, sol.majorEnd1) else null,
+                    if (sol.majorStart2 != null && sol.majorEnd2 != null) 
+                        TimePeriod(sol.majorStart2, sol.majorEnd2) else null
+                ),
+                minorPeriods = listOfNotNull(
+                    if (sol.minorStart1 != null && sol.minorEnd1 != null) 
+                        TimePeriod(sol.minorStart1, sol.minorEnd1) else null,
+                    if (sol.minorStart2 != null && sol.minorEnd2 != null) 
+                        TimePeriod(sol.minorStart2, sol.minorEnd2) else null
+                ),
+                dayRating = sol.dayRating,
+                hourlyRating = null
+            )
+        }
 
         logger.info("Spot detail loaded: ${spot.name} (${if (cached != null) "from cache" else "live fetch"})")
 
@@ -467,6 +499,9 @@ class SpotService {
             )
         } else null
 
+        // Build water context with chlorophyll trend and SST nearby readings
+        val waterContext = buildWaterContext(cached, waterQuality, lat, lon)
+        
         SpotDetail(
             id = spot.id,
             name = spot.name,
@@ -516,7 +551,11 @@ class SpotService {
             bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,
-            regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId))
+            regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId)),
+            // NEW: Fishing intel data
+            vessels = vesselActivity,
+            solunar = solunarData,
+            waterContext = waterContext
         )
     }
 
@@ -1099,6 +1138,106 @@ class SpotService {
         if (risks.isEmpty()) risks += "No significant risks identified"
 
         return risks
+    }
+    
+    /**
+     * Build water context with chlorophyll trends and SST at nearby points.
+     * Allows fishermen to spot temperature breaks and plankton blooms.
+     */
+    private fun buildWaterContext(
+        cached: SpotDataCache.SpotData?,
+        waterQuality: WaterQuality,
+        lat: Double,
+        lon: Double
+    ): WaterContext? {
+        val chlorophyllContext = buildChlorophyllContext(cached, waterQuality)
+        val sstNearby = buildSSTNearby(cached, lat, lon)
+        
+        // Return null if no data available
+        if (chlorophyllContext == null && sstNearby.isNullOrEmpty()) {
+            return null
+        }
+        
+        return WaterContext(
+            chlorophyll = chlorophyllContext,
+            sstNearby = sstNearby
+        )
+    }
+    
+    /**
+     * Build chlorophyll context with current value and trend.
+     * Compares current reading to 7-day average from GIBS satellite data.
+     */
+    private fun buildChlorophyllContext(
+        cached: SpotDataCache.SpotData?,
+        waterQuality: WaterQuality
+    ): ChlorophyllContext? {
+        // Get current chlorophyll from cache or water quality
+        val current = cached?.chlorophyll?.value ?: waterQuality.chlorophyllA ?: return null
+        
+        // Get historical data from GIBS (we have today and yesterday from multiple satellites)
+        val gibs = cached?.gibsChlorophyll?.value
+        
+        // Calculate a simple average from available satellite readings
+        val readings = listOfNotNull(
+            gibs?.paceToday,
+            gibs?.paceYesterday,
+            gibs?.noaa20Today,
+            gibs?.noaa20Yesterday,
+            gibs?.noaa21Today,
+            gibs?.noaa21Yesterday,
+            gibs?.sentinel3aToday,
+            gibs?.sentinel3aYesterday,
+            gibs?.sentinel3bToday,
+            gibs?.sentinel3bYesterday
+        )
+        
+        // If we have multiple readings, calculate avg and trend
+        val avg7day = if (readings.isNotEmpty()) {
+            readings.average()
+        } else {
+            current // Use current as baseline if no history
+        }
+        
+        // Determine trend based on current vs average
+        val trend = when {
+            current > avg7day * 1.5 -> "rising"     // 50%+ above average = rising
+            current < avg7day * 0.7 -> "falling"   // 30%+ below average = falling
+            else -> "stable"
+        }
+        
+        return ChlorophyllContext(
+            current = current,
+            avg7day = avg7day,
+            trend = trend
+        )
+    }
+    
+    /**
+     * Build SST readings at nearby points to detect temperature breaks.
+     * Uses cached SST data or estimates from marine data.
+     * 
+     * Temperature breaks (where warm and cold water meet) are where fish congregate.
+     */
+    private fun buildSSTNearby(
+        cached: SpotDataCache.SpotData?,
+        lat: Double,
+        lon: Double
+    ): List<SSTReading>? {
+        // Get SST at the spot
+        val centerSST = cached?.sst?.value ?: return null
+        
+        // For now, we don't have nearby readings in cache
+        // In a full implementation, we'd fetch SST at N/S/E/W points during prefetch
+        // For now, return null - this will be populated when we add SST nearby to prefetch
+        
+        // TODO: Add SST nearby readings to prefetch jobs
+        // This would involve:
+        // 1. During prefetch, fetch SST at 4 points: 5nm N, S, E, W of spot
+        // 2. Store in cache as part of CachedSpotData
+        // 3. Return those readings here
+        
+        return null
     }
 
     // ============================================

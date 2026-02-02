@@ -436,6 +436,149 @@ class RegulationInfo {
   }
 }
 
+// ===========================================
+// FISHING INTEL MODELS
+// Raw data for fishermen to interpret
+// ===========================================
+
+/// Vessel activity from Global Fishing Watch
+class VesselActivity {
+  final int count;
+  final int radiusNm;
+  final String updatedAt;
+
+  const VesselActivity({
+    required this.count,
+    required this.radiusNm,
+    required this.updatedAt,
+  });
+
+  factory VesselActivity.fromJson(Map<String, dynamic> json) {
+    return VesselActivity(
+      count: json['count'] ?? 0,
+      radiusNm: json['radiusNm'] ?? 10,
+      updatedAt: json['updatedAt'] ?? '',
+    );
+  }
+}
+
+/// Time period for solunar data
+class TimePeriod {
+  final String start;
+  final String end;
+
+  const TimePeriod({required this.start, required this.end});
+
+  factory TimePeriod.fromJson(Map<String, dynamic> json) {
+    return TimePeriod(
+      start: json['start'] ?? '',
+      end: json['end'] ?? '',
+    );
+  }
+}
+
+/// Solunar data - moon phase and feeding periods
+class SolunarData {
+  final String moonPhase;
+  final int illumination;
+  final List<TimePeriod> majorPeriods;
+  final List<TimePeriod> minorPeriods;
+  final int? dayRating;
+
+  const SolunarData({
+    required this.moonPhase,
+    required this.illumination,
+    required this.majorPeriods,
+    required this.minorPeriods,
+    this.dayRating,
+  });
+
+  factory SolunarData.fromJson(Map<String, dynamic> json) {
+    return SolunarData(
+      moonPhase: json['moonPhase'] ?? 'unknown',
+      illumination: json['illumination'] ?? 0,
+      majorPeriods: (json['majorPeriods'] as List? ?? [])
+          .map((e) => TimePeriod.fromJson(e))
+          .toList(),
+      minorPeriods: (json['minorPeriods'] as List? ?? [])
+          .map((e) => TimePeriod.fromJson(e))
+          .toList(),
+      dayRating: json['dayRating'],
+    );
+  }
+  
+  /// Get human-readable moon phase
+  String get moonPhaseDisplay {
+    return moonPhase.replaceAll('_', ' ').split(' ').map((word) => 
+      word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : ''
+    ).join(' ');
+  }
+}
+
+/// Chlorophyll context with trend
+class ChlorophyllContext {
+  final double current;
+  final double avg7day;
+  final String trend;
+
+  const ChlorophyllContext({
+    required this.current,
+    required this.avg7day,
+    required this.trend,
+  });
+
+  factory ChlorophyllContext.fromJson(Map<String, dynamic> json) {
+    return ChlorophyllContext(
+      current: (json['current'] as num?)?.toDouble() ?? 0.0,
+      avg7day: (json['avg7day'] as num?)?.toDouble() ?? 0.0,
+      trend: json['trend'] ?? 'stable',
+    );
+  }
+  
+  /// Get ratio of current to average
+  double get ratio => avg7day > 0 ? current / avg7day : 1.0;
+}
+
+/// SST reading at a nearby point
+class SSTReading {
+  final String direction;
+  final int distanceNm;
+  final double tempC;
+
+  const SSTReading({
+    required this.direction,
+    required this.distanceNm,
+    required this.tempC,
+  });
+
+  factory SSTReading.fromJson(Map<String, dynamic> json) {
+    return SSTReading(
+      direction: json['direction'] ?? '',
+      distanceNm: json['distanceNm'] ?? 5,
+      tempC: (json['tempC'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+/// Enhanced water context
+class WaterContext {
+  final ChlorophyllContext? chlorophyll;
+  final List<SSTReading>? sstNearby;
+
+  const WaterContext({this.chlorophyll, this.sstNearby});
+
+  factory WaterContext.fromJson(Map<String, dynamic> json) {
+    return WaterContext(
+      chlorophyll: json['chlorophyll'] != null
+          ? ChlorophyllContext.fromJson(json['chlorophyll'])
+          : null,
+      sstNearby: (json['sstNearby'] as List?)
+          ?.map((e) => SSTReading.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
 class SpotDetail {
   final String id;
   final String name;
@@ -453,6 +596,10 @@ class SpotDetail {
   final String? imageUrl;
   final GibsSatelliteReadings? satelliteReadings;
   final RegulationInfo? regulations;
+  // NEW: Fishing intel data
+  final VesselActivity? vessels;
+  final SolunarData? solunar;
+  final WaterContext? waterContext;
 
   const SpotDetail({
     required this.id,
@@ -471,6 +618,9 @@ class SpotDetail {
     this.imageUrl,
     this.satelliteReadings,
     this.regulations,
+    this.vessels,
+    this.solunar,
+    this.waterContext,
   });
 
   factory SpotDetail.fromJson(Map<String, dynamic> json) {
@@ -504,6 +654,15 @@ class SpotDetail {
           : null,
       regulations: json['regulations'] != null
           ? RegulationInfo.fromJson(json['regulations'])
+          : null,
+      vessels: json['vessels'] != null
+          ? VesselActivity.fromJson(json['vessels'])
+          : null,
+      solunar: json['solunar'] != null
+          ? SolunarData.fromJson(json['solunar'])
+          : null,
+      waterContext: json['waterContext'] != null
+          ? WaterContext.fromJson(json['waterContext'])
           : null,
     );
   }

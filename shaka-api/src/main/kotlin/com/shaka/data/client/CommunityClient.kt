@@ -82,57 +82,138 @@ class CommunityClient {
             "cape_verde" to listOf("cape verde", "sal", "boa vista")
         )
 
-        // Source configurations
+        // Source configurations - GLOBAL coverage
         val SOURCES = listOf(
+            // === WORLDWIDE ===
             SourceConfig(
                 name = "DeeperBlue Forums",
                 baseUrl = "https://forums.deeperblue.com",
                 type = SourceType.FORUM,
-                regions = listOf("worldwide")
-            ),
-            SourceConfig(
-                name = "Spearfisherman.com",
-                baseUrl = "https://spearfisherman.com/spearblogs",
-                type = SourceType.BLOG,
-                regions = listOf("florida", "bahamas", "caribbean")
-            ),
-            SourceConfig(
-                name = "The Frenchman Spearfishing",
-                baseUrl = "https://thefrenchmanspearfishing.com/spearfishing-freediving-blog",
-                type = SourceType.BLOG,
-                regions = listOf("uk", "europe")
-            ),
-            SourceConfig(
-                name = "Ultimate Spearfishing",
-                baseUrl = "https://ultimatespearfishing.com",
-                type = SourceType.BLOG,
-                regions = listOf("california", "worldwide")
+                regions = listOf("worldwide"),
+                language = "en"
             ),
             SourceConfig(
                 name = "Spearboard",
                 baseUrl = "https://www.spearboard.com",
                 type = SourceType.FORUM,
-                regions = listOf("worldwide")
+                regions = listOf("worldwide"),
+                language = "en"
+            ),
+            
+            // === JAPAN ===
+            SourceConfig(
+                name = "FISHING JAPAN",
+                baseUrl = "https://fishingjapan.jp",
+                type = SourceType.BLOG,
+                regions = listOf("japan", "okinawa"),
+                language = "ja"
+            ),
+            SourceConfig(
+                name = "釣り板 (Fishing Board)",
+                baseUrl = "https://talk.jp/boards/fish",
+                type = SourceType.FORUM,
+                regions = listOf("japan", "okinawa"),
+                language = "ja"
+            ),
+            
+            // === KOREA ===
+            SourceConfig(
+                name = "인낚 (Innak)",
+                baseUrl = "https://innak.kr",
+                type = SourceType.FORUM,
+                regions = listOf("korea", "jeju"),
+                language = "ko"
+            ),
+            
+            // === AUSTRALIA / PACIFIC ===
+            SourceConfig(
+                name = "Ausfish",
+                baseUrl = "https://www.ausfish.com.au/vforum",
+                type = SourceType.FORUM,
+                regions = listOf("australia", "queensland", "western_australia"),
+                language = "en"
+            ),
+            SourceConfig(
+                name = "Southern Freedivers",
+                baseUrl = "https://southernfreedivers.org.au/forums",
+                type = SourceType.FORUM,
+                regions = listOf("australia", "victoria"),
+                language = "en"
             ),
             SourceConfig(
                 name = "Spearfishing World",
                 baseUrl = "https://www.spearfishingworld.com",
                 type = SourceType.BLOG,
-                regions = listOf("australia", "pacific")
+                regions = listOf("australia", "pacific"),
+                language = "en"
+            ),
+            
+            // === USA ===
+            SourceConfig(
+                name = "360Tuna",
+                baseUrl = "https://www.360tuna.com",
+                type = SourceType.FORUM,
+                regions = listOf("florida", "bahamas", "caribbean", "hawaii"),
+                language = "en"
+            ),
+            SourceConfig(
+                name = "Spearfisherman.com",
+                baseUrl = "https://spearfisherman.com/spearblogs",
+                type = SourceType.BLOG,
+                regions = listOf("florida", "bahamas", "caribbean"),
+                language = "en"
+            ),
+            SourceConfig(
+                name = "Ultimate Spearfishing",
+                baseUrl = "https://ultimatespearfishing.com",
+                type = SourceType.BLOG,
+                regions = listOf("california", "worldwide"),
+                language = "en"
+            ),
+            
+            // === MEDITERRANEAN / EUROPE ===
+            SourceConfig(
+                name = "Pesca Sub Italia",
+                baseUrl = "https://www.pescasub.it",
+                type = SourceType.FORUM,
+                regions = listOf("italy", "mediterranean"),
+                language = "it"
             ),
             SourceConfig(
                 name = "Apnea Passion",
                 baseUrl = "https://www.apnea-passion.com",
                 type = SourceType.BLOG,
-                regions = listOf("france", "mediterranean")
+                regions = listOf("france", "mediterranean"),
+                language = "fr"
             ),
             SourceConfig(
-                name = "Pesca Sub Italia",
-                baseUrl = "https://www.pescasub.it",
-                type = SourceType.FORUM,
-                regions = listOf("italy", "mediterranean")
+                name = "The Frenchman Spearfishing",
+                baseUrl = "https://thefrenchmanspearfishing.com/spearfishing-freediving-blog",
+                type = SourceType.BLOG,
+                regions = listOf("uk", "europe"),
+                language = "en"
             )
         )
+        
+        /**
+         * Get the most relevant forums for a region.
+         * Returns forums ordered by relevance (exact match first, then worldwide).
+         */
+        fun getForumsForRegion(region: String): List<SourceConfig> {
+            val regionLower = region.lowercase()
+            
+            // Find exact/partial matches first
+            val exactMatches = SOURCES.filter { source ->
+                source.regions.any { r -> 
+                    regionLower.contains(r) || r.contains(regionLower) 
+                }
+            }
+            
+            // Add worldwide forums if not enough matches
+            val worldwideForums = SOURCES.filter { it.regions.contains("worldwide") }
+            
+            return (exactMatches + worldwideForums).distinctBy { it.name }
+        }
     }
 
     /**
@@ -347,6 +428,20 @@ class CommunityClient {
                 "Catalina backside showing cleaner water",
                 "NorCal lingcod season in full swing"
             )
+            // === JAPAN ===
+            "japan", "okinawa" -> listOf(
+                "Okinawa conditions: 30m+ visibility, kuroshio current bringing warm water",
+                "Izu Peninsula: yellowtail running on offshore structure",
+                "Ogasawara Islands: GT and dogtooth active on reef edges",
+                "Water temp 24C, calm conditions for next 3 days"
+            )
+            // === KOREA ===  
+            "korea", "jeju" -> listOf(
+                "Jeju Island: abalone and sea urchin in good numbers",
+                "East coast visibility 15-20m after recent calm",
+                "Yellowtail active on jigging grounds",
+                "Underwater visibility improving with clearer water"
+            )
             else -> listOf(
                 "Local conditions report: moderate visibility, calm seas",
                 "Fish activity normal for season",
@@ -397,7 +492,8 @@ data class SourceConfig(
     val name: String,
     val baseUrl: String,
     val type: SourceType,
-    val regions: List<String>
+    val regions: List<String>,
+    val language: String = "en"  // ISO 639-1 language code
 )
 
 // Reddit API response models

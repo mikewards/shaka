@@ -70,7 +70,11 @@ data class SpotDetail(
     val bestTimeOfDay: String,
     val imageUrl: String? = null,
     val satelliteReadings: GibsSatelliteReadings? = null,
-    val regulations: RegulationInfo? = null
+    val regulations: RegulationInfo? = null,
+    // NEW: Raw intel data for fishermen to interpret
+    val vessels: VesselActivity? = null,      // Boats nearby from Global Fishing Watch
+    val solunar: SolunarData? = null,         // Moon phase + feeding periods
+    val waterContext: WaterContext? = null    // Chlorophyll trend + SST breaks
 )
 
 @Serializable
@@ -275,6 +279,77 @@ data class WaterQuality(
         }
     }
 }
+
+// ============================================
+// FISHING INTEL MODELS
+// Raw data for fishermen to interpret - no scores!
+// ============================================
+
+/**
+ * Vessel activity from Global Fishing Watch.
+ * Shows how many fishing boats are operating nearby.
+ */
+@Serializable
+data class VesselActivity(
+    val count: Int,                    // "8 vessels"
+    val radiusNm: Int,                 // "within 10nm"
+    val updatedAt: String              // ISO timestamp
+)
+
+/**
+ * Solunar data - moon phase and feeding periods.
+ * Fishermen have used solunar tables for decades.
+ */
+@Serializable
+data class SolunarData(
+    val moonPhase: String,             // "waning_gibbous", "full_moon", etc.
+    val illumination: Int,             // 0-100 percent
+    val majorPeriods: List<TimePeriod>,// ~2hr periods around moon overhead/underfoot
+    val minorPeriods: List<TimePeriod>,// ~1hr periods around moonrise/moonset
+    val dayRating: Int? = null,        // 0-100 overall day rating (optional)
+    val hourlyRating: Map<String, Int>? = null // Hour-by-hour rating (optional)
+)
+
+/**
+ * A time period (start to end).
+ */
+@Serializable
+data class TimePeriod(
+    val start: String,                 // "14:34" (24hr format)
+    val end: String                    // "16:34"
+)
+
+/**
+ * Enhanced water context with trends and nearby readings.
+ * Allows fishermen to spot temperature breaks and chlorophyll spikes.
+ */
+@Serializable
+data class WaterContext(
+    val chlorophyll: ChlorophyllContext?,
+    val sstNearby: List<SSTReading>?   // readings at N/S/E/W for break detection
+)
+
+/**
+ * Chlorophyll with 7-day trend.
+ * Rising chlorophyll = plankton bloom = bait = fish!
+ */
+@Serializable
+data class ChlorophyllContext(
+    val current: Double,               // 0.42 mg/m³
+    val avg7day: Double,               // 0.15 mg/m³
+    val trend: String                  // "rising", "falling", "stable"
+)
+
+/**
+ * SST reading at a nearby point.
+ * Temperature breaks are where fish congregate.
+ */
+@Serializable
+data class SSTReading(
+    val direction: String,             // "E", "W", "N", "S"
+    val distanceNm: Int,               // 5
+    val tempC: Double                  // 24.5
+)
 
 // ============================================
 // USER SPOTS MODELS

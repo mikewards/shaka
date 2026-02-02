@@ -28,7 +28,9 @@ class DataPrefetchJobs(
     private val openMeteo: OpenMeteoClient,
     private val copernicus: CopernicusClient,
     private val noaaClient: NOAAClient,
-    private val protectedSeasClient: ProtectedSeasClient = ProtectedSeasClient()
+    private val protectedSeasClient: ProtectedSeasClient = ProtectedSeasClient(),
+    private val globalFishingWatch: GlobalFishingWatchClient = GlobalFishingWatchClient(),
+    private val solunarClient: SolunarClient = SolunarClient()
 ) {
     private val logger = LoggerFactory.getLogger(DataPrefetchJobs::class.java)
     
@@ -42,6 +44,8 @@ class DataPrefetchJobs(
         const val WEATHER_STALE_HOURS = 4   // Refetch if older than 4h  
         const val SATELLITE_STALE_HOURS = 12 // Refetch if older than 12h
         const val MPA_STALE_HOURS = 168     // Weekly (168 hours) - MPA boundaries rarely change
+        const val VESSEL_STALE_HOURS = 24   // Daily - GFW updates daily
+        const val SOLUNAR_STALE_HOURS = 24  // Daily - solunar is date-based
     }
     
     // ==================== HOURLY: Tide Prefetch ====================
@@ -462,6 +466,122 @@ class DataPrefetchJobs(
         logger.info("MPA prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
     }
     
+    // ==================== DAILY: Fishing Intel Prefetch ====================
+    
+    /**
+     * Prefetch fishing intel data: vessel activity and solunar periods.
+     * These are the raw data points fishermen use to make their own calls.
+     * 
+     * Global Fishing Watch provides vessel clustering data.
+     * Solunar API provides moon phase and feeding periods.
+     * 
+     * Schedule: Daily (data changes day-to-day)
+     */
+    suspend fun prefetchFishingIntel() = withContext(Dispatchers.IO) {
+        val allSpots = spotDb.getAllSpots()
+        val today = LocalDate.now()
+        
+        // Filter to spots that need updating (daily refresh)
+        val spotsToUpdate = allSpots.filter { spot ->
+            val cached = SpotDataCache.get(spot.id)
+            cached?.vessel == null || cached.solunar == null ||
+                isStale(cached.vessel?.fetchedAt, VESSEL_STALE_HOURS) ||
+                isStale(cached.solunar?.fetchedAt, SOLUNAR_STALE_HOURS)
+        }
+        
+        logger.info("FISHING INTEL prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates")
+        
+        if (spotsToUpdate.isEmpty()) {
+            logger.info("FISHING INTEL prefetch: All spots have fresh data, skipping")
+            return@withContext
+        }
+        
+        val startTime = System.currentTimeMillis()
+        var vesselSuccess = 0
+        var solunarSuccess = 0
+        var errorCount = 0
+        
+        // Process in batches to avoid overwhelming APIs
+        spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+            val results = batch.map { spot ->
+                async {
+                    val lat = spot.coordinates.lat
+                    val lon = spot.coordinates.lon
+                    val now = Instant.now()
+                    var gotVessel = false
+                    var gotSolunar = false
+                    
+                    // Fetch vessel activity from Global Fishing Watch
+                    try {
+                        val vesselData = globalFishingWatch.getVesselActivity(lat, lon)
+                        if (vesselData != null) {
+                            SpotDataCache.updateVessel(
+                                spot.id,
+                                SpotDataCache.CachedValue(
+                                    value = SpotDataCache.VesselInfo(
+                                        count = vesselData.count,
+                                        radiusNm = vesselData.radiusNm
+                                    ),
+                                    fetchedAt = now
+                                )
+                            )
+                            gotVessel = true
+                        }
+                    } catch (e: Exception) {
+                        logger.debug("Vessel fetch failed for ${spot.name}: ${e.message}")
+                    }
+                    
+                    // Fetch solunar data
+                    try {
+                        val solunarData = solunarClient.getSolunarData(lat, lon, today)
+                        if (solunarData != null) {
+                            SpotDataCache.updateSolunar(
+                                spot.id,
+                                SpotDataCache.CachedValue(
+                                    value = SpotDataCache.SolunarInfo(
+                                        moonPhase = solunarData.moonPhase,
+                                        illumination = solunarData.illumination,
+                                        majorStart1 = solunarData.majorPeriods.getOrNull(0)?.start,
+                                        majorEnd1 = solunarData.majorPeriods.getOrNull(0)?.end,
+                                        majorStart2 = solunarData.majorPeriods.getOrNull(1)?.start,
+                                        majorEnd2 = solunarData.majorPeriods.getOrNull(1)?.end,
+                                        minorStart1 = solunarData.minorPeriods.getOrNull(0)?.start,
+                                        minorEnd1 = solunarData.minorPeriods.getOrNull(0)?.end,
+                                        minorStart2 = solunarData.minorPeriods.getOrNull(1)?.start,
+                                        minorEnd2 = solunarData.minorPeriods.getOrNull(1)?.end,
+                                        dayRating = solunarData.dayRating
+                                    ),
+                                    fetchedAt = now
+                                )
+                            )
+                            gotSolunar = true
+                        }
+                    } catch (e: Exception) {
+                        logger.debug("Solunar fetch failed for ${spot.name}: ${e.message}")
+                    }
+                    
+                    if (gotVessel || gotSolunar) {
+                        SpotDataCache.saveToDatabase(spot.id)
+                    }
+                    
+                    Pair(gotVessel, gotSolunar)
+                }
+            }.awaitAll()
+            
+            vesselSuccess += results.count { it.first }
+            solunarSuccess += results.count { it.second }
+            errorCount += results.count { !it.first && !it.second }
+            
+            if (batchIndex < spotsToUpdate.size / BATCH_SIZE) {
+                delay(BATCH_DELAY_MS)
+            }
+        }
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        logger.info("FISHING INTEL prefetch complete: vessels=$vesselSuccess, solunar=$solunarSuccess, errors=$errorCount in ${elapsed}ms")
+        logRateLimiterStats()
+    }
+    
     // ==================== EVERY 3 HOURS: User Spots Prefetch ====================
     
     /**
@@ -649,6 +769,10 @@ class DataPrefetchJobs(
         
         prefetchMPA()
         delay(3000)
+        
+        // Fishing intel health check (vessels and solunar are fetched live)
+        prefetchFishingIntel()
+        delay(1000)
         
         // Also prefetch user spots
         prefetchUserSpots()

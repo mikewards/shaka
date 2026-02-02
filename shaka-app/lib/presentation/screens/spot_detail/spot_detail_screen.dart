@@ -278,6 +278,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         const SizedBox(height: 20),
 
+        // NEW: Fishing Intel Section
+        if (spot.vessels != null || spot.solunar != null || spot.waterContext?.chlorophyll != null) ...[
+          _buildSectionHeader('FISHING INTEL'),
+          const SizedBox(height: 10),
+          _buildFishingIntelCard(spot),
+          const SizedBox(height: 20),
+        ],
+
         // Satellite Readings (Visibility)
         if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
           _buildSectionHeader('VISIBILITY (CHLOROPHYLL-A) SATELLITE READINGS'),
@@ -362,6 +370,261 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         const SizedBox(height: 40),
       ],
     );
+  }
+  
+  /// Build the fishing intel card with vessels, solunar, and chlorophyll
+  Widget _buildFishingIntelCard(SpotDetail spot) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Vessels row
+          if (spot.vessels != null) ...[
+            _buildIntelRow(
+              icon: Icons.directions_boat,
+              iconColor: Colors.blue,
+              label: 'Boats Nearby',
+              value: '${spot.vessels!.count} vessels',
+              detail: 'within ${spot.vessels!.radiusNm}nm',
+            ),
+            const Divider(color: Colors.white10, height: 20),
+          ],
+          
+          // Solunar row
+          if (spot.solunar != null) ...[
+            _buildIntelRow(
+              icon: _getMoonIcon(spot.solunar!.moonPhase),
+              iconColor: Colors.amber,
+              label: 'Moon',
+              value: '${spot.solunar!.moonPhaseDisplay} (${spot.solunar!.illumination}%)',
+              detail: null,
+            ),
+            if (spot.solunar!.majorPeriods.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildFeedingPeriods(spot.solunar!),
+            ],
+            if (spot.waterContext?.chlorophyll != null) 
+              const Divider(color: Colors.white10, height: 20),
+          ],
+          
+          // Chlorophyll trend row
+          if (spot.waterContext?.chlorophyll != null) ...[
+            _buildChlorophyllTrend(spot.waterContext!.chlorophyll!),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  /// Build a single intel data row
+  Widget _buildIntelRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    String? detail,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (detail != null)
+          Text(
+            detail,
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+      ],
+    );
+  }
+  
+  /// Build feeding periods display
+  Widget _buildFeedingPeriods(SolunarData solunar) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 44),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Major periods
+          if (solunar.majorPeriods.isNotEmpty) ...[
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'MAJOR',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  solunar.majorPeriods.map((p) => '${p.start}-${p.end}').join(', '),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 4),
+          // Minor periods
+          if (solunar.minorPeriods.isNotEmpty) ...[
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'MINOR',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  solunar.minorPeriods.map((p) => '${p.start}-${p.end}').join(', '),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  /// Build chlorophyll trend display
+  Widget _buildChlorophyllTrend(ChlorophyllContext chl) {
+    final trendIcon = chl.trend == 'rising' 
+        ? Icons.trending_up 
+        : chl.trend == 'falling' 
+            ? Icons.trending_down 
+            : Icons.trending_flat;
+    final trendColor = chl.trend == 'rising' 
+        ? Colors.green 
+        : chl.trend == 'falling' 
+            ? Colors.red 
+            : Colors.grey;
+    
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.teal.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.grass, color: Colors.teal, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chlorophyll',
+                style: TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+              Row(
+                children: [
+                  Text(
+                    '${chl.current.toStringAsFixed(2)} mg/m\u00B3',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(trendIcon, color: trendColor, size: 16),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '7d avg: ${chl.avg7day.toStringAsFixed(2)}',
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+            ),
+            if (chl.ratio > 1.5)
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  '${chl.ratio.toStringAsFixed(1)}x avg',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  /// Get moon icon based on phase
+  IconData _getMoonIcon(String phase) {
+    final p = phase.toLowerCase();
+    if (p.contains('new')) return Icons.brightness_3;
+    if (p.contains('full')) return Icons.brightness_1;
+    if (p.contains('first') || p.contains('waxing')) return Icons.brightness_2;
+    if (p.contains('last') || p.contains('waning')) return Icons.brightness_4;
+    return Icons.nightlight_round;
   }
 
   /// FORECAST TAB - Multi-day forecast

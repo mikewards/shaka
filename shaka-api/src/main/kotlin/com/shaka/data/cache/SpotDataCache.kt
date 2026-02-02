@@ -142,6 +142,31 @@ object SpotDataCache {
     )
     
     /**
+     * Cached vessel activity from Global Fishing Watch.
+     */
+    data class VesselInfo(
+        val count: Int,                     // Number of fishing vessels nearby
+        val radiusNm: Int                   // Search radius in nautical miles
+    )
+    
+    /**
+     * Cached solunar (moon/feeding) data.
+     */
+    data class SolunarInfo(
+        val moonPhase: String,              // "waning_gibbous", "full_moon", etc.
+        val illumination: Int,              // 0-100 percent
+        val majorStart1: String?,           // Major period 1 start time (HH:mm)
+        val majorEnd1: String?,             // Major period 1 end time
+        val majorStart2: String?,           // Major period 2 start time
+        val majorEnd2: String?,             // Major period 2 end time
+        val minorStart1: String?,           // Minor period 1 start time
+        val minorEnd1: String?,             // Minor period 1 end time
+        val minorStart2: String?,           // Minor period 2 start time
+        val minorEnd2: String?,             // Minor period 2 end time
+        val dayRating: Int? = null          // 0-100 overall day rating
+    )
+    
+    /**
      * All cached data for a single spot.
      * Each field is nullable - data may not be available for all spots.
      */
@@ -153,7 +178,9 @@ object SpotDataCache {
         val wind: CachedValue<WindInfo>? = null,
         val chlorophyll: CachedValue<Double>? = null,     // Chlorophyll-a in mg/m³ (Copernicus)
         val gibsChlorophyll: CachedValue<GIBSSatelliteData>? = null,  // GIBS satellite data
-        val mpa: CachedValue<MPACacheInfo?>? = null       // MPA data (null value = no specific MPA)
+        val mpa: CachedValue<MPACacheInfo?>? = null,      // MPA data (null value = no specific MPA)
+        val vessel: CachedValue<VesselInfo>? = null,      // Vessel activity from Global Fishing Watch
+        val solunar: CachedValue<SolunarInfo>? = null     // Moon phase and feeding periods
     ) {
         /**
          * Get the most recent fetch time across all data types.
@@ -303,6 +330,26 @@ object SpotDataCache {
         }
         val siteName = mpaData.value?.siteName ?: "No specific MPA"
         logger.debug("Updated MPA for spot $spotId: $siteName")
+    }
+    
+    /**
+     * Update vessel activity data for a spot.
+     */
+    fun updateVessel(spotId: String, vessel: CachedValue<VesselInfo>) {
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(vessel = vessel)
+        }
+        logger.debug("Updated vessel for spot $spotId: ${vessel.value.count} vessels within ${vessel.value.radiusNm}nm")
+    }
+    
+    /**
+     * Update solunar (moon/feeding) data for a spot.
+     */
+    fun updateSolunar(spotId: String, solunar: CachedValue<SolunarInfo>) {
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(solunar = solunar)
+        }
+        logger.debug("Updated solunar for spot $spotId: ${solunar.value.moonPhase} (${solunar.value.illumination}%)")
     }
     
     /**
@@ -663,7 +710,42 @@ object SpotDataCache {
                     }
                 }
                 
-                logger.info("MPA columns added to spot_cache table")
+                // Add vessel activity columns (Global Fishing Watch)
+                val vesselColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS vessel_count INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS vessel_radius_nm INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS vessel_fetched_at TIMESTAMP;
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    vesselColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
+                // Add solunar (moon/feeding) columns
+                val solunarColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_moon_phase VARCHAR(30);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_illumination INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_major_start1 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_major_end1 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_major_start2 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_major_end2 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_minor_start1 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_minor_end1 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_minor_start2 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_minor_end2 VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_day_rating INTEGER;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS solunar_fetched_at TIMESTAMP;
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    solunarColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
+                logger.info("Vessel and solunar columns added to spot_cache table")
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
@@ -701,8 +783,12 @@ object SpotDataCache {
                         tide_next_high, tide_next_low,
                         mpa_site_name, mpa_designation, mpa_spearfishing_status, mpa_protection_level,
                         mpa_species_of_concern, mpa_purpose, mpa_details_url, mpa_fetched_at, mpa_is_inside,
+                        vessel_count, vessel_radius_nm, vessel_fetched_at,
+                        solunar_moon_phase, solunar_illumination, solunar_major_start1, solunar_major_end1,
+                        solunar_major_start2, solunar_major_end2, solunar_minor_start1, solunar_minor_end1,
+                        solunar_minor_start2, solunar_minor_end2, solunar_day_rating, solunar_fetched_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -745,6 +831,21 @@ object SpotDataCache {
                         mpa_details_url = COALESCE(EXCLUDED.mpa_details_url, spot_cache.mpa_details_url),
                         mpa_fetched_at = COALESCE(EXCLUDED.mpa_fetched_at, spot_cache.mpa_fetched_at),
                         mpa_is_inside = COALESCE(EXCLUDED.mpa_is_inside, spot_cache.mpa_is_inside),
+                        vessel_count = COALESCE(EXCLUDED.vessel_count, spot_cache.vessel_count),
+                        vessel_radius_nm = COALESCE(EXCLUDED.vessel_radius_nm, spot_cache.vessel_radius_nm),
+                        vessel_fetched_at = COALESCE(EXCLUDED.vessel_fetched_at, spot_cache.vessel_fetched_at),
+                        solunar_moon_phase = COALESCE(EXCLUDED.solunar_moon_phase, spot_cache.solunar_moon_phase),
+                        solunar_illumination = COALESCE(EXCLUDED.solunar_illumination, spot_cache.solunar_illumination),
+                        solunar_major_start1 = COALESCE(EXCLUDED.solunar_major_start1, spot_cache.solunar_major_start1),
+                        solunar_major_end1 = COALESCE(EXCLUDED.solunar_major_end1, spot_cache.solunar_major_end1),
+                        solunar_major_start2 = COALESCE(EXCLUDED.solunar_major_start2, spot_cache.solunar_major_start2),
+                        solunar_major_end2 = COALESCE(EXCLUDED.solunar_major_end2, spot_cache.solunar_major_end2),
+                        solunar_minor_start1 = COALESCE(EXCLUDED.solunar_minor_start1, spot_cache.solunar_minor_start1),
+                        solunar_minor_end1 = COALESCE(EXCLUDED.solunar_minor_end1, spot_cache.solunar_minor_end1),
+                        solunar_minor_start2 = COALESCE(EXCLUDED.solunar_minor_start2, spot_cache.solunar_minor_start2),
+                        solunar_minor_end2 = COALESCE(EXCLUDED.solunar_minor_end2, spot_cache.solunar_minor_end2),
+                        solunar_day_rating = COALESCE(EXCLUDED.solunar_day_rating, spot_cache.solunar_day_rating),
+                        solunar_fetched_at = COALESCE(EXCLUDED.solunar_fetched_at, spot_cache.solunar_fetched_at),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -809,6 +910,27 @@ object SpotDataCache {
                     stmt.setString(40, mpa?.detailsUrl)
                     stmt.setTimestamp(41, data.mpa?.fetchedAt?.let { Timestamp.from(it) })
                     stmt.setObject(42, mpa?.isInsideMPA)
+                    
+                    // Vessel data (Global Fishing Watch)
+                    val vessel = data.vessel?.value
+                    stmt.setObject(43, vessel?.count)
+                    stmt.setObject(44, vessel?.radiusNm)
+                    stmt.setTimestamp(45, data.vessel?.fetchedAt?.let { Timestamp.from(it) })
+                    
+                    // Solunar data
+                    val solunar = data.solunar?.value
+                    stmt.setString(46, solunar?.moonPhase)
+                    stmt.setObject(47, solunar?.illumination)
+                    stmt.setString(48, solunar?.majorStart1)
+                    stmt.setString(49, solunar?.majorEnd1)
+                    stmt.setString(50, solunar?.majorStart2)
+                    stmt.setString(51, solunar?.majorEnd2)
+                    stmt.setString(52, solunar?.minorStart1)
+                    stmt.setString(53, solunar?.minorEnd1)
+                    stmt.setString(54, solunar?.minorStart2)
+                    stmt.setString(55, solunar?.minorEnd2)
+                    stmt.setObject(56, solunar?.dayRating)
+                    stmt.setTimestamp(57, data.solunar?.fetchedAt?.let { Timestamp.from(it) })
                     
                     stmt.executeUpdate()
                 }
@@ -1021,6 +1143,65 @@ object SpotDataCache {
                         } catch (e: Exception) {
                             // MPA columns may not exist yet
                             logger.debug("Could not load MPA data for $spotId: ${e.message}")
+                        }
+                        
+                        // Vessel data (Global Fishing Watch)
+                        try {
+                            val vesselFetchedAt = rs.getTimestamp("vessel_fetched_at")
+                            if (vesselFetchedAt != null) {
+                                val vesselCount = rs.getInt("vessel_count")
+                                val vesselCountWasNull = rs.wasNull()
+                                val vesselRadiusNm = rs.getInt("vessel_radius_nm")
+                                
+                                if (!vesselCountWasNull) {
+                                    spotData = spotData.copy(
+                                        vessel = CachedValue(
+                                            value = VesselInfo(
+                                                count = vesselCount,
+                                                radiusNm = vesselRadiusNm
+                                            ),
+                                            fetchedAt = vesselFetchedAt.toInstant()
+                                        )
+                                    )
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Vessel columns may not exist yet
+                            logger.debug("Could not load vessel data for $spotId: ${e.message}")
+                        }
+                        
+                        // Solunar data (moon/feeding periods)
+                        try {
+                            val solunarFetchedAt = rs.getTimestamp("solunar_fetched_at")
+                            if (solunarFetchedAt != null) {
+                                val moonPhase = rs.getString("solunar_moon_phase")
+                                val illumination = rs.getInt("solunar_illumination")
+                                val illuminationWasNull = rs.wasNull()
+                                
+                                if (moonPhase != null && !illuminationWasNull) {
+                                    spotData = spotData.copy(
+                                        solunar = CachedValue(
+                                            value = SolunarInfo(
+                                                moonPhase = moonPhase,
+                                                illumination = illumination,
+                                                majorStart1 = rs.getString("solunar_major_start1"),
+                                                majorEnd1 = rs.getString("solunar_major_end1"),
+                                                majorStart2 = rs.getString("solunar_major_start2"),
+                                                majorEnd2 = rs.getString("solunar_major_end2"),
+                                                minorStart1 = rs.getString("solunar_minor_start1"),
+                                                minorEnd1 = rs.getString("solunar_minor_end1"),
+                                                minorStart2 = rs.getString("solunar_minor_start2"),
+                                                minorEnd2 = rs.getString("solunar_minor_end2"),
+                                                dayRating = rs.getInt("solunar_day_rating").takeUnless { rs.wasNull() }
+                                            ),
+                                            fetchedAt = solunarFetchedAt.toInstant()
+                                        )
+                                    )
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Solunar columns may not exist yet
+                            logger.debug("Could not load solunar data for $spotId: ${e.message}")
                         }
                         
                         // Store in memory cache
