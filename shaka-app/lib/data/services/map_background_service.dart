@@ -11,7 +11,7 @@ class MapBackgroundService extends ChangeNotifier {
   
   static const String _prefKey = 'map_background';
   
-  MapBackground _current = MapBackground.defaultDark;
+  MapBackground _current = MapBackground.satellite;
   MapBackground get current => _current;
   
   /// Initialize from saved preference

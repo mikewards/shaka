@@ -597,10 +597,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: _buildSearchBar(),
                     ),
                     
-                    // Background picker button
+                    // Background picker button (left-aligned)
                     Positioned(
                       bottom: 16,
-                      right: 16,
+                      left: 16,
                       child: _buildBackgroundButton(),
                     ),
                     

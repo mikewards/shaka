@@ -1503,12 +1503,19 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Colors.blue,
+              primary: Color(0xFF5B9BD5),
               onPrimary: Colors.white,
               surface: Color(0xFF1A1A1A),
               onSurface: Colors.white,
+              secondary: Color(0xFF5B9BD5),
+              onSecondary: Colors.white,
             ),
             dialogBackgroundColor: const Color(0xFF1A1A1A),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF5B9BD5), // Bright Cancel/OK buttons
+              ),
+            ),
           ),
           child: child!,
         );
@@ -1868,19 +1875,19 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Opacity slider row
-          _buildOpacityRow(),
+          // Action buttons row ABOVE opacity/legend
+          _buildActionButtons(),
           
           const SizedBox(height: 8),
           
-          // Action buttons + legend row (50/50 split)
+          // Opacity slider + legend on SAME row (50/50 split)
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Buttons cluster (~50% width)
+              // Opacity slider (~50% width)
               Expanded(
                 flex: 1,
-                child: _buildActionButtons(),
+                child: _buildOpacityRow(),
               ),
               const SizedBox(width: 12),
               // Legend (~50% width)
@@ -2003,107 +2010,99 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
   
-  /// Build action buttons row - just layers button
+  /// Build action buttons row - horizontal layout
+  /// Left: Data Layers | Right: Save + Saved Snapshots
   Widget _buildActionButtons() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Left side - vertical button stack
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Layers button
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _showLayerSheet();
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
-                ),
-              ),
+        // Left side - Data Layers button
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showLayerSheet();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
             ),
-          ],
+            child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
+          ),
         ),
         const Spacer(),
-        // Right side - Save buttons stacked vertically
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Saved snapshots button
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showSavedSnapshots();
-              },
-              child: Stack(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const Icon(Icons.offline_pin, color: Colors.white70, size: 22),
-                  ),
-                  if (_savedSnapshots.isNotEmpty)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF5B9BD5),
-                          shape: BoxShape.circle,
-                        ),
+        // Right side - Save + Saved Snapshots
+        GestureDetector(
+          onTap: _isOnline && !_isSaving ? () {
+            HapticFeedback.lightImpact();
+            _saveSnapshot();
+          } : null,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Center(
+              child: Icon(
+                _isSaving ? Icons.hourglass_empty : Icons.save_alt,
+                color: _isOnline && !_isSaving ? Colors.white70 : Colors.white38,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Saved snapshots button (fixed badge overflow)
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showSavedSnapshots();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Center(
+                  child: Icon(Icons.offline_pin, color: Colors.white70, size: 22),
+                ),
+                if (_savedSnapshots.isNotEmpty)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF5B9BD5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
                         child: Text(
                           _savedSnapshots.length > 9 ? '9+' : _savedSnapshots.length.toString(),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Save snapshot button
-            GestureDetector(
-              onTap: _isOnline && !_isSaving ? () {
-                HapticFeedback.lightImpact();
-                _saveSnapshot();
-              } : null,
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Center(
-                  child: Icon(
-                    _isSaving ? Icons.hourglass_empty : Icons.save_alt,
-                    color: _isOnline && !_isSaving ? Colors.white70 : Colors.white38,
-                    size: 22,
                   ),
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ],
     );

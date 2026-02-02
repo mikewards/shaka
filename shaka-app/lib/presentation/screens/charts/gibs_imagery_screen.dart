@@ -717,10 +717,17 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Colors.green,
+              primary: Color(0xFF5B9BD5),
               onPrimary: Colors.white,
               surface: Color(0xFF1A1A1A),
               onSurface: Colors.white,
+              secondary: Color(0xFF5B9BD5),
+              onSecondary: Colors.white,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF5B9BD5), // Bright Cancel/OK buttons
+              ),
             ),
           ),
           child: child!,
@@ -746,23 +753,38 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       body: Stack(
         children: [
           // MapLibre Map - keyed to rebuild on background change
-          MaplibreMap(
-            key: ValueKey('gibs_map_$_mapKey'),
-            styleString: _bgService.getStyleUrl(_bgService.current),
-            initialCameraPosition: _lastCameraPosition ?? CameraPosition(
-              target: _initialCenter,
-              zoom: _hasSpotContext ? _spotZoom : _defaultZoom,
+          // Wrapped in Listener to detect pan gestures for continuous coordinate updates
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerMove: (event) {
+              if (_isPinMode && _mapController != null) {
+                // Poll camera position during drag for real-time coordinate updates
+                final pos = _mapController!.cameraPosition;
+                if (pos != null && (_currentCenter == null || 
+                    pos.target.latitude != _currentCenter!.latitude ||
+                    pos.target.longitude != _currentCenter!.longitude)) {
+                  setState(() => _currentCenter = pos.target);
+                }
+              }
+            },
+            child: MaplibreMap(
+              key: ValueKey('gibs_map_$_mapKey'),
+              styleString: _bgService.getStyleUrl(_bgService.current),
+              initialCameraPosition: _lastCameraPosition ?? CameraPosition(
+                target: _initialCenter,
+                zoom: _hasSpotContext ? _spotZoom : _defaultZoom,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              trackCameraPosition: true,
+              onCameraIdle: _onCameraMove,
+              compassEnabled: false,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: false,
+              myLocationEnabled: false,
+              attributionButtonMargins: const Point(-100, -100),
+              logoViewMargins: const Point(-100, -100),
             ),
-            onMapCreated: _onMapCreated,
-            onStyleLoadedCallback: _onStyleLoaded,
-            trackCameraPosition: true,
-            onCameraIdle: _onCameraMove,
-            compassEnabled: false,
-            rotateGesturesEnabled: true,
-            tiltGesturesEnabled: false,
-            myLocationEnabled: false,
-            attributionButtonMargins: const Point(-100, -100),
-            logoViewMargins: const Point(-100, -100),
           ),
 
           // Loading overlay
@@ -822,68 +844,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               child: _buildTopBar(),
             ),
 
-          // Bottom controls (hidden in pin mode)
-          if (!_isPinMode)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildBottomControls(),
-            ),
-
-          // Action Bar (bottom when in pin mode)
-          if (_isPinMode)
-            Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 16,
-              left: 16,
-              right: 16,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _exitPinMode,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(color: Colors.white70, fontSize: 15),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: GestureDetector(
-                      onTap: _confirmPinLocation,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Mark Spot',
-                            style: TextStyle(
-                              color: Color(0xFF1A1A1A),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          // Bottom controls (always visible - pin mode actions are inside)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomControls(),
+          ),
         ],
       ),
     );
@@ -1006,19 +973,19 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           // Date warning (if applicable)
           _buildDateWarning(),
           
-          // Compact opacity row
-          _buildOpacityRow(),
+          // Action buttons row ABOVE opacity/legend
+          _buildActionButtons(),
           
           const SizedBox(height: 8),
           
-          // Action bar with legend (50/50 split)
+          // Opacity slider and legend on SAME row (50/50 split)
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Buttons cluster (~50% width)
+              // Opacity slider (~50% width)
               Expanded(
                 flex: 1,
-                child: _buildActionButtons(),
+                child: _buildOpacityRow(),
               ),
               const SizedBox(width: 12),
               // Legend(s) (~50% width)
@@ -1028,8 +995,65 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               ),
             ],
           ),
+          
+          // Pin mode action buttons (inside container when active)
+          if (_isPinMode) ...[
+            const SizedBox(height: 12),
+            _buildPinModeActions(),
+          ],
         ],
       ),
+    );
+  }
+  
+  /// Build pin mode cancel/mark spot buttons (inside bottom container)
+  Widget _buildPinModeActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: _exitPinMode,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Center(
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: GestureDetector(
+            onTap: _confirmPinLocation,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: Text(
+                  'Mark Spot',
+                  style: TextStyle(
+                    color: Color(0xFF1A1A1A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -1176,122 +1200,111 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
   
-  /// Build compact action buttons cluster with vertical stacks
+  /// Build action buttons row - horizontal layout
+  /// Left: Satellite Layers + Map Style | Right: Pin + Saved Spots
   Widget _buildActionButtons() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Left side (Map Style + Layers stacked vertically)
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Map style button
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  showBackgroundPicker(context);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Icon(Icons.map_outlined, color: Colors.white70, size: 22),
-                ),
-              ),
+        // Left side - Satellite Layers + Map Style
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showLayerPicker();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
             ),
-            const SizedBox(height: 8),
-            // Layers button
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _showLayerPicker();
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
-                ),
-              ),
+            child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            showBackgroundPicker(context);
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
             ),
-          ],
+            child: const Icon(Icons.map_outlined, color: Colors.white70, size: 22),
+          ),
         ),
         const Spacer(),
-        // Right side (Saved Spots + Add Spot stacked vertically)
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Saved spots button with badge
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showSavedSpotsSheet();
-              },
-              child: Stack(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const Icon(Icons.bookmark_outline, color: Colors.white70, size: 22),
-                  ),
-                  if (_savedSpots.isNotEmpty)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF5B9BD5),
-                          shape: BoxShape.circle,
-                        ),
+        // Right side - Pin + Saved Spots
+        if (!_isPinMode)
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _enterPinMode();
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Icon(Icons.add_location_alt, color: Colors.white70, size: 22),
+            ),
+          ),
+        if (!_isPinMode) const SizedBox(width: 8),
+        // Saved spots button with badge (fixed overflow)
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showSavedSpotsSheet();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Center(
+                  child: Icon(Icons.bookmark_outline, color: Colors.white70, size: 22),
+                ),
+                if (_savedSpots.isNotEmpty)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF5B9BD5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
                         child: Text(
-                          '${_savedSpots.length}',
+                          _savedSpots.length > 9 ? '9+' : '${_savedSpots.length}',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Add spot button (enters pin mode)
-            if (!_isPinMode)
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _enterPinMode();
-                },
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white24),
                   ),
-                  child: const Icon(Icons.add_location_alt, color: Colors.white70, size: 22),
-                ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ],
     );

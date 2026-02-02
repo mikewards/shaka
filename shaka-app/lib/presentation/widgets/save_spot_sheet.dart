@@ -86,14 +86,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
       HapticFeedback.mediumImpact();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Saved "$name"'),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
+        // No snackbar - just close the sheet
         Navigator.of(context).pop(true);
       }
     } catch (e) {

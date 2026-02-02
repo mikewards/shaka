@@ -1,155 +1,41 @@
 Shaka
 =====
 
-Spearfishing and diving spot finder with real-time ocean data. Ranks locations by weather, ocean conditions, and fish patterns. Features professional-grade oceanographic charts from NASA and Copernicus satellites.
+Spearfishing conditions app. Aggregates real-time ocean data from NASA, NOAA, and Copernicus satellites to score dive locations. Multi-platform Flutter client backed by a Kotlin API server.
 
 Download
 --------
 
-Coming soon to iOS and Android.
-
-Recent Changes
---------------
-
-### v0.3.0 - Data Pre-fetch System
-
-- **Instant spot loading**: All 631 spots now load instantly from pre-fetched cache
-- **Background data refresh**: Staggered prefetch jobs keep data fresh
-  - Tides: Hourly refresh
-  - Weather/Swell: Every 3 hours
-  - Satellite data: Every 6 hours
-- **Data freshness indicators**: Shows "Updated X min ago" in spot details
-- **Unified map backgrounds**: Satellite, Terrain, Nautical, and Default styles across all map views
-- **Improved splash screen**: Properly sized icon for Android 12+ adaptive splash
-- **Fixed map tap detection**: Accurate spot selection with devicePixelRatio correction
-
-### v0.2.0 - Charts Overhaul
-
-- **NASA GIBS integration**: Multi-layer satellite imagery with 5 chlorophyll sources
-- **Copernicus WebView**: Animated ocean conditions with save/share
-- **Unified date picker**: Tap date indicator in top-right to change dates
-- **Dynamic legends**: Auto-extracted from data sources with proper units
-
-Features
---------
-
-### Spot Finder
-
-Interactive map for discovering dive spots. Surfline-style interface with map above and horizontal spot carousel below. Each spot is ranked with a Shaka Score (0-100) based on:
-
-- Water visibility (satellite-measured Secchi depth)
-- Sea surface temperature
-- Swell height and period
-- Wind conditions
-- Tide state
-- Fish activity patterns
-- Accessibility and safety
-
-Features include type-ahead search, region browsing, and filter chips (All, Shore, Boat, 80+).
-
-### NASA GIBS Satellite Imagery
-
-High-resolution satellite imagery from NASA's Global Imagery Browse Services (GIBS):
-
-- **Chlorophyll-a** - PACE OCI, VIIRS NOAA-20/21, Sentinel-3A/3B
-- **Sea Surface Temperature** - MUR SST (0.01 degree resolution), GHRSST
-- **True Color** - Daily composites from MODIS and VIIRS
-
-Features include:
-- Multi-layer stacking (combine up to 5 chlorophyll satellites for full coverage)
-- Layer presets: Full Coverage, Afternoon Pass, Morning Pass
-- Historical data scrubbing back to 2012
-- Dynamic legends with units
-- Opacity controls per layer
-- Multiple map backgrounds (Satellite, Terrain, Nautical, Default)
-
-### Copernicus Ocean Conditions
-
-Animated ocean data visualization from Copernicus Marine Service:
-
-- **Sea Surface Temperature (SST)** - Updated every 6 hours
-- **Ocean Currents** - Animated vector visualization
-- **Waves** - Height, period, direction
-- **Wind** - Speed and direction overlay
-- **Chlorophyll-a** - Water clarity indicator
-
-Features include:
-- Hourly snapshots for time-series viewing
-- Save snapshots to device gallery
-- Share snapshots directly
-- Layer opacity controls
-- Tap date indicator to change dates
-
-Data Sources
-------------
-
-All condition data comes from real measurements, not estimates:
-
-| Data | Source | Update Frequency |
-|------|--------|------------------|
-| Weather | Open-Meteo | Hourly |
-| SST (High-Res) | NASA GIBS MUR/GHRSST | Daily |
-| Chlorophyll-a | NASA GIBS PACE/VIIRS/MODIS | Daily |
-| True Color | NASA GIBS MODIS/VIIRS | Daily |
-| SST, Visibility | Copernicus Marine (L3 NRT) | Daily |
-| Currents, Waves | Copernicus Marine | 6 hours |
-| Tides | NOAA CO-OPS | Real-time |
-| Spot Info | Community database | Ongoing |
-
-API
----
-
-Search for spots by location:
-
-```
-GET /v1/spots/search?lat=21.3&lon=-157.8&date=2026-02-15&radius=50
-```
-
-Search spots by name (type-ahead):
-
-```
-GET /v1/spots/search/name?q=hanauma&limit=10
-```
-
-Get spot details:
-
-```
-GET /v1/spots/{id}?date=2026-02-15
-```
-
-Get available regions:
-
-```
-GET /v1/regions
-```
-
-Health check with external service status:
-
-```
-GET /v1/health/detailed
-```
-
-Returns status of OpenMeteo, NOAA, Copernicus, and NASA GIBS services. Used by the app to auto-degrade features when services are unavailable.
+iOS and Android binaries are built via `flutter build`. See deployment section.
 
 Building
 --------
 
-### API (Kotlin/Ktor)
+### Prerequisites
+
+- Flutter 3.0+ (`flutter doctor` to verify)
+- JDK 17+ for the Kotlin backend
+- Docker (optional, for local database)
+- Xcode 15+ for iOS builds
+- Android SDK for Android builds
+
+### API Server
 
 ```bash
 cd shaka-api
 ./gradlew run
 ```
 
-Runs at `http://localhost:8080`.
+Server starts at `http://localhost:8080`. Requires PostgreSQL.
 
 Environment variables:
-- `DATABASE_URL` - PostgreSQL connection string
-- `COPERNICUS_USER` / `COPERNICUS_PASSWORD` - Optional, for bulk data access
+```
+DATABASE_URL=postgresql://localhost:5432/shaka
+COPERNICUS_USER=your_username      # optional
+COPERNICUS_PASSWORD=your_password  # optional
+```
 
-### Mobile App (Flutter)
-
-Requires [Flutter](https://flutter.dev/docs/get-started/install) 3.0+.
+### Mobile App
 
 ```bash
 cd shaka-app
@@ -157,112 +43,318 @@ flutter pub get
 flutter run
 ```
 
+For release builds:
+
+```bash
+# iOS
+flutter build ios --release
+flutter install -d iPhone
+
+# Android  
+flutter build apk --release
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+IMPORTANT: Never use `flutter run` for physical iOS devices. It causes launch hangs. Always use `flutter build` followed by `flutter install`.
+
 ### Docker
 
 ```bash
 docker-compose up
 ```
 
-Starts API server and PostgreSQL database.
+Starts PostgreSQL and the API server.
 
 Architecture
 ------------
 
 ```
 shaka/
-├── shaka-api/              Kotlin backend (Ktor)
-│   ├── data/
-│   │   ├── client/         External API clients (OpenMeteo, NOAA, Copernicus, GIBS)
-│   │   ├── cache/          
-│   │   │   ├── SpotDataCache    Pre-fetched data for all spots (in-memory)
-│   │   │   └── OceanDataCache   TTL-based fallback cache
-│   │   └── db/             PostgreSQL repositories
-│   ├── model/              Domain models
-│   ├── scoring/            Shaka Score algorithm
-│   └── service/
-│       ├── SpotService     Spot search and details (cache-first)
-│       ├── ForecastService 7-day forecasts
-│       ├── DataPrefetchJobs Background data refresh scheduler
-│       └── HealthService   External service health checks
+├── shaka-api/                 Kotlin/Ktor backend
+│   └── src/main/kotlin/com/shaka/
+│       ├── Application.kt     Entry point, routing setup
+│       ├── api/routes/        HTTP endpoint handlers
+│       ├── data/
+│       │   ├── client/        External API clients
+│       │   │   ├── OpenMeteoClient      Weather, swell forecasts
+│       │   │   ├── NOAAClient           Tide predictions, SST
+│       │   │   ├── NOAATidesClient      CO-OPS tide data
+│       │   │   ├── CopernicusClient     Ocean conditions (SST, ZSD)
+│       │   │   ├── GIBSClient           NASA satellite imagery URLs
+│       │   │   └── CircuitBreaker       Failure isolation
+│       │   ├── cache/
+│       │   │   ├── SpotDataCache        Pre-fetched spot conditions
+│       │   │   └── OceanDataCache       TTL-based fallback cache
+│       │   └── db/
+│       │       ├── SpotRepository       Spot CRUD operations
+│       │       ├── UserSpotRepository   User-saved locations
+│       │       └── SpotTables           Exposed table definitions
+│       ├── model/             Domain models
+│       ├── scoring/           
+│       │   └── ShakaScorer    Score calculation algorithm
+│       └── service/
+│           ├── SpotService        Spot search, details retrieval
+│           ├── ForecastService    7-day forecast generation
+│           ├── DataPrefetchJobs   Background cache refresh
+│           └── HealthService      External dependency monitoring
 │
-└── shaka-app/              Flutter mobile app
-    ├── data/
-    │   ├── api/            Backend client, GIBS service
-    │   ├── models/         Data models (spots, forecasts, layers, map backgrounds)
-    │   └── services/       Health monitoring, map background service
-    └── presentation/
-        ├── screens/
-        │   ├── explore/    Map + carousel spot discovery
-        │   ├── charts/     Charts hub, GIBS viewer, Copernicus viewer
-        │   ├── spot_detail/ Individual spot view with tabs
-        │   └── profile/    User settings
-        ├── shell/          Bottom navigation shell
-        └── widgets/        Reusable components (legends, pickers, cards)
+└── shaka-app/                 Flutter mobile client
+    └── lib/
+        ├── main.dart          App entry, router configuration
+        ├── core/
+        │   └── theme/         AppColors, AppTheme definitions
+        ├── data/
+        │   ├── api/
+        │   │   ├── shaka_api_client.dart    Backend REST client
+        │   │   └── gibs_service.dart        NASA GIBS tile URLs
+        │   ├── models/
+        │   │   ├── spot_models.dart         API response models
+        │   │   ├── gibs_layer.dart          Satellite layer config
+        │   │   └── map_background.dart      Map style definitions
+        │   └── services/
+        │       ├── device_id_service.dart   Anonymous user ID
+        │       └── map_background_service.dart  Map style persistence
+        └── presentation/
+            ├── bloc/              Search state management
+            ├── screens/
+            │   ├── explore/       Map + spot carousel
+            │   ├── charts/
+            │   │   ├── charts_hub_screen.dart      Chart type selection
+            │   │   ├── gibs_imagery_screen.dart    NASA satellite viewer
+            │   │   └── ocean_charts_webview.dart   Copernicus viewer
+            │   ├── spot_detail/   Individual spot view
+            │   └── profile/       Settings, saved spots
+            ├── shell/             Bottom navigation
+            └── widgets/           Reusable components
 ```
 
-App Navigation:
-- Explore tab: Interactive map with spot carousel
-- Charts tab: Selection between NASA GIBS and Copernicus viewers
-- Profile tab: Settings and preferences
+API
+---
 
-Data Pre-fetch System
----------------------
+### Search Spots
 
-The backend pre-fetches ocean data for all 631 spots on startup and refreshes on a schedule:
+```
+GET /v1/spots/search?lat=21.3&lon=-157.8&date=2026-02-01&radius=50
+```
 
-| Data Type | Refresh Interval | Source | Cache Duration |
-|-----------|-----------------|--------|----------------|
-| Tides | Hourly | NOAA CO-OPS | Until next refresh |
-| Weather/Swell | Every 3 hours | Open-Meteo | Until next refresh |
-| SST/Visibility | Every 6 hours | Copernicus, NOAA ERDDAP | Until next refresh |
+Returns spots within radius (km) of coordinates, scored for the given date.
 
-On server startup, all data is pre-fetched in parallel (~45 seconds for full cache). Requests during this warmup period fall back to live API calls.
+### Name Search
 
-The cache stores dual timestamps:
-- `fetchedAt`: When the server retrieved the data
-- `dataValidAt`: When the external provider recorded the data
+```
+GET /v1/spots/search/name?q=hanauma&limit=10
+```
 
-This enables showing "Updated 5 min ago" and "Satellite: Jan 27" in the app.
+Type-ahead search by spot name.
 
-Graceful Degradation
---------------------
+### Spot Details
 
-The app is designed to continue working when external services are unavailable:
+```
+GET /v1/spots/{id}?date=2026-02-01
+```
 
-| Service Down | App Behavior |
-|--------------|--------------|
-| NASA GIBS | Unavailable layers hidden from picker |
-| Copernicus | Option hidden from Charts hub, banner shown |
-| OpenMeteo | Weather shows "unavailable" in spot details |
-| NOAA | Falls back to regional SST estimates |
-| Backend | Clear error messages, cached data when available |
+Full spot data including conditions, forecast, and score breakdown.
 
-The `/v1/health/detailed` endpoint checks all external services and returns their status. The Flutter app queries this on startup and caches the result for 5 minutes, automatically hiding features that depend on unavailable services.
+### User Spots
 
-Backend clients have explicit 10-second timeouts to prevent hangs. The SpotService fetches data in parallel with per-source timeouts (5-8 seconds), falling back to defaults when individual sources fail.
+Requires `X-Device-ID` header for anonymous user identification.
 
-Deployment
-----------
+```
+POST /v1/user-spots
+Content-Type: application/json
+X-Device-ID: abc123
 
-**Backend:** Railway (auto-deploys from main branch)
+{"name": "My Spot", "latitude": 21.3, "longitude": -157.8}
+```
 
-**Mobile:** App Store / Play Store (coming soon)
+```
+GET /v1/user-spots
+X-Device-ID: abc123
+```
+
+```
+GET /v1/user-spots/{id}?date=2026-02-01
+X-Device-ID: abc123
+```
+
+```
+DELETE /v1/user-spots/{id}
+X-Device-ID: abc123
+```
+
+### Health Check
+
+```
+GET /v1/health/detailed
+```
+
+Returns status of all external services (OpenMeteo, NOAA, Copernicus, GIBS).
+
+Data Sources
+------------
+
+| Data Type | Provider | Update Frequency |
+|-----------|----------|------------------|
+| Weather | Open-Meteo | Hourly |
+| Tides | NOAA CO-OPS | Real-time |
+| SST (High-Res) | NASA GIBS MUR/GHRSST | Daily |
+| Chlorophyll-a | NASA GIBS PACE/VIIRS | Daily |
+| True Color | NASA GIBS MODIS/VIIRS | Daily |
+| SST, Visibility | Copernicus Marine | Daily |
+| Currents, Waves | Copernicus Marine | 6 hours |
+
+Pre-fetch System
+----------------
+
+The backend pre-fetches conditions for all 631 spots on startup and maintains freshness via scheduled jobs:
+
+| Data | Refresh Interval |
+|------|------------------|
+| Tides | Hourly |
+| Weather/Swell | Every 3 hours |
+| SST/Visibility | Every 6 hours |
+
+Initial cache warmup takes approximately 45 seconds. During warmup, requests fall through to live API calls.
 
 Scoring Algorithm
 -----------------
 
-The Shaka Score combines six factors with weighted importance:
+The Shaka Score (0-100) is computed from six weighted factors:
 
-| Factor | Weight | Source |
-|--------|--------|--------|
-| Visibility | 25% | Copernicus ZSD satellite data |
-| Weather | 20% | Open-Meteo (precipitation, clouds) |
-| Swell | 20% | Open-Meteo marine API |
-| Fish Activity | 15% | Seasonal patterns + chlorophyll |
+| Factor | Weight | Data Source |
+|--------|--------|-------------|
+| Visibility | 25% | Copernicus ZSD |
+| Weather | 20% | Open-Meteo |
+| Swell | 20% | Open-Meteo Marine |
+| Fish Activity | 15% | Seasonal + chlorophyll |
 | Accessibility | 10% | Spot database |
-| Safety | 10% | Currents, swell, conditions |
+| Safety | 10% | Currents, conditions |
 
-Confidence score decays with forecast distance (100% today, -10% per day).
+Forecast confidence decays 10% per day from current date.
+
+App Features
+------------
+
+### Explore
+
+Interactive map with spot markers. Markers display Shaka Score and respond to tap. Bottom carousel shows spot cards with current conditions. Map style defaults to satellite imagery.
+
+### NASA GIBS Satellite Imagery
+
+MapLibre-based viewer for NASA Global Imagery Browse Services tiles:
+
+- Chlorophyll-a from PACE OCI, VIIRS NOAA-20/21, Sentinel-3A/3B
+- Sea Surface Temperature from MUR SST
+- True Color composites from MODIS/VIIRS
+
+Supports multi-layer stacking, opacity control, and date selection back to 2012.
+
+### Copernicus Ocean Conditions
+
+WebView wrapper for Copernicus Marine viewer. Displays animated currents, SST, waves, wind, and chlorophyll. Supports snapshot saving for offline reference.
+
+### User Spots
+
+Pin mode allows saving custom locations with crosshair targeting. Coordinates update in real-time during pan. Saved spots appear in Profile and can be viewed in the Saved Spots sheet on map screens.
+
+Map Backgrounds
+---------------
+
+Three map styles available across all map screens:
+
+| Style | Base | Overlays |
+|-------|------|----------|
+| Default | Carto Voyager | None |
+| Satellite | Carto Voyager | ArcGIS World Imagery |
+| Nautical | Carto Light | ArcGIS Ocean, OpenSeaMap |
+
+Default is Satellite. Selection persists via SharedPreferences.
+
+Graceful Degradation
+--------------------
+
+The app continues functioning when external services fail:
+
+| Service Down | Behavior |
+|--------------|----------|
+| NASA GIBS | Affected layers hidden from picker |
+| Copernicus | Option hidden from Charts hub |
+| OpenMeteo | Weather shows "unavailable" |
+| NOAA | Falls back to regional SST |
+| Backend | Error message, cached data used |
+
+All external clients have 10-second timeouts. The app queries `/v1/health/detailed` on startup to determine feature availability.
+
+Deployment
+----------
+
+### Backend
+
+Railway auto-deploys from main branch. Configuration via `railway.toml`.
+
+### iOS
+
+```bash
+cd shaka-app
+flutter clean
+flutter pub get
+flutter build ios --release
+flutter install -d iPhone
+```
+
+Requires valid signing certificate in Xcode. Trust developer in Settings > General > VPN & Device Management if installation fails.
+
+### Android
+
+```bash
+cd shaka-app
+flutter clean
+flutter pub get
+flutter build apk --release
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+USB debugging must be enabled on device.
+
+Known Issues
+------------
+
+1. `flutter run` on physical iOS devices causes launch hangs. Always use `flutter build` + `flutter install`.
+
+2. MapLibre `MaplibreMap` and `MaplibreMapController` are deprecated. Use `MapLibreMap` and `MapLibreMapController` (capital L) in new code.
+
+3. `Color.withOpacity()` is deprecated in newer Flutter versions. Migrate to `Color.withValues()` as warnings indicate.
+
+Recent Changes
+--------------
+
+### v0.4.0 - UI Polish and Layout Improvements
+
+- Buttons moved above opacity/legend row on GIBS and Ocean maps
+- Horizontal button layout: left-aligned (Layers, Map Style) and right-aligned (Pin, Saved Spots)
+- Default map style changed to Satellite
+- Pin mode coordinates update in real-time during pan
+- Pin mode actions (Cancel/Mark Spot) moved inside bottom container
+- Badge overflow fixed on Saved Spots button
+- Opacity slider and legend consolidated to single row (50/50 split)
+- Green success snackbar removed from save spot flow
+- Datepicker Cancel/OK buttons brightened
+- Explore map style button left-aligned
+
+### v0.3.0 - Data Pre-fetch System
+
+- Instant spot loading from pre-fetched cache
+- Background data refresh with staggered intervals
+- Data freshness indicators in UI
+- Unified map backgrounds across all views
+- Fixed map tap detection accuracy
+
+### v0.2.0 - Charts Overhaul
+
+- NASA GIBS integration with multi-layer support
+- Copernicus WebView with snapshot save/share
+- Unified date picker across chart views
+- Dynamic legends extracted from data sources
 
 Contributing
 ------------
@@ -272,16 +364,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 License
 -------
 
-    Copyright 2026 Ward
+```
+Copyright 2026 Ward
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
