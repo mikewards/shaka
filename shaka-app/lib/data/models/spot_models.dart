@@ -361,6 +361,7 @@ class GibsSatelliteReadings {
 /// Marine Protected Area status from ProtectedSeas Navigator
 class MPAStatus {
   final bool isProtected;
+  final bool isInsideMPA;  // True if spot is inside MPA boundary (not just nearby)
   final String? siteName;
   final String? designation;
   final int spearfishingStatus;  // 0=Allowed, 1=Prohibited, 2=Restricted, 3=Unknown
@@ -371,6 +372,7 @@ class MPAStatus {
 
   const MPAStatus({
     required this.isProtected,
+    this.isInsideMPA = false,
     this.siteName,
     this.designation,
     required this.spearfishingStatus,
@@ -383,6 +385,7 @@ class MPAStatus {
   factory MPAStatus.fromJson(Map<String, dynamic> json) {
     return MPAStatus(
       isProtected: json['isProtected'] ?? false,
+      isInsideMPA: json['isInsideMPA'] ?? false,
       siteName: json['siteName'],
       designation: json['designation'],
       spearfishingStatus: json['spearfishingStatus'] ?? 3,

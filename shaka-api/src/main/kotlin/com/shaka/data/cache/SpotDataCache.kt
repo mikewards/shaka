@@ -137,7 +137,8 @@ object SpotDataCache {
         val protectionLevel: Int,           // 1-5 Level of Fishing Protection
         val speciesOfConcern: String?,
         val purpose: String?,
-        val detailsUrl: String?
+        val detailsUrl: String?,
+        val isInsideMPA: Boolean = false    // True if spot is inside MPA boundary (not just nearby)
     )
     
     /**
@@ -653,6 +654,7 @@ object SpotDataCache {
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_purpose TEXT;
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_details_url VARCHAR(500);
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_fetched_at TIMESTAMP;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_is_inside BOOLEAN DEFAULT FALSE;
                 """.trimIndent()
                 
                 conn.createStatement().use { stmt ->
@@ -698,9 +700,9 @@ object SpotDataCache {
                         gibs_pace_obs_time, gibs_noaa20_obs_time, gibs_noaa21_obs_time,
                         tide_next_high, tide_next_low,
                         mpa_site_name, mpa_designation, mpa_spearfishing_status, mpa_protection_level,
-                        mpa_species_of_concern, mpa_purpose, mpa_details_url, mpa_fetched_at,
+                        mpa_species_of_concern, mpa_purpose, mpa_details_url, mpa_fetched_at, mpa_is_inside,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -742,6 +744,7 @@ object SpotDataCache {
                         mpa_purpose = COALESCE(EXCLUDED.mpa_purpose, spot_cache.mpa_purpose),
                         mpa_details_url = COALESCE(EXCLUDED.mpa_details_url, spot_cache.mpa_details_url),
                         mpa_fetched_at = COALESCE(EXCLUDED.mpa_fetched_at, spot_cache.mpa_fetched_at),
+                        mpa_is_inside = COALESCE(EXCLUDED.mpa_is_inside, spot_cache.mpa_is_inside),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -805,6 +808,7 @@ object SpotDataCache {
                     stmt.setString(39, mpa?.purpose)
                     stmt.setString(40, mpa?.detailsUrl)
                     stmt.setTimestamp(41, data.mpa?.fetchedAt?.let { Timestamp.from(it) })
+                    stmt.setObject(42, mpa?.isInsideMPA)
                     
                     stmt.executeUpdate()
                 }
@@ -991,6 +995,7 @@ object SpotDataCache {
                                 val mpaSpeciesOfConcern = rs.getString("mpa_species_of_concern")
                                 val mpaPurpose = rs.getString("mpa_purpose")
                                 val mpaDetailsUrl = rs.getString("mpa_details_url")
+                                val mpaIsInside = try { rs.getBoolean("mpa_is_inside").takeUnless { rs.wasNull() } ?: false } catch (e: Exception) { false }
                                 
                                 // If spearfishing status was null, it means no specific MPA (just jurisdiction)
                                 val mpaInfo = if (!mpaSpearfishingStatusWasNull) {
@@ -1001,7 +1006,8 @@ object SpotDataCache {
                                         protectionLevel = if (mpaProtectionLevelWasNull) 0 else mpaProtectionLevel,
                                         speciesOfConcern = mpaSpeciesOfConcern,
                                         purpose = mpaPurpose,
-                                        detailsUrl = mpaDetailsUrl
+                                        detailsUrl = mpaDetailsUrl,
+                                        isInsideMPA = mpaIsInside
                                     )
                                 } else null
                                 

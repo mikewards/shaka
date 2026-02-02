@@ -149,6 +149,41 @@ class ProtectedSeasClient {
         }
     }
 
+    /**
+     * Check if a point is EXACTLY inside an MPA (no buffer).
+     * Use this after getMPAStatus returns data to determine if spot is inside vs nearby.
+     * 
+     * @param lat Latitude
+     * @param lon Longitude
+     * @return MPAInfo if the point is inside an MPA boundary, null if not
+     */
+    suspend fun getMPAStatusExact(lat: Double, lon: Double): MPAInfo? {
+        return try {
+            // JSON geometry format is REQUIRED - simple "lon,lat" doesn't work reliably
+            val geometry = URLEncoder.encode(
+                """{"x":$lon,"y":$lat,"spatialReference":{"wkid":4326}}""",
+                "UTF-8"
+            )
+            
+            // NO distance parameter - exact intersection only
+            val url = "$BASE_URL?" +
+                "geometry=$geometry" +
+                "&geometryType=esriGeometryPoint" +
+                "&spatialRel=esriSpatialRelIntersects" +
+                "&outFields=site_name,spear_fishing,species_of_concern,purpose,lfp,navigator_link,designation" +
+                "&returnGeometry=false" +
+                "&f=json"
+            
+            logger.debug("Fetching exact MPA data: $url")
+            val response: String = client.get(url).bodyAsText()
+            
+            parseMPAResponse(response)
+        } catch (e: Exception) {
+            logger.warn("Exact MPA check failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
     private fun EsriFeature.toMPAInfo(): MPAInfo {
         return MPAInfo(
             siteName = attributes.site_name,

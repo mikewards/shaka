@@ -85,6 +85,7 @@ data class RegulationInfo(
 @Serializable
 data class MPAStatus(
     val isProtected: Boolean,
+    val isInsideMPA: Boolean = false,       // True if spot is inside MPA boundary (not just nearby)
     val siteName: String? = null,           // e.g., "Hanauma Bay MLCD"
     val designation: String? = null,        // e.g., "Marine Life Conservation District"
     val spearfishingStatus: Int,            // 0=Allowed, 1=Prohibited, 2=Restricted, 3=Unknown

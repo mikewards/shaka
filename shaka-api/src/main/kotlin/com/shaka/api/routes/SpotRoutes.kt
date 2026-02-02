@@ -366,10 +366,20 @@ fun Application.configureRouting() {
                     for (spotId in spotsToFetch) {
                         try {
                             val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            
+                            // Step 1: Check for MPA within 1.5km (with buffer)
                             val mpaInfo = protectedSeasClient.getMPAStatus(
                                 spot.coordinates.lat, 
                                 spot.coordinates.lon
                             )
+                            
+                            // Step 2: If MPA nearby, check if spot is actually INSIDE
+                            val isInside = if (mpaInfo != null) {
+                                protectedSeasClient.getMPAStatusExact(
+                                    spot.coordinates.lat,
+                                    spot.coordinates.lon
+                                ) != null
+                            } else false
                             
                             val cacheInfo = mpaInfo?.let {
                                 com.shaka.data.cache.SpotDataCache.MPACacheInfo(
@@ -379,7 +389,8 @@ fun Application.configureRouting() {
                                     protectionLevel = it.protectionLevel,
                                     speciesOfConcern = it.speciesOfConcern,
                                     purpose = it.purpose,
-                                    detailsUrl = it.detailsUrl
+                                    detailsUrl = it.detailsUrl,
+                                    isInsideMPA = isInside
                                 )
                             }
                             
@@ -389,8 +400,8 @@ fun Application.configureRouting() {
                             )
                             com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
                             
-                            // Small delay to be nice to the API
-                            kotlinx.coroutines.delay(200)
+                            // Small delay to be nice to the API (slightly longer since we may make 2 calls)
+                            kotlinx.coroutines.delay(300)
                         } catch (e: Exception) { /* continue */ }
                     }
                 }
@@ -431,10 +442,20 @@ fun Application.configureRouting() {
                     for (spotId in allSpots) {
                         try {
                             val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            
+                            // Step 1: Check for MPA within 1.5km (with buffer)
                             val mpaInfo = protectedSeasClient.getMPAStatus(
                                 spot.coordinates.lat, 
                                 spot.coordinates.lon
                             )
+                            
+                            // Step 2: If MPA nearby, check if spot is actually INSIDE
+                            val isInside = if (mpaInfo != null) {
+                                protectedSeasClient.getMPAStatusExact(
+                                    spot.coordinates.lat,
+                                    spot.coordinates.lon
+                                ) != null
+                            } else false
                             
                             val cacheInfo = mpaInfo?.let {
                                 com.shaka.data.cache.SpotDataCache.MPACacheInfo(
@@ -444,7 +465,8 @@ fun Application.configureRouting() {
                                     protectionLevel = it.protectionLevel,
                                     speciesOfConcern = it.speciesOfConcern,
                                     purpose = it.purpose,
-                                    detailsUrl = it.detailsUrl
+                                    detailsUrl = it.detailsUrl,
+                                    isInsideMPA = isInside
                                 )
                             }
                             
@@ -457,11 +479,11 @@ fun Application.configureRouting() {
                             
                             // Log progress every 50 spots
                             if (processed % 50 == 0) {
-                                println("MPA refetch progress: $processed / $total")
+                                println("MPA refetch progress: $processed / $total (isInside=${if (isInside) "YES" else "no"})")
                             }
                             
-                            // Small delay to be nice to the API
-                            kotlinx.coroutines.delay(150)
+                            // Small delay to be nice to the API (slightly longer since we may make 2 calls)
+                            kotlinx.coroutines.delay(300)
                         } catch (e: Exception) { 
                             println("MPA refetch error for $spotId: ${e.message}")
                         }

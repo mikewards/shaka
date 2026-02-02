@@ -966,6 +966,7 @@ class SpotService {
         val mpaStatus = mpaCache?.let {
             MPAStatus(
                 isProtected = it.spearfishingStatus in 1..2,  // Prohibited or Restricted
+                isInsideMPA = it.isInsideMPA,
                 siteName = it.siteName,
                 designation = it.designation,
                 spearfishingStatus = it.spearfishingStatus,
@@ -1285,6 +1286,7 @@ class SpotService {
         val mpaStatus = cached?.mpa?.value?.let {
             MPAStatus(
                 isProtected = it.spearfishingStatus in 1..2,
+                isInsideMPA = it.isInsideMPA,
                 siteName = it.siteName,
                 designation = it.designation,
                 spearfishingStatus = it.spearfishingStatus,
@@ -1430,6 +1432,16 @@ class SpotService {
         val gibsData = gibsDeferred.await()
         val mpaData = mpaDeferred.await()
         
+        // If MPA nearby, check if spot is actually inside
+        val isInsideMPA = if (mpaData != null) {
+            try {
+                protectedSeasClient.getMPAStatusExact(lat, lon) != null
+            } catch (e: Exception) {
+                logger.warn("Exact MPA check failed for $spotId: ${e.message}")
+                false
+            }
+        } else false
+        
         // Save to cache
         if (tideData != null) {
             SpotDataCache.updateTide(
@@ -1531,7 +1543,8 @@ class SpotService {
                 protectionLevel = it.protectionLevel,
                 speciesOfConcern = it.speciesOfConcern,
                 purpose = it.purpose,
-                detailsUrl = it.detailsUrl
+                detailsUrl = it.detailsUrl,
+                isInsideMPA = isInsideMPA
             )
         }
         SpotDataCache.updateMPA(

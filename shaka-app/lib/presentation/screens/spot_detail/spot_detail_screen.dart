@@ -726,30 +726,43 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   Widget _buildRegulationsInfo(RegulationInfo regulations) {
     final mpa = regulations.mpaStatus;
     
-    // Determine MPA status color and text
+    // Determine MPA status color and text based on isInsideMPA
     Color statusColor;
     String statusText;
     IconData statusIcon;
+    String? detailText;
     
-    // IMPORTANT: The buffer query finds MPAs within 1.5km
-    // The SPOT may be legal, but there's a sanctuary NEARBY
     if (mpa == null || mpa.spearfishingStatus == 0) {
+      // No MPA or spearfishing allowed
       statusColor = Colors.green;
       statusText = 'No MPA restrictions nearby';
       statusIcon = Icons.check_circle;
-    } else if (mpa.spearfishingStatus == 1) {
-      // Sanctuary NEARBY - warn, don't prohibit (spot may be legal!)
-      statusColor = Colors.orange;
-      statusText = 'MARINE SANCTUARY NEARBY';
-      statusIcon = Icons.warning_amber;
-    } else if (mpa.spearfishingStatus == 2) {
-      statusColor = Colors.orange;
-      statusText = 'RESTRICTED AREA NEARBY';
-      statusIcon = Icons.warning;
+    } else if (mpa.isInsideMPA) {
+      // INSIDE a restricted area - RED warning
+      statusColor = Colors.red;
+      statusIcon = Icons.block;
+      if (mpa.spearfishingStatus == 1) {
+        statusText = 'RESTRICTED AREA - FREEDIVING ONLY';
+        detailText = 'This spot is inside "${mpa.siteName}". Spearfishing is prohibited.';
+      } else {
+        statusText = 'RESTRICTED AREA - CHECK REGULATIONS';
+        detailText = 'This spot is inside "${mpa.siteName}". Special regulations apply.';
+      }
     } else {
-      statusColor = Colors.grey;
-      statusText = 'Verify local regulations';
-      statusIcon = Icons.help_outline;
+      // NEARBY a restricted area - ORANGE warning
+      statusColor = Colors.orange;
+      if (mpa.spearfishingStatus == 1) {
+        statusText = 'MARINE SANCTUARY NEARBY';
+        statusIcon = Icons.warning_amber;
+        detailText = '"${mpa.siteName}" is within 1.5km';
+      } else if (mpa.spearfishingStatus == 2) {
+        statusText = 'RESTRICTED AREA NEARBY';
+        statusIcon = Icons.warning;
+        detailText = '"${mpa.siteName}" is within 1.5km';
+      } else {
+        statusText = 'Verify local regulations';
+        statusIcon = Icons.help_outline;
+      }
     }
     
     return Column(
@@ -785,7 +798,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               if (mpa != null && mpa.siteName != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '"${mpa.siteName!}" is within 1.5km',
+                  detailText ?? '"${mpa.siteName!}" is within 1.5km',
                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 if (mpa.designation != null)
@@ -793,34 +806,56 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                     mpa.designation!,
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
-                if (mpa.spearfishingStatus == 1) ...[
+                if (mpa.isInsideMPA && mpa.spearfishingStatus == 1) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.block, color: Colors.red, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Spearfishing is NOT allowed here. Freedive only or find another spot.',
+                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (!mpa.isInsideMPA && mpa.spearfishingStatus == 1) ...[
                   const SizedBox(height: 6),
                   const Text(
                     'Spearfishing is PROHIBITED inside sanctuary boundaries.',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
-                ],
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Know exactly where the sanctuary begins and ends before entering the water.',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Know exactly where the sanctuary begins and ends before entering the water.',
+                            style: TextStyle(color: Colors.white70, fontSize: 11),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
               if (mpa?.detailsUrl != null) ...[
                 const SizedBox(height: 10),
