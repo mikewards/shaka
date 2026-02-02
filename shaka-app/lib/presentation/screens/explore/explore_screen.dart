@@ -532,7 +532,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     
-    final mapHeight = screenHeight * 0.65;
+    final mapHeight = screenHeight * 0.70;  // Increased from 0.65
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
@@ -786,7 +786,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),  // Reduced padding
           child: Row(
             children: [
               Text(
@@ -831,7 +831,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         ),
         
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 4),  // Reduced from 8
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(

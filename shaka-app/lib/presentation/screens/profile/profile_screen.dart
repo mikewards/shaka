@@ -1,227 +1,269 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import '../../../data/api/shaka_api_client.dart';
+import '../../../data/models/spot_models.dart';
+import '../../../data/services/device_id_service.dart';
+import '../../../core/theme/app_colors.dart';
 
-/// Profile and settings screen.
-/// Currently a placeholder - will include saved spots management,
-/// preferences, and account settings in the future.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  List<UserSpotResponse> _savedSpots = [];
+  bool _isLoading = true;
+  String? _error;
+  String? _deviceId;
+  
+  final _apiClient = ShakaApiClient();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedSpots();
+    _loadDeviceId();
+  }
+
+  Future<void> _loadSavedSpots() async {
+    try {
+      final response = await _apiClient.getUserSpots();
+      if (mounted) {
+        setState(() {
+          _savedSpots = response.spots;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDeviceId() async {
+    final id = await DeviceIdService.getDeviceId();
+    if (mounted) {
+      setState(() => _deviceId = id);
+    }
+  }
+
+  void _navigateToSpot(UserSpotResponse spot) {
+    final today = DateTime.now();
+    final date = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    context.push('/spot/${spot.id}', extra: {
+      'date': date,
+      'isUserSpot': true,
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0D0D),
+        backgroundColor: AppColors.darkBackground,
         elevation: 0,
         title: const Text(
           'Profile',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          // Saved Spots Section
-          _buildSectionHeader('Saved Spots'),
-          const SizedBox(height: 12),
-          _buildSettingsCard([
-            _SettingsTile(
-              icon: Icons.bookmark_outline,
-              title: 'Manage Saved Spots',
-              subtitle: 'Reorder and remove favorites',
-              onTap: () {
-                // TODO: Navigate to saved spots management
-              },
-            ),
-          ]),
-          
-          const SizedBox(height: 24),
-          
-          // Preferences Section
-          _buildSectionHeader('Preferences'),
-          const SizedBox(height: 12),
-          _buildSettingsCard([
-            _SettingsTile(
-              icon: Icons.straighten,
-              title: 'Units',
-              subtitle: 'Metric / Imperial',
-              trailing: const Text(
-                'Imperial',
-                style: TextStyle(color: Colors.white54, fontSize: 14),
-              ),
-              onTap: () {
-                // TODO: Toggle units
-              },
-            ),
-            const Divider(color: Colors.white12, height: 1),
-            _SettingsTile(
-              icon: Icons.notifications_outlined,
-              title: 'Notifications',
-              subtitle: 'Alerts for saved spots',
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {
-                  // TODO: Toggle notifications
-                },
-                activeColor: const Color(0xFF5B9BD5),
-              ),
-              onTap: null,
-            ),
-          ]),
-          
-          const SizedBox(height: 24),
-          
-          // About Section
-          _buildSectionHeader('About'),
-          const SizedBox(height: 12),
-          _buildSettingsCard([
-            _SettingsTile(
-              icon: Icons.info_outline,
-              title: 'About Shaka',
-              subtitle: 'Version 1.0.0',
-              onTap: () {
-                // TODO: Show about dialog
-              },
-            ),
-            const Divider(color: Colors.white12, height: 1),
-            _SettingsTile(
-              icon: Icons.privacy_tip_outlined,
-              title: 'Privacy Policy',
-              onTap: () {
-                // TODO: Open privacy policy
-              },
-            ),
-            const Divider(color: Colors.white12, height: 1),
-            _SettingsTile(
-              icon: Icons.description_outlined,
-              title: 'Terms of Service',
-              onTap: () {
-                // TODO: Open terms
-              },
-            ),
-          ]),
-          
-          const SizedBox(height: 32),
-          
-          // App branding
-          Center(
-            child: Column(
+          // Saved Spots Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
               children: [
                 Text(
-                  'SHAKA',
+                  'SAVED SPOTS',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.3),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 4,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Find your dive',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.5),
                     fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
                   ),
                 ),
+                const Spacer(),
+                if (!_isLoading && _error == null)
+                  Text(
+                    '${_savedSpots.length} spots',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
               ],
             ),
           ),
           
-          const SizedBox(height: 100), // Bottom padding for nav bar
+          // Content
+          Expanded(
+            child: _buildContent(),
+          ),
+          
+          // Device ID footer
+          if (_deviceId != null)
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: _deviceId!));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Device ID copied'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: Container(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 16,
+                  top: 16,
+                ),
+                child: Text(
+                  'ID: ${_deviceId!.substring(0, 8)}... (tap to copy)',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title.toUpperCase(),
-      style: TextStyle(
-        color: Colors.white.withOpacity(0.5),
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 1.2,
-      ),
-    );
-  }
-
-  Widget _buildSettingsCard(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: children,
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.darkAccent),
+      );
+    }
+    
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white38, size: 48),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: Colors.white54)),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _error = null;
+                });
+                _loadSavedSpots();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (_savedSpots.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.bookmark_border, color: Colors.white24, size: 64),
+            const SizedBox(height: 16),
+            const Text(
+              'No saved spots yet',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Save spots from the Satellite Imagery map',
+              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return RefreshIndicator(
+      onRefresh: _loadSavedSpots,
+      color: AppColors.darkAccent,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _savedSpots.length,
+        itemBuilder: (context, index) {
+          final spot = _savedSpots[index];
+          return _ProfileSpotCard(
+            spot: spot,
+            onTap: () => _navigateToSpot(spot),
+          );
+        },
       ),
     );
   }
 }
 
-class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final VoidCallback? onTap;
+class _ProfileSpotCard extends StatelessWidget {
+  final UserSpotResponse spot;
+  final VoidCallback onTap;
 
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    this.onTap,
-  });
+  const _ProfileSpotCard({required this.spot, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.darkSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.darkBorder),
+        ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white70, size: 22),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.scoreExcellent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.location_on,
+                color: AppColors.scoreExcellent,
+                size: 24,
+              ),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    spot.name,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
-            if (trailing != null)
-              trailing!
-            else if (onTap != null)
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.white38,
-                size: 20,
-              ),
+            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
           ],
         ),
       ),

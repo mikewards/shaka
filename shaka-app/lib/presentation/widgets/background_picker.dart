@@ -52,25 +52,31 @@ class BackgroundPickerSheet extends StatelessWidget {
             ),
           ),
           
-          // Background options grid
+          // Background options - full width row
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: ListenableBuilder(
               listenable: bgService,
               builder: (context, _) {
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                return Row(
                   children: MapBackground.values.map((bg) {
                     final isSelected = bgService.current == bg;
-                    return _BackgroundOption(
-                      background: bg,
-                      isSelected: isSelected,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        bgService.setBackground(bg);
-                        Navigator.pop(context);
-                      },
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: bg == MapBackground.values.first ? 0 : 6,
+                          right: bg == MapBackground.values.last ? 0 : 6,
+                        ),
+                        child: _BackgroundOption(
+                          background: bg,
+                          isSelected: isSelected,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            bgService.setBackground(bg);
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
                     );
                   }).toList(),
                 );
@@ -125,38 +131,42 @@ class _BackgroundOption extends StatelessWidget {
     
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 100,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? iconColor.withOpacity(0.15) 
-              : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? iconColor : Colors.white12,
-            width: isSelected ? 2 : 1,
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? iconColor.withOpacity(0.15) 
+                : Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? iconColor : Colors.white12,
+              width: isSelected ? 2 : 1,
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _getIcon(),
-              color: isSelected ? iconColor : Colors.white54,
-              size: 32,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              background.displayName,
-              style: TextStyle(
-                color: isSelected ? iconColor : Colors.white70,
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _getIcon(),
+                color: isSelected ? iconColor : Colors.white54,
+                size: 28,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                background.displayName,
+                style: TextStyle(
+                  color: isSelected ? iconColor : Colors.white70,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );

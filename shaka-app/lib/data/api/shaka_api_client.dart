@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/spot_models.dart';
+import '../services/device_id_service.dart';
 
 /// API client for Shaka backend
 class ShakaApiClient {
@@ -169,6 +170,78 @@ class ShakaApiClient {
       // If health check fails, assume healthy - don't degrade UI
       // just because we can't reach the health endpoint
       return ServiceHealth.healthy();
+    }
+  }
+
+  // ===========================================
+  // USER SPOTS API
+  // ===========================================
+
+  /// Create a new user spot
+  Future<UserSpotResponse> createUserSpot({
+    required String name,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final deviceId = await DeviceIdService.getDeviceId();
+    try {
+      final response = await _dio.post(
+        '/user-spots',
+        data: {
+          'name': name,
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+        options: Options(headers: {'X-Device-ID': deviceId}),
+      );
+      return UserSpotResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get all user spots for this device
+  Future<UserSpotsListResponse> getUserSpots() async {
+    final deviceId = await DeviceIdService.getDeviceId();
+    try {
+      final response = await _dio.get(
+        '/user-spots',
+        options: Options(headers: {'X-Device-ID': deviceId}),
+      );
+      return UserSpotsListResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get detailed info for a user spot (includes forecast data)
+  Future<UserSpotDetailResponse> getUserSpotDetail({
+    required String spotId,
+    required String date,
+  }) async {
+    final deviceId = await DeviceIdService.getDeviceId();
+    try {
+      final response = await _dio.get(
+        '/user-spots/$spotId',
+        queryParameters: {'date': date},
+        options: Options(headers: {'X-Device-ID': deviceId}),
+      );
+      return UserSpotDetailResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Delete a user spot
+  Future<void> deleteUserSpot(String spotId) async {
+    final deviceId = await DeviceIdService.getDeviceId();
+    try {
+      await _dio.delete(
+        '/user-spots/$spotId',
+        options: Options(headers: {'X-Device-ID': deviceId}),
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
     }
   }
 

@@ -187,6 +187,26 @@ cd shaka-api && ./gradlew run
 - `ResultsScreen` - List view + map view with spot cards
 - `SpotDetailScreen` - Full spot info, conditions, forecast, gear, risks
 
+## iOS Deployment (CRITICAL)
+
+See `.cursor/rules/ios-deployment.mdc` for detailed rules. Key points:
+
+1. **NEVER use async/await before runApp()** - causes hangs on physical iPhone (iOS 26.x)
+2. **LaunchScreen must have dark background** - RGB (0.051, 0.051, 0.051)
+3. **Always test on physical device** - Simulator may pass when device fails
+4. **Use release mode** - `flutter build ios --release && flutter install -d iPhone`
+
+**Correct main() pattern:**
+```dart
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ShakaApp());
+  Future.microtask(() {
+    // Post-startup initialization here
+  });
+}
+```
+
 ## Commit Strategy
 
 Commit and push to GitHub after every substantive change.

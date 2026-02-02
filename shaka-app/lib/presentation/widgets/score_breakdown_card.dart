@@ -212,12 +212,6 @@ class ScoreBreakdownCard extends StatelessWidget {
             explanationKey: 'fishActivity',
           ),
           _ScoreRow(
-            label: 'Safety',
-            score: breakdown.safety,
-            weight: '15%',
-            explanationKey: 'safety',
-          ),
-          _ScoreRow(
             label: 'Accessibility',
             score: breakdown.accessibility,
             weight: '10%',

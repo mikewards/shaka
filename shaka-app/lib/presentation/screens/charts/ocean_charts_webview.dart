@@ -1854,56 +1854,44 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
 
   /// Build unified bottom controls (matches GIBS style)
   Widget _buildBottomControls() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Save buttons floating above the container
-        Padding(
-          padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-          child: _buildSaveButtons(),
-        ),
-        
-        // Main container with opacity + action buttons
-        Container(
-          padding: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 8,
-            bottom: MediaQuery.of(context).padding.bottom + 8,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    return Container(
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        top: 8,
+        bottom: MediaQuery.of(context).padding.bottom + 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Opacity slider row
+          _buildOpacityRow(),
+          
+          const SizedBox(height: 8),
+          
+          // Action buttons + legend row (50/50 split)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Opacity slider row
-              _buildOpacityRow(),
-              
-              const SizedBox(height: 8),
-              
-              // Action buttons + legend row (50/50 split)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Buttons cluster (~50% width)
-                  Expanded(
-                    flex: 1,
-                    child: _buildActionButtons(),
-                  ),
-                  const SizedBox(width: 12),
-                  // Legend (~50% width)
-                  Expanded(
-                    flex: 1,
-                    child: _buildLegendSection(),
-                  ),
-                ],
+              // Buttons cluster (~50% width)
+              Expanded(
+                flex: 1,
+                child: _buildActionButtons(),
+              ),
+              const SizedBox(width: 12),
+              // Legend (~50% width)
+              Expanded(
+                flex: 1,
+                child: _buildLegendSection(),
               ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
   
@@ -2015,22 +2003,107 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
   
-  /// Build action buttons row (square buttons like GIBS)
+  /// Build action buttons row - just layers button
   Widget _buildActionButtons() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.layers,
-            onTap: _showLayerSheet,
-          ),
+        // Left side - vertical button stack
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Layers button
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showLayerSheet();
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.info_outline,
-            onTap: _showLayerInfo,
-          ),
+        const Spacer(),
+        // Right side - Save buttons stacked vertically
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Saved snapshots button
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showSavedSnapshots();
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Icon(Icons.offline_pin, color: Colors.white70, size: 22),
+                  ),
+                  if (_savedSnapshots.isNotEmpty)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF5B9BD5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _savedSnapshots.length > 9 ? '9+' : _savedSnapshots.length.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Save snapshot button
+            GestureDetector(
+              onTap: _isOnline && !_isSaving ? () {
+                HapticFeedback.lightImpact();
+                _saveSnapshot();
+              } : null,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Center(
+                  child: Icon(
+                    _isSaving ? Icons.hourglass_empty : Icons.save_alt,
+                    color: _isOnline && !_isSaving ? Colors.white70 : Colors.white38,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

@@ -18,16 +18,10 @@ import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
 import 'presentation/screens/charts/ocean_charts_webview.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Lock orientation to portrait only
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Set status bar style for dark theme
+  
+  // Set status bar style (synchronous, OK here)
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -36,12 +30,16 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-
-  // Start the app FIRST, then initialize services in background
+  
+  // Start app FIRST - never block with async
   runApp(const ShakaApp());
   
-  // Initialize services AFTER app starts (non-blocking)
-  Future.microtask(() {
+  // Initialize async services AFTER app starts
+  Future.microtask(() async {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     HealthProvider().checkHealthInBackground();
     MapBackgroundService().init();
   });
@@ -144,6 +142,7 @@ final _router = GoRouter(
           spotId: spotId,
           date: extra?['date'] ?? '',
           preloadedSpot: extra?['spot'] as SpotSummary?,
+          isUserSpot: extra?['isUserSpot'] as bool? ?? false,
         );
       },
     ),

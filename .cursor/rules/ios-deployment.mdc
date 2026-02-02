@@ -1,0 +1,100 @@
+---
+description: Critical iOS deployment rules for Shaka Flutter app - prevents hangs on physical iPhone
+globs: 
+  - shaka-app/lib/main.dart
+  - shaka-app/ios/**/*
+---
+
+# iOS Deployment Rules for Shaka
+
+These rules address critical iOS 26.x deployment issues discovered during physical device testing.
+
+## Rule 1: NEVER await before runApp()
+
+In `shaka-app/lib/main.dart`, NEVER use async/await before `runApp()`. This causes the app to hang indefinitely on physical iPhones running iOS 26.x.
+
+### Broken Pattern (DO NOT USE)
+
+```dart
+// BROKEN ON iOS 26.x - DO NOT USE
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([...]);
+  runApp(const ShakaApp());
+}
+```
+
+### Correct Pattern (ALWAYS USE)
+
+```dart
+void main() {
+  // CRITICAL: Do NOT use async/await before runApp() on iOS - it causes hangs!
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Start the app FIRST
+  runApp(const ShakaApp());
+  
+  // Initialize services AFTER app starts (non-blocking)
+  Future.microtask(() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    // Other initialization...
+  });
+}
+```
+
+**Key points:**
+- `main()` must NOT be `async`
+- No `await` calls before `runApp()`
+- Use `Future.microtask()` for post-startup initialization
+- `WidgetsFlutterBinding.ensureInitialized()` is fine (it's synchronous)
+
+## Rule 2: LaunchScreen Background Must Be Dark
+
+The launch screen must have a dark background to match the app theme and prevent white flash.
+
+**File:** `shaka-app/ios/Runner/Base.lproj/LaunchScreen.storyboard`
+
+**Required value:**
+```xml
+<color key="backgroundColor" red="0.051" green="0.051" blue="0.051" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+```
+
+**NOT white (1, 1, 1)** - this causes a jarring white flash before the dark app loads.
+
+## Rule 3: Always Test on Physical iPhone
+
+The iOS Simulator and physical devices behave differently:
+
+- **iOS Simulator (26.2):** May work fine even with problematic code
+- **Physical iPhone (26.2.1):** More sensitive to startup timing issues
+
+**Always verify on a physical device before confirming "it works."**
+
+Debug mode is more likely to hang than release mode on physical devices.
+
+## Rule 4: iOS Deployment Checklist
+
+Before deploying to iPhone, verify:
+
+1. [ ] `main.dart` has NO `async` on `main()` function
+2. [ ] `main.dart` has NO `await` before `runApp()`
+3. [ ] `LaunchScreen.storyboard` has dark background (0.051, 0.051, 0.051)
+4. [ ] Build and install with release mode:
+
+```bash
+flutter build ios --release && flutter install -d iPhone
+```
+
+**If debug mode hangs, release mode usually works.** Use release mode for physical device testing when debugging startup issues.
+
+## Troubleshooting
+
+If the app hangs on startup (physical iPhone):
+
+1. Check `main.dart` for any `await` before `runApp()`
+2. Check for any `async` keyword on `main()`
+3. Try release mode: `flutter build ios --release`
+4. Check device logs: `flutter logs -d iPhone`

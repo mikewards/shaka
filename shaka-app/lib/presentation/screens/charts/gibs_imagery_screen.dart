@@ -1,12 +1,17 @@
+import 'dart:math' show Point;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/api/gibs_service.dart';
+import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/gibs_layer.dart';
-import '../../../data/models/map_background.dart';
+import '../../../data/models/spot_models.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
+import '../../widgets/save_spot_sheet.dart';
 
 /// GIBS Satellite Imagery Screen
 /// Uses MapLibre GL to display NASA GIBS satellite imagery layers
@@ -60,6 +65,15 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
   
+  // Pin mode state
+  bool _isPinMode = false;
+  LatLng? _currentCenter;
+  
+  // Saved spots state
+  final ShakaApiClient _apiClient = ShakaApiClient();
+  List<UserSpotResponse> _savedSpots = [];
+  bool _showSpotsOnMap = false;
+  
   // Helper getters
   bool get _hasMultipleLayers => _activeLayers.length > 1;
   GibsLayer get _primaryLayer => _activeLayers.first;
@@ -82,6 +96,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         statusBarIconBrightness: Brightness.light,
       ),
     );
+    
+    _loadSavedSpots();
   }
   
   void _onBackgroundChanged() {
@@ -111,6 +127,17 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // Note: Layers are added in _onStyleLoaded, not here
   }
 
+  void _onCameraMove() {
+    if (_isPinMode && _mapController != null) {
+      final position = _mapController!.cameraPosition;
+      if (position != null) {
+        setState(() {
+          _currentCenter = position.target;
+        });
+      }
+    }
+  }
+
   void _onStyleLoaded() async {
     // First add background overlays (satellite, terrain, etc.)
     await _addBackgroundOverlays();
@@ -123,6 +150,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // Add spot marker if opened from a spot
     if (_hasSpotContext) {
       _addSpotMarker();
+    }
+    
+    // Re-add spot markers when map style changes
+    if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
+      await _updateSpotMarkers();
     }
   }
   
@@ -381,6 +413,298 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
 
+  // ===========================================
+  // PIN MODE METHODS
+  // ===========================================
+
+  void _enterPinMode() {
+    final center = _mapController?.cameraPosition?.target;
+    setState(() {
+      _isPinMode = true;
+      _currentCenter = center;
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  void _exitPinMode() {
+    setState(() {
+      _isPinMode = false;
+      _currentCenter = null;
+    });
+  }
+
+  Future<void> _confirmPinLocation() async {
+    if (_currentCenter == null) return;
+    
+    final saved = await SaveSpotSheet.show(
+      context: context,
+      latitude: _currentCenter!.latitude,
+      longitude: _currentCenter!.longitude,
+    );
+    
+    if (saved && mounted) {
+      _exitPinMode();
+      await _loadSavedSpots();  // Refresh list after save
+    }
+  }
+
+  // ===========================================
+  // SAVED SPOTS METHODS
+  // ===========================================
+
+  Future<void> _loadSavedSpots() async {
+    try {
+      final response = await _apiClient.getUserSpots();
+      if (mounted) {
+        setState(() {
+          _savedSpots = response.spots;
+        });
+        if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
+          await _updateSpotMarkers();
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load saved spots: $e');
+    }
+  }
+
+  Future<void> _updateSpotMarkers() async {
+    if (_mapController == null || _savedSpots.isEmpty) return;
+    
+    await _removeSpotMarkers();
+    
+    // CRITICAL: Check controller after each await (prevents crashes)
+    if (_mapController == null) return;
+    
+    // Build GeoJSON FeatureCollection
+    final features = _savedSpots.map((spot) => {
+      'type': 'Feature',
+      'geometry': {
+        'type': 'Point',
+        'coordinates': [spot.longitude, spot.latitude],
+      },
+      'properties': {
+        'name': spot.name,
+        'id': spot.id,
+      },
+    }).toList();
+    
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    
+    if (_mapController == null) return;
+    
+    // Add source
+    await _mapController!.addSource(
+      'saved-spots-source',
+      GeojsonSourceProperties(data: geojson),
+    );
+    
+    if (_mapController == null) return;
+    
+    // Add circle layer (green markers)
+    await _mapController!.addCircleLayer(
+      'saved-spots-source',
+      'saved-spots-layer',
+      const CircleLayerProperties(
+        circleRadius: 8,
+        circleColor: '#6B8E7D',  // Sage green (AppColors.scoreExcellent)
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
+      ),
+    );
+    
+    if (_mapController == null) return;
+    
+    // Add labels
+    await _mapController!.addSymbolLayer(
+      'saved-spots-source',
+      'saved-spots-labels',
+      const SymbolLayerProperties(
+        textField: ['get', 'name'],
+        textSize: 11,
+        textColor: '#FFFFFF',
+        textHaloColor: '#000000',
+        textHaloWidth: 1,
+        textOffset: [0, 1.5],
+      ),
+    );
+  }
+
+  Future<void> _removeSpotMarkers() async {
+    try { await _mapController?.removeLayer('saved-spots-labels'); } catch (_) {}
+    try { await _mapController?.removeLayer('saved-spots-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('saved-spots-source'); } catch (_) {}
+  }
+
+  void _showSavedSpotsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Column(
+                  children: [
+                    // Handle
+                    Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // Header with toggle
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Saved Spots',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              setModalState(() {
+                                _showSpotsOnMap = !_showSpotsOnMap;
+                              });
+                              setState(() {});
+                              if (_showSpotsOnMap) {
+                                _updateSpotMarkers();
+                              } else {
+                                _removeSpotMarkers();
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
+                                  color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white38,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Show on map',
+                                  style: TextStyle(
+                                    color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white54,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Spot list
+                    Expanded(
+                      child: _savedSpots.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.bookmark_border, color: Colors.white24, size: 48),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No saved spots yet',
+                                    style: TextStyle(color: Colors.white54),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Tap the + button to save a location',
+                                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _savedSpots.length,
+                              itemBuilder: (context, index) {
+                                final spot = _savedSpots[index];
+                                return _SavedSpotCard(
+                                  spot: spot,
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    _navigateToSpotDetail(spot);
+                                  },
+                                  onDelete: () async {
+                                    await _deleteSpot(spot, setModalState);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _navigateToSpotDetail(UserSpotResponse spot) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    context.push('/spot/${spot.id}', extra: {
+      'date': today,
+      'isUserSpot': true,
+    });
+  }
+
+  Future<void> _deleteSpot(UserSpotResponse spot, StateSetter setModalState) async {
+    try {
+      await _apiClient.deleteUserSpot(spot.id);
+      setModalState(() {
+        _savedSpots.removeWhere((s) => s.id == spot.id);
+      });
+      setState(() {});
+      if (_showSpotsOnMap) {
+        await _updateSpotMarkers();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted "${spot.name}"'),
+            backgroundColor: Colors.orange.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to delete spot'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   /// Show date picker
   void _showDatePicker() async {
     final now = DateTime.now();
@@ -431,10 +755,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _onStyleLoaded,
+            trackCameraPosition: true,
+            onCameraIdle: _onCameraMove,
             compassEnabled: false,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: false,
             myLocationEnabled: false,
+            attributionButtonMargins: const Point(-100, -100),
+            logoViewMargins: const Point(-100, -100),
           ),
 
           // Loading overlay
@@ -446,21 +774,116 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               ),
             ),
 
-          // Top bar with back button and layer info
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 16,
-            right: 16,
-            child: _buildTopBar(),
-          ),
+          // GPS Coordinates Display (top-left when in pin mode)
+          if (_isPinMode && _currentCenter != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-          // Bottom controls
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildBottomControls(),
-          ),
+          // Reticle Crosshairs (center when in pin mode)
+          if (_isPinMode)
+            const Center(
+              child: SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(painter: _ReticlePainter()),
+              ),
+            ),
+
+          // Top bar with back button and layer info (hidden in pin mode)
+          if (!_isPinMode)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 16,
+              right: 16,
+              child: _buildTopBar(),
+            ),
+
+          // Bottom controls (hidden in pin mode)
+          if (!_isPinMode)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildBottomControls(),
+            ),
+
+          // Action Bar (bottom when in pin mode)
+          if (_isPinMode)
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 16,
+              right: 16,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _exitPinMode,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: Colors.white70, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: GestureDetector(
+                      onTap: _confirmPinLocation,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Mark Spot',
+                            style: TextStyle(
+                              color: Color(0xFF1A1A1A),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -707,7 +1130,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       children: categoriesWithLegends.values.map((layer) {
         // Get category display name
         final categoryName = layer.category == GibsLayerCategory.chlorophyll 
-            ? 'Chlorophyll' 
+            ? 'Chl-a'  // Standard scientific abbreviation
             : layer.category == GibsLayerCategory.seaSurfaceTemp 
                 ? 'SST' 
                 : '';
@@ -753,29 +1176,122 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
   
-  /// Build compact action buttons cluster
+  /// Build compact action buttons cluster with vertical stacks
   Widget _buildActionButtons() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.layers,
-            onTap: _showLayerPicker,
-          ),
+        // Left side (Map Style + Layers stacked vertically)
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Map style button
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  showBackgroundPicker(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.map_outlined, color: Colors.white70, size: 22),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Layers button
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showLayerPicker();
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.map,
-            onTap: _showBackgroundPicker,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _SquareButton(
-            icon: Icons.info_outline,
-            onTap: () => _showLayerInfo(),
-          ),
+        const Spacer(),
+        // Right side (Saved Spots + Add Spot stacked vertically)
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Saved spots button with badge
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showSavedSpotsSheet();
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Icon(Icons.bookmark_outline, color: Colors.white70, size: 22),
+                  ),
+                  if (_savedSpots.isNotEmpty)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF5B9BD5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${_savedSpots.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Add spot button (enters pin mode)
+            if (!_isPinMode)
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _enterPinMode();
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.add_location_alt, color: Colors.white70, size: 22),
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -1362,4 +1878,150 @@ class _InfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Card for saved spot in bottom sheet
+class _SavedSpotCard extends StatelessWidget {
+  final UserSpotResponse spot;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _SavedSpotCard({
+    required this.spot,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6B8E7D).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.location_on,
+                color: Color(0xFF6B8E7D),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    spot.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline, color: Colors.white38),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Rifle scope style reticle for pin mode (hunters audience)
+class _ReticlePainter extends CustomPainter {
+  const _ReticlePainter();
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    
+    // Outer circle (semi-transparent for scope effect)
+    final circlePaint = Paint()
+      ..color = Colors.black.withOpacity(0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius - 1, circlePaint);
+    
+    // Crosshair configuration
+    final gap = 12.0;
+    final lineLength = radius - gap - 4;
+    
+    // White outline for visibility on any background
+    final outlinePaint = Paint()
+      ..color = Colors.white.withOpacity(0.4)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    
+    // Black crosshair lines
+    final linePaint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    
+    // Draw crosshairs (outline first, then black)
+    for (final paint in [outlinePaint, linePaint]) {
+      // Top
+      canvas.drawLine(
+        Offset(center.dx, center.dy - gap),
+        Offset(center.dx, center.dy - gap - lineLength),
+        paint,
+      );
+      // Bottom
+      canvas.drawLine(
+        Offset(center.dx, center.dy + gap),
+        Offset(center.dx, center.dy + gap + lineLength),
+        paint,
+      );
+      // Left
+      canvas.drawLine(
+        Offset(center.dx - gap, center.dy),
+        Offset(center.dx - gap - lineLength, center.dy),
+        paint,
+      );
+      // Right
+      canvas.drawLine(
+        Offset(center.dx + gap, center.dy),
+        Offset(center.dx + gap + lineLength, center.dy),
+        paint,
+      );
+    }
+    
+    // Red center dot
+    final dotPaint = Paint()..color = Colors.red;
+    canvas.drawCircle(center, 3, dotPaint);
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

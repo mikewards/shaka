@@ -67,4 +67,20 @@ class AppColors {
   static Color getAccessColor(String access) {
     return access.toLowerCase() == 'shore' ? shoreDive : boatDive;
   }
+
+  // ===========================================
+  // DARK THEME COLORS
+  // ===========================================
+
+  // Dark Theme - Base colors
+  static const darkBackground = Color(0xFF0D0D0D);  // Main app background
+  static const darkSurface = Color(0xFF1A1A1A);     // Cards, containers, inputs
+  static const darkBorder = Color(0xFF2A2A2A);      // Subtle borders
+  static const darkAccent = Color(0xFF5B9BD5);      // Primary accent (ocean blue)
+
+  // Dark Theme - Text colors
+  static const darkTextPrimary = Colors.white;
+  static const darkTextSecondary = Color(0xB3FFFFFF);  // 70% white
+  static const darkTextMuted = Color(0x80FFFFFF);      // 50% white
+  static const darkTextHint = Color(0x4DFFFFFF);       // 30% white
 }

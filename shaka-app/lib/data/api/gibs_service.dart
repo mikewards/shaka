@@ -14,7 +14,7 @@ class GibsService {
 
   /// Get yesterday's date in UTC (GIBS data typically lags by ~1 day)
   static DateTime get yesterdayUtc {
-    final now = DateTime.now().toUtc();
+    final now = DateTime.now();  // Use LOCAL time
     return DateTime.utc(now.year, now.month, now.day - 1);
   }
 

@@ -720,3 +720,89 @@ class ServiceHealth {
     );
   }
 }
+
+// ===========================================
+// USER SPOTS MODELS
+// ===========================================
+
+/// Response from creating/fetching a user spot
+class UserSpotResponse {
+  final String id;
+  final String name;
+  final Coordinates coordinates;  // Uses existing Coordinates class
+  final String region;
+  final String country;
+  final String accessType;
+  final DateTime createdAt;
+  final bool isUserSpot;
+
+  UserSpotResponse({
+    required this.id,
+    required this.name,
+    required this.coordinates,
+    required this.region,
+    required this.country,
+    required this.accessType,
+    required this.createdAt,
+    this.isUserSpot = true,
+  });
+
+  // Convenience getters
+  double get latitude => coordinates.lat;
+  double get longitude => coordinates.lon;
+
+  factory UserSpotResponse.fromJson(Map<String, dynamic> json) {
+    return UserSpotResponse(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      coordinates: Coordinates.fromJson(json['coordinates'] as Map<String, dynamic>),
+      region: json['region'] as String,
+      country: json['country'] as String,
+      accessType: json['accessType'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      isUserSpot: json['isUserSpot'] as bool? ?? true,
+    );
+  }
+}
+
+/// Response containing list of user spots
+class UserSpotsListResponse {
+  final List<UserSpotResponse> spots;
+  final int count;
+  final int limit;
+
+  UserSpotsListResponse({
+    required this.spots,
+    required this.count,
+    this.limit = 100,
+  });
+
+  factory UserSpotsListResponse.fromJson(Map<String, dynamic> json) {
+    final spotsList = (json['spots'] as List)
+        .map((s) => UserSpotResponse.fromJson(s as Map<String, dynamic>))
+        .toList();
+    return UserSpotsListResponse(
+      spots: spotsList,
+      count: json['count'] as int,
+      limit: json['limit'] as int? ?? 100,
+    );
+  }
+}
+
+/// Response from getUserSpotDetail endpoint
+class UserSpotDetailResponse {
+  final SpotDetail spot;
+  final bool isUserSpot;
+
+  UserSpotDetailResponse({
+    required this.spot,
+    this.isUserSpot = true,
+  });
+
+  factory UserSpotDetailResponse.fromJson(Map<String, dynamic> json) {
+    return UserSpotDetailResponse(
+      spot: SpotDetail.fromJson(json['spot'] as Map<String, dynamic>),
+      isUserSpot: json['isUserSpot'] as bool? ?? true,
+    );
+  }
+}

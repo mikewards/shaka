@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/shaka_score_badge.dart';
@@ -15,12 +16,14 @@ class SpotDetailScreen extends StatefulWidget {
   final String spotId;
   final String date;
   final SpotSummary? preloadedSpot;
+  final bool isUserSpot;
 
   const SpotDetailScreen({
     super.key,
     required this.spotId,
     required this.date,
     this.preloadedSpot,
+    this.isUserSpot = false,
   });
 
   @override
@@ -36,6 +39,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   static const _bgColor = Color(0xFF0D0D0D);
   static const _cardColor = Color(0xFF1A1A1A);
   static const _borderColor = Color(0xFF2A2A2A);
+
+  // User spot handling
+  final _apiClient = ShakaApiClient();
+  SpotDetail? _userSpotDetail;
+  bool _userSpotLoading = false;
+  String? _userSpotError;
 
   @override
   void initState() {
@@ -53,14 +62,50 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   void _loadSpotDetail() {
     if (_hasLoaded) return;
     _hasLoaded = true;
-    context.read<SearchBloc>().add(LoadSpotDetail(
-          spotId: widget.spotId,
-          date: widget.date,
-        ));
+    
+    if (widget.isUserSpot) {
+      _loadUserSpotDetail();
+    } else {
+      context.read<SearchBloc>().add(LoadSpotDetail(
+            spotId: widget.spotId,
+            date: widget.date,
+          ));
+    }
+  }
+
+  Future<void> _loadUserSpotDetail() async {
+    setState(() => _userSpotLoading = true);
+    try {
+      final response = await _apiClient.getUserSpotDetail(
+        spotId: widget.spotId,
+        date: widget.date,
+      );
+      if (mounted) {
+        setState(() {
+          _userSpotDetail = response.spot;
+          _userSpotLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _userSpotError = e.toString();
+          _userSpotLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Handle user spot case separately
+    if (widget.isUserSpot) {
+      return Scaffold(
+        backgroundColor: _bgColor,
+        body: _buildUserSpotContent(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bgColor,
       body: BlocBuilder<SearchBloc, SearchState>(
@@ -81,6 +126,22 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         },
       ),
     );
+  }
+
+  Widget _buildUserSpotContent() {
+    if (_userSpotLoading) {
+      return _buildLoadingState();
+    }
+    
+    if (_userSpotError != null) {
+      return _buildError(_userSpotError!);
+    }
+    
+    if (_userSpotDetail != null) {
+      return _buildTabbedContent(_userSpotDetail!);
+    }
+    
+    return _buildLoadingState();
   }
 
   /// Full tabbed content when SpotDetail is loaded
