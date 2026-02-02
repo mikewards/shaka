@@ -313,15 +313,25 @@ fun Application.configureRouting() {
                                 com.shaka.data.cache.SpotDataCache.CachedValue(
                                     value = com.shaka.data.cache.SpotDataCache.GIBSSatelliteData(
                                         paceToday = gibsData.paceToday,
+                                        paceTodayColor = gibsData.paceTodayColor,
                                         paceYesterday = gibsData.paceYesterday,
+                                        paceYesterdayColor = gibsData.paceYesterdayColor,
                                         noaa20Today = gibsData.noaa20Today,
+                                        noaa20TodayColor = gibsData.noaa20TodayColor,
                                         noaa20Yesterday = gibsData.noaa20Yesterday,
+                                        noaa20YesterdayColor = gibsData.noaa20YesterdayColor,
                                         noaa21Today = gibsData.noaa21Today,
+                                        noaa21TodayColor = gibsData.noaa21TodayColor,
                                         noaa21Yesterday = gibsData.noaa21Yesterday,
+                                        noaa21YesterdayColor = gibsData.noaa21YesterdayColor,
                                         sentinel3aToday = gibsData.sentinel3aToday,
+                                        sentinel3aTodayColor = gibsData.sentinel3aTodayColor,
                                         sentinel3aYesterday = gibsData.sentinel3aYesterday,
+                                        sentinel3aYesterdayColor = gibsData.sentinel3aYesterdayColor,
                                         sentinel3bToday = gibsData.sentinel3bToday,
+                                        sentinel3bTodayColor = gibsData.sentinel3bTodayColor,
                                         sentinel3bYesterday = gibsData.sentinel3bYesterday,
+                                        sentinel3bYesterdayColor = gibsData.sentinel3bYesterdayColor,
                                         dataDate = gibsData.dataDate,
                                         paceObservationTime = gibsData.paceObservationTime,
                                         noaa20ObservationTime = gibsData.noaa20ObservationTime,
@@ -367,19 +377,19 @@ fun Application.configureRouting() {
                         try {
                             val spot = SpotDatabase.findSpotById(spotId) ?: continue
                             
-                            // Step 1: Check for MPA within 1.5km (with buffer)
-                            val mpaInfo = protectedSeasClient.getMPAStatus(
+                            // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+                            val exactResult = protectedSeasClient.getMPAStatusExact(
                                 spot.coordinates.lat, 
                                 spot.coordinates.lon
                             )
                             
-                            // Step 2: If MPA nearby, check if spot is actually INSIDE
-                            val isInside = if (mpaInfo != null) {
-                                protectedSeasClient.getMPAStatusExact(
-                                    spot.coordinates.lat,
-                                    spot.coordinates.lon
-                                ) != null
-                            } else false
+                            // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+                            val bufferResult = if (exactResult == null) {
+                                protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                            } else null
+                            
+                            val isInside = exactResult != null
+                            val mpaInfo = exactResult ?: bufferResult
                             
                             val cacheInfo = mpaInfo?.let {
                                 com.shaka.data.cache.SpotDataCache.MPACacheInfo(
@@ -400,7 +410,7 @@ fun Application.configureRouting() {
                             )
                             com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
                             
-                            // Small delay to be nice to the API (slightly longer since we may make 2 calls)
+                            // Small delay to be nice to the API
                             kotlinx.coroutines.delay(300)
                         } catch (e: Exception) { /* continue */ }
                     }
@@ -443,19 +453,19 @@ fun Application.configureRouting() {
                         try {
                             val spot = SpotDatabase.findSpotById(spotId) ?: continue
                             
-                            // Step 1: Check for MPA within 1.5km (with buffer)
-                            val mpaInfo = protectedSeasClient.getMPAStatus(
+                            // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+                            val exactResult = protectedSeasClient.getMPAStatusExact(
                                 spot.coordinates.lat, 
                                 spot.coordinates.lon
                             )
                             
-                            // Step 2: If MPA nearby, check if spot is actually INSIDE
-                            val isInside = if (mpaInfo != null) {
-                                protectedSeasClient.getMPAStatusExact(
-                                    spot.coordinates.lat,
-                                    spot.coordinates.lon
-                                ) != null
-                            } else false
+                            // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+                            val bufferResult = if (exactResult == null) {
+                                protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                            } else null
+                            
+                            val isInside = exactResult != null
+                            val mpaInfo = exactResult ?: bufferResult
                             
                             val cacheInfo = mpaInfo?.let {
                                 com.shaka.data.cache.SpotDataCache.MPACacheInfo(
@@ -482,7 +492,7 @@ fun Application.configureRouting() {
                                 println("MPA refetch progress: $processed / $total (isInside=${if (isInside) "YES" else "no"})")
                             }
                             
-                            // Small delay to be nice to the API (slightly longer since we may make 2 calls)
+                            // Small delay to be nice to the API
                             kotlinx.coroutines.delay(300)
                         } catch (e: Exception) { 
                             println("MPA refetch error for $spotId: ${e.message}")

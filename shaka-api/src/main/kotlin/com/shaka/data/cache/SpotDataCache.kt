@@ -106,19 +106,30 @@ object SpotDataCache {
      * GIBS satellite chlorophyll data from all 5 satellites for today and yesterday.
      * Used for comparison with Copernicus data.
      * 
+     * Includes RGB colors (as hex strings "#RRGGBB") from the original satellite imagery.
      * Observation times are from NASA CMR granule metadata (only available for NASA satellites).
      */
     data class GIBSSatelliteData(
         val paceToday: Double?,
+        val paceTodayColor: String?,
         val paceYesterday: Double?,
+        val paceYesterdayColor: String?,
         val noaa20Today: Double?,
+        val noaa20TodayColor: String?,
         val noaa20Yesterday: Double?,
+        val noaa20YesterdayColor: String?,
         val noaa21Today: Double?,
+        val noaa21TodayColor: String?,
         val noaa21Yesterday: Double?,
+        val noaa21YesterdayColor: String?,
         val sentinel3aToday: Double?,
+        val sentinel3aTodayColor: String?,
         val sentinel3aYesterday: Double?,
+        val sentinel3aYesterdayColor: String?,
         val sentinel3bToday: Double?,
+        val sentinel3bTodayColor: String?,
         val sentinel3bYesterday: Double?,
+        val sentinel3bYesterdayColor: String?,
         val dataDate: LocalDate,   // "Today" when this was fetched
         // Observation timestamps from CMR (NASA satellites only)
         val paceObservationTime: Instant? = null,
@@ -691,6 +702,27 @@ object SpotDataCache {
                     }
                 }
                 
+                // Add GIBS satellite RGB color columns (hex string "#RRGGBB")
+                val gibsColorColumns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_today_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_pace_yesterday_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa20_today_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa20_yesterday_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa21_today_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_noaa21_yesterday_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3a_today_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3a_yesterday_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3b_today_color VARCHAR(7);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS gibs_sentinel3b_yesterday_color VARCHAR(7);
+                """.trimIndent()
+                
+                conn.createStatement().use { stmt ->
+                    gibsColorColumns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                logger.info("GIBS satellite color columns added to spot_cache table")
+                
                 // Add MPA (Marine Protected Area) columns (if they don't exist)
                 val mpaColumns = """
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS mpa_site_name VARCHAR(500);
@@ -780,6 +812,9 @@ object SpotDataCache {
                         gibs_noaa21_today, gibs_noaa21_yesterday, gibs_sentinel3a_today, gibs_sentinel3a_yesterday,
                         gibs_sentinel3b_today, gibs_sentinel3b_yesterday, gibs_data_date, gibs_fetched_at,
                         gibs_pace_obs_time, gibs_noaa20_obs_time, gibs_noaa21_obs_time,
+                        gibs_pace_today_color, gibs_pace_yesterday_color, gibs_noaa20_today_color, gibs_noaa20_yesterday_color,
+                        gibs_noaa21_today_color, gibs_noaa21_yesterday_color, gibs_sentinel3a_today_color, gibs_sentinel3a_yesterday_color,
+                        gibs_sentinel3b_today_color, gibs_sentinel3b_yesterday_color,
                         tide_next_high, tide_next_low,
                         mpa_site_name, mpa_designation, mpa_spearfishing_status, mpa_protection_level,
                         mpa_species_of_concern, mpa_purpose, mpa_details_url, mpa_fetched_at, mpa_is_inside,
@@ -788,7 +823,7 @@ object SpotDataCache {
                         solunar_major_start2, solunar_major_end2, solunar_minor_start1, solunar_minor_end1,
                         solunar_minor_start2, solunar_minor_end2, solunar_day_rating, solunar_fetched_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -820,6 +855,16 @@ object SpotDataCache {
                         gibs_pace_obs_time = COALESCE(EXCLUDED.gibs_pace_obs_time, spot_cache.gibs_pace_obs_time),
                         gibs_noaa20_obs_time = COALESCE(EXCLUDED.gibs_noaa20_obs_time, spot_cache.gibs_noaa20_obs_time),
                         gibs_noaa21_obs_time = COALESCE(EXCLUDED.gibs_noaa21_obs_time, spot_cache.gibs_noaa21_obs_time),
+                        gibs_pace_today_color = COALESCE(EXCLUDED.gibs_pace_today_color, spot_cache.gibs_pace_today_color),
+                        gibs_pace_yesterday_color = COALESCE(EXCLUDED.gibs_pace_yesterday_color, spot_cache.gibs_pace_yesterday_color),
+                        gibs_noaa20_today_color = COALESCE(EXCLUDED.gibs_noaa20_today_color, spot_cache.gibs_noaa20_today_color),
+                        gibs_noaa20_yesterday_color = COALESCE(EXCLUDED.gibs_noaa20_yesterday_color, spot_cache.gibs_noaa20_yesterday_color),
+                        gibs_noaa21_today_color = COALESCE(EXCLUDED.gibs_noaa21_today_color, spot_cache.gibs_noaa21_today_color),
+                        gibs_noaa21_yesterday_color = COALESCE(EXCLUDED.gibs_noaa21_yesterday_color, spot_cache.gibs_noaa21_yesterday_color),
+                        gibs_sentinel3a_today_color = COALESCE(EXCLUDED.gibs_sentinel3a_today_color, spot_cache.gibs_sentinel3a_today_color),
+                        gibs_sentinel3a_yesterday_color = COALESCE(EXCLUDED.gibs_sentinel3a_yesterday_color, spot_cache.gibs_sentinel3a_yesterday_color),
+                        gibs_sentinel3b_today_color = COALESCE(EXCLUDED.gibs_sentinel3b_today_color, spot_cache.gibs_sentinel3b_today_color),
+                        gibs_sentinel3b_yesterday_color = COALESCE(EXCLUDED.gibs_sentinel3b_yesterday_color, spot_cache.gibs_sentinel3b_yesterday_color),
                         tide_next_high = COALESCE(EXCLUDED.tide_next_high, spot_cache.tide_next_high),
                         tide_next_low = COALESCE(EXCLUDED.tide_next_low, spot_cache.tide_next_low),
                         mpa_site_name = COALESCE(EXCLUDED.mpa_site_name, spot_cache.mpa_site_name),
@@ -895,42 +940,54 @@ object SpotDataCache {
                     stmt.setTimestamp(30, gibs?.noaa20ObservationTime?.let { Timestamp.from(it) })
                     stmt.setTimestamp(31, gibs?.noaa21ObservationTime?.let { Timestamp.from(it) })
                     
+                    // GIBS RGB color hex strings
+                    stmt.setString(32, gibs?.paceTodayColor)
+                    stmt.setString(33, gibs?.paceYesterdayColor)
+                    stmt.setString(34, gibs?.noaa20TodayColor)
+                    stmt.setString(35, gibs?.noaa20YesterdayColor)
+                    stmt.setString(36, gibs?.noaa21TodayColor)
+                    stmt.setString(37, gibs?.noaa21YesterdayColor)
+                    stmt.setString(38, gibs?.sentinel3aTodayColor)
+                    stmt.setString(39, gibs?.sentinel3aYesterdayColor)
+                    stmt.setString(40, gibs?.sentinel3bTodayColor)
+                    stmt.setString(41, gibs?.sentinel3bYesterdayColor)
+                    
                     // Tide next high/low strings
-                    stmt.setString(32, data.tide?.value?.nextHighTide)
-                    stmt.setString(33, data.tide?.value?.nextLowTide)
+                    stmt.setString(42, data.tide?.value?.nextHighTide)
+                    stmt.setString(43, data.tide?.value?.nextLowTide)
                     
                     // MPA data
                     val mpa = data.mpa?.value
-                    stmt.setString(34, mpa?.siteName)
-                    stmt.setString(35, mpa?.designation)
-                    stmt.setObject(36, mpa?.spearfishingStatus)
-                    stmt.setObject(37, mpa?.protectionLevel)
-                    stmt.setString(38, mpa?.speciesOfConcern)
-                    stmt.setString(39, mpa?.purpose)
-                    stmt.setString(40, mpa?.detailsUrl)
-                    stmt.setTimestamp(41, data.mpa?.fetchedAt?.let { Timestamp.from(it) })
-                    stmt.setObject(42, mpa?.isInsideMPA)
+                    stmt.setString(44, mpa?.siteName)
+                    stmt.setString(45, mpa?.designation)
+                    stmt.setObject(46, mpa?.spearfishingStatus)
+                    stmt.setObject(47, mpa?.protectionLevel)
+                    stmt.setString(48, mpa?.speciesOfConcern)
+                    stmt.setString(49, mpa?.purpose)
+                    stmt.setString(50, mpa?.detailsUrl)
+                    stmt.setTimestamp(51, data.mpa?.fetchedAt?.let { Timestamp.from(it) })
+                    stmt.setObject(52, mpa?.isInsideMPA)
                     
                     // Vessel data (Global Fishing Watch)
                     val vessel = data.vessel?.value
-                    stmt.setObject(43, vessel?.count)
-                    stmt.setObject(44, vessel?.radiusNm)
-                    stmt.setTimestamp(45, data.vessel?.fetchedAt?.let { Timestamp.from(it) })
+                    stmt.setObject(53, vessel?.count)
+                    stmt.setObject(54, vessel?.radiusNm)
+                    stmt.setTimestamp(55, data.vessel?.fetchedAt?.let { Timestamp.from(it) })
                     
                     // Solunar data
                     val solunar = data.solunar?.value
-                    stmt.setString(46, solunar?.moonPhase)
-                    stmt.setObject(47, solunar?.illumination)
-                    stmt.setString(48, solunar?.majorStart1)
-                    stmt.setString(49, solunar?.majorEnd1)
-                    stmt.setString(50, solunar?.majorStart2)
-                    stmt.setString(51, solunar?.majorEnd2)
-                    stmt.setString(52, solunar?.minorStart1)
-                    stmt.setString(53, solunar?.minorEnd1)
-                    stmt.setString(54, solunar?.minorStart2)
-                    stmt.setString(55, solunar?.minorEnd2)
-                    stmt.setObject(56, solunar?.dayRating)
-                    stmt.setTimestamp(57, data.solunar?.fetchedAt?.let { Timestamp.from(it) })
+                    stmt.setString(56, solunar?.moonPhase)
+                    stmt.setObject(57, solunar?.illumination)
+                    stmt.setString(58, solunar?.majorStart1)
+                    stmt.setString(59, solunar?.majorEnd1)
+                    stmt.setString(60, solunar?.majorStart2)
+                    stmt.setString(61, solunar?.majorEnd2)
+                    stmt.setString(62, solunar?.minorStart1)
+                    stmt.setString(63, solunar?.minorEnd1)
+                    stmt.setString(64, solunar?.minorStart2)
+                    stmt.setString(65, solunar?.minorEnd2)
+                    stmt.setObject(66, solunar?.dayRating)
+                    stmt.setTimestamp(67, data.solunar?.fetchedAt?.let { Timestamp.from(it) })
                     
                     stmt.executeUpdate()
                 }
@@ -1077,19 +1134,41 @@ object SpotDataCache {
                                 val noaa20ObsTime = try { rs.getTimestamp("gibs_noaa20_obs_time")?.toInstant() } catch (e: Exception) { null }
                                 val noaa21ObsTime = try { rs.getTimestamp("gibs_noaa21_obs_time")?.toInstant() } catch (e: Exception) { null }
                                 
+                                // Read RGB color hex strings (may not exist in older schemas)
+                                val paceTodayColor = try { rs.getString("gibs_pace_today_color") } catch (e: Exception) { null }
+                                val paceYesterdayColor = try { rs.getString("gibs_pace_yesterday_color") } catch (e: Exception) { null }
+                                val noaa20TodayColor = try { rs.getString("gibs_noaa20_today_color") } catch (e: Exception) { null }
+                                val noaa20YesterdayColor = try { rs.getString("gibs_noaa20_yesterday_color") } catch (e: Exception) { null }
+                                val noaa21TodayColor = try { rs.getString("gibs_noaa21_today_color") } catch (e: Exception) { null }
+                                val noaa21YesterdayColor = try { rs.getString("gibs_noaa21_yesterday_color") } catch (e: Exception) { null }
+                                val sentinel3aTodayColor = try { rs.getString("gibs_sentinel3a_today_color") } catch (e: Exception) { null }
+                                val sentinel3aYesterdayColor = try { rs.getString("gibs_sentinel3a_yesterday_color") } catch (e: Exception) { null }
+                                val sentinel3bTodayColor = try { rs.getString("gibs_sentinel3b_today_color") } catch (e: Exception) { null }
+                                val sentinel3bYesterdayColor = try { rs.getString("gibs_sentinel3b_yesterday_color") } catch (e: Exception) { null }
+                                
                                 spotData = spotData.copy(
                                     gibsChlorophyll = CachedValue(
                                         value = GIBSSatelliteData(
                                             paceToday = paceToday,
+                                            paceTodayColor = paceTodayColor,
                                             paceYesterday = paceYesterday,
+                                            paceYesterdayColor = paceYesterdayColor,
                                             noaa20Today = noaa20Today,
+                                            noaa20TodayColor = noaa20TodayColor,
                                             noaa20Yesterday = noaa20Yesterday,
+                                            noaa20YesterdayColor = noaa20YesterdayColor,
                                             noaa21Today = noaa21Today,
+                                            noaa21TodayColor = noaa21TodayColor,
                                             noaa21Yesterday = noaa21Yesterday,
+                                            noaa21YesterdayColor = noaa21YesterdayColor,
                                             sentinel3aToday = sentinel3aToday,
+                                            sentinel3aTodayColor = sentinel3aTodayColor,
                                             sentinel3aYesterday = sentinel3aYesterday,
+                                            sentinel3aYesterdayColor = sentinel3aYesterdayColor,
                                             sentinel3bToday = sentinel3bToday,
+                                            sentinel3bTodayColor = sentinel3bTodayColor,
                                             sentinel3bYesterday = sentinel3bYesterday,
+                                            sentinel3bYesterdayColor = sentinel3bYesterdayColor,
                                             dataDate = gibsDataDate.toLocalDate(),
                                             paceObservationTime = paceObsTime,
                                             noaa20ObservationTime = noaa20ObsTime,

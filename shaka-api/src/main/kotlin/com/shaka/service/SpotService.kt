@@ -236,15 +236,25 @@ class SpotService {
                 val gibs = cached.gibsChlorophyll?.value
                 GibsSatelliteReadings(
                     paceToday = gibs?.paceToday,
+                    paceTodayColor = gibs?.paceTodayColor,
                     paceYesterday = gibs?.paceYesterday,
+                    paceYesterdayColor = gibs?.paceYesterdayColor,
                     noaa20Today = gibs?.noaa20Today,
+                    noaa20TodayColor = gibs?.noaa20TodayColor,
                     noaa20Yesterday = gibs?.noaa20Yesterday,
+                    noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
                     noaa21Today = gibs?.noaa21Today,
+                    noaa21TodayColor = gibs?.noaa21TodayColor,
                     noaa21Yesterday = gibs?.noaa21Yesterday,
+                    noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
                     sentinel3aToday = gibs?.sentinel3aToday,
+                    sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
                     sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                    sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
                     sentinel3bToday = gibs?.sentinel3bToday,
+                    sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
                     sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                    sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
                     paceObservationTime = gibs?.paceObservationTime?.toString(),
                     noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                     noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
@@ -480,15 +490,25 @@ class SpotService {
             val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
                 paceToday = gibs?.paceToday,
+                paceTodayColor = gibs?.paceTodayColor,
                 paceYesterday = gibs?.paceYesterday,
+                paceYesterdayColor = gibs?.paceYesterdayColor,
                 noaa20Today = gibs?.noaa20Today,
+                noaa20TodayColor = gibs?.noaa20TodayColor,
                 noaa20Yesterday = gibs?.noaa20Yesterday,
+                noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
                 noaa21Today = gibs?.noaa21Today,
+                noaa21TodayColor = gibs?.noaa21TodayColor,
                 noaa21Yesterday = gibs?.noaa21Yesterday,
+                noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
                 sentinel3aToday = gibs?.sentinel3aToday,
+                sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
                 sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
                 sentinel3bToday = gibs?.sentinel3bToday,
+                sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
                 sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
                 paceObservationTime = gibs?.paceObservationTime?.toString(),
                 noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
@@ -1403,15 +1423,25 @@ class SpotService {
             val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
                 paceToday = gibs?.paceToday,
+                paceTodayColor = gibs?.paceTodayColor,
                 paceYesterday = gibs?.paceYesterday,
+                paceYesterdayColor = gibs?.paceYesterdayColor,
                 noaa20Today = gibs?.noaa20Today,
+                noaa20TodayColor = gibs?.noaa20TodayColor,
                 noaa20Yesterday = gibs?.noaa20Yesterday,
+                noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
                 noaa21Today = gibs?.noaa21Today,
+                noaa21TodayColor = gibs?.noaa21TodayColor,
                 noaa21Yesterday = gibs?.noaa21Yesterday,
+                noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
                 sentinel3aToday = gibs?.sentinel3aToday,
+                sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
                 sentinel3aYesterday = gibs?.sentinel3aYesterday,
+                sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
                 sentinel3bToday = gibs?.sentinel3bToday,
+                sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
                 sentinel3bYesterday = gibs?.sentinel3bYesterday,
+                sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
                 paceObservationTime = gibs?.paceObservationTime?.toString(),
                 noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
@@ -1553,33 +1583,33 @@ class SpotService {
             }
         }
         
-        val mpaDeferred = async {
-            withTimeoutOrNull(10000) {
-                try {
-                    protectedSeasClient.getMPAStatus(lat, lon)
-                } catch (e: Exception) {
-                    logger.warn("MPA fetch failed for $spotId: ${e.message}")
-                    null
-                }
-            }
-        }
-        
         // Await all results
         val tideData = tideDeferred.await()
         val weatherData = weatherDeferred.await()
         val satelliteData = satelliteDeferred.await()
         val gibsData = gibsDeferred.await()
-        val mpaData = mpaDeferred.await()
         
-        // If MPA nearby, check if spot is actually inside
-        val isInsideMPA = if (mpaData != null) {
+        // MPA check: exact first, then buffer
+        // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+        val exactMPA = try {
+            protectedSeasClient.getMPAStatusExact(lat, lon)
+        } catch (e: Exception) {
+            logger.warn("Exact MPA check failed for $spotId: ${e.message}")
+            null
+        }
+        
+        // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+        val bufferMPA = if (exactMPA == null) {
             try {
-                protectedSeasClient.getMPAStatusExact(lat, lon) != null
+                protectedSeasClient.getMPAStatus(lat, lon)
             } catch (e: Exception) {
-                logger.warn("Exact MPA check failed for $spotId: ${e.message}")
-                false
+                logger.warn("Buffer MPA check failed for $spotId: ${e.message}")
+                null
             }
-        } else false
+        } else null
+        
+        val isInsideMPA = exactMPA != null
+        val mpaData = exactMPA ?: bufferMPA
         
         // Save to cache
         if (tideData != null) {

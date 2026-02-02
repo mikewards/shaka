@@ -101,42 +101,48 @@ class SatelliteReadingsCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           
-          // Satellite rows - each on one line
+          // Satellite rows - each on one line with color circle
           _buildSatelliteRow(
             name: 'PACE',
             value: readings!.paceYesterday ?? readings!.paceToday,
+            colorHex: readings!.paceYesterdayColor ?? readings!.paceTodayColor,
             observationTime: readings!.paceObservationTime,
             isToday: readings!.paceYesterday == null && readings!.paceToday != null,
           ),
           _buildSatelliteRow(
             name: 'NOAA-20',
             value: readings!.noaa20Yesterday ?? readings!.noaa20Today,
+            colorHex: readings!.noaa20YesterdayColor ?? readings!.noaa20TodayColor,
             observationTime: readings!.noaa20ObservationTime,
             isToday: readings!.noaa20Yesterday == null && readings!.noaa20Today != null,
           ),
           _buildSatelliteRow(
             name: 'NOAA-21',
             value: readings!.noaa21Yesterday ?? readings!.noaa21Today,
+            colorHex: readings!.noaa21YesterdayColor ?? readings!.noaa21TodayColor,
             observationTime: readings!.noaa21ObservationTime,
             isToday: readings!.noaa21Yesterday == null && readings!.noaa21Today != null,
           ),
           _buildSatelliteRow(
             name: 'Sentinel-3A',
             value: readings!.sentinel3aYesterday ?? readings!.sentinel3aToday,
+            colorHex: readings!.sentinel3aYesterdayColor ?? readings!.sentinel3aTodayColor,
             observationTime: null,
             isToday: readings!.sentinel3aYesterday == null && readings!.sentinel3aToday != null,
           ),
           _buildSatelliteRow(
             name: 'Sentinel-3B',
             value: readings!.sentinel3bYesterday ?? readings!.sentinel3bToday,
+            colorHex: readings!.sentinel3bYesterdayColor ?? readings!.sentinel3bTodayColor,
             observationTime: null,
             isToday: readings!.sentinel3bYesterday == null && readings!.sentinel3bToday != null,
             isLast: readings!.noaaErddapChlorophyll == null,
           ),
-          // NOAA ERDDAP (separate data source from GIBS imagery)
+          // NOAA ERDDAP (separate data source from GIBS imagery - NO color available)
           _buildSatelliteRow(
             name: 'NOAA-ERDDAP',
             value: readings!.noaaErddapChlorophyll,
+            colorHex: null, // No color for ERDDAP - it's a direct numerical API
             observationTime: readings!.noaaErddapFetchTime,
             isToday: false, // This is fetched data, not "today's" observation
             isLast: true,
@@ -191,10 +197,11 @@ class SatelliteReadingsCard extends StatelessWidget {
     );
   }
 
-  /// Build a single satellite row with name, value, and datetime all aligned
+  /// Build a single satellite row with name, color circle, value, and datetime all aligned
   Widget _buildSatelliteRow({
     required String name,
     required double? value,
+    required String? colorHex,
     required DateTime? observationTime,
     bool isToday = false,
     bool isLast = false,
@@ -220,7 +227,7 @@ class SatelliteReadingsCard extends StatelessWidget {
         children: [
           // Satellite name (fixed width)
           SizedBox(
-            width: 90,
+            width: 80,
             child: Text(
               name,
               style: const TextStyle(
@@ -230,9 +237,27 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
             ),
           ),
+          // Color circle from satellite imagery (or empty space for NOAA-ERDDAP)
+          SizedBox(
+            width: 24,
+            child: colorHex != null
+                ? Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _parseHexColor(colorHex),
+                      border: Border.all(
+                        color: Colors.white24,
+                        width: 0.5,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(), // No circle for NOAA-ERDDAP
+          ),
           // Value (3 decimal places)
           SizedBox(
-            width: 60,
+            width: 55,
             child: Text(
               value.toStringAsFixed(3),
               style: const TextStyle(
@@ -257,6 +282,20 @@ class SatelliteReadingsCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Parse hex color string "#RRGGBB" to Color
+  Color _parseHexColor(String hexColor) {
+    try {
+      // Remove # if present
+      final hex = hexColor.replaceFirst('#', '');
+      if (hex.length == 6) {
+        return Color(int.parse('FF$hex', radix: 16));
+      }
+    } catch (e) {
+      // Fall back to gray if parsing fails
+    }
+    return Colors.grey;
   }
 
   /// Format observation time in user's local timezone

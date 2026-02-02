@@ -13,20 +13,40 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 /**
+ * A single satellite reading containing both the chlorophyll value and the original RGB color.
+ * The color is preserved so users can see the actual satellite imagery color.
+ */
+data class SatelliteReading(
+    val chlorophyll: Double?,
+    val colorHex: String?  // "#RRGGBB" format, null if no data
+)
+
+/**
  * Result containing chlorophyll data from all GIBS satellites for today and yesterday.
  * Includes observation timestamps from NASA CMR for NASA satellites.
+ * Also includes the original RGB colors from the satellite imagery.
  */
 data class GIBSChlorophyllData(
     val paceToday: Double?,
+    val paceTodayColor: String?,
     val paceYesterday: Double?,
+    val paceYesterdayColor: String?,
     val noaa20Today: Double?,
+    val noaa20TodayColor: String?,
     val noaa20Yesterday: Double?,
+    val noaa20YesterdayColor: String?,
     val noaa21Today: Double?,
+    val noaa21TodayColor: String?,
     val noaa21Yesterday: Double?,
+    val noaa21YesterdayColor: String?,
     val sentinel3aToday: Double?,
+    val sentinel3aTodayColor: String?,
     val sentinel3aYesterday: Double?,
+    val sentinel3aYesterdayColor: String?,
     val sentinel3bToday: Double?,
+    val sentinel3bTodayColor: String?,
     val sentinel3bYesterday: Double?,
+    val sentinel3bYesterdayColor: String?,
     val dataDate: LocalDate,  // "Today" when this was fetched
     // Observation timestamps from NASA CMR (yesterday's pass times)
     val paceObservationTime: Instant? = null,
@@ -73,7 +93,7 @@ object GIBSClient {
      * 
      * @param lat Latitude in decimal degrees
      * @param lon Longitude in decimal degrees
-     * @return GIBSChlorophyllData with values from all satellites (nulls where no data)
+     * @return GIBSChlorophyllData with values and colors from all satellites (nulls where no data)
      */
     suspend fun getAllChlorophyll(lat: Double, lon: Double): GIBSChlorophyllData {
         val today = LocalDate.now()
@@ -81,7 +101,7 @@ object GIBSClient {
         val todayStr = today.format(dateFormatter)
         val yesterdayStr = yesterday.format(dateFormatter)
         
-        val results = mutableMapOf<String, Double?>()
+        val results = mutableMapOf<String, SatelliteReading>()
         
         // Fetch from each satellite for today and yesterday
         for ((satName, layerId) in SATELLITES) {
@@ -109,16 +129,26 @@ object GIBSClient {
         }
         
         return GIBSChlorophyllData(
-            paceToday = results["PACE_today"],
-            paceYesterday = results["PACE_yesterday"],
-            noaa20Today = results["NOAA-20_today"],
-            noaa20Yesterday = results["NOAA-20_yesterday"],
-            noaa21Today = results["NOAA-21_today"],
-            noaa21Yesterday = results["NOAA-21_yesterday"],
-            sentinel3aToday = results["Sentinel-3A_today"],
-            sentinel3aYesterday = results["Sentinel-3A_yesterday"],
-            sentinel3bToday = results["Sentinel-3B_today"],
-            sentinel3bYesterday = results["Sentinel-3B_yesterday"],
+            paceToday = results["PACE_today"]?.chlorophyll,
+            paceTodayColor = results["PACE_today"]?.colorHex,
+            paceYesterday = results["PACE_yesterday"]?.chlorophyll,
+            paceYesterdayColor = results["PACE_yesterday"]?.colorHex,
+            noaa20Today = results["NOAA-20_today"]?.chlorophyll,
+            noaa20TodayColor = results["NOAA-20_today"]?.colorHex,
+            noaa20Yesterday = results["NOAA-20_yesterday"]?.chlorophyll,
+            noaa20YesterdayColor = results["NOAA-20_yesterday"]?.colorHex,
+            noaa21Today = results["NOAA-21_today"]?.chlorophyll,
+            noaa21TodayColor = results["NOAA-21_today"]?.colorHex,
+            noaa21Yesterday = results["NOAA-21_yesterday"]?.chlorophyll,
+            noaa21YesterdayColor = results["NOAA-21_yesterday"]?.colorHex,
+            sentinel3aToday = results["Sentinel-3A_today"]?.chlorophyll,
+            sentinel3aTodayColor = results["Sentinel-3A_today"]?.colorHex,
+            sentinel3aYesterday = results["Sentinel-3A_yesterday"]?.chlorophyll,
+            sentinel3aYesterdayColor = results["Sentinel-3A_yesterday"]?.colorHex,
+            sentinel3bToday = results["Sentinel-3B_today"]?.chlorophyll,
+            sentinel3bTodayColor = results["Sentinel-3B_today"]?.colorHex,
+            sentinel3bYesterday = results["Sentinel-3B_yesterday"]?.chlorophyll,
+            sentinel3bYesterdayColor = results["Sentinel-3B_yesterday"]?.colorHex,
             dataDate = today,
             paceObservationTime = observationTimes["PACE"],
             noaa20ObservationTime = observationTimes["NOAA-20"],
@@ -130,7 +160,7 @@ object GIBSClient {
      * Fetch chlorophyll from a specific satellite for a specific date.
      * Uses a 10x10 pixel area (~20km) to find any non-transparent pixel (handles cloud gaps).
      * 
-     * @return Chlorophyll value in mg/m³ if data available, null otherwise
+     * @return SatelliteReading with chlorophyll value and RGB color hex, or nulls if no data
      */
     private suspend fun fetchFromSatellite(
         lat: Double,
@@ -138,7 +168,7 @@ object GIBSClient {
         dateStr: String,
         satelliteName: String,
         layerId: String
-    ): Double? {
+    ): SatelliteReading {
         try {
             // Use ~20km area to find data (accepts NULLs when cloud-covered)
             val delta = 0.1
@@ -164,7 +194,7 @@ object GIBSClient {
             
             if (response.status != HttpStatusCode.OK) {
                 logger.debug("GIBS $satelliteName returned ${response.status} for ($lat, $lon) on $dateStr")
-                return null
+                return SatelliteReading(null, null)
             }
             
             val bytes = response.readBytes()
@@ -173,18 +203,19 @@ object GIBSClient {
             val rgba = findFirstNonTransparentPixel(bytes)
             if (rgba == null) {
                 logger.debug("$satelliteName: no data for ($lat, $lon) on $dateStr")
-                return null
+                return SatelliteReading(null, null)
             }
             
             val (r, g, b) = rgba
             val chlorophyll = rgbToChlorophyll(r, g, b)
+            val colorHex = String.format("#%02X%02X%02X", r, g, b)
             
-            logger.debug("$satelliteName ($dateStr): ${String.format("%.3f", chlorophyll)} mg/m³ at ($lat, $lon) [RGB: $r,$g,$b]")
-            return chlorophyll
+            logger.debug("$satelliteName ($dateStr): ${String.format("%.3f", chlorophyll)} mg/m³ at ($lat, $lon) [RGB: $r,$g,$b -> $colorHex]")
+            return SatelliteReading(chlorophyll, colorHex)
             
         } catch (e: Exception) {
             logger.debug("Error fetching $satelliteName for ($lat, $lon) on $dateStr: ${e.message}")
-            return null
+            return SatelliteReading(null, null)
         }
     }
     

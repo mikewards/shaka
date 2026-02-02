@@ -102,20 +102,30 @@ data class MPAStatus(
 @Serializable
 data class GibsSatelliteReadings(
     val paceToday: Double? = null,
+    val paceTodayColor: String? = null,            // RGB hex color "#RRGGBB" from satellite imagery
     val paceYesterday: Double? = null,
+    val paceYesterdayColor: String? = null,
     val noaa20Today: Double? = null,
+    val noaa20TodayColor: String? = null,
     val noaa20Yesterday: Double? = null,
+    val noaa20YesterdayColor: String? = null,
     val noaa21Today: Double? = null,
+    val noaa21TodayColor: String? = null,
     val noaa21Yesterday: Double? = null,
+    val noaa21YesterdayColor: String? = null,
     val sentinel3aToday: Double? = null,
+    val sentinel3aTodayColor: String? = null,
     val sentinel3aYesterday: Double? = null,
+    val sentinel3aYesterdayColor: String? = null,
     val sentinel3bToday: Double? = null,
+    val sentinel3bTodayColor: String? = null,
     val sentinel3bYesterday: Double? = null,
+    val sentinel3bYesterdayColor: String? = null,
     val paceObservationTime: String? = null,      // ISO 8601 timestamp
     val noaa20ObservationTime: String? = null,
     val noaa21ObservationTime: String? = null,
     val dataDate: String? = null,                  // The date that "today" refers to
-    // NOAA ERDDAP chlorophyll (separate from GIBS imagery)
+    // NOAA ERDDAP chlorophyll (separate from GIBS imagery - NO COLOR since direct API value)
     val noaaErddapChlorophyll: Double? = null,     // mg/m³ from NOAA CoastWatch ERDDAP
     val noaaErddapFetchTime: String? = null        // When we fetched this data
 )

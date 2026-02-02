@@ -276,36 +276,57 @@ class CommunityReport {
 }
 
 /// GIBS satellite chlorophyll readings from multiple satellites
+/// Includes RGB color hex strings from the original satellite imagery
 class GibsSatelliteReadings {
   final double? paceToday;
+  final String? paceTodayColor;      // RGB hex color "#RRGGBB" from satellite imagery
   final double? paceYesterday;
+  final String? paceYesterdayColor;
   final double? noaa20Today;
+  final String? noaa20TodayColor;
   final double? noaa20Yesterday;
+  final String? noaa20YesterdayColor;
   final double? noaa21Today;
+  final String? noaa21TodayColor;
   final double? noaa21Yesterday;
+  final String? noaa21YesterdayColor;
   final double? sentinel3aToday;
+  final String? sentinel3aTodayColor;
   final double? sentinel3aYesterday;
+  final String? sentinel3aYesterdayColor;
   final double? sentinel3bToday;
+  final String? sentinel3bTodayColor;
   final double? sentinel3bYesterday;
+  final String? sentinel3bYesterdayColor;
   final DateTime? paceObservationTime;
   final DateTime? noaa20ObservationTime;
   final DateTime? noaa21ObservationTime;
   final String? dataDate; // The date "today" refers to
-  // NOAA ERDDAP chlorophyll (separate from GIBS imagery)
+  // NOAA ERDDAP chlorophyll (separate from GIBS imagery - NO COLOR since direct API value)
   final double? noaaErddapChlorophyll;
   final DateTime? noaaErddapFetchTime;
 
   const GibsSatelliteReadings({
     this.paceToday,
+    this.paceTodayColor,
     this.paceYesterday,
+    this.paceYesterdayColor,
     this.noaa20Today,
+    this.noaa20TodayColor,
     this.noaa20Yesterday,
+    this.noaa20YesterdayColor,
     this.noaa21Today,
+    this.noaa21TodayColor,
     this.noaa21Yesterday,
+    this.noaa21YesterdayColor,
     this.sentinel3aToday,
+    this.sentinel3aTodayColor,
     this.sentinel3aYesterday,
+    this.sentinel3aYesterdayColor,
     this.sentinel3bToday,
+    this.sentinel3bTodayColor,
     this.sentinel3bYesterday,
+    this.sentinel3bYesterdayColor,
     this.paceObservationTime,
     this.noaa20ObservationTime,
     this.noaa21ObservationTime,
@@ -317,15 +338,25 @@ class GibsSatelliteReadings {
   factory GibsSatelliteReadings.fromJson(Map<String, dynamic> json) {
     return GibsSatelliteReadings(
       paceToday: (json['paceToday'] as num?)?.toDouble(),
+      paceTodayColor: json['paceTodayColor'] as String?,
       paceYesterday: (json['paceYesterday'] as num?)?.toDouble(),
+      paceYesterdayColor: json['paceYesterdayColor'] as String?,
       noaa20Today: (json['noaa20Today'] as num?)?.toDouble(),
+      noaa20TodayColor: json['noaa20TodayColor'] as String?,
       noaa20Yesterday: (json['noaa20Yesterday'] as num?)?.toDouble(),
+      noaa20YesterdayColor: json['noaa20YesterdayColor'] as String?,
       noaa21Today: (json['noaa21Today'] as num?)?.toDouble(),
+      noaa21TodayColor: json['noaa21TodayColor'] as String?,
       noaa21Yesterday: (json['noaa21Yesterday'] as num?)?.toDouble(),
+      noaa21YesterdayColor: json['noaa21YesterdayColor'] as String?,
       sentinel3aToday: (json['sentinel3aToday'] as num?)?.toDouble(),
+      sentinel3aTodayColor: json['sentinel3aTodayColor'] as String?,
       sentinel3aYesterday: (json['sentinel3aYesterday'] as num?)?.toDouble(),
+      sentinel3aYesterdayColor: json['sentinel3aYesterdayColor'] as String?,
       sentinel3bToday: (json['sentinel3bToday'] as num?)?.toDouble(),
+      sentinel3bTodayColor: json['sentinel3bTodayColor'] as String?,
       sentinel3bYesterday: (json['sentinel3bYesterday'] as num?)?.toDouble(),
+      sentinel3bYesterdayColor: json['sentinel3bYesterdayColor'] as String?,
       paceObservationTime: json['paceObservationTime'] != null
           ? DateTime.tryParse(json['paceObservationTime'])
           : null,
