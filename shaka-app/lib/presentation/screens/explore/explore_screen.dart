@@ -50,6 +50,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Key to force map rebuild when background changes
   int _mapKey = 0;
   
+  // Style version to prevent race conditions during rapid style changes
+  int _styleVersion = 0;
+  
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
   
@@ -84,6 +87,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _mapController = null;
     _isMapReady = false;
     
+    // Increment style version to cancel any in-progress async operations
+    _styleVersion++;
+    
     // Increment key to force MapLibreMap widget rebuild with new style
     // Also clear any error state so it doesn't persist
     setState(() {
@@ -97,14 +103,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
   
   void _onStyleLoaded() async {
+    // Capture current style version to detect if user changed styles during async ops
+    final currentVersion = _styleVersion;
+    
     debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
-    setState(() => _isMapReady = true);
+    if (mounted) setState(() => _isMapReady = true);
     
     // Add overlays first (raster tile layers)
     await _addOverlays();
     
+    // CRITICAL: Bail out if style changed during await (prevents iOS crash)
+    if (!mounted || _styleVersion != currentVersion) return;
+    
     // Wait for raster layers to be registered before adding circle annotations
     await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Bail out if style changed during delay
+    if (!mounted || _styleVersion != currentVersion) return;
     
     // Add markers on top - circle annotations should render above raster layers
     await _updateMarkers();
@@ -120,12 +135,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
     debugPrint('Adding ${overlays.length} overlays for ${_bgService.current}');
     
     for (final overlay in overlays) {
+      // Bail out if controller was nulled (style change in progress)
+      if (_mapController == null) return;
+      
       try {
-        // Remove existing source/layer if present
+        // Remove existing source/layer if present (use safe ?. operator)
         try {
-          await _mapController!.removeLayer('${overlay.id}-layer');
-          await _mapController!.removeSource(overlay.id);
+          await _mapController?.removeLayer('${overlay.id}-layer');
+          await _mapController?.removeSource(overlay.id);
         } catch (_) {}
+        
+        // Check again after awaits
+        if (_mapController == null) return;
         
         debugPrint('Adding overlay: ${overlay.id} from ${overlay.urlTemplate}');
         
@@ -139,6 +160,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             maxzoom: overlay.maxZoom,
           ),
         );
+        
+        // Check after await
+        if (_mapController == null) return;
         
         // Add raster layer
         await _mapController!.addRasterLayer(
@@ -289,16 +313,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     final spots = _filteredSpots;
     
-    // Remove existing marker layers and source
+    // Remove existing marker layers and source (use safe ?. operator)
     try {
-      await _mapController!.removeLayer('spots-labels');
+      await _mapController?.removeLayer('spots-labels');
     } catch (_) {}
     try {
-      await _mapController!.removeLayer('spots-layer');
+      await _mapController?.removeLayer('spots-layer');
     } catch (_) {}
     try {
-      await _mapController!.removeSource('spots-source');
+      await _mapController?.removeSource('spots-source');
     } catch (_) {}
+    
+    // Bail out if controller was nulled during removals
+    if (_mapController == null) return;
     
     if (spots.isEmpty) {
       return;
@@ -337,12 +364,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'features': features,
     };
     
+    // Bail out if controller was nulled during feature building
+    if (_mapController == null) return;
+    
     try {
       // Add GeoJSON source
       await _mapController!.addSource(
         'spots-source',
         GeojsonSourceProperties(data: geojson),
       );
+      
+      // Check after await
+      if (_mapController == null) return;
       
       // Add circle layer - base circles with score colors
       await _mapController!.addCircleLayer(
@@ -357,6 +390,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
           circleStrokeOpacity: 1.0,
         ),
       );
+      
+      // Check after await
+      if (_mapController == null) return;
       
       // Add symbol layer for score text on top of circles
       await _mapController!.addSymbolLayer(
