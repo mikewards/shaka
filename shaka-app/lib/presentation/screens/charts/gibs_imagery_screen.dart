@@ -62,6 +62,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Key to force map rebuild when background changes
   int _mapKey = 0;
   
+  // Style version to prevent race conditions during rapid style changes
+  int _styleVersion = 0;
+  
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
   
@@ -106,6 +109,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       _lastCameraPosition = _mapController!.cameraPosition;
     }
     _mapController = null;
+    // Increment style version to cancel any in-progress async operations
+    _styleVersion++;
     setState(() {
       _mapKey++;
       _isLoading = true;
@@ -139,21 +144,30 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 
   void _onStyleLoaded() async {
+    // Capture current style version to detect if user changed styles during async ops
+    final currentVersion = _styleVersion;
+    
     // First add background overlays (satellite, terrain, etc.)
     await _addBackgroundOverlays();
+    
+    // CRITICAL: Bail out if style changed during await (prevents iOS crash)
+    if (!mounted || _styleVersion != currentVersion) return;
     
     // Then add GIBS layers on top
     await _addGibsLayers();
     
+    // Bail out if style changed
+    if (!mounted || _styleVersion != currentVersion) return;
+    
     setState(() => _isLoading = false);
     
     // Add spot marker if opened from a spot
-    if (_hasSpotContext) {
+    if (_hasSpotContext && _mapController != null) {
       _addSpotMarker();
     }
     
     // Re-add spot markers when map style changes
-    if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
+    if (_showSpotsOnMap && _savedSpots.isNotEmpty && _mapController != null) {
       await _updateSpotMarkers();
     }
   }
@@ -165,12 +179,17 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     final overlays = _bgService.getOverlays(_bgService.current);
     
     for (final overlay in overlays) {
+      // Bail out if controller was nulled (style change in progress)
+      if (_mapController == null) return;
+      
       try {
         // Remove existing if present
         try {
-          await _mapController!.removeLayer('${overlay.id}-layer');
-          await _mapController!.removeSource(overlay.id);
+          await _mapController?.removeLayer('${overlay.id}-layer');
+          await _mapController?.removeSource(overlay.id);
         } catch (_) {}
+        
+        if (_mapController == null) return;
         
         await _mapController!.addSource(
           overlay.id,
@@ -181,6 +200,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             maxzoom: overlay.maxZoom,
           ),
         );
+        
+        if (_mapController == null) return;
         
         await _mapController!.addRasterLayer(
           overlay.id,
@@ -268,35 +289,47 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     final dateStr = GibsService.formatDate(_selectedDate);
 
     // Check date validation for primary layer
-    setState(() {
-      _dateWarning = GibsService.getDateValidationMessage(_primaryLayer, _selectedDate);
-    });
+    if (mounted) {
+      setState(() {
+        _dateWarning = GibsService.getDateValidationMessage(_primaryLayer, _selectedDate);
+      });
+    }
 
     try {
-      // Remove all existing GIBS sources and layers
+      // Remove all existing GIBS sources and layers (use safe ?. operator)
       for (int i = 0; i < 10; i++) {
+        if (_mapController == null) break;
         try {
-          await _mapController!.removeLayer('gibs-layer-$i');
+          await _mapController?.removeLayer('gibs-layer-$i');
         } catch (_) {}
         try {
-          await _mapController!.removeSource('gibs-source-$i');
+          await _mapController?.removeSource('gibs-source-$i');
         } catch (_) {}
       }
       // Also remove old single layer format if exists
       try {
-        await _mapController!.removeLayer('gibs-layer');
+        await _mapController?.removeLayer('gibs-layer');
       } catch (_) {}
       try {
-        await _mapController!.removeSource('gibs-source');
+        await _mapController?.removeSource('gibs-source');
       } catch (_) {}
+      
+      // Bail out if controller was nulled during removals
+      if (_mapController == null) return;
       
       // Small delay to let removals complete
       await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Bail out if controller was nulled during delay
+      if (_mapController == null) return;
 
       // Add layers in reverse order (bottom first, top last)
       // This way, the first layer in _activeLayers (highest priority) ends up on top
       final reversedLayers = _activeLayers.reversed.toList();
       for (int i = 0; i < reversedLayers.length; i++) {
+        // Bail out if controller was nulled (style change)
+        if (_mapController == null) return;
+        
         final layer = reversedLayers[i];
         final tileUrl = GibsService.buildTileUrlWithFormat(layer, time: dateStr);
         
@@ -310,6 +343,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             maxzoom: layer.maxZoom.toDouble(),
           ),
         );
+
+        if (_mapController == null) return;
 
         await _mapController!.addRasterLayer(
           'gibs-source-$i',
