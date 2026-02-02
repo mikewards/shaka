@@ -9,43 +9,29 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.zip.Inflater
-import kotlin.math.ln
-import kotlin.math.pow
 
 /**
- * A single satellite reading containing both the chlorophyll value and the original RGB color.
- * The color is preserved so users can see the actual satellite imagery color.
- */
-data class SatelliteReading(
-    val chlorophyll: Double?,
-    val colorHex: String?  // "#RRGGBB" format, null if no data
-)
-
-/**
- * Result containing chlorophyll data from all GIBS satellites for today and yesterday.
+ * Result containing RGB colors from all GIBS satellites for today and yesterday.
+ * 
+ * IMPORTANT: These colors are for DISPLAY ONLY - they do NOT represent accurate
+ * chlorophyll concentrations. Satellite imagery in coastal areas often shows
+ * contamination from sediment, kelp, and shallow bottom reflectance.
+ * 
+ * For actual chlorophyll measurements, use NOAA ERDDAP or Copernicus APIs.
+ * 
  * Includes observation timestamps from NASA CMR for NASA satellites.
- * Also includes the original RGB colors from the satellite imagery.
  */
-data class GIBSChlorophyllData(
-    val paceToday: Double?,
+data class GIBSSatelliteColors(
+    // Colors only - "#RRGGBB" format, null if no data/cloud covered
     val paceTodayColor: String?,
-    val paceYesterday: Double?,
     val paceYesterdayColor: String?,
-    val noaa20Today: Double?,
     val noaa20TodayColor: String?,
-    val noaa20Yesterday: Double?,
     val noaa20YesterdayColor: String?,
-    val noaa21Today: Double?,
     val noaa21TodayColor: String?,
-    val noaa21Yesterday: Double?,
     val noaa21YesterdayColor: String?,
-    val sentinel3aToday: Double?,
     val sentinel3aTodayColor: String?,
-    val sentinel3aYesterday: Double?,
     val sentinel3aYesterdayColor: String?,
-    val sentinel3bToday: Double?,
     val sentinel3bTodayColor: String?,
-    val sentinel3bYesterday: Double?,
     val sentinel3bYesterdayColor: String?,
     val dataDate: LocalDate,  // "Today" when this was fetched
     // Observation timestamps from NASA CMR (yesterday's pass times)
@@ -56,17 +42,18 @@ data class GIBSChlorophyllData(
 )
 
 /**
- * Client for fetching chlorophyll-a data from NASA GIBS (Global Imagery Browse Services).
+ * Client for fetching satellite imagery colors from NASA GIBS (Global Imagery Browse Services).
  * 
- * Fetches data from all 5 chlorophyll satellites for both today and yesterday:
+ * Fetches RGB colors from all 5 chlorophyll satellite layers for both today and yesterday:
  * - PACE OCI (newest hyperspectral sensor)
  * - NOAA-20 VIIRS (best coverage)
  * - NOAA-21 VIIRS (backup)
  * - Sentinel-3A OLCI (morning pass)
  * - Sentinel-3B OLCI (backup morning)
  * 
- * Uses WMS GetMap to fetch 10x10 pixel images and converts RGB to chlorophyll
- * concentration using the standard GIBS chlorophyll colormap (logarithmic 0.01-50 mg/m³).
+ * IMPORTANT: These colors are for DISPLAY ONLY. Do NOT use them to derive chlorophyll
+ * concentrations - coastal imagery is often contaminated by sediment, kelp, and bottom
+ * reflectance. Use NOAA ERDDAP or Copernicus for actual chlorophyll measurements.
  */
 object GIBSClient {
     
@@ -88,39 +75,38 @@ object GIBSClient {
     )
     
     /**
-     * Fetch chlorophyll from ALL satellites for today and yesterday.
+     * Fetch satellite imagery colors from ALL satellites for today and yesterday.
      * Also fetches observation timestamps from NASA CMR for NASA satellites.
      * 
      * @param lat Latitude in decimal degrees
      * @param lon Longitude in decimal degrees
-     * @return GIBSChlorophyllData with values and colors from all satellites (nulls where no data)
+     * @return GIBSSatelliteColors with hex colors from all satellites (nulls where no data)
      */
-    suspend fun getAllChlorophyll(lat: Double, lon: Double): GIBSChlorophyllData {
+    suspend fun getAllSatelliteColors(lat: Double, lon: Double): GIBSSatelliteColors {
         val today = LocalDate.now()
         val yesterday = today.minusDays(1)
         val todayStr = today.format(dateFormatter)
         val yesterdayStr = yesterday.format(dateFormatter)
         
-        val results = mutableMapOf<String, SatelliteReading>()
+        val colors = mutableMapOf<String, String?>()
         
         // Fetch from each satellite for today and yesterday
         for ((satName, layerId) in SATELLITES) {
             // Today
             val todayKey = "${satName}_today"
-            results[todayKey] = fetchFromSatellite(lat, lon, todayStr, satName, layerId)
+            colors[todayKey] = fetchColorFromSatellite(lat, lon, todayStr, satName, layerId)
             
             // Small delay between requests to not overwhelm GIBS
             delay(50)
             
             // Yesterday
             val yesterdayKey = "${satName}_yesterday"
-            results[yesterdayKey] = fetchFromSatellite(lat, lon, yesterdayStr, satName, layerId)
+            colors[yesterdayKey] = fetchColorFromSatellite(lat, lon, yesterdayStr, satName, layerId)
             
             delay(50)
         }
         
         // Fetch observation timestamps from NASA CMR (for yesterday's data)
-        // Only query if we have data for that satellite to minimize API calls
         val observationTimes = try {
             CMRClient.getAllObservationTimes(lat, lon, yesterdayStr)
         } catch (e: Exception) {
@@ -128,27 +114,17 @@ object GIBSClient {
             emptyMap()
         }
         
-        return GIBSChlorophyllData(
-            paceToday = results["PACE_today"]?.chlorophyll,
-            paceTodayColor = results["PACE_today"]?.colorHex,
-            paceYesterday = results["PACE_yesterday"]?.chlorophyll,
-            paceYesterdayColor = results["PACE_yesterday"]?.colorHex,
-            noaa20Today = results["NOAA-20_today"]?.chlorophyll,
-            noaa20TodayColor = results["NOAA-20_today"]?.colorHex,
-            noaa20Yesterday = results["NOAA-20_yesterday"]?.chlorophyll,
-            noaa20YesterdayColor = results["NOAA-20_yesterday"]?.colorHex,
-            noaa21Today = results["NOAA-21_today"]?.chlorophyll,
-            noaa21TodayColor = results["NOAA-21_today"]?.colorHex,
-            noaa21Yesterday = results["NOAA-21_yesterday"]?.chlorophyll,
-            noaa21YesterdayColor = results["NOAA-21_yesterday"]?.colorHex,
-            sentinel3aToday = results["Sentinel-3A_today"]?.chlorophyll,
-            sentinel3aTodayColor = results["Sentinel-3A_today"]?.colorHex,
-            sentinel3aYesterday = results["Sentinel-3A_yesterday"]?.chlorophyll,
-            sentinel3aYesterdayColor = results["Sentinel-3A_yesterday"]?.colorHex,
-            sentinel3bToday = results["Sentinel-3B_today"]?.chlorophyll,
-            sentinel3bTodayColor = results["Sentinel-3B_today"]?.colorHex,
-            sentinel3bYesterday = results["Sentinel-3B_yesterday"]?.chlorophyll,
-            sentinel3bYesterdayColor = results["Sentinel-3B_yesterday"]?.colorHex,
+        return GIBSSatelliteColors(
+            paceTodayColor = colors["PACE_today"],
+            paceYesterdayColor = colors["PACE_yesterday"],
+            noaa20TodayColor = colors["NOAA-20_today"],
+            noaa20YesterdayColor = colors["NOAA-20_yesterday"],
+            noaa21TodayColor = colors["NOAA-21_today"],
+            noaa21YesterdayColor = colors["NOAA-21_yesterday"],
+            sentinel3aTodayColor = colors["Sentinel-3A_today"],
+            sentinel3aYesterdayColor = colors["Sentinel-3A_yesterday"],
+            sentinel3bTodayColor = colors["Sentinel-3B_today"],
+            sentinel3bYesterdayColor = colors["Sentinel-3B_yesterday"],
             dataDate = today,
             paceObservationTime = observationTimes["PACE"],
             noaa20ObservationTime = observationTimes["NOAA-20"],
@@ -157,18 +133,18 @@ object GIBSClient {
     }
     
     /**
-     * Fetch chlorophyll from a specific satellite for a specific date.
+     * Fetch RGB color from a specific satellite for a specific date.
      * Uses a 10x10 pixel area (~20km) to find any non-transparent pixel (handles cloud gaps).
      * 
-     * @return SatelliteReading with chlorophyll value and RGB color hex, or nulls if no data
+     * @return Hex color string "#RRGGBB", or null if no data/cloud covered
      */
-    private suspend fun fetchFromSatellite(
+    private suspend fun fetchColorFromSatellite(
         lat: Double,
         lon: Double,
         dateStr: String,
         satelliteName: String,
         layerId: String
-    ): SatelliteReading {
+    ): String? {
         try {
             // Use ~20km area to find data (accepts NULLs when cloud-covered)
             val delta = 0.1
@@ -194,7 +170,7 @@ object GIBSClient {
             
             if (response.status != HttpStatusCode.OK) {
                 logger.debug("GIBS $satelliteName returned ${response.status} for ($lat, $lon) on $dateStr")
-                return SatelliteReading(null, null)
+                return null
             }
             
             val bytes = response.readBytes()
@@ -203,19 +179,18 @@ object GIBSClient {
             val rgba = findFirstNonTransparentPixel(bytes)
             if (rgba == null) {
                 logger.debug("$satelliteName: no data for ($lat, $lon) on $dateStr")
-                return SatelliteReading(null, null)
+                return null
             }
             
             val (r, g, b) = rgba
-            val chlorophyll = rgbToChlorophyll(r, g, b)
             val colorHex = String.format("#%02X%02X%02X", r, g, b)
             
-            logger.debug("$satelliteName ($dateStr): ${String.format("%.3f", chlorophyll)} mg/m³ at ($lat, $lon) [RGB: $r,$g,$b -> $colorHex]")
-            return SatelliteReading(chlorophyll, colorHex)
+            logger.debug("$satelliteName ($dateStr): color $colorHex at ($lat, $lon)")
+            return colorHex
             
         } catch (e: Exception) {
             logger.debug("Error fetching $satelliteName for ($lat, $lon) on $dateStr: ${e.message}")
-            return SatelliteReading(null, null)
+            return null
         }
     }
     
@@ -306,75 +281,6 @@ object GIBSClient {
         } catch (e: Exception) {
             logger.debug("PNG parsing error: ${e.message}")
             return null
-        }
-    }
-    
-    /**
-     * Convert RGB color to chlorophyll-a concentration using GIBS colormap.
-     * 
-     * The GIBS chlorophyll colormap uses a logarithmic scale from 0.01 to 50 mg/m³.
-     * Colors progress: Purple -> Blue -> Cyan -> Green -> Yellow -> Orange -> Red
-     */
-    fun rgbToChlorophyll(r: Int, g: Int, b: Int): Double {
-        val position = colorToPosition(r, g, b)
-        
-        // Logarithmic scale: log10(0.01) = -2, log10(50) = 1.7
-        val logMin = ln(0.01) / ln(10.0)  // -2
-        val logMax = ln(50.0) / ln(10.0)  // ~1.7
-        val logValue = logMin + position * (logMax - logMin)
-        
-        return 10.0.pow(logValue)
-    }
-    
-    /**
-     * Map RGB color to position (0-1) in the colormap gradient.
-     */
-    private fun colorToPosition(r: Int, g: Int, b: Int): Double {
-        val rf = r / 255.0
-        val gf = g / 255.0
-        val bf = b / 255.0
-        
-        return when {
-            // Purple region (high blue, some red, low green)
-            bf > 0.4 && rf > 0.3 && gf < 0.1 -> {
-                0.0 + (rf / (rf + bf)) * 0.1
-            }
-            
-            // Blue region (high blue, low red, low-medium green)
-            bf > 0.8 && rf < 0.2 -> {
-                0.15 + gf * 0.25
-            }
-            
-            // Cyan-green region (high green, decreasing blue)
-            gf > 0.5 && bf > 0.2 && rf < 0.3 -> {
-                0.35 + (1.0 - bf) * 0.15
-            }
-            
-            // Green region (high green, low blue, low-medium red)
-            gf > 0.7 && bf < 0.3 && rf < 0.7 -> {
-                0.45 + rf * 0.2
-            }
-            
-            // Yellow region (high red, high green, low blue)
-            rf > 0.7 && gf > 0.7 && bf < 0.2 -> {
-                0.60 + (1.0 - minOf(rf, gf)) * 0.1
-            }
-            
-            // Orange region (high red, medium green, low blue)
-            rf > 0.8 && gf > 0.2 && gf < 0.8 && bf < 0.2 -> {
-                0.70 + (1.0 - gf) * 0.2
-            }
-            
-            // Red region (high red, low green, low blue)
-            rf > 0.5 && gf < 0.3 && bf < 0.2 -> {
-                0.85 + (1.0 - rf) * 0.3
-            }
-            
-            // Default: estimate based on warmth
-            else -> {
-                val warmth = (rf - bf + 1.0) / 2.0
-                warmth.coerceIn(0.0, 1.0)
-            }
         }
     }
     

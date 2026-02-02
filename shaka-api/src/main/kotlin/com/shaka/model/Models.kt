@@ -99,34 +99,35 @@ data class MPAStatus(
     val detailsUrl: String? = null          // navigator_link to full details
 )
 
+/**
+ * Satellite imagery data for a spot.
+ * 
+ * IMPORTANT: The color fields are for DISPLAY ONLY - they show what the satellite captured
+ * but may include sediment, kelp, or bottom reflectance in coastal areas.
+ * 
+ * For actual chlorophyll measurements, use noaaErddapChlorophyll which comes from
+ * NOAA CoastWatch ERDDAP - a reliable numerical data source.
+ */
 @Serializable
 data class GibsSatelliteReadings(
-    val paceToday: Double? = null,
-    val paceTodayColor: String? = null,            // RGB hex color "#RRGGBB" from satellite imagery
-    val paceYesterday: Double? = null,
+    // Satellite imagery colors (display only - may include sediment/kelp contamination)
+    val paceTodayColor: String? = null,            // RGB hex "#RRGGBB" from PACE satellite
     val paceYesterdayColor: String? = null,
-    val noaa20Today: Double? = null,
-    val noaa20TodayColor: String? = null,
-    val noaa20Yesterday: Double? = null,
+    val noaa20TodayColor: String? = null,          // RGB hex from NOAA-20 VIIRS
     val noaa20YesterdayColor: String? = null,
-    val noaa21Today: Double? = null,
-    val noaa21TodayColor: String? = null,
-    val noaa21Yesterday: Double? = null,
+    val noaa21TodayColor: String? = null,          // RGB hex from NOAA-21 VIIRS
     val noaa21YesterdayColor: String? = null,
-    val sentinel3aToday: Double? = null,
-    val sentinel3aTodayColor: String? = null,
-    val sentinel3aYesterday: Double? = null,
+    val sentinel3aTodayColor: String? = null,      // RGB hex from Sentinel-3A OLCI
     val sentinel3aYesterdayColor: String? = null,
-    val sentinel3bToday: Double? = null,
-    val sentinel3bTodayColor: String? = null,
-    val sentinel3bYesterday: Double? = null,
+    val sentinel3bTodayColor: String? = null,      // RGB hex from Sentinel-3B OLCI
     val sentinel3bYesterdayColor: String? = null,
-    val paceObservationTime: String? = null,      // ISO 8601 timestamp
+    // Observation timestamps (when the satellite passed over this location)
+    val paceObservationTime: String? = null,       // ISO 8601 timestamp
     val noaa20ObservationTime: String? = null,
     val noaa21ObservationTime: String? = null,
     val dataDate: String? = null,                  // The date that "today" refers to
-    // NOAA ERDDAP chlorophyll (separate from GIBS imagery - NO COLOR since direct API value)
-    val noaaErddapChlorophyll: Double? = null,     // mg/m³ from NOAA CoastWatch ERDDAP
+    // ACTUAL MEASURED CHLOROPHYLL from NOAA ERDDAP (trusted numerical data)
+    val noaaErddapChlorophyll: Double? = null,     // mg/m³ - THE reliable chlorophyll value
     val noaaErddapFetchTime: String? = null        // When we fetched this data
 )
 

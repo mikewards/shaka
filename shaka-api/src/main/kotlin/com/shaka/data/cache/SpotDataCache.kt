@@ -103,32 +103,26 @@ object SpotDataCache {
     )
     
     /**
-     * GIBS satellite chlorophyll data from all 5 satellites for today and yesterday.
-     * Used for comparison with Copernicus data.
+     * GIBS satellite imagery colors from all 5 satellites for today and yesterday.
      * 
-     * Includes RGB colors (as hex strings "#RRGGBB") from the original satellite imagery.
+     * IMPORTANT: These colors are for DISPLAY ONLY - they do NOT represent actual
+     * chlorophyll concentrations. Coastal imagery is often contaminated by sediment,
+     * kelp, and bottom reflectance. Use NOAA ERDDAP for actual chlorophyll values.
+     * 
+     * Colors are RGB hex strings "#RRGGBB" from the satellite imagery.
      * Observation times are from NASA CMR granule metadata (only available for NASA satellites).
      */
     data class GIBSSatelliteData(
-        val paceToday: Double?,
+        // Colors only - no chlorophyll values (those were misleading in coastal areas)
         val paceTodayColor: String?,
-        val paceYesterday: Double?,
         val paceYesterdayColor: String?,
-        val noaa20Today: Double?,
         val noaa20TodayColor: String?,
-        val noaa20Yesterday: Double?,
         val noaa20YesterdayColor: String?,
-        val noaa21Today: Double?,
         val noaa21TodayColor: String?,
-        val noaa21Yesterday: Double?,
         val noaa21YesterdayColor: String?,
-        val sentinel3aToday: Double?,
         val sentinel3aTodayColor: String?,
-        val sentinel3aYesterday: Double?,
         val sentinel3aYesterdayColor: String?,
-        val sentinel3bToday: Double?,
         val sentinel3bTodayColor: String?,
-        val sentinel3bYesterday: Double?,
         val sentinel3bYesterdayColor: String?,
         val dataDate: LocalDate,   // "Today" when this was fetched
         // Observation timestamps from CMR (NASA satellites only)
@@ -322,14 +316,14 @@ object SpotDataCache {
             (existing ?: SpotData()).copy(gibsChlorophyll = gibsData)
         }
         val data = gibsData.value
-        val hasData = listOfNotNull(
-            data.paceToday, data.paceYesterday,
-            data.noaa20Today, data.noaa20Yesterday,
-            data.noaa21Today, data.noaa21Yesterday,
-            data.sentinel3aToday, data.sentinel3aYesterday,
-            data.sentinel3bToday, data.sentinel3bYesterday
+        val hasColorData = listOfNotNull(
+            data.paceTodayColor, data.paceYesterdayColor,
+            data.noaa20TodayColor, data.noaa20YesterdayColor,
+            data.noaa21TodayColor, data.noaa21YesterdayColor,
+            data.sentinel3aTodayColor, data.sentinel3aYesterdayColor,
+            data.sentinel3bTodayColor, data.sentinel3bYesterdayColor
         ).size
-        logger.debug("Updated GIBS chlorophyll for spot $spotId: $hasData/10 satellites have data")
+        logger.debug("Updated GIBS satellite colors for spot $spotId: $hasColorData/10 satellites have data")
     }
     
     /**
@@ -967,18 +961,19 @@ object SpotDataCache {
                     })
                     stmt.setTimestamp(16, data.visibility?.fetchedAt?.let { Timestamp.from(it) })
                     
-                    // GIBS satellite data
+                    // GIBS satellite data - Double values removed (were misleading in coastal areas)
+                    // We now only store colors for display, and use NOAA ERDDAP for actual chlorophyll
                     val gibs = data.gibsChlorophyll?.value
-                    stmt.setObject(17, gibs?.paceToday)
-                    stmt.setObject(18, gibs?.paceYesterday)
-                    stmt.setObject(19, gibs?.noaa20Today)
-                    stmt.setObject(20, gibs?.noaa20Yesterday)
-                    stmt.setObject(21, gibs?.noaa21Today)
-                    stmt.setObject(22, gibs?.noaa21Yesterday)
-                    stmt.setObject(23, gibs?.sentinel3aToday)
-                    stmt.setObject(24, gibs?.sentinel3aYesterday)
-                    stmt.setObject(25, gibs?.sentinel3bToday)
-                    stmt.setObject(26, gibs?.sentinel3bYesterday)
+                    stmt.setObject(17, null)  // gibs_pace_today - deprecated
+                    stmt.setObject(18, null)  // gibs_pace_yesterday - deprecated
+                    stmt.setObject(19, null)  // gibs_noaa20_today - deprecated
+                    stmt.setObject(20, null)  // gibs_noaa20_yesterday - deprecated
+                    stmt.setObject(21, null)  // gibs_noaa21_today - deprecated
+                    stmt.setObject(22, null)  // gibs_noaa21_yesterday - deprecated
+                    stmt.setObject(23, null)  // gibs_sentinel3a_today - deprecated
+                    stmt.setObject(24, null)  // gibs_sentinel3a_yesterday - deprecated
+                    stmt.setObject(25, null)  // gibs_sentinel3b_today - deprecated
+                    stmt.setObject(26, null)  // gibs_sentinel3b_yesterday - deprecated
                     stmt.setObject(27, gibs?.dataDate?.let { java.sql.Date.valueOf(it) })
                     stmt.setTimestamp(28, data.gibsChlorophyll?.fetchedAt?.let { Timestamp.from(it) })
                     
@@ -987,7 +982,7 @@ object SpotDataCache {
                     stmt.setTimestamp(30, gibs?.noaa20ObservationTime?.let { Timestamp.from(it) })
                     stmt.setTimestamp(31, gibs?.noaa21ObservationTime?.let { Timestamp.from(it) })
                     
-                    // GIBS RGB color hex strings
+                    // GIBS RGB color hex strings (for display only)
                     stmt.setString(32, gibs?.paceTodayColor)
                     stmt.setString(33, gibs?.paceYesterdayColor)
                     stmt.setString(34, gibs?.noaa20TodayColor)
@@ -1159,29 +1154,17 @@ object SpotDataCache {
                             )
                         }
                         
-                        // GIBS satellite data
+                        // GIBS satellite data - now colors only (chlorophyll values deprecated)
                         val gibsFetchedAt = rs.getTimestamp("gibs_fetched_at")
                         val gibsDataDate = rs.getDate("gibs_data_date")
                         if (gibsFetchedAt != null && gibsDataDate != null) {
-                            // Read all GIBS columns - use try/catch in case columns don't exist yet
                             try {
-                                val paceToday = rs.getDouble("gibs_pace_today").takeUnless { rs.wasNull() }
-                                val paceYesterday = rs.getDouble("gibs_pace_yesterday").takeUnless { rs.wasNull() }
-                                val noaa20Today = rs.getDouble("gibs_noaa20_today").takeUnless { rs.wasNull() }
-                                val noaa20Yesterday = rs.getDouble("gibs_noaa20_yesterday").takeUnless { rs.wasNull() }
-                                val noaa21Today = rs.getDouble("gibs_noaa21_today").takeUnless { rs.wasNull() }
-                                val noaa21Yesterday = rs.getDouble("gibs_noaa21_yesterday").takeUnless { rs.wasNull() }
-                                val sentinel3aToday = rs.getDouble("gibs_sentinel3a_today").takeUnless { rs.wasNull() }
-                                val sentinel3aYesterday = rs.getDouble("gibs_sentinel3a_yesterday").takeUnless { rs.wasNull() }
-                                val sentinel3bToday = rs.getDouble("gibs_sentinel3b_today").takeUnless { rs.wasNull() }
-                                val sentinel3bYesterday = rs.getDouble("gibs_sentinel3b_yesterday").takeUnless { rs.wasNull() }
-                                
                                 // Read observation timestamps (may not exist in older schemas)
                                 val paceObsTime = try { rs.getTimestamp("gibs_pace_obs_time")?.toInstant() } catch (e: Exception) { null }
                                 val noaa20ObsTime = try { rs.getTimestamp("gibs_noaa20_obs_time")?.toInstant() } catch (e: Exception) { null }
                                 val noaa21ObsTime = try { rs.getTimestamp("gibs_noaa21_obs_time")?.toInstant() } catch (e: Exception) { null }
                                 
-                                // Read RGB color hex strings (may not exist in older schemas)
+                                // Read RGB color hex strings (for display only)
                                 val paceTodayColor = try { rs.getString("gibs_pace_today_color") } catch (e: Exception) { null }
                                 val paceYesterdayColor = try { rs.getString("gibs_pace_yesterday_color") } catch (e: Exception) { null }
                                 val noaa20TodayColor = try { rs.getString("gibs_noaa20_today_color") } catch (e: Exception) { null }
@@ -1196,25 +1179,15 @@ object SpotDataCache {
                                 spotData = spotData.copy(
                                     gibsChlorophyll = CachedValue(
                                         value = GIBSSatelliteData(
-                                            paceToday = paceToday,
                                             paceTodayColor = paceTodayColor,
-                                            paceYesterday = paceYesterday,
                                             paceYesterdayColor = paceYesterdayColor,
-                                            noaa20Today = noaa20Today,
                                             noaa20TodayColor = noaa20TodayColor,
-                                            noaa20Yesterday = noaa20Yesterday,
                                             noaa20YesterdayColor = noaa20YesterdayColor,
-                                            noaa21Today = noaa21Today,
                                             noaa21TodayColor = noaa21TodayColor,
-                                            noaa21Yesterday = noaa21Yesterday,
                                             noaa21YesterdayColor = noaa21YesterdayColor,
-                                            sentinel3aToday = sentinel3aToday,
                                             sentinel3aTodayColor = sentinel3aTodayColor,
-                                            sentinel3aYesterday = sentinel3aYesterday,
                                             sentinel3aYesterdayColor = sentinel3aYesterdayColor,
-                                            sentinel3bToday = sentinel3bToday,
                                             sentinel3bTodayColor = sentinel3bTodayColor,
-                                            sentinel3bYesterday = sentinel3bYesterday,
                                             sentinel3bYesterdayColor = sentinel3bYesterdayColor,
                                             dataDate = gibsDataDate.toLocalDate(),
                                             paceObservationTime = paceObsTime,

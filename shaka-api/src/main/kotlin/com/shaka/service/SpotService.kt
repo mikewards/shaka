@@ -231,34 +231,27 @@ class SpotService {
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
             val satelliteDataDate = cached?.sst?.dataDateString()
             
-            // Build GIBS satellite readings from cache (same as SpotDetail)
+            // Build satellite readings from cache - colors for display, NOAA ERDDAP for actual chlorophyll
             val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
                 val gibs = cached.gibsChlorophyll?.value
                 GibsSatelliteReadings(
-                    paceToday = gibs?.paceToday,
+                    // Satellite imagery colors (display only - may include sediment/kelp)
                     paceTodayColor = gibs?.paceTodayColor,
-                    paceYesterday = gibs?.paceYesterday,
                     paceYesterdayColor = gibs?.paceYesterdayColor,
-                    noaa20Today = gibs?.noaa20Today,
                     noaa20TodayColor = gibs?.noaa20TodayColor,
-                    noaa20Yesterday = gibs?.noaa20Yesterday,
                     noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
-                    noaa21Today = gibs?.noaa21Today,
                     noaa21TodayColor = gibs?.noaa21TodayColor,
-                    noaa21Yesterday = gibs?.noaa21Yesterday,
                     noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
-                    sentinel3aToday = gibs?.sentinel3aToday,
                     sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
-                    sentinel3aYesterday = gibs?.sentinel3aYesterday,
                     sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
-                    sentinel3bToday = gibs?.sentinel3bToday,
                     sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
-                    sentinel3bYesterday = gibs?.sentinel3bYesterday,
                     sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
+                    // Observation times
                     paceObservationTime = gibs?.paceObservationTime?.toString(),
                     noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                     noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                     dataDate = gibs?.dataDate?.toString(),
+                    // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                     noaaErddapChlorophyll = cached.chlorophyll?.value,
                     noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
                 )
@@ -485,35 +478,27 @@ class SpotService {
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
-        // Build GIBS satellite readings from cache, include NOAA ERDDAP chlorophyll
+        // Build satellite readings - colors for display, NOAA ERDDAP for actual chlorophyll
         val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
             val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
-                paceToday = gibs?.paceToday,
+                // Satellite imagery colors (display only - may include sediment/kelp)
                 paceTodayColor = gibs?.paceTodayColor,
-                paceYesterday = gibs?.paceYesterday,
                 paceYesterdayColor = gibs?.paceYesterdayColor,
-                noaa20Today = gibs?.noaa20Today,
                 noaa20TodayColor = gibs?.noaa20TodayColor,
-                noaa20Yesterday = gibs?.noaa20Yesterday,
                 noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
-                noaa21Today = gibs?.noaa21Today,
                 noaa21TodayColor = gibs?.noaa21TodayColor,
-                noaa21Yesterday = gibs?.noaa21Yesterday,
                 noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
-                sentinel3aToday = gibs?.sentinel3aToday,
                 sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
-                sentinel3aYesterday = gibs?.sentinel3aYesterday,
                 sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
-                sentinel3bToday = gibs?.sentinel3bToday,
                 sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
-                sentinel3bYesterday = gibs?.sentinel3bYesterday,
                 sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
+                // Observation times
                 paceObservationTime = gibs?.paceObservationTime?.toString(),
                 noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                 dataDate = gibs?.dataDate?.toString(),
-                // NOAA ERDDAP chlorophyll (from Copernicus/NOAA fallback)
+                // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                 noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
@@ -1192,39 +1177,16 @@ class SpotService {
         cached: SpotDataCache.SpotData?,
         waterQuality: WaterQuality
     ): ChlorophyllContext? {
-        // Get current chlorophyll from cache or water quality
+        // Get current chlorophyll from NOAA ERDDAP (trusted source)
+        // Note: We removed GIBS-derived chlorophyll values as they were unreliable in coastal areas
         val current = cached?.chlorophyll?.value ?: waterQuality.chlorophyllA ?: return null
         
-        // Get historical data from GIBS (we have today and yesterday from multiple satellites)
-        val gibs = cached?.gibsChlorophyll?.value
+        // Without historical data from multiple days, we use current as both values
+        // In the future, we could store historical NOAA ERDDAP readings for trend analysis
+        val avg7day = current
         
-        // Calculate a simple average from available satellite readings
-        val readings = listOfNotNull(
-            gibs?.paceToday,
-            gibs?.paceYesterday,
-            gibs?.noaa20Today,
-            gibs?.noaa20Yesterday,
-            gibs?.noaa21Today,
-            gibs?.noaa21Yesterday,
-            gibs?.sentinel3aToday,
-            gibs?.sentinel3aYesterday,
-            gibs?.sentinel3bToday,
-            gibs?.sentinel3bYesterday
-        )
-        
-        // If we have multiple readings, calculate avg and trend
-        val avg7day = if (readings.isNotEmpty()) {
-            readings.average()
-        } else {
-            current // Use current as baseline if no history
-        }
-        
-        // Determine trend based on current vs average
-        val trend = when {
-            current > avg7day * 1.5 -> "rising"     // 50%+ above average = rising
-            current < avg7day * 0.7 -> "falling"   // 30%+ below average = falling
-            else -> "stable"
-        }
+        // Cannot determine trend without historical data
+        val trend = "stable"
         
         return ChlorophyllContext(
             current = current,
@@ -1418,34 +1380,27 @@ class SpotService {
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
-        // Build GIBS satellite readings from cache
+        // Build satellite readings - colors for display, NOAA ERDDAP for actual chlorophyll
         val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
             val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
-                paceToday = gibs?.paceToday,
+                // Satellite imagery colors (display only - may include sediment/kelp)
                 paceTodayColor = gibs?.paceTodayColor,
-                paceYesterday = gibs?.paceYesterday,
                 paceYesterdayColor = gibs?.paceYesterdayColor,
-                noaa20Today = gibs?.noaa20Today,
                 noaa20TodayColor = gibs?.noaa20TodayColor,
-                noaa20Yesterday = gibs?.noaa20Yesterday,
                 noaa20YesterdayColor = gibs?.noaa20YesterdayColor,
-                noaa21Today = gibs?.noaa21Today,
                 noaa21TodayColor = gibs?.noaa21TodayColor,
-                noaa21Yesterday = gibs?.noaa21Yesterday,
                 noaa21YesterdayColor = gibs?.noaa21YesterdayColor,
-                sentinel3aToday = gibs?.sentinel3aToday,
                 sentinel3aTodayColor = gibs?.sentinel3aTodayColor,
-                sentinel3aYesterday = gibs?.sentinel3aYesterday,
                 sentinel3aYesterdayColor = gibs?.sentinel3aYesterdayColor,
-                sentinel3bToday = gibs?.sentinel3bToday,
                 sentinel3bTodayColor = gibs?.sentinel3bTodayColor,
-                sentinel3bYesterday = gibs?.sentinel3bYesterday,
                 sentinel3bYesterdayColor = gibs?.sentinel3bYesterdayColor,
+                // Observation times
                 paceObservationTime = gibs?.paceObservationTime?.toString(),
                 noaa20ObservationTime = gibs?.noaa20ObservationTime?.toString(),
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                 dataDate = gibs?.dataDate?.toString(),
+                // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                 noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
@@ -1575,7 +1530,7 @@ class SpotService {
         val gibsDeferred = async {
             withTimeoutOrNull(30000) {
                 try {
-                    GIBSClient.getAllChlorophyll(lat, lon)
+                    GIBSClient.getAllSatelliteColors(lat, lon)
                 } catch (e: Exception) {
                     logger.warn("GIBS fetch failed for $spotId: ${e.message}")
                     null
@@ -1683,25 +1638,15 @@ class SpotService {
                 spotId,
                 SpotDataCache.CachedValue(
                     value = SpotDataCache.GIBSSatelliteData(
-                        paceToday = gibsData.paceToday,
                         paceTodayColor = gibsData.paceTodayColor,
-                        paceYesterday = gibsData.paceYesterday,
                         paceYesterdayColor = gibsData.paceYesterdayColor,
-                        noaa20Today = gibsData.noaa20Today,
                         noaa20TodayColor = gibsData.noaa20TodayColor,
-                        noaa20Yesterday = gibsData.noaa20Yesterday,
                         noaa20YesterdayColor = gibsData.noaa20YesterdayColor,
-                        noaa21Today = gibsData.noaa21Today,
                         noaa21TodayColor = gibsData.noaa21TodayColor,
-                        noaa21Yesterday = gibsData.noaa21Yesterday,
                         noaa21YesterdayColor = gibsData.noaa21YesterdayColor,
-                        sentinel3aToday = gibsData.sentinel3aToday,
                         sentinel3aTodayColor = gibsData.sentinel3aTodayColor,
-                        sentinel3aYesterday = gibsData.sentinel3aYesterday,
                         sentinel3aYesterdayColor = gibsData.sentinel3aYesterdayColor,
-                        sentinel3bToday = gibsData.sentinel3bToday,
                         sentinel3bTodayColor = gibsData.sentinel3bTodayColor,
-                        sentinel3bYesterday = gibsData.sentinel3bYesterday,
                         sentinel3bYesterdayColor = gibsData.sentinel3bYesterdayColor,
                         dataDate = gibsData.dataDate,
                         paceObservationTime = gibsData.paceObservationTime,

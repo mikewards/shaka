@@ -3,8 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/spot_models.dart';
 
-/// Card displaying satellite chlorophyll readings from multiple NASA/ESA satellites.
-/// Shows data from PACE, NOAA-20, NOAA-21, Sentinel-3A, and Sentinel-3B.
+/// Card displaying satellite data in two sections:
+/// 1. MEASURED CHLOROPHYLL - from NOAA ERDDAP (the trusted source)
+/// 2. SATELLITE IMAGERY - colors from GIBS satellites (display only)
+///
+/// IMPORTANT: Satellite imagery colors are for display only and may include
+/// sediment, kelp, or bottom reflectance in coastal areas. For actual
+/// chlorophyll concentration, use the NOAA ERDDAP value.
 class SatelliteReadingsCard extends StatelessWidget {
   final GibsSatelliteReadings? readings;
 
@@ -61,92 +66,13 @@ class SatelliteReadingsCard extends StatelessWidget {
           _buildLegend(),
           const SizedBox(height: 14),
           
-          // Header row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Chlorophyll-a (mg/m³)',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _showInfo(context);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.info_outline, size: 12, color: Colors.white54),
-                      SizedBox(width: 4),
-                      Text(
-                        'About data',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          // SECTION 1: Measured Chlorophyll (NOAA ERDDAP)
+          _buildMeasuredChlorophyllSection(),
           
-          // Satellite rows - each on one line with color circle
-          _buildSatelliteRow(
-            name: 'PACE',
-            value: readings!.paceYesterday ?? readings!.paceToday,
-            colorHex: readings!.paceYesterdayColor ?? readings!.paceTodayColor,
-            observationTime: readings!.paceObservationTime,
-            isToday: readings!.paceYesterday == null && readings!.paceToday != null,
-          ),
-          _buildSatelliteRow(
-            name: 'NOAA-20',
-            value: readings!.noaa20Yesterday ?? readings!.noaa20Today,
-            colorHex: readings!.noaa20YesterdayColor ?? readings!.noaa20TodayColor,
-            observationTime: readings!.noaa20ObservationTime,
-            isToday: readings!.noaa20Yesterday == null && readings!.noaa20Today != null,
-          ),
-          _buildSatelliteRow(
-            name: 'NOAA-21',
-            value: readings!.noaa21Yesterday ?? readings!.noaa21Today,
-            colorHex: readings!.noaa21YesterdayColor ?? readings!.noaa21TodayColor,
-            observationTime: readings!.noaa21ObservationTime,
-            isToday: readings!.noaa21Yesterday == null && readings!.noaa21Today != null,
-          ),
-          _buildSatelliteRow(
-            name: 'Sentinel-3A',
-            value: readings!.sentinel3aYesterday ?? readings!.sentinel3aToday,
-            colorHex: readings!.sentinel3aYesterdayColor ?? readings!.sentinel3aTodayColor,
-            observationTime: null,
-            isToday: readings!.sentinel3aYesterday == null && readings!.sentinel3aToday != null,
-          ),
-          _buildSatelliteRow(
-            name: 'Sentinel-3B',
-            value: readings!.sentinel3bYesterday ?? readings!.sentinel3bToday,
-            colorHex: readings!.sentinel3bYesterdayColor ?? readings!.sentinel3bTodayColor,
-            observationTime: null,
-            isToday: readings!.sentinel3bYesterday == null && readings!.sentinel3bToday != null,
-            isLast: readings!.noaaErddapChlorophyll == null,
-          ),
-          // NOAA ERDDAP (separate data source from GIBS imagery - NO color available)
-          _buildSatelliteRow(
-            name: 'NOAA-ERDDAP',
-            value: readings!.noaaErddapChlorophyll,
-            colorHex: null, // No color for ERDDAP - it's a direct numerical API
-            observationTime: readings!.noaaErddapFetchTime,
-            isToday: false, // This is fetched data, not "today's" observation
-            isLast: true,
-          ),
+          const SizedBox(height: 16),
+          
+          // SECTION 2: Satellite Imagery (colors only)
+          _buildSatelliteImagerySection(),
         ],
       ),
     );
@@ -197,24 +123,225 @@ class SatelliteReadingsCard extends StatelessWidget {
     );
   }
 
-  /// Build a single satellite row with name, color circle, value, and datetime all aligned
-  Widget _buildSatelliteRow({
+  /// Section 1: Measured Chlorophyll from NOAA ERDDAP
+  Widget _buildMeasuredChlorophyllSection() {
+    if (readings!.noaaErddapChlorophyll == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'MEASURED CHLOROPHYLL',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _showInfo,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'TRUSTED',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                readings!.noaaErddapChlorophyll!.toStringAsFixed(3),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'mg/m³',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (readings!.noaaErddapFetchTime != null)
+                Text(
+                  _formatDateTime(readings!.noaaErddapFetchTime!),
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Source: NOAA ERDDAP',
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Section 2: Satellite Imagery (colors and timestamps only)
+  Widget _buildSatelliteImagerySection() {
+    final hasSatelliteColors = readings!.paceTodayColor != null ||
+        readings!.paceYesterdayColor != null ||
+        readings!.noaa20TodayColor != null ||
+        readings!.noaa20YesterdayColor != null ||
+        readings!.noaa21TodayColor != null ||
+        readings!.noaa21YesterdayColor != null ||
+        readings!.sentinel3aTodayColor != null ||
+        readings!.sentinel3aYesterdayColor != null ||
+        readings!.sentinel3bTodayColor != null ||
+        readings!.sentinel3bYesterdayColor != null;
+
+    if (!hasSatelliteColors) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'SATELLITE IMAGERY',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            Builder(
+              builder: (context) => GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showInfo(context);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.info_outline, size: 12, color: Colors.white54),
+                      SizedBox(width: 4),
+                      Text(
+                        'About',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Colors may include sediment/kelp in coastal areas',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.4),
+            fontSize: 10,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Satellite rows - color and datetime only (no mg/m³ values)
+        _buildSatelliteColorRow(
+          name: 'PACE',
+          colorHex: readings!.paceYesterdayColor ?? readings!.paceTodayColor,
+          observationTime: readings!.paceObservationTime,
+          isToday: readings!.paceYesterdayColor == null && readings!.paceTodayColor != null,
+        ),
+        _buildSatelliteColorRow(
+          name: 'NOAA-20',
+          colorHex: readings!.noaa20YesterdayColor ?? readings!.noaa20TodayColor,
+          observationTime: readings!.noaa20ObservationTime,
+          isToday: readings!.noaa20YesterdayColor == null && readings!.noaa20TodayColor != null,
+        ),
+        _buildSatelliteColorRow(
+          name: 'NOAA-21',
+          colorHex: readings!.noaa21YesterdayColor ?? readings!.noaa21TodayColor,
+          observationTime: readings!.noaa21ObservationTime,
+          isToday: readings!.noaa21YesterdayColor == null && readings!.noaa21TodayColor != null,
+        ),
+        _buildSatelliteColorRow(
+          name: 'Sentinel-3A',
+          colorHex: readings!.sentinel3aYesterdayColor ?? readings!.sentinel3aTodayColor,
+          observationTime: null,
+          isToday: readings!.sentinel3aYesterdayColor == null && readings!.sentinel3aTodayColor != null,
+        ),
+        _buildSatelliteColorRow(
+          name: 'Sentinel-3B',
+          colorHex: readings!.sentinel3bYesterdayColor ?? readings!.sentinel3bTodayColor,
+          observationTime: null,
+          isToday: readings!.sentinel3bYesterdayColor == null && readings!.sentinel3bTodayColor != null,
+          isLast: true,
+        ),
+      ],
+    );
+  }
+
+  /// Build a single satellite row with name, color circle, and datetime
+  Widget _buildSatelliteColorRow({
     required String name,
-    required double? value,
     required String? colorHex,
     required DateTime? observationTime,
     bool isToday = false,
     bool isLast = false,
   }) {
-    // Skip if no data
-    if (value == null) {
+    // Skip if no color data
+    if (colorHex == null) {
       return const SizedBox.shrink();
     }
     
     return Container(
       padding: EdgeInsets.only(
-        top: 10,
-        bottom: isLast ? 4 : 10,
+        top: 8,
+        bottom: isLast ? 4 : 8,
       ),
       decoration: BoxDecoration(
         border: isLast
@@ -225,9 +352,9 @@ class SatelliteReadingsCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Satellite name (fixed width)
+          // Satellite name
           SizedBox(
-            width: 80,
+            width: 85,
             child: Text(
               name,
               style: const TextStyle(
@@ -237,32 +364,17 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
             ),
           ),
-          // Color circle from satellite imagery (or empty space for NOAA-ERDDAP)
-          SizedBox(
-            width: 24,
-            child: colorHex != null
-                ? Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _parseHexColor(colorHex),
-                      border: Border.all(
-                        color: Colors.white24,
-                        width: 0.5,
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(), // No circle for NOAA-ERDDAP
-          ),
-          // Value (3 decimal places)
-          SizedBox(
-            width: 55,
-            child: Text(
-              value.toStringAsFixed(3),
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
+          // Color circle from satellite imagery
+          Container(
+            width: 16,
+            height: 16,
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _parseHexColor(colorHex),
+              border: Border.all(
+                color: Colors.white24,
+                width: 0.5,
               ),
             ),
           ),
@@ -273,8 +385,8 @@ class SatelliteReadingsCard extends StatelessWidget {
                   ? _formatDateTime(observationTime)
                   : (isToday ? 'Today' : 'Yesterday'),
               style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
+                color: Colors.white54,
+                fontSize: 12,
               ),
               textAlign: TextAlign.right,
             ),
@@ -301,7 +413,7 @@ class SatelliteReadingsCard extends StatelessWidget {
   /// Format observation time in user's local timezone
   String _formatDateTime(DateTime utcTime) {
     final local = utcTime.toLocal();
-    final formatter = DateFormat('MMM d, h:mm a');
+    final formatter = DateFormat('MMM d @ h:mma');
     return formatter.format(local);
   }
 
@@ -322,7 +434,7 @@ class SatelliteReadingsCard extends StatelessWidget {
               children: [
                 const Expanded(
                   child: Text(
-                    'Satellite Chlorophyll Data',
+                    'About Satellite Data',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -337,20 +449,73 @@ class SatelliteReadingsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('Source', 'NASA GIBS & CMR'),
-            _buildInfoRow('Updates', 'Daily satellite passes'),
-            const SizedBox(height: 12),
-            const Text(
-              'Chlorophyll-a concentration indicates plankton density, which affects water clarity. '
-              'Lower values (< 0.5 mg/m³) mean clearer water with better visibility for diving and snorkeling. '
-              'Higher values suggest more plankton activity, potentially attracting baitfish.',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-                height: 1.4,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MEASURED CHLOROPHYLL',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'The NOAA ERDDAP value is the trusted chlorophyll measurement. '
+                    'It comes from processed, quality-controlled satellite data with '
+                    'coastal contamination filtered out.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SATELLITE IMAGERY COLORS',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'The colored circles show what each satellite captured. In coastal areas, '
+                    'these colors may be affected by sediment, kelp, shallow water, or bottom reflectance - '
+                    'not just chlorophyll. That\'s why we show them separately from the measured value.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -379,37 +544,6 @@ class SatelliteReadingsCard extends StatelessWidget {
             const SizedBox(height: 8),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

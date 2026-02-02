@@ -324,38 +324,28 @@ class DataPrefetchJobs(
                     logger.debug("Water quality fetch failed for ${spot.name}: ${e.message}")
                 }
                 
-                // GIBS satellite chlorophyll (all 5 satellites, today + yesterday)
-                // Also fetches observation timestamps from NASA CMR and RGB colors
+                // GIBS satellite colors (all 5 satellites, today + yesterday)
+                // Colors are for display only - use NOAA ERDDAP for actual chlorophyll values
                 try {
-                    val gibsData = GIBSClient.getAllChlorophyll(lat, lon)
+                    val gibsColors = GIBSClient.getAllSatelliteColors(lat, lon)
                     SpotDataCache.updateGIBSChlorophyll(
                         spot.id,
                         SpotDataCache.CachedValue(
                             value = SpotDataCache.GIBSSatelliteData(
-                                paceToday = gibsData.paceToday,
-                                paceTodayColor = gibsData.paceTodayColor,
-                                paceYesterday = gibsData.paceYesterday,
-                                paceYesterdayColor = gibsData.paceYesterdayColor,
-                                noaa20Today = gibsData.noaa20Today,
-                                noaa20TodayColor = gibsData.noaa20TodayColor,
-                                noaa20Yesterday = gibsData.noaa20Yesterday,
-                                noaa20YesterdayColor = gibsData.noaa20YesterdayColor,
-                                noaa21Today = gibsData.noaa21Today,
-                                noaa21TodayColor = gibsData.noaa21TodayColor,
-                                noaa21Yesterday = gibsData.noaa21Yesterday,
-                                noaa21YesterdayColor = gibsData.noaa21YesterdayColor,
-                                sentinel3aToday = gibsData.sentinel3aToday,
-                                sentinel3aTodayColor = gibsData.sentinel3aTodayColor,
-                                sentinel3aYesterday = gibsData.sentinel3aYesterday,
-                                sentinel3aYesterdayColor = gibsData.sentinel3aYesterdayColor,
-                                sentinel3bToday = gibsData.sentinel3bToday,
-                                sentinel3bTodayColor = gibsData.sentinel3bTodayColor,
-                                sentinel3bYesterday = gibsData.sentinel3bYesterday,
-                                sentinel3bYesterdayColor = gibsData.sentinel3bYesterdayColor,
-                                dataDate = gibsData.dataDate,
-                                paceObservationTime = gibsData.paceObservationTime,
-                                noaa20ObservationTime = gibsData.noaa20ObservationTime,
-                                noaa21ObservationTime = gibsData.noaa21ObservationTime
+                                paceTodayColor = gibsColors.paceTodayColor,
+                                paceYesterdayColor = gibsColors.paceYesterdayColor,
+                                noaa20TodayColor = gibsColors.noaa20TodayColor,
+                                noaa20YesterdayColor = gibsColors.noaa20YesterdayColor,
+                                noaa21TodayColor = gibsColors.noaa21TodayColor,
+                                noaa21YesterdayColor = gibsColors.noaa21YesterdayColor,
+                                sentinel3aTodayColor = gibsColors.sentinel3aTodayColor,
+                                sentinel3aYesterdayColor = gibsColors.sentinel3aYesterdayColor,
+                                sentinel3bTodayColor = gibsColors.sentinel3bTodayColor,
+                                sentinel3bYesterdayColor = gibsColors.sentinel3bYesterdayColor,
+                                dataDate = gibsColors.dataDate,
+                                paceObservationTime = gibsColors.paceObservationTime,
+                                noaa20ObservationTime = gibsColors.noaa20ObservationTime,
+                                noaa21ObservationTime = gibsColors.noaa21ObservationTime
                             ),
                             fetchedAt = now
                         )
@@ -685,37 +675,27 @@ class DataPrefetchJobs(
                     logger.debug("User spot weather fetch failed for ${spot.name}: ${e.message}")
                 }
                 
-                // GIBS Chlorophyll (with RGB colors)
+                // GIBS Satellite Colors (for display only)
                 try {
-                    val gibsData = GIBSClient.getAllChlorophyll(lat, lon)
+                    val gibsColors = GIBSClient.getAllSatelliteColors(lat, lon)
                     SpotDataCache.updateGIBSChlorophyll(
                         cacheId,
                         SpotDataCache.CachedValue(
                             value = SpotDataCache.GIBSSatelliteData(
-                                paceToday = gibsData.paceToday,
-                                paceTodayColor = gibsData.paceTodayColor,
-                                paceYesterday = gibsData.paceYesterday,
-                                paceYesterdayColor = gibsData.paceYesterdayColor,
-                                noaa20Today = gibsData.noaa20Today,
-                                noaa20TodayColor = gibsData.noaa20TodayColor,
-                                noaa20Yesterday = gibsData.noaa20Yesterday,
-                                noaa20YesterdayColor = gibsData.noaa20YesterdayColor,
-                                noaa21Today = gibsData.noaa21Today,
-                                noaa21TodayColor = gibsData.noaa21TodayColor,
-                                noaa21Yesterday = gibsData.noaa21Yesterday,
-                                noaa21YesterdayColor = gibsData.noaa21YesterdayColor,
-                                sentinel3aToday = gibsData.sentinel3aToday,
-                                sentinel3aTodayColor = gibsData.sentinel3aTodayColor,
-                                sentinel3aYesterday = gibsData.sentinel3aYesterday,
-                                sentinel3aYesterdayColor = gibsData.sentinel3aYesterdayColor,
-                                sentinel3bToday = gibsData.sentinel3bToday,
-                                sentinel3bTodayColor = gibsData.sentinel3bTodayColor,
-                                sentinel3bYesterday = gibsData.sentinel3bYesterday,
-                                sentinel3bYesterdayColor = gibsData.sentinel3bYesterdayColor,
-                                dataDate = gibsData.dataDate,
-                                paceObservationTime = gibsData.paceObservationTime,
-                                noaa20ObservationTime = gibsData.noaa20ObservationTime,
-                                noaa21ObservationTime = gibsData.noaa21ObservationTime
+                                paceTodayColor = gibsColors.paceTodayColor,
+                                paceYesterdayColor = gibsColors.paceYesterdayColor,
+                                noaa20TodayColor = gibsColors.noaa20TodayColor,
+                                noaa20YesterdayColor = gibsColors.noaa20YesterdayColor,
+                                noaa21TodayColor = gibsColors.noaa21TodayColor,
+                                noaa21YesterdayColor = gibsColors.noaa21YesterdayColor,
+                                sentinel3aTodayColor = gibsColors.sentinel3aTodayColor,
+                                sentinel3aYesterdayColor = gibsColors.sentinel3aYesterdayColor,
+                                sentinel3bTodayColor = gibsColors.sentinel3bTodayColor,
+                                sentinel3bYesterdayColor = gibsColors.sentinel3bYesterdayColor,
+                                dataDate = gibsColors.dataDate,
+                                paceObservationTime = gibsColors.paceObservationTime,
+                                noaa20ObservationTime = gibsColors.noaa20ObservationTime,
+                                noaa21ObservationTime = gibsColors.noaa21ObservationTime
                             ),
                             fetchedAt = now
                         )
