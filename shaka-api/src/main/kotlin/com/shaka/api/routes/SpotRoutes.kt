@@ -422,7 +422,7 @@ fun Application.configureRouting() {
                 )
             }
             
-            // Test MPA fetch for a single spot (bypasses cache)
+            // Test MPA fetch for a single spot (bypasses cache, uses exact-first logic)
             get("/admin/mpa/test/{spotId}") {
                 val spotId = call.parameters["spotId"] ?: return@get call.respond(
                     HttpStatusCode.BadRequest, mapOf("error" to "spotId required")
@@ -432,10 +432,20 @@ fun Application.configureRouting() {
                 )
                 
                 val protectedSeasClient = com.shaka.data.client.ProtectedSeasClient()
-                val mpaInfo = protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                
+                // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+                val exactResult = protectedSeasClient.getMPAStatusExact(spot.coordinates.lat, spot.coordinates.lon)
+                
+                // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+                val bufferResult = if (exactResult == null) {
+                    protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                } else null
+                
+                val isInside = exactResult != null
+                val mpaInfo = exactResult ?: bufferResult
                 
                 call.respondText(
-                    """{"spotId":"$spotId","lat":${spot.coordinates.lat},"lon":${spot.coordinates.lon},"mpa":${if (mpaInfo != null) """{"siteName":"${mpaInfo.siteName}","designation":"${mpaInfo.designation}","spearfishingStatus":${mpaInfo.spearfishingStatus},"protectionLevel":${mpaInfo.protectionLevel}}""" else "null"}}""",
+                    """{"spotId":"$spotId","lat":${spot.coordinates.lat},"lon":${spot.coordinates.lon},"isInsideMPA":$isInside,"mpa":${if (mpaInfo != null) """{"siteName":"${mpaInfo.siteName}","designation":"${mpaInfo.designation}","spearfishingStatus":${mpaInfo.spearfishingStatus},"protectionLevel":${mpaInfo.protectionLevel}}""" else "null"}}""",
                     io.ktor.http.ContentType.Application.Json
                 )
             }
