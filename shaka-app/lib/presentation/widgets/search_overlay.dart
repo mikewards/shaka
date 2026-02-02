@@ -180,7 +180,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                       hintText: 'Search spots or regions...',
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.only(left: 0, right: 8),
+                      contentPadding: const EdgeInsets.only(left: 12, right: 8),
                     ),
                   ),
                 ),

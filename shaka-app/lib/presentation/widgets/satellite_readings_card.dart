@@ -278,15 +278,6 @@ class SatelliteReadingsCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Colors may include sediment/kelp in coastal areas',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.4),
-            fontSize: 10,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
         const SizedBox(height: 12),
         
         // Satellite rows - color and datetime only (no mg/m³ values)
@@ -470,9 +461,8 @@ class SatelliteReadingsCard extends StatelessWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'The NOAA ERDDAP value is the trusted chlorophyll measurement. '
-                    'It comes from processed, quality-controlled satellite data with '
-                    'coastal contamination filtered out.',
+                    'Trusted chlorophyll from quality-controlled satellite data '
+                    'with coastal contamination filtered out.',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 13,
@@ -503,9 +493,8 @@ class SatelliteReadingsCard extends StatelessWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'The colored circles show what each satellite captured. In coastal areas, '
-                    'these colors may be affected by sediment, kelp, shallow water, or bottom reflectance - '
-                    'not just chlorophyll. That\'s why we show them separately from the measured value.',
+                    'Raw satellite colors - may include sediment, kelp, or '
+                    'shallow bottom reflectance in coastal areas.',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 13,

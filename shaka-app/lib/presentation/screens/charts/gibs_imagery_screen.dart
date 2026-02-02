@@ -840,31 +840,37 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               ),
             ),
 
-          // GPS Coordinates Display (top-left when in pin mode)
+          // GPS Coordinates Display (centered at top when in pin mode)
           if (_isPinMode && _currentCenter != null)
             Positioned(
               top: MediaQuery.of(context).padding.top + 8,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'monospace',
-                        fontSize: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1187,7 +1193,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          flex: 2,
           child: GestureDetector(
             onTap: _confirmPinLocation,
             child: Container(
@@ -2025,13 +2030,6 @@ class _ReticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-    
-    // Outer circle (semi-transparent for scope effect)
-    final circlePaint = Paint()
-      ..color = Colors.black.withOpacity(0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(center, radius - 1, circlePaint);
     
     // Crosshair configuration
     final gap = 12.0;

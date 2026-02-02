@@ -263,7 +263,6 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
                     child: GestureDetector(
                       onTap: _isLoading ? null : _saveSpot,
                       child: Container(
