@@ -134,8 +134,21 @@ class ProtectedSeasClient {
             // Select best result: MLCD > Sanctuary > Filtered > Any
             val relevantMPAs = mlcds.ifEmpty { sanctuaries.ifEmpty { filtered.ifEmpty { response.features } } }
             
+            // CRITICAL: Only include zones that actually restrict spearfishing
+            // 0 = Allowed, 1 = Prohibited, 2 = Restricted, 3 = Unknown
+            val spearfishingRestricted = relevantMPAs.filter { feature ->
+                val status = feature.attributes.spear_fishing ?: 3
+                status == 1 || status == 2  // Prohibited or Restricted only
+            }
+            
+            // If no zones actually restrict spearfishing, return null
+            if (spearfishingRestricted.isEmpty()) {
+                logger.debug("No spearfishing-restricted zones found")
+                return null
+            }
+            
             // Sort by: spearfishing=1 first (prohibited), then highest LFP
-            val selected = relevantMPAs
+            val selected = spearfishingRestricted
                 .sortedWith(
                     compareBy<EsriFeature> { it.attributes.spear_fishing ?: 3 }  // 1 (prohibited) first
                         .thenByDescending { it.attributes.lfp ?: 0 }
