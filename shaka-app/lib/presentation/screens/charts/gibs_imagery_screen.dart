@@ -453,18 +453,21 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // ===========================================
 
   Future<void> _loadSavedSpots() async {
+    debugPrint('📍 GIBS: Loading saved spots...');
     try {
       final response = await _apiClient.getUserSpots();
+      debugPrint('📍 GIBS: Got ${response.spots.length} spots from API');
       if (mounted) {
         setState(() {
           _savedSpots = response.spots;
         });
+        debugPrint('📍 GIBS: Updated state with ${_savedSpots.length} spots');
         if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
           await _updateSpotMarkers();
         }
       }
     } catch (e) {
-      debugPrint('Failed to load saved spots: $e');
+      debugPrint('📍 GIBS: FAILED to load saved spots: $e');
     }
   }
 
@@ -844,12 +847,20 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               child: _buildTopBar(),
             ),
 
-          // Floating action buttons on map (left side - vertically stacked)
+          // Floating action buttons - LEFT side (Map Style top, Layers bottom)
           if (!_isPinMode)
             Positioned(
               left: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 140,
-              child: _buildFloatingButtons(),
+              bottom: MediaQuery.of(context).padding.bottom + 80,
+              child: _buildLeftFloatingButtons(),
+            ),
+          
+          // Floating action buttons - RIGHT side (Saved Spots top, Pin bottom)
+          if (!_isPinMode)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 80,
+              child: _buildRightFloatingButtons(),
             ),
 
           // Bottom controls (opacity/legend only)
@@ -1009,34 +1020,42 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
   
-  /// Floating buttons on the map (vertically stacked)
-  Widget _buildFloatingButtons() {
+  /// Left floating buttons (Map Style top, Satellite Layers bottom)
+  Widget _buildLeftFloatingButtons() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Layers button
-        _buildFloatingButton(
-          icon: Icons.layers_outlined,
-          onTap: _showLayerPicker,
-        ),
-        const SizedBox(height: 8),
-        // Map style button
+        // Map style button (top)
         _buildFloatingButton(
           icon: Icons.map_outlined,
           onTap: () => showBackgroundPicker(context),
         ),
         const SizedBox(height: 8),
-        // Add spot button (enters pin mode)
+        // Satellite Layers button (bottom)
         _buildFloatingButton(
-          icon: Icons.add_location_alt,
-          onTap: _enterPinMode,
+          icon: Icons.layers_outlined,
+          onTap: _showLayerPicker,
         ),
-        const SizedBox(height: 8),
-        // Saved spots button with badge
+      ],
+    );
+  }
+  
+  /// Right floating buttons (Saved Spots top, Pin bottom)
+  Widget _buildRightFloatingButtons() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Saved spots button (top)
         _buildFloatingButton(
           icon: Icons.bookmark_outline,
           onTap: _showSavedSpotsSheet,
           badgeCount: _savedSpots.length,
+        ),
+        const SizedBox(height: 8),
+        // Pin/Add spot button (bottom)
+        _buildFloatingButton(
+          icon: Icons.add_location_alt,
+          onTap: _enterPinMode,
         ),
       ],
     );

@@ -25,8 +25,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadSavedSpots() async {
+    debugPrint('📍 Profile: Loading saved spots...');
     try {
       final response = await _apiClient.getUserSpots();
+      debugPrint('📍 Profile: Got ${response.spots.length} spots from API');
+      for (final spot in response.spots) {
+        debugPrint('📍 Profile: Spot - id=${spot.id}, name=${spot.name}');
+      }
       if (mounted) {
         setState(() {
           _savedSpots = response.spots;
@@ -34,6 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
+      debugPrint('📍 Profile: ERROR loading spots - $e');
       if (mounted) {
         setState(() {
           _error = e.toString();

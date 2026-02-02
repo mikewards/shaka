@@ -830,8 +830,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
         
+        // Carousel dots with proper padding
         Padding(
-          padding: const EdgeInsets.only(bottom: 4),  // Reduced from 8
+          padding: const EdgeInsets.only(top: 12, bottom: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(

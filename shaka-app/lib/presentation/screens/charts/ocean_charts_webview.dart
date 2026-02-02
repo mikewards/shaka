@@ -1771,12 +1771,20 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
             child: _buildTopBar(),
           ),
           
-          // Floating action buttons on map (left side - vertically stacked)
+          // Floating action buttons - LEFT side (Layers only)
           if (_isOnline && _controller != null)
             Positioned(
               left: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 100,
-              child: _buildFloatingButtons(),
+              bottom: MediaQuery.of(context).padding.bottom + 80,
+              child: _buildLeftFloatingButtons(),
+            ),
+          
+          // Floating action buttons - RIGHT side (Saved top, Save bottom)
+          if (_isOnline && _controller != null)
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 80,
+              child: _buildRightFloatingButtons(),
             ),
           
           // Bottom controls (opacity/legend only)
@@ -1899,8 +1907,8 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
   
-  /// Floating buttons on the map (vertically stacked)
-  Widget _buildFloatingButtons() {
+  /// Left floating buttons (Layers only)
+  Widget _buildLeftFloatingButtons() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1909,19 +1917,27 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           icon: Icons.layers_outlined,
           onTap: _showLayerSheet,
         ),
-        const SizedBox(height: 8),
-        // Save snapshot button
-        _buildFloatingButton(
-          icon: _isSaving ? Icons.hourglass_empty : Icons.save_alt,
-          onTap: _isOnline && !_isSaving ? _saveSnapshot : () {},
-          enabled: _isOnline && !_isSaving,
-        ),
-        const SizedBox(height: 8),
-        // Saved snapshots button with badge
+      ],
+    );
+  }
+  
+  /// Right floating buttons (Saved top, Save bottom)
+  Widget _buildRightFloatingButtons() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Saved snapshots button (top)
         _buildFloatingButton(
           icon: Icons.offline_pin,
           onTap: _showSavedSnapshots,
           badgeCount: _savedSnapshots.length,
+        ),
+        const SizedBox(height: 8),
+        // Save snapshot button (bottom)
+        _buildFloatingButton(
+          icon: _isSaving ? Icons.hourglass_empty : Icons.save_alt,
+          onTap: _isOnline && !_isSaving ? _saveSnapshot : () {},
+          enabled: _isOnline && !_isSaving,
         ),
       ],
     );

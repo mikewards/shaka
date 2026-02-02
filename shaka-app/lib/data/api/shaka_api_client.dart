@@ -184,6 +184,7 @@ class ShakaApiClient {
     required double longitude,
   }) async {
     final deviceId = await DeviceIdService.getDeviceId();
+    print('📍 API: Creating spot "$name" with deviceId=$deviceId');
     try {
       final response = await _dio.post(
         '/user-spots',
@@ -194,8 +195,10 @@ class ShakaApiClient {
         },
         options: Options(headers: {'X-Device-ID': deviceId}),
       );
+      print('📍 API: Spot created successfully - ${response.data}');
       return UserSpotResponse.fromJson(response.data);
     } on DioException catch (e) {
+      print('📍 API: Create spot FAILED - ${e.response?.statusCode}: ${e.response?.data}');
       throw _handleError(e);
     }
   }
@@ -203,13 +206,16 @@ class ShakaApiClient {
   /// Get all user spots for this device
   Future<UserSpotsListResponse> getUserSpots() async {
     final deviceId = await DeviceIdService.getDeviceId();
+    print('📍 API: Getting spots for deviceId=$deviceId');
     try {
       final response = await _dio.get(
         '/user-spots',
         options: Options(headers: {'X-Device-ID': deviceId}),
       );
+      print('📍 API: Got spots response - ${response.data}');
       return UserSpotsListResponse.fromJson(response.data);
     } on DioException catch (e) {
+      print('📍 API: Get spots FAILED - ${e.response?.statusCode}: ${e.response?.data}');
       throw _handleError(e);
     }
   }

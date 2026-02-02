@@ -76,13 +76,16 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
       _errorMessage = null;
     });
 
+    debugPrint('📍 SaveSpot: Saving spot "$name" at (${widget.latitude}, ${widget.longitude})');
+
     try {
-      await _apiClient.createUserSpot(
+      final result = await _apiClient.createUserSpot(
         name: name,
         latitude: widget.latitude,
         longitude: widget.longitude,
       );
 
+      debugPrint('📍 SaveSpot: SUCCESS! Saved spot id=${result.id}, name=${result.name}');
       HapticFeedback.mediumImpact();
       
       if (mounted) {
@@ -90,6 +93,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
+      debugPrint('📍 SaveSpot: FAILED! Error: $e');
       HapticFeedback.heavyImpact();
       String errorMsg = 'Failed to save spot. Please try again.';
       
