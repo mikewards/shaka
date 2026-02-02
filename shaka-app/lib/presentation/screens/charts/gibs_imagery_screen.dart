@@ -104,6 +104,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
   
   void _onBackgroundChanged() {
+    // BLOCK: Don't allow style change while loading (prevents iOS crash)
+    if (_isLoading) {
+      debugPrint('GIBS: Ignoring style change - still loading');
+      return;
+    }
+    
     // Save current camera position before rebuilding map
     if (_mapController != null) {
       _lastCameraPosition = _mapController!.cameraPosition;
@@ -1066,10 +1072,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Map style button (top)
+        // Map style button (top) - disabled while loading to prevent iOS crash
         _buildFloatingButton(
           icon: Icons.map_outlined,
           onTap: () => showBackgroundPicker(context),
+          enabled: !_isLoading,
         ),
         const SizedBox(height: 8),
         // Satellite Layers button (bottom)
@@ -1106,12 +1113,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     required IconData icon,
     required VoidCallback onTap,
     int badgeCount = 0,
+    bool enabled = true,
   }) {
     return GestureDetector(
-      onTap: () {
+      onTap: enabled ? () {
         HapticFeedback.lightImpact();
         onTap();
-      },
+      } : null,
       child: Container(
         width: 48,
         height: 48,
@@ -1123,7 +1131,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         child: Stack(
           children: [
             Center(
-              child: Icon(icon, color: Colors.white, size: 24),
+              child: Icon(icon, color: enabled ? Colors.white : Colors.white38, size: 24),
             ),
             if (badgeCount > 0)
               Positioned(

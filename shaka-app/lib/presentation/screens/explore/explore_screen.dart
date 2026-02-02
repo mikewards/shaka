@@ -78,6 +78,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
   
   void _onBackgroundChanged() {
+    // BLOCK: Don't allow style change while map is loading (prevents iOS crash)
+    if (!_isMapReady) {
+      debugPrint('Explore: Ignoring style change - map not ready');
+      return;
+    }
+    
     // Save current camera position before rebuilding map
     if (_mapController != null) {
       _lastCameraPosition = _mapController!.cameraPosition;
