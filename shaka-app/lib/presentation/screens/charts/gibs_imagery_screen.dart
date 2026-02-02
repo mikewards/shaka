@@ -844,7 +844,15 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               child: _buildTopBar(),
             ),
 
-          // Bottom controls (always visible - pin mode actions are inside)
+          // Floating action buttons on map (left side - vertically stacked)
+          if (!_isPinMode)
+            Positioned(
+              left: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 140,
+              child: _buildFloatingButtons(),
+            ),
+
+          // Bottom controls (opacity/legend only)
           Positioned(
             left: 0,
             right: 0,
@@ -973,11 +981,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           // Date warning (if applicable)
           _buildDateWarning(),
           
-          // Action buttons row ABOVE opacity/legend
-          _buildActionButtons(),
-          
-          const SizedBox(height: 8),
-          
           // Opacity slider and legend on SAME row (50/50 split)
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -1002,6 +1005,91 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             _buildPinModeActions(),
           ],
         ],
+      ),
+    );
+  }
+  
+  /// Floating buttons on the map (vertically stacked)
+  Widget _buildFloatingButtons() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Layers button
+        _buildFloatingButton(
+          icon: Icons.layers_outlined,
+          onTap: _showLayerPicker,
+        ),
+        const SizedBox(height: 8),
+        // Map style button
+        _buildFloatingButton(
+          icon: Icons.map_outlined,
+          onTap: () => showBackgroundPicker(context),
+        ),
+        const SizedBox(height: 8),
+        // Add spot button (enters pin mode)
+        _buildFloatingButton(
+          icon: Icons.add_location_alt,
+          onTap: _enterPinMode,
+        ),
+        const SizedBox(height: 8),
+        // Saved spots button with badge
+        _buildFloatingButton(
+          icon: Icons.bookmark_outline,
+          onTap: _showSavedSpotsSheet,
+          badgeCount: _savedSpots.length,
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildFloatingButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5B9BD5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeCount > 9 ? '9+' : '$badgeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1200,115 +1288,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     );
   }
   
-  /// Build action buttons row - horizontal layout
-  /// Left: Satellite Layers + Map Style | Right: Pin + Saved Spots
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // Left side - Satellite Layers + Map Style
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showLayerPicker();
-          },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
-          ),
-        ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            showBackgroundPicker(context);
-          },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: const Icon(Icons.map_outlined, color: Colors.white70, size: 22),
-          ),
-        ),
-        const Spacer(),
-        // Right side - Pin + Saved Spots
-        if (!_isPinMode)
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _enterPinMode();
-            },
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: const Icon(Icons.add_location_alt, color: Colors.white70, size: 22),
-            ),
-          ),
-        if (!_isPinMode) const SizedBox(width: 8),
-        // Saved spots button with badge (fixed overflow)
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showSavedSpotsSheet();
-          },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Center(
-                  child: Icon(Icons.bookmark_outline, color: Colors.white70, size: 22),
-                ),
-                if (_savedSpots.isNotEmpty)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF5B9BD5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          _savedSpots.length > 9 ? '9+' : '${_savedSpots.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
   
   void _showBackgroundPicker() {
     showBackgroundPicker(context);

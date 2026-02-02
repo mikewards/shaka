@@ -1771,7 +1771,15 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
             child: _buildTopBar(),
           ),
           
-          // Unified bottom controls (matches GIBS style)
+          // Floating action buttons on map (left side - vertically stacked)
+          if (_isOnline && _controller != null)
+            Positioned(
+              left: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 100,
+              child: _buildFloatingButtons(),
+            ),
+          
+          // Bottom controls (opacity/legend only)
           if (_isOnline && _controller != null)
             Positioned(
               left: 0,
@@ -1859,7 +1867,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
 
-  /// Build unified bottom controls (matches GIBS style)
+  /// Build bottom controls (opacity/legend only - buttons are floating)
   Widget _buildBottomControls() {
     return Container(
       padding: EdgeInsets.only(
@@ -1872,32 +1880,102 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         color: Colors.black.withOpacity(0.85),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Action buttons row ABOVE opacity/legend
-          _buildActionButtons(),
-          
-          const SizedBox(height: 8),
-          
-          // Opacity slider + legend on SAME row (50/50 split)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Opacity slider (~50% width)
-              Expanded(
-                flex: 1,
-                child: _buildOpacityRow(),
-              ),
-              const SizedBox(width: 12),
-              // Legend (~50% width)
-              Expanded(
-                flex: 1,
-                child: _buildLegendSection(),
-              ),
-            ],
+          // Opacity slider (~50% width)
+          Expanded(
+            flex: 1,
+            child: _buildOpacityRow(),
+          ),
+          const SizedBox(width: 12),
+          // Legend (~50% width)
+          Expanded(
+            flex: 1,
+            child: _buildLegendSection(),
           ),
         ],
+      ),
+    );
+  }
+  
+  /// Floating buttons on the map (vertically stacked)
+  Widget _buildFloatingButtons() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Layers button
+        _buildFloatingButton(
+          icon: Icons.layers_outlined,
+          onTap: _showLayerSheet,
+        ),
+        const SizedBox(height: 8),
+        // Save snapshot button
+        _buildFloatingButton(
+          icon: _isSaving ? Icons.hourglass_empty : Icons.save_alt,
+          onTap: _isOnline && !_isSaving ? _saveSnapshot : () {},
+          enabled: _isOnline && !_isSaving,
+        ),
+        const SizedBox(height: 8),
+        // Saved snapshots button with badge
+        _buildFloatingButton(
+          icon: Icons.offline_pin,
+          onTap: _showSavedSnapshots,
+          badgeCount: _savedSnapshots.length,
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildFloatingButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+    bool enabled = true,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? () {
+        HapticFeedback.lightImpact();
+        onTap();
+      } : null,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(icon, color: enabled ? Colors.white : Colors.white38, size: 24),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5B9BD5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeCount > 9 ? '9+' : '$badgeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2010,103 +2088,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
   
-  /// Build action buttons row - horizontal layout
-  /// Left: Data Layers | Right: Save + Saved Snapshots
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // Left side - Data Layers button
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showLayerSheet();
-          },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: const Icon(Icons.layers_outlined, color: Colors.white70, size: 22),
-          ),
-        ),
-        const Spacer(),
-        // Right side - Save + Saved Snapshots
-        GestureDetector(
-          onTap: _isOnline && !_isSaving ? () {
-            HapticFeedback.lightImpact();
-            _saveSnapshot();
-          } : null,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Center(
-              child: Icon(
-                _isSaving ? Icons.hourglass_empty : Icons.save_alt,
-                color: _isOnline && !_isSaving ? Colors.white70 : Colors.white38,
-                size: 22,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Saved snapshots button (fixed badge overflow)
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showSavedSnapshots();
-          },
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Center(
-                  child: Icon(Icons.offline_pin, color: Colors.white70, size: 22),
-                ),
-                if (_savedSnapshots.isNotEmpty)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF5B9BD5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          _savedSnapshots.length > 9 ? '9+' : _savedSnapshots.length.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
   
   /// Build legend section
   Widget _buildLegendSection() {

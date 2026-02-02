@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
-import '../../../data/services/device_id_service.dart';
 import '../../../core/theme/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,7 +15,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<UserSpotResponse> _savedSpots = [];
   bool _isLoading = true;
   String? _error;
-  String? _deviceId;
   
   final _apiClient = ShakaApiClient();
 
@@ -25,7 +22,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadSavedSpots();
-    _loadDeviceId();
   }
 
   Future<void> _loadSavedSpots() async {
@@ -44,13 +40,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  Future<void> _loadDeviceId() async {
-    final id = await DeviceIdService.getDeviceId();
-    if (mounted) {
-      setState(() => _deviceId = id);
     }
   }
 
@@ -106,30 +95,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Expanded(
             child: _buildContent(),
           ),
-          
-          // Device ID footer
-          if (_deviceId != null)
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: _deviceId!));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Device ID copied'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              child: Container(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16,
-                  top: 16,
-                ),
-                child: Text(
-                  'ID: ${_deviceId!.substring(0, 8)}... (tap to copy)',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ),
-            ),
         ],
       ),
     );
