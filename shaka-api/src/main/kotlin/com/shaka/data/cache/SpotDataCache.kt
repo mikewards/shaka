@@ -469,6 +469,53 @@ object SpotDataCache {
     }
     
     /**
+     * Clear all GIBS chlorophyll values from cache and database.
+     * Used to force a full refetch with new color data.
+     */
+    fun clearAllGIBS(): Int {
+        var cleared = 0
+        cache.forEach { (spotId, data) ->
+            if (data.gibsChlorophyll != null) {
+                cache[spotId] = data.copy(gibsChlorophyll = null)
+                cleared++
+            }
+        }
+        
+        // Also clear from database
+        try {
+            val conn = java.sql.DriverManager.getConnection(
+                System.getenv("DATABASE_URL") ?: "",
+                System.getenv("PGUSER") ?: "",
+                System.getenv("PGPASSWORD") ?: ""
+            )
+            conn.prepareStatement("""
+                UPDATE spot_cache SET 
+                    gibs_pace_today = NULL, gibs_pace_today_color = NULL,
+                    gibs_pace_yesterday = NULL, gibs_pace_yesterday_color = NULL,
+                    gibs_noaa20_today = NULL, gibs_noaa20_today_color = NULL,
+                    gibs_noaa20_yesterday = NULL, gibs_noaa20_yesterday_color = NULL,
+                    gibs_noaa21_today = NULL, gibs_noaa21_today_color = NULL,
+                    gibs_noaa21_yesterday = NULL, gibs_noaa21_yesterday_color = NULL,
+                    gibs_sentinel3a_today = NULL, gibs_sentinel3a_today_color = NULL,
+                    gibs_sentinel3a_yesterday = NULL, gibs_sentinel3a_yesterday_color = NULL,
+                    gibs_sentinel3b_today = NULL, gibs_sentinel3b_today_color = NULL,
+                    gibs_sentinel3b_yesterday = NULL, gibs_sentinel3b_yesterday_color = NULL,
+                    gibs_data_date = NULL,
+                    gibs_pace_observation_time = NULL,
+                    gibs_noaa20_observation_time = NULL,
+                    gibs_noaa21_observation_time = NULL
+            """.trimIndent()).executeUpdate()
+            conn.close()
+            logger.info("Cleared GIBS data from database")
+        } catch (e: Exception) {
+            logger.warn("Could not clear GIBS from database: ${e.message}")
+        }
+        
+        logger.info("Cleared GIBS data from $cleared cached spots")
+        return cleared
+    }
+    
+    /**
      * Get chlorophyll statistics.
      */
     fun getChlorophyllStats(): Map<String, Any> {

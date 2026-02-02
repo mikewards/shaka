@@ -295,6 +295,15 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Clear all GIBS data (to force refetch with new color fields)
+            post("/admin/gibs/clear") {
+                val cleared = com.shaka.data.cache.SpotDataCache.clearAllGIBS()
+                call.respondText(
+                    """{"status":"ok","cleared":$cleared}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
             // Trigger GIBS fetch for all spots without GIBS data
             post("/admin/gibs/refetch") {
                 val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutGIBS()
