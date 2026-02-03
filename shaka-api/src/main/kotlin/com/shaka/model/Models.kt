@@ -245,7 +245,9 @@ data class TideData(
     val currentHeight: Double,
     val nextHighTide: String,
     val nextLowTide: String,
-    val tideState: String
+    val tideState: String,
+    val nextHighTideTime: Long? = null,  // Epoch millis for next high tide
+    val nextLowTideTime: Long? = null    // Epoch millis for next low tide
 )
 
 @Serializable

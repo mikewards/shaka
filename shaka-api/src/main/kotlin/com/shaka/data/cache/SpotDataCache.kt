@@ -80,7 +80,9 @@ object SpotDataCache {
         val nextHighTide: String,       // "3:42 PM (5.2ft)"
         val nextLowTide: String,        // "9:15 AM (0.8ft)"
         val currentHeight: Double,      // Current tide height in feet
-        val stationId: String? = null   // NOAA station ID if available
+        val stationId: String? = null,  // NOAA station ID if available
+        val nextHighTideTime: Instant? = null,  // Actual timestamp for next high tide
+        val nextLowTideTime: Instant? = null    // Actual timestamp for next low tide
     )
     
     /**
@@ -942,7 +944,12 @@ object SpotDataCache {
                     // Tide data
                     stmt.setString(2, data.tide?.value?.state)
                     stmt.setObject(3, data.tide?.value?.currentHeight)
-                    stmt.setTimestamp(4, null) // tide_next_time - simplified
+                    // Get the soonest upcoming tide time (whichever is next: high or low)
+                    val nextTideTime = listOfNotNull(
+                        data.tide?.value?.nextHighTideTime,
+                        data.tide?.value?.nextLowTideTime
+                    ).minOrNull()
+                    stmt.setTimestamp(4, nextTideTime?.let { Timestamp.from(it) })
                     stmt.setTimestamp(5, data.tide?.fetchedAt?.let { Timestamp.from(it) })
                     
                     // Weather data

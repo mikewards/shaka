@@ -99,7 +99,9 @@ class DataPrefetchJobs(
                                         nextHighTide = tideData.nextHighTide,
                                         nextLowTide = tideData.nextLowTide,
                                         currentHeight = tideData.currentHeight,
-                                        stationId = stationId
+                                        stationId = stationId,
+                                        nextHighTideTime = tideData.nextHighTideTime?.let { Instant.ofEpochMilli(it) },
+                                        nextLowTideTime = tideData.nextLowTideTime?.let { Instant.ofEpochMilli(it) }
                                     ),
                                     fetchedAt = Instant.now(),
                                     dataValidAt = null
@@ -641,7 +643,9 @@ class DataPrefetchJobs(
                                 nextHighTide = tideData.nextHighTide,
                                 nextLowTide = tideData.nextLowTide,
                                 currentHeight = tideData.currentHeight,
-                                stationId = null
+                                stationId = null,
+                                nextHighTideTime = tideData.nextHighTideTime?.let { Instant.ofEpochMilli(it) },
+                                nextLowTideTime = tideData.nextLowTideTime?.let { Instant.ofEpochMilli(it) }
                             ),
                             fetchedAt = now
                         )

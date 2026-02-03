@@ -196,6 +196,8 @@ class NOAATidesClient {
                 
                 var nextHighTide = ""
                 var nextLowTide = ""
+                var nextHighTideTime: LocalDateTime? = null
+                var nextLowTideTime: LocalDateTime? = null
                 var currentHeight = 0.0
                 var tideState = "unknown"
                 
@@ -213,10 +215,12 @@ class NOAATidesClient {
                         if (predTime.isAfter(now)) {
                             if (type == "H" && nextHighTide.isEmpty()) {
                                 nextHighTide = "${predTime.format(DateTimeFormatter.ofPattern("h:mma"))} (${String.format("%.1f", height)}ft)"
+                                nextHighTideTime = predTime  // Preserve the timestamp
                                 // If next is high, we're rising
                                 if (tideState == "unknown") tideState = "rising"
                             } else if (type == "L" && nextLowTide.isEmpty()) {
                                 nextLowTide = "${predTime.format(DateTimeFormatter.ofPattern("h:mma"))} (${String.format("%.1f", height)}ft)"
+                                nextLowTideTime = predTime  // Preserve the timestamp
                                 // If next is low, we're falling
                                 if (tideState == "unknown") tideState = "falling"
                             }
@@ -231,11 +235,16 @@ class NOAATidesClient {
                     }
                 }
                 
+                // Convert LocalDateTime to epoch millis for serialization
+                val zoneId = java.time.ZoneId.systemDefault()
+                
                 return TideData(
                     currentHeight = currentHeight,
                     nextHighTide = nextHighTide.ifEmpty { "N/A" },
                     nextLowTide = nextLowTide.ifEmpty { "N/A" },
-                    tideState = tideState
+                    tideState = tideState,
+                    nextHighTideTime = nextHighTideTime?.atZone(zoneId)?.toInstant()?.toEpochMilli(),
+                    nextLowTideTime = nextLowTideTime?.atZone(zoneId)?.toInstant()?.toEpochMilli()
                 )
             }
             
