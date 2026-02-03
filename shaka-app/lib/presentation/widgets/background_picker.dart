@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/models/map_background.dart';
 import '../../data/services/map_background_service.dart';
 
@@ -117,7 +118,7 @@ class _BackgroundOption extends StatelessWidget {
   Color _getIconColor() {
     switch (background) {
       case MapBackground.defaultDark:
-        return const Color(0xFF5B9BD5);
+        return AppColors.info;
       case MapBackground.satellite:
         return const Color(0xFF4CAF50);
       case MapBackground.nauticalChart:

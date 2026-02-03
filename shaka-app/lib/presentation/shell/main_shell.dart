@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme/app_colors.dart';
 
 /// Main shell with bottom navigation for the app.
 /// Contains tabs for Home, Explore, Charts, and Profile.
@@ -89,7 +90,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isSelected 
-        ? const Color(0xFF5B9BD5) // Ocean blue
+        ? AppColors.info
         : Colors.white54;
     
     return GestureDetector(
@@ -100,7 +101,7 @@ class _NavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected 
-              ? const Color(0xFF5B9BD5).withOpacity(0.1)
+              ? AppColors.info.withOpacity(0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),

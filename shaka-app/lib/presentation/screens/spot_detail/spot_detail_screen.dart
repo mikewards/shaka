@@ -249,7 +249,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       color: _bgColor,
       child: TabBar(
         controller: _tabController,
-        indicatorColor: const Color(0xFF5B9BD5),
+        indicatorColor: AppColors.info,
         indicatorWeight: 3,
         labelColor: Colors.white,
         unselectedLabelColor: Colors.white54,
@@ -331,7 +331,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 icon: Icons.waves,
                 label: 'Conditions',
                 sublabel: 'Copernicus',
-                color: const Color(0xFF2196F3),
+                color: AppColors.info,
                 onTap: () {
                   HapticFeedback.lightImpact();
                   context.push('/charts/copernicus', extra: {
@@ -343,20 +343,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ),
             ),
           ],
-        ),
-
-        const SizedBox(height: 24),
-
-        // About this spot
-        _buildSectionHeader('ABOUT'),
-        const SizedBox(height: 10),
-        Text(
-          spot.description,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 14,
-            height: 1.5,
-          ),
         ),
 
         const SizedBox(height: 40),
@@ -615,7 +601,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ),
               const SizedBox(width: 10),
               SizedBox(
-                width: 24,
+                width: 30,
                 child: Text(
                   '$score',
                   style: TextStyle(
@@ -648,8 +634,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.warning_amber,
-                          color: Colors.orange, size: 16),
+                      Icon(Icons.warning_amber,
+                          color: AppColors.warning, size: 16),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -734,12 +720,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     
     if (mpa == null || mpa.spearfishingStatus == 0) {
       // No MPA or spearfishing allowed
-      statusColor = Colors.green;
+      statusColor = AppColors.success;
       statusText = 'No MPA restrictions nearby';
       statusIcon = Icons.check_circle;
     } else if (mpa.isInsideMPA) {
       // INSIDE a restricted area - RED warning
-      statusColor = Colors.red;
+      statusColor = AppColors.error;
       statusIcon = Icons.block;
       if (mpa.spearfishingStatus == 1) {
         statusText = 'RESTRICTED AREA - FREEDIVING ONLY';
@@ -750,7 +736,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       }
     } else {
       // NEARBY a restricted area - ORANGE warning
-      statusColor = Colors.orange;
+      statusColor = AppColors.warning;
       if (mpa.spearfishingStatus == 1) {
         statusText = 'MARINE SANCTUARY NEARBY';
         statusIcon = Icons.warning_amber;
@@ -811,13 +797,13 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.15),
+                      color: AppColors.error.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.block, color: Colors.red, size: 16),
+                        Icon(Icons.block, color: AppColors.error, size: 16),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -838,13 +824,13 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.15),
+                      color: AppColors.warning.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                        Icon(Icons.info_outline, color: AppColors.warning, size: 16),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -864,17 +850,17 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.2),
+                      color: AppColors.info.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.map, color: Colors.blue, size: 16),
+                        Icon(Icons.map, color: AppColors.info, size: 16),
                         SizedBox(width: 6),
                         Text(
                           'View official boundary map',
-                          style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: AppColors.info, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -910,8 +896,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 const SizedBox(height: 6),
                 Text(
                   regulations.note!,
-                  style: const TextStyle(
-                    color: Colors.orange,
+                  style: TextStyle(
+                    color: AppColors.warning,
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
                   ),
@@ -927,18 +913,18 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.2),
+                          color: AppColors.info.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.public, color: Colors.blue, size: 16),
+                            Icon(Icons.public, color: AppColors.info, size: 16),
                             SizedBox(width: 6),
                             Text(
                               'Regulations',
                               style:
-                                  TextStyle(color: Colors.blue, fontSize: 12),
+                                  TextStyle(color: AppColors.info, fontSize: 12),
                             ),
                           ],
                         ),
@@ -954,19 +940,19 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.2),
+                            color: AppColors.success.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.card_membership,
-                                  color: Colors.green, size: 16),
+                                  color: AppColors.success, size: 16),
                               SizedBox(width: 6),
                               Text(
                                 'Licenses',
                                 style: TextStyle(
-                                    color: Colors.green, fontSize: 12),
+                                    color: AppColors.success, fontSize: 12),
                               ),
                             ],
                           ),
@@ -1048,7 +1034,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                       height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFF5B9BD5),
+                        color: AppColors.info,
                       ),
                     ),
                     SizedBox(width: 10),
@@ -1065,7 +1051,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           const Center(
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Color(0xFF5B9BD5),
+              color: AppColors.info,
             ),
           ),
           // Guide tab with fish preview
@@ -1208,7 +1194,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 children: [
                   CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Color(0xFF5B9BD5),
+                    color: AppColors.info,
                   ),
                   SizedBox(height: 16),
                   Text(
@@ -1274,7 +1260,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                       child: const Text(
                         'Retry',
                         style:
-                            TextStyle(color: Color(0xFF5B9BD5), fontSize: 15),
+                            TextStyle(color: AppColors.info, fontSize: 15),
                       ),
                     ),
                   ],

@@ -76,7 +76,7 @@ class AppColors {
   static const darkBackground = Color(0xFF0D0D0D);  // Main app background
   static const darkSurface = Color(0xFF1A1A1A);     // Cards, containers, inputs
   static const darkBorder = Color(0xFF2A2A2A);      // Subtle borders
-  static const darkAccent = Color(0xFF5B9BD5);      // Primary accent (ocean blue)
+  static const darkAccent = Color(0xFF7A9BB8);      // Primary accent (muted blue-gray, matches Quiet Luxury theme)
 
   // Dark Theme - Text colors
   static const darkTextPrimary = Colors.white;

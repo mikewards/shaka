@@ -213,7 +213,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
       return const Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: Color(0xFF5B9BD5),
+          color: AppColors.info,
         ),
       );
     }
@@ -271,7 +271,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   child: const Text(
                     'Clear',
                     style: TextStyle(
-                      color: Color(0xFF5B9BD5),
+                      color: AppColors.info,
                       fontSize: 12,
                     ),
                   ),

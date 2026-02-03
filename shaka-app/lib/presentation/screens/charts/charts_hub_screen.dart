@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/services/health_service.dart';
 import 'ocean_charts_webview.dart';
 import 'gibs_imagery_screen.dart';
@@ -62,7 +63,7 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                       subtitle: 'Higher resolution imagery from PACE, VIIRS, MODIS satellites',
                       source: 'NASA GIBS Near Real-Time',
                       badge: 'HIGH-RES',
-                      badgeColor: const Color(0xFF4CAF50),
+                      badgeColor: AppColors.success,
                       icon: Icons.satellite_alt,
                       imagePath: 'assets/images/satellite_imagery_preview.png',
                       fallbackColors: const [
@@ -95,7 +96,7 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                       subtitle: 'Animated currents, waves, wind with hourly snapshots',
                       source: 'Copernicus Marine Service',
                       badge: 'ANIMATED',
-                      badgeColor: const Color(0xFF2196F3),
+                      badgeColor: AppColors.info,
                       icon: Icons.play_circle_outline,
                       imagePath: 'assets/images/ocean_conditions_preview.png',
                       fallbackColors: const [
@@ -328,7 +329,7 @@ class _DataSourceCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: badgeColor ?? Colors.blue,
+                              color: badgeColor ?? AppColors.info,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(

@@ -9,6 +9,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 
 /// Saved ocean chart snapshot
@@ -1286,7 +1287,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Saved "${snapshot.name}" for offline viewing'),
-            backgroundColor: Colors.green.shade700,
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -1296,7 +1297,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to save: $e'),
-            backgroundColor: Colors.red.shade700,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -1502,18 +1503,18 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF5B9BD5),
+            colorScheme: ColorScheme.dark(
+              primary: AppColors.info,
               onPrimary: Colors.white,
-              surface: Color(0xFF1A1A1A),
+              surface: const Color(0xFF1A1A1A),
               onSurface: Colors.white,
-              secondary: Color(0xFF5B9BD5),
+              secondary: AppColors.info,
               onSecondary: Colors.white,
             ),
             dialogBackgroundColor: const Color(0xFF1A1A1A),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF5B9BD5), // Bright Cancel/OK buttons
+                foregroundColor: AppColors.info,
               ),
             ),
           ),
@@ -1980,8 +1981,8 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                 child: Container(
                   constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                   padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF5B9BD5),
+                  decoration: BoxDecoration(
+                    color: AppColors.info,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -2058,8 +2059,8 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                   right: 2,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
+                    decoration: BoxDecoration(
+                      color: AppColors.info,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -2083,7 +2084,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   /// Build opacity slider row
   Widget _buildOpacityRow() {
     final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
-    final layerColor = layerInfo?['color'] as Color? ?? Colors.blue;
+    final layerColor = layerInfo?['color'] as Color? ?? AppColors.info;
     
     return Row(
       children: [
@@ -2156,10 +2157,10 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                 width: 48,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.blue : Colors.transparent,
+                  color: isSelected ? AppColors.info : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected ? Colors.blue : Colors.white24,
+                    color: isSelected ? AppColors.info : Colors.white24,
                     width: 1,
                   ),
                 ),
@@ -2251,10 +2252,10 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.blue : Colors.transparent,
+                  color: isSelected ? AppColors.info : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: isSelected ? Colors.blue : Colors.white24,
+                    color: isSelected ? AppColors.info : Colors.white24,
                   ),
                 ),
                 child: Text(
@@ -2521,8 +2522,8 @@ class _SnapshotCard extends StatelessWidget {
                             Navigator.pop(context);
                             onDelete();
                           },
-                          child: const Text('Delete', 
-                              style: TextStyle(color: Colors.red)),
+                          child: Text('Delete', 
+                              style: TextStyle(color: AppColors.error)),
                         ),
                       ],
                     ),
@@ -2698,12 +2699,12 @@ class _ToolbarButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
           color: highlighted 
-              ? (enabled ? Colors.blue.withOpacity(0.3) : Colors.blue.withOpacity(0.1))
+              ? (enabled ? AppColors.info.withOpacity(0.3) : AppColors.info.withOpacity(0.1))
               : Colors.white.withOpacity(enabled ? 0.1 : 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: highlighted 
-                ? (enabled ? Colors.blue : Colors.blue.withOpacity(0.3))
+                ? (enabled ? AppColors.info : AppColors.info.withOpacity(0.3))
                 : (enabled ? Colors.white24 : Colors.white12),
           ),
         ),
@@ -2777,8 +2778,8 @@ class _SquareButton extends StatelessWidget {
                   right: 4,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
+                    decoration: BoxDecoration(
+                      color: AppColors.info,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -2881,8 +2882,8 @@ class _FloatingActionButton extends StatelessWidget {
                   right: 2,
                   child: Container(
                     padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
+                    decoration: BoxDecoration(
+                      color: AppColors.info,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -2928,12 +2929,12 @@ class _VerticalToolbarButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: highlighted 
-              ? (enabled ? Colors.blue.withOpacity(0.4) : Colors.blue.withOpacity(0.15))
+              ? (enabled ? AppColors.info.withOpacity(0.4) : AppColors.info.withOpacity(0.15))
               : Colors.black.withOpacity(0.7),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: highlighted 
-                ? (enabled ? Colors.blue : Colors.blue.withOpacity(0.3))
+                ? (enabled ? AppColors.info : AppColors.info.withOpacity(0.3))
                 : (enabled ? Colors.white30 : Colors.white12),
             width: 1.5,
           ),
@@ -2962,7 +2963,7 @@ class _VerticalToolbarButton extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.blue,
+                  color: AppColors.info,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(

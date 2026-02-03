@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -657,7 +658,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       const Positioned.fill(
                         child: Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFF5B9BD5),
+                            color: AppColors.info,
                           ),
                         ),
                       ),
@@ -834,7 +835,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),  // Reduced padding
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
           child: Row(
             children: [
               Text(
@@ -848,9 +849,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
               const Spacer(),
               Text(
                 'Today\'s conditions',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
-                  fontSize: 12,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -880,7 +882,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         
         // Carousel dots with proper padding
         Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 8),
+          padding: const EdgeInsets.only(top: 6, bottom: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
@@ -892,7 +894,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 height: 6,
                 decoration: BoxDecoration(
                   color: index == _selectedSpotIndex
-                      ? const Color(0xFF5B9BD5)
+                      ? AppColors.info
                       : Colors.white24,
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -920,25 +922,35 @@ class _SpotCard extends StatelessWidget {
     return 'Poor';
   }
 
+  String _formatConditionValue(String value) {
+    // Replace long/loading values with short placeholder
+    if (value.toLowerCase().contains('updating') || 
+        value.toLowerCase().contains('loading') ||
+        value.isEmpty) {
+      return '--';
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: _getScoreColor(spot.shakaScore).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
@@ -952,7 +964,7 @@ class _SpotCard extends StatelessWidget {
                     '${spot.shakaScore}',
                     style: TextStyle(
                       color: _getScoreColor(spot.shakaScore),
-                      fontSize: 17,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -997,28 +1009,28 @@ class _SpotCard extends StatelessWidget {
             ],
           ),
           
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           
           Row(
             children: [
               _ConditionChip(
                 icon: Icons.visibility,
-                value: spot.conditions.visibility.split(' ').first,
+                value: _formatConditionValue(spot.conditions.visibility.split(' ').first),
               ),
               const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.thermostat,
-                value: spot.conditions.waterTemp.split(' ').first,
+                value: _formatConditionValue(spot.conditions.waterTemp.split(' ').first),
               ),
               const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.waves,
-                value: spot.conditions.swell.split('@').first.trim(),
+                value: _formatConditionValue(spot.conditions.swell.split('@').first.trim()),
               ),
               const SizedBox(width: 6),
               _ConditionChip(
                 icon: Icons.air,
-                value: spot.conditions.wind,
+                value: _formatConditionValue(spot.conditions.wind),
               ),
             ],
           ),

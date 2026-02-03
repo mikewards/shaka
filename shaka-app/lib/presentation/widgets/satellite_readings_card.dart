@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
 /// Card displaying satellite data in two sections:
@@ -62,12 +63,13 @@ class SatelliteReadingsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Legend at top
-          _buildLegend(),
-          const SizedBox(height: 14),
-          
           // SECTION 1: Measured Chlorophyll (NOAA ERDDAP)
           _buildMeasuredChlorophyllSection(),
+          
+          const SizedBox(height: 12),
+          
+          // Legend below measured chlorophyll
+          _buildLegend(),
           
           const SizedBox(height: 16),
           
@@ -156,13 +158,13 @@ class SatelliteReadingsCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.2),
+                    color: AppColors.success.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text(
+                  child: Text(
                     'TRUSTED',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: AppColors.success,
                       fontSize: 8,
                       fontWeight: FontWeight.w600,
                     ),
@@ -196,11 +198,14 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
               const Spacer(),
               if (readings!.noaaErddapFetchTime != null)
-                Text(
-                  _formatDateTime(readings!.noaaErddapFetchTime!),
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    _formatDateTime(readings!.noaaErddapFetchTime!),
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
             ],
@@ -342,6 +347,7 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Satellite name
           SizedBox(
@@ -443,17 +449,17 @@ class SatelliteReadingsCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'MEASURED CHLOROPHYLL',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: AppColors.success,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1,

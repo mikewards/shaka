@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/api/gibs_service.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/gibs_layer.dart';
@@ -731,7 +732,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Deleted "${spot.name}"'),
-            backgroundColor: Colors.orange.shade700,
+            backgroundColor: AppColors.warning,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -741,7 +742,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Failed to delete spot'),
-            backgroundColor: Colors.red.shade700,
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -760,17 +761,17 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF5B9BD5),
+            colorScheme: ColorScheme.dark(
+              primary: AppColors.info,
               onPrimary: Colors.white,
-              surface: Color(0xFF1A1A1A),
+              surface: const Color(0xFF1A1A1A),
               onSurface: Colors.white,
-              secondary: Color(0xFF5B9BD5),
+              secondary: AppColors.info,
               onSecondary: Colors.white,
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF5B9BD5), // Bright Cancel/OK buttons
+                foregroundColor: AppColors.info,
               ),
             ),
           ),
@@ -895,14 +896,15 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             ),
 
           // Floating action buttons - LEFT side (Map Style top, Layers bottom)
-          if (!_isPinMode)
-            Positioned(
-              left: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 80,
-              child: _buildLeftFloatingButtons(),
-            ),
+          // Always visible, positioned higher in pin mode to avoid overlap
+          Positioned(
+            left: 16,
+            bottom: MediaQuery.of(context).padding.bottom + (_isPinMode ? 140 : 80),
+            child: _buildLeftFloatingButtons(),
+          ),
           
           // Floating action buttons - RIGHT side (Saved Spots top, Pin bottom)
+          // Hidden in pin mode since these actions don't apply
           if (!_isPinMode)
             Positioned(
               right: 16,
@@ -1146,8 +1148,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                 child: Container(
                   constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                   padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF5B9BD5),
+                  decoration: BoxDecoration(
+                    color: AppColors.info,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -1344,7 +1346,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             data: const SliderThemeData(trackHeight: 3),
             child: Slider(
               value: _opacity,
-              activeColor: _primaryLayer.color,
+              activeColor: AppColors.info,
               inactiveColor: Colors.white24,
               onChanged: _updateOpacity,
             ),
@@ -1374,18 +1376,18 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.2),
+        color: AppColors.warning.withOpacity(0.2),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.withOpacity(0.5)),
+        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
+          Icon(Icons.warning_amber, color: AppColors.warning, size: 16),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               _dateWarning!,
-              style: const TextStyle(color: Colors.orange, fontSize: 11),
+              style: TextStyle(color: AppColors.warning, fontSize: 11),
             ),
           ),
         ],
@@ -1433,7 +1435,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               children: [
                 Icon(
                   _hasMultipleLayers ? Icons.layers : _primaryLayer.icon, 
-                  color: _hasMultipleLayers ? Colors.blue : _primaryLayer.color, 
+                  color: _hasMultipleLayers ? AppColors.info : _primaryLayer.color, 
                   size: 24,
                 ),
                 const SizedBox(width: 12),
