@@ -154,12 +154,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: IconButton(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                context.pop();
-              },
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 28),
+              child: IconButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  context.pop();
+                },
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: _buildHeader(spot),
@@ -191,7 +194,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [Color(0xFF1E3A5F), _bgColor],
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 60),
+      padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -986,9 +989,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: IconButton(
-              onPressed: () => context.pop(),
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 28),
+              child: IconButton(
+                onPressed: () => context.pop(),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: _buildPreloadedHeader(spot),
@@ -1098,7 +1104,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [Color(0xFF1E3A5F), _bgColor],
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 80, 20, 60),
+      padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -277,8 +277,7 @@ class SpotService {
                     wind = cached?.wind?.let { 
                         "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                     } ?: "${weather.windSpeed.toInt()} knots",
-                    tideState = tideData.tideState,
-                    currentStrength = "Next high: ${tideData.nextHighTide}",
+                    tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                     dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                     satelliteDataDate = satelliteDataDate
                 ),
@@ -534,7 +533,6 @@ class SpotService {
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${weather.windSpeed.toInt()} knots",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                currentStrength = "",  // Chlorophyll moved to satellite readings section
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),
@@ -702,8 +700,7 @@ class SpotService {
                         waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${weather.windSpeed.toInt()} knots",
-                        tideState = "",
-                        currentStrength = ""
+                        tideState = ""
                     ),
                     expectedFish = spot.commonFish,
                     gearRecommendations = emptyList(),
@@ -1448,7 +1445,6 @@ class SpotService {
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${weather.windSpeed.toInt()} knots",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                currentStrength = "",
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),

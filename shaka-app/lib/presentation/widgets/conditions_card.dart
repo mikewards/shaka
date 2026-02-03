@@ -42,11 +42,6 @@ const _conditionSources = {
     updateFrequency: 'Predicted',
     description: 'Tide predictions for nearby stations. Tidal movement affects current strength and fish activity.',
   ),
-  'current': _ConditionSource(
-    source: 'NOAA CO-OPS Current Stations',
-    updateFrequency: 'Real-time / Predicted',
-    description: 'Current speed and direction. Strong currents affect dive safety and require more experience.',
-  ),
 };
 
 /// Conditions card with clean row-based layout.
@@ -130,13 +125,6 @@ class ConditionsCard extends StatelessWidget {
               label: 'Tide',
               value: conditions.tideState,
               sourceKey: 'tide',
-            ),
-          if (conditions.currentStrength.isNotEmpty && 
-              !conditions.currentStrength.contains('N/A'))
-            _ConditionRow(
-              label: 'Current',
-              value: conditions.currentStrength,
-              sourceKey: 'current',
               isLast: true,
             ),
         ],
@@ -230,7 +218,6 @@ class ConditionsCard extends StatelessWidget {
       case 'swell': return 'Swell';
       case 'wind': return 'Wind';
       case 'tide': return 'Tide';
-      case 'current': return 'Current';
       default: return key;
     }
   }

@@ -94,31 +94,18 @@ class SatelliteReadingsCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        // Labels
+        // Labels - 5 values at logarithmic positions
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '0.01',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 10,
+            for (final label in ['<0.01', '0.1', '0.5', '3', '20+'])
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 10,
+                ),
               ),
-            ),
-            Text(
-              'Clearer ← → Murkier',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4),
-                fontSize: 9,
-              ),
-            ),
-            Text(
-              '50+',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 10,
-              ),
-            ),
           ],
         ),
       ],
@@ -349,9 +336,8 @@ class SatelliteReadingsCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Satellite name
-          SizedBox(
-            width: 85,
+          // Satellite name (left)
+          Expanded(
             child: Text(
               name,
               style: const TextStyle(
@@ -361,11 +347,10 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
             ),
           ),
-          // Color circle from satellite imagery
+          // Color circle from satellite imagery (center)
           Container(
             width: 16,
             height: 16,
-            margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _parseHexColor(colorHex),
@@ -375,7 +360,7 @@ class SatelliteReadingsCard extends StatelessWidget {
               ),
             ),
           ),
-          // Timestamp or "Today"/"Yesterday"
+          // Timestamp or "Today"/"Yesterday" (right)
           Expanded(
             child: Text(
               observationTime != null 

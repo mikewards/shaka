@@ -261,7 +261,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:00 local',
     dataStartDate: DateTime(2024, 2, 25),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['0.01', '0.1', '1', '10', '50'],
+    legendLabels: ['<0.01', '~0.5', '20+'],
     legendUnit: 'mg/m³',
   );
 
@@ -285,7 +285,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:30 local',
     dataStartDate: DateTime(2017, 12, 13),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['0.01', '0.1', '1', '10', '50'],
+    legendLabels: ['<0.01', '~0.5', '20+'],
     legendUnit: 'mg/m³',
   );
 
@@ -309,7 +309,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:30 local',
     dataStartDate: DateTime(2023, 3, 31),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['0.01', '0.1', '1', '10', '50'],
+    legendLabels: ['<0.01', '~0.5', '20+'],
     legendUnit: 'mg/m³',
   );
 
@@ -333,7 +333,7 @@ class GibsLayer {
     equatorCrossingTime: '~10:00 local',
     dataStartDate: DateTime(2016, 4, 25),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['0.01', '0.1', '1', '10', '50'],
+    legendLabels: ['<0.01', '~0.5', '20+'],
     legendUnit: 'mg/m³',
   );
 
@@ -357,7 +357,7 @@ class GibsLayer {
     equatorCrossingTime: '~10:00 local',
     dataStartDate: DateTime(2018, 5, 14),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['0.01', '0.1', '1', '10', '50'],
+    legendLabels: ['<0.01', '~0.5', '20+'],
     legendUnit: 'mg/m³',
   );
 }
