@@ -495,9 +495,10 @@ object SpotDataCache {
                     gibs_sentinel3b_today = NULL, gibs_sentinel3b_today_color = NULL,
                     gibs_sentinel3b_yesterday = NULL, gibs_sentinel3b_yesterday_color = NULL,
                     gibs_data_date = NULL,
-                    gibs_pace_observation_time = NULL,
-                    gibs_noaa20_observation_time = NULL,
-                    gibs_noaa21_observation_time = NULL
+                    gibs_fetched_at = NULL,
+                    gibs_pace_obs_time = NULL,
+                    gibs_noaa20_obs_time = NULL,
+                    gibs_noaa21_obs_time = NULL
             """.trimIndent()).executeUpdate()
             conn.close()
             logger.info("Cleared GIBS data from database")
