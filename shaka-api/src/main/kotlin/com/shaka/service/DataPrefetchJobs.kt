@@ -417,10 +417,19 @@ class DataPrefetchJobs(
         spotsToUpdate.forEachIndexed { index, spot ->
             try {
                 withTimeout(SPOT_TIMEOUT_MS) {
-                    val mpaInfo = protectedSeasClient.getMPAStatus(
+                    // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+                    val exactResult = protectedSeasClient.getMPAStatusExact(
                         spot.coordinates.lat,
                         spot.coordinates.lon
                     )
+                    
+                    // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+                    val bufferResult = if (exactResult == null) {
+                        protectedSeasClient.getMPAStatus(spot.coordinates.lat, spot.coordinates.lon)
+                    } else null
+                    
+                    val isInside = exactResult != null
+                    val mpaInfo = exactResult ?: bufferResult
                     
                     // Convert to cache format (null mpaInfo is valid - means no specific MPA)
                     val cacheInfo = mpaInfo?.let {
@@ -431,7 +440,8 @@ class DataPrefetchJobs(
                             protectionLevel = it.protectionLevel,
                             speciesOfConcern = it.speciesOfConcern,
                             purpose = it.purpose,
-                            detailsUrl = it.detailsUrl
+                            detailsUrl = it.detailsUrl,
+                            isInsideMPA = isInside
                         )
                     }
                     
@@ -443,7 +453,7 @@ class DataPrefetchJobs(
                     successCount++
                     
                     if (mpaInfo != null) {
-                        logger.debug("MPA for ${spot.name}: ${mpaInfo.siteName} (spearfishing=${mpaInfo.spearfishingStatus})")
+                        logger.debug("MPA for ${spot.name}: ${mpaInfo.siteName} (inside=$isInside, spearfishing=${mpaInfo.spearfishingStatus})")
                     } else {
                         logger.debug("MPA for ${spot.name}: No specific MPA found")
                     }
@@ -705,9 +715,19 @@ class DataPrefetchJobs(
                     logger.debug("User spot GIBS fetch failed for ${spot.name}: ${e.message}")
                 }
                 
-                // MPA
+                // MPA - exact first, then buffer
                 try {
-                    val mpaInfo = protectedSeasClient.getMPAStatus(lat, lon)
+                    // Step 1: Check EXACT location (is spot INSIDE an MPA?)
+                    val exactResult = protectedSeasClient.getMPAStatusExact(lat, lon)
+                    
+                    // Step 2: If not inside, check with buffer (is spot NEARBY an MPA?)
+                    val bufferResult = if (exactResult == null) {
+                        protectedSeasClient.getMPAStatus(lat, lon)
+                    } else null
+                    
+                    val isInside = exactResult != null
+                    val mpaInfo = exactResult ?: bufferResult
+                    
                     val cacheInfo = mpaInfo?.let {
                         SpotDataCache.MPACacheInfo(
                             siteName = it.siteName,
@@ -716,7 +736,8 @@ class DataPrefetchJobs(
                             protectionLevel = it.protectionLevel,
                             speciesOfConcern = it.speciesOfConcern,
                             purpose = it.purpose,
-                            detailsUrl = it.detailsUrl
+                            detailsUrl = it.detailsUrl,
+                            isInsideMPA = isInside
                         )
                     }
                     SpotDataCache.updateMPA(cacheId, SpotDataCache.CachedValue(cacheInfo, now))
