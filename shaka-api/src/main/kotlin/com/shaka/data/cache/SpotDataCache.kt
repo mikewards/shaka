@@ -513,6 +513,52 @@ object SpotDataCache {
     }
     
     /**
+     * Clear all tide data from cache and database.
+     * Used to force a full refetch after code changes.
+     */
+    fun clearAllTides(): Int {
+        var cleared = 0
+        cache.forEach { (spotId, data) ->
+            if (data.tide != null) {
+                cache[spotId] = data.copy(tide = null)
+                cleared++
+            }
+        }
+        
+        // Also clear from database
+        try {
+            val conn = java.sql.DriverManager.getConnection(
+                System.getenv("DATABASE_URL") ?: "",
+                System.getenv("PGUSER") ?: "",
+                System.getenv("PGPASSWORD") ?: ""
+            )
+            conn.prepareStatement("""
+                UPDATE spot_cache SET 
+                    tide_state = NULL,
+                    tide_height_ft = NULL,
+                    tide_next_time = NULL,
+                    tide_next_high = NULL,
+                    tide_next_low = NULL,
+                    tide_fetched_at = NULL
+            """.trimIndent()).executeUpdate()
+            conn.close()
+            logger.info("Cleared tide data from database")
+        } catch (e: Exception) {
+            logger.warn("Could not clear tides from database: ${e.message}")
+        }
+        
+        logger.info("Cleared tide data from $cleared cached spots")
+        return cleared
+    }
+    
+    /**
+     * Get all spots without tide data.
+     */
+    fun getSpotsWithoutTide(): List<String> {
+        return cache.filter { it.value.tide == null }.keys.toList()
+    }
+    
+    /**
      * Get chlorophyll statistics.
      */
     fun getChlorophyllStats(): Map<String, Any> {

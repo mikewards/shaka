@@ -350,6 +350,68 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Clear all tide data (to force refetch after code changes)
+            post("/admin/tide/clear") {
+                val cleared = com.shaka.data.cache.SpotDataCache.clearAllTides()
+                call.respondText(
+                    """{"status":"ok","cleared":$cleared}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
+            // Trigger tide fetch for all spots without tide data
+            post("/admin/tide/refetch") {
+                val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutTide()
+                val total = spotsToFetch.size
+                
+                val tidesClient = com.shaka.data.client.NOAATidesClient()
+                val today = java.time.LocalDate.now().toString()
+                
+                kotlinx.coroutines.GlobalScope.launch {
+                    var success = 0
+                    var failed = 0
+                    for (spotId in spotsToFetch) {
+                        try {
+                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            val tideData = tidesClient.getTideData(
+                                spot.coordinates.lat,
+                                spot.coordinates.lon,
+                                today
+                            )
+                            val stationId = tidesClient.findNearestStation(
+                                spot.coordinates.lat,
+                                spot.coordinates.lon
+                            )
+                            com.shaka.data.cache.SpotDataCache.updateTide(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(
+                                    value = com.shaka.data.cache.SpotDataCache.TideInfo(
+                                        state = tideData.tideState,
+                                        nextHighTide = tideData.nextHighTide,
+                                        nextLowTide = tideData.nextLowTide,
+                                        currentHeight = tideData.currentHeight,
+                                        stationId = stationId,
+                                        nextHighTideTime = tideData.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
+                                        nextLowTideTime = tideData.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
+                                    ),
+                                    fetchedAt = java.time.Instant.now()
+                                )
+                            )
+                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                            success++
+                        } catch (e: Exception) { 
+                            failed++
+                        }
+                    }
+                    org.slf4j.LoggerFactory.getLogger("TideRefetch").info("Tide refetch complete: $success success, $failed failed")
+                }
+                
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"Tide fetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
             // Get MPA cache stats
             get("/admin/mpa/stats") {
                 val withMPA = com.shaka.data.cache.SpotDataCache.getAllSpotIds().count { spotId ->
