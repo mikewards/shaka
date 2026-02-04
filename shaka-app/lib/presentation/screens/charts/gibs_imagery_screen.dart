@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/gibs_service.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/gibs_layer.dart';
+import '../../../data/models/map_background.dart';
 import '../../../data/models/spot_models.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
@@ -35,6 +37,15 @@ class GibsImageryScreen extends StatefulWidget {
 class _GibsImageryScreenState extends State<GibsImageryScreen> {
   MaplibreMapController? _mapController;
   final MapBackgroundService _bgService = MapBackgroundService();
+  
+  // GIBS-specific persistence keys (decoupled from Explore)
+  static const _prefsKeyMapStyle = 'gibs_map_style';
+  static const _prefsKeyLayers = 'gibs_active_layer_ids';
+  static const _prefsKeyPreset = 'gibs_active_preset';
+  
+  // GIBS has its own map style (decoupled from Explore)
+  // Default to satellite for satellite imagery viewing
+  MapBackground _gibsMapStyle = MapBackground.satellite;
   
   // Active layers (supports multiple for stacking)
   // Default to Full Coverage preset for maximum satellite coverage
@@ -87,7 +98,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   void initState() {
     super.initState();
     _selectedDate = GibsService.yesterdayUtc;
-    _bgService.addListener(_onBackgroundChanged);
+    
+    // Load GIBS-specific preferences (decoupled from Explore)
+    _loadPreferences();
     
     // Set initial center from spot coordinates or default to Catalina Islands, CA
     _initialCenter = (widget.initialLat != null && widget.initialLon != null)
@@ -105,7 +118,66 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     _loadSavedSpots();
   }
   
-  void _onBackgroundChanged() {
+  /// Load GIBS-specific preferences (map style + layers)
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Load GIBS-specific map style (default: satellite)
+      final savedStyle = prefs.getString(_prefsKeyMapStyle);
+      if (savedStyle != null) {
+        _gibsMapStyle = MapBackground.values.firstWhere(
+          (b) => b.name == savedStyle,
+          orElse: () => MapBackground.satellite,
+        );
+      }
+      
+      // Load layers
+      final savedLayerIds = prefs.getString(_prefsKeyLayers);
+      if (savedLayerIds != null && savedLayerIds.isNotEmpty) {
+        final ids = savedLayerIds.split(',');
+        final layers = ids
+            .map((id) => GibsLayer.allLayers.where((l) => l.id == id).firstOrNull)
+            .whereType<GibsLayer>()
+            .toList();
+        if (layers.isNotEmpty) {
+          _activeLayers = layers;
+        }
+      }
+      
+      // Load preset
+      final savedPresetId = prefs.getString(_prefsKeyPreset);
+      if (savedPresetId != null && savedPresetId.isNotEmpty) {
+        _activePreset = GibsLayerPreset.allPresets
+            .where((p) => p.id == savedPresetId).firstOrNull;
+      } else if (savedLayerIds != null) {
+        // Layers were saved but no preset - custom selection
+        _activePreset = null;
+      }
+      
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('GIBS: Failed to load preferences: $e');
+    }
+  }
+  
+  /// Save GIBS-specific preferences (map style + layers)
+  Future<void> _savePreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKeyMapStyle, _gibsMapStyle.name);
+      final layerIds = _activeLayers.map((l) => l.id).join(',');
+      await prefs.setString(_prefsKeyLayers, layerIds);
+      await prefs.setString(_prefsKeyPreset, _activePreset?.id ?? '');
+    } catch (e) {
+      debugPrint('GIBS: Failed to save preferences: $e');
+    }
+  }
+  
+  /// Change GIBS map style (decoupled from Explore)
+  void _setGibsMapStyle(MapBackground style) {
+    if (_gibsMapStyle == style) return;
+    
     // BLOCK: Don't allow style change while loading (prevents iOS crash)
     if (_isLoading) {
       debugPrint('GIBS: Ignoring style change - still loading');
@@ -117,12 +189,15 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       _lastCameraPosition = _mapController!.cameraPosition;
     }
     _mapController = null;
-    // Increment style version to cancel any in-progress async operations
     _styleVersion++;
+    
     setState(() {
+      _gibsMapStyle = style;
       _mapKey++;
       _isLoading = true;
     });
+    
+    _savePreferences();
   }
   
   // Check if opened from a spot
@@ -130,7 +205,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
   @override
   void dispose() {
-    _bgService.removeListener(_onBackgroundChanged);
     _mapController = null;
     super.dispose();
   }
@@ -184,7 +258,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   Future<void> _addBackgroundOverlays() async {
     if (_mapController == null) return;
     
-    final overlays = _bgService.getOverlays(_bgService.current);
+    final overlays = _bgService.getOverlays(_gibsMapStyle);
     
     for (final overlay in overlays) {
       // Bail out if controller was nulled (style change in progress)
@@ -399,6 +473,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       _isLoading = true;
       _dateWarning = null;
     });
+    _savePreferences();  // Persist layer selection
     _addGibsLayers().then((_) {
       setState(() => _isLoading = false);
     });
@@ -812,7 +887,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             },
             child: MaplibreMap(
               key: ValueKey('gibs_map_$_mapKey'),
-              styleString: _bgService.getStyleUrl(_bgService.current),
+              styleString: _bgService.getStyleUrl(_gibsMapStyle),
               initialCameraPosition: _lastCameraPosition ?? CameraPosition(
                 target: _initialCenter,
                 zoom: _hasSpotContext ? _spotZoom : _defaultZoom,
@@ -1081,7 +1156,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         // Map style button (top) - disabled while loading to prevent iOS crash
         _buildFloatingButton(
           icon: Icons.map_outlined,
-          onTap: () => showBackgroundPicker(context),
+          onTap: () => showBackgroundPicker(
+            context,
+            currentSelection: _gibsMapStyle,
+            onSelected: _setGibsMapStyle,
+          ),
           enabled: !_isLoading,
         ),
         const SizedBox(height: 8),
@@ -1365,7 +1444,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   
   
   void _showBackgroundPicker() {
-    showBackgroundPicker(context);
+    showBackgroundPicker(
+      context,
+      currentSelection: _gibsMapStyle,
+      onSelected: _setGibsMapStyle,
+    );
   }
   
   /// Build date warning widget

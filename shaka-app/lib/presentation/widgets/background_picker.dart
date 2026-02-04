@@ -5,21 +5,46 @@ import '../../data/models/map_background.dart';
 import '../../data/services/map_background_service.dart';
 
 /// Shows a bottom sheet to pick map background
-void showBackgroundPicker(BuildContext context) {
+/// 
+/// If [currentSelection] and [onSelected] are provided, the picker operates in
+/// "decoupled mode" where it shows the provided selection and calls the callback
+/// instead of updating the shared MapBackgroundService. This allows screens like
+/// GIBS to have their own independent map style preference.
+void showBackgroundPicker(
+  BuildContext context, {
+  MapBackground? currentSelection,
+  void Function(MapBackground)? onSelected,
+}) {
   HapticFeedback.lightImpact();
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => const BackgroundPickerSheet(),
+    builder: (context) => BackgroundPickerSheet(
+      currentSelection: currentSelection,
+      onSelected: onSelected,
+    ),
   );
 }
 
 class BackgroundPickerSheet extends StatelessWidget {
-  const BackgroundPickerSheet({super.key});
+  /// Optional: current selection for decoupled mode
+  final MapBackground? currentSelection;
+  
+  /// Optional: callback for decoupled mode (instead of using shared service)
+  final void Function(MapBackground)? onSelected;
+  
+  const BackgroundPickerSheet({
+    super.key,
+    this.currentSelection,
+    this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     final bgService = MapBackgroundService();
+    
+    // Use decoupled mode if callback is provided
+    final isDecoupled = onSelected != null;
     
     return Container(
       decoration: const BoxDecoration(
@@ -56,33 +81,58 @@ class BackgroundPickerSheet extends StatelessWidget {
           // Background options - full width row
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: ListenableBuilder(
-              listenable: bgService,
-              builder: (context, _) {
-                return Row(
-                  children: MapBackground.values.map((bg) {
-                    final isSelected = bgService.current == bg;
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: bg == MapBackground.values.first ? 0 : 6,
-                          right: bg == MapBackground.values.last ? 0 : 6,
+            child: isDecoupled
+                // Decoupled mode: use provided selection
+                ? Row(
+                    children: MapBackground.values.map((bg) {
+                      final isSelected = currentSelection == bg;
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: bg == MapBackground.values.first ? 0 : 6,
+                            right: bg == MapBackground.values.last ? 0 : 6,
+                          ),
+                          child: _BackgroundOption(
+                            background: bg,
+                            isSelected: isSelected,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              onSelected!(bg);
+                              Navigator.pop(context);
+                            },
+                          ),
                         ),
-                        child: _BackgroundOption(
-                          background: bg,
-                          isSelected: isSelected,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            bgService.setBackground(bg);
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-            ),
+                      );
+                    }).toList(),
+                  )
+                // Shared service mode: use MapBackgroundService
+                : ListenableBuilder(
+                    listenable: bgService,
+                    builder: (context, _) {
+                      return Row(
+                        children: MapBackground.values.map((bg) {
+                          final isSelected = bgService.current == bg;
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: bg == MapBackground.values.first ? 0 : 6,
+                                right: bg == MapBackground.values.last ? 0 : 6,
+                              ),
+                              child: _BackgroundOption(
+                                background: bg,
+                                isSelected: isSelected,
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  bgService.setBackground(bg);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
           ),
           
           // Safe area padding
