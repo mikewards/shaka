@@ -98,7 +98,7 @@ class SatelliteReadingsCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            for (final label in ['<0.01', '0.1', '0.5', '3', '20+'])
+            for (final label in ['0.01', '0.1', '0.5', '3.0', '20.0'])
               Text(
                 label,
                 style: TextStyle(

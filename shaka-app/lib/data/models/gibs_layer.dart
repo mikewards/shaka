@@ -198,8 +198,7 @@ class GibsLayer {
     satellite: 'Multi-satellite',
     dataStartDate: DateTime(2002, 6, 1),
     legendColors: _sstLegendColors,
-    legendLabels: ['-2°C', '10°C', '20°C', '35°C'],
-    legendUnit: '°C',
+    legendLabels: ['0.0°C', '8.0', '16.0', '24.0', '32.0'],
   );
 
   static final g1SST = GibsLayer(
@@ -218,8 +217,7 @@ class GibsLayer {
     satellite: 'Multi-satellite',
     dataStartDate: DateTime(2010, 6, 9),
     legendColors: _sstLegendColors,
-    legendLabels: ['-2°C', '10°C', '20°C', '35°C'],
-    legendUnit: '°C',
+    legendLabels: ['0.0°C', '8.0', '16.0', '24.0', '32.0'],
   );
 
   // ==================== Chlorophyll Layers ====================
@@ -261,8 +259,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:00 local',
     dataStartDate: DateTime(2024, 2, 25),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['<0.01', '~0.5', '20+'],
-    legendUnit: 'mg/m³',
+    legendLabels: ['0.01 mg/m³', '0.1', '0.5', '3.0', '20.0'],
   );
 
   /// NOAA-20 VIIRS - Primary operational afternoon chlorophyll
@@ -285,8 +282,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:30 local',
     dataStartDate: DateTime(2017, 12, 13),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['<0.01', '~0.5', '20+'],
-    legendUnit: 'mg/m³',
+    legendLabels: ['0.01 mg/m³', '0.1', '0.5', '3.0', '20.0'],
   );
 
   /// NOAA-21 VIIRS - Newest VIIRS, backup to NOAA-20
@@ -309,8 +305,7 @@ class GibsLayer {
     equatorCrossingTime: '~13:30 local',
     dataStartDate: DateTime(2023, 3, 31),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['<0.01', '~0.5', '20+'],
-    legendUnit: 'mg/m³',
+    legendLabels: ['0.01 mg/m³', '0.1', '0.5', '3.0', '20.0'],
   );
 
   /// Sentinel-3A OLCI - Morning pass provides different time of day
@@ -333,8 +328,7 @@ class GibsLayer {
     equatorCrossingTime: '~10:00 local',
     dataStartDate: DateTime(2016, 4, 25),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['<0.01', '~0.5', '20+'],
-    legendUnit: 'mg/m³',
+    legendLabels: ['0.01 mg/m³', '0.1', '0.5', '3.0', '20.0'],
   );
 
   /// Sentinel-3B OLCI - Backup morning pass
@@ -357,8 +351,7 @@ class GibsLayer {
     equatorCrossingTime: '~10:00 local',
     dataStartDate: DateTime(2018, 5, 14),
     legendColors: _chlorophyllLegendColors,
-    legendLabels: ['<0.01', '~0.5', '20+'],
-    legendUnit: 'mg/m³',
+    legendLabels: ['0.01 mg/m³', '0.1', '0.5', '3.0', '20.0'],
   );
 }
 

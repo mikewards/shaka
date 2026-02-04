@@ -77,6 +77,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Style version to prevent race conditions during rapid style changes
   int _styleVersion = 0;
   
+  // Key for measuring bottom controls height
+  final GlobalKey _bottomControlsKey = GlobalKey();
+  
+  // Tracked height of bottom controls (for dynamic button positioning)
+  double _bottomControlsHeight = 60.0; // Default estimate
+  
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
   
@@ -968,30 +974,40 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               child: _buildTopBar(),
             ),
 
-          // Floating action buttons - LEFT side (Map Style top, Layers bottom)
-          // Always visible, positioned higher in pin mode to avoid overlap
-          Positioned(
-            left: 16,
-            bottom: MediaQuery.of(context).padding.bottom + (_isPinMode ? 140 : 80),
-            child: _buildLeftFloatingButtons(),
-          ),
-          
-          // Floating action buttons - RIGHT side (Saved Spots top, Pin bottom)
-          // Hidden in pin mode since these actions don't apply
-          if (!_isPinMode)
-            Positioned(
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 80,
-              child: _buildRightFloatingButtons(),
-            ),
-
-          // Bottom controls (opacity/legend only)
+          // Bottom controls (legends only)
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: _buildBottomControls(),
           ),
+
+          // Floating action buttons - LEFT side (Map Style top, Layers bottom)
+          // Always visible, positioned above bottom controls
+          Positioned(
+            left: 16,
+            bottom: _bottomControlsHeight + (_isPinMode ? 60 : 16),
+            child: _buildLeftFloatingButtons(),
+          ),
+          
+          // Floating opacity slider - CENTER (aligned with Satellite Layers button)
+          // Hidden in pin mode
+          if (!_isPinMode)
+            Positioned(
+              left: 72, // After left buttons (48 + 16 padding + 8 gap)
+              right: 72, // Before right buttons
+              bottom: _bottomControlsHeight + 16, // Aligned with bottom buttons
+              child: _buildFloatingOpacitySlider(),
+            ),
+          
+          // Floating action buttons - RIGHT side (Saved Spots top, Pin bottom)
+          // Hidden in pin mode since these actions don't apply
+          if (!_isPinMode)
+            Positioned(
+              right: 16,
+              bottom: _bottomControlsHeight + 16,
+              child: _buildRightFloatingButtons(),
+            ),
         ],
       ),
     );
@@ -1103,11 +1119,26 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 
   Widget _buildBottomControls() {
+    // Measure height after layout for dynamic button positioning
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _bottomControlsKey.currentContext;
+      if (context != null) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize) {
+          final newHeight = box.size.height;
+          if ((_bottomControlsHeight - newHeight).abs() > 1) {
+            setState(() => _bottomControlsHeight = newHeight);
+          }
+        }
+      }
+    });
+    
     return Container(
+      key: _bottomControlsKey,
       padding: EdgeInsets.only(
         left: 12,
         right: 12,
-        top: 8,
+        top: 14,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: BoxDecoration(
@@ -1120,23 +1151,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           // Date warning (if applicable)
           _buildDateWarning(),
           
-          // Opacity slider and legend on SAME row (50/50 split)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Opacity slider (~50% width)
-              Expanded(
-                flex: 1,
-                child: _buildOpacityRow(),
-              ),
-              const SizedBox(width: 12),
-              // Legend(s) (~50% width)
-              Expanded(
-                flex: 1,
-                child: _buildCompactLegends(),
-              ),
-            ],
-          ),
+          // Full-width legend(s)
+          _buildCompactLegends(),
           
           // Pin mode action buttons (inside container when active)
           if (_isPinMode) ...[
@@ -1191,6 +1207,42 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           onTap: _enterPinMode,
         ),
       ],
+    );
+  }
+  
+  /// Floating opacity slider positioned between left and right button columns
+  Widget _buildFloatingOpacitySlider() {
+    return SliderTheme(
+      data: SliderThemeData(
+        trackHeight: 6,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+        activeTrackColor: AppColors.info,
+        inactiveTrackColor: Colors.white.withOpacity(0.3),
+        thumbColor: Colors.white,
+        overlayColor: AppColors.info.withOpacity(0.2),
+        // Add shadow to track for visibility on any background
+        trackShape: const RoundedRectSliderTrackShape(),
+      ),
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        // Subtle shadow behind the slider for visibility on light backgrounds
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Slider(
+          value: _opacity,
+          onChanged: _updateOpacity,
+        ),
+      ),
     );
   }
   
@@ -1400,7 +1452,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                 : '';
         
         return Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.only(bottom: 14),
           child: DynamicOceanLegend.fromGibs(
             colors: layer.legendColors!,
             labels: layer.legendLabels!,
@@ -1412,36 +1464,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       }).toList(),
     );
   }
-  
-  /// Build compact opacity slider row
-  Widget _buildOpacityRow() {
-    return Row(
-      children: [
-        const Icon(Icons.opacity, color: Colors.white54, size: 16),
-        Expanded(
-          child: SliderTheme(
-            data: const SliderThemeData(trackHeight: 3),
-            child: Slider(
-              value: _opacity,
-              activeColor: AppColors.info,
-              inactiveColor: Colors.white24,
-              onChanged: _updateOpacity,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text(
-            '${(_opacity * 100).round()}%',
-            style: const TextStyle(color: Colors.white54, fontSize: 10),
-            maxLines: 1,
-            overflow: TextOverflow.visible,
-          ),
-        ),
-      ],
-    );
-  }
-  
   
   void _showBackgroundPicker() {
     showBackgroundPicker(

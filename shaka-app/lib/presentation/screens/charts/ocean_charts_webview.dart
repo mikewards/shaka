@@ -30,9 +30,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   bool _isLoading = true;
   bool _isOnline = true;
   
-  // Layer opacity (for WebView layers)
-  double _opacity = 1.0;
-  
   // View settings (will be initialized from widget params or defaults)
   late double _centerLat;
   late double _centerLon;
@@ -1378,23 +1375,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     }
   }
 
-  /// Update WebView layer opacity via JavaScript
-  void _updateWebViewOpacity(double opacity) {
-    setState(() => _opacity = opacity);
-    
-    if (_controller != null) {
-      // Inject JS to modify canvas opacity
-      _controller!.runJavaScript('''
-        (function() {
-          var canvases = document.querySelectorAll('canvas');
-          canvases.forEach(function(c) {
-            c.style.opacity = '$opacity';
-          });
-        })();
-      ''');
-    }
-  }
-  
   /// Show layer info bottom sheet
   void _showLayerInfo() {
     final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
@@ -1635,35 +1615,20 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
 
-  /// Build bottom controls (opacity/legend only - buttons are floating)
+  /// Build bottom controls (legend only - buttons are floating)
   Widget _buildBottomControls() {
     return Container(
       padding: EdgeInsets.only(
         left: 12,
         right: 12,
-        top: 8,
+        top: 14,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.85),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Opacity slider (~50% width)
-          Expanded(
-            flex: 1,
-            child: _buildOpacityRow(),
-          ),
-          const SizedBox(width: 12),
-          // Legend (~50% width)
-          Expanded(
-            flex: 1,
-            child: _buildLegendSection(),
-          ),
-        ],
-      ),
+      child: _buildLegendSection(),
     );
   }
   
@@ -1734,39 +1699,6 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     );
   }
 
-  /// Build opacity slider row
-  Widget _buildOpacityRow() {
-    final layerInfo = _activeLayerId != null ? _layerInfo[_activeLayerId] : null;
-    final layerColor = layerInfo?['color'] as Color? ?? AppColors.info;
-    
-    return Row(
-      children: [
-        const Icon(Icons.opacity, color: Colors.white54, size: 16),
-        Expanded(
-          child: SliderTheme(
-            data: const SliderThemeData(trackHeight: 3),
-            child: Slider(
-              value: _opacity,
-              activeColor: layerColor,
-              inactiveColor: Colors.white24,
-              onChanged: _updateWebViewOpacity,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 38,
-          child: Text(
-            '${(_opacity * 100).round()}%',
-            style: const TextStyle(color: Colors.white54, fontSize: 10),
-            maxLines: 1,
-            overflow: TextOverflow.visible,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  
   /// Build legend section
   Widget _buildLegendSection() {
     // Hide legend when no valid data or no legend info
