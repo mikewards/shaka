@@ -79,8 +79,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   bool _showSpotsOnMap = false;
   
   // Helper getters
+  bool get _hasLayers => _activeLayers.isNotEmpty;
   bool get _hasMultipleLayers => _activeLayers.length > 1;
-  GibsLayer get _primaryLayer => _activeLayers.first;
+  GibsLayer? get _primaryLayer => _activeLayers.isNotEmpty ? _activeLayers.first : null;
 
   @override
   void initState() {
@@ -296,9 +297,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     final dateStr = GibsService.formatDate(_selectedDate);
 
     // Check date validation for primary layer
-    if (mounted) {
+    if (mounted && _primaryLayer != null) {
       setState(() {
-        _dateWarning = GibsService.getDateValidationMessage(_primaryLayer, _selectedDate);
+        _dateWarning = GibsService.getDateValidationMessage(_primaryLayer!, _selectedDate);
       });
     }
 
@@ -392,8 +393,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
   /// Set active layers (replaces all current layers)
   void _setLayers(List<GibsLayer> layers, {GibsLayerPreset? preset}) async {
-    if (layers.isEmpty) return;
-    
     setState(() {
       _activeLayers = layers;
       _activePreset = preset;
@@ -411,9 +410,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     List<GibsLayer> newLayers;
     
     if (isActive) {
-      // Remove layer (but keep at least one)
+      // Remove layer (allow empty selection)
       newLayers = _activeLayers.where((l) => l.id != layer.id).toList();
-      if (newLayers.isEmpty) return; // Don't allow empty selection
     } else {
       // Add layer
       newLayers = [..._activeLayers, layer];
@@ -985,14 +983,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                       ),
                     ),
                   )
-                else
+                else if (_primaryLayer != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: Container(
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: _primaryLayer.color,
+                        color: _primaryLayer!.color,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1255,11 +1253,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                 width: 48,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? _primaryLayer.color : Colors.transparent,
+                  color: isSelected ? (_primaryLayer?.color ?? AppColors.info) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isSelected 
-                        ? _primaryLayer.color 
+                        ? (_primaryLayer?.color ?? AppColors.info) 
                         : (isFuture ? Colors.white12 : Colors.white24),
                     width: 1,
                   ),
@@ -1353,10 +1351,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           ),
         ),
         SizedBox(
-          width: 32,
+          width: 38,
           child: Text(
             '${(_opacity * 100).round()}%',
             style: const TextStyle(color: Colors.white54, fontSize: 10),
+            maxLines: 1,
+            overflow: TextOverflow.visible,
           ),
         ),
       ],
@@ -1434,8 +1434,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             Row(
               children: [
                 Icon(
-                  _hasMultipleLayers ? Icons.layers : _primaryLayer.icon, 
-                  color: _hasMultipleLayers ? AppColors.info : _primaryLayer.color, 
+                  _hasMultipleLayers ? Icons.layers : (_primaryLayer?.icon ?? Icons.layers_clear), 
+                  color: _hasMultipleLayers ? AppColors.info : (_primaryLayer?.color ?? Colors.white54), 
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -1446,18 +1446,18 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                       Text(
                         _hasMultipleLayers 
                             ? (_activePreset?.name ?? '${_activeLayers.length} Satellites')
-                            : _primaryLayer.name,
+                            : (_primaryLayer?.name ?? 'No Layers Selected'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (!_hasMultipleLayers && _primaryLayer.satellite != null)
+                      if (!_hasMultipleLayers && _primaryLayer?.satellite != null)
                         Text(
-                          _primaryLayer.satellite!,
+                          _primaryLayer!.satellite!,
                           style: TextStyle(
-                            color: _primaryLayer.color,
+                            color: _primaryLayer!.color,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1520,25 +1520,33 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                   ],
                 ),
               )),
-            ] else ...[
+            ] else if (_primaryLayer != null) ...[
               Text(
-                _primaryLayer.description,
+                _primaryLayer!.description,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 14,
                 ),
               ),
               const SizedBox(height: 16),
-              _InfoRow(label: 'Resolution', value: _primaryLayer.resolution),
-              if (_primaryLayer.satellite != null)
-                _InfoRow(label: 'Satellite', value: _primaryLayer.satellite!),
-              if (_primaryLayer.dataStartDate != null)
+              _InfoRow(label: 'Resolution', value: _primaryLayer!.resolution),
+              if (_primaryLayer!.satellite != null)
+                _InfoRow(label: 'Satellite', value: _primaryLayer!.satellite!),
+              if (_primaryLayer!.dataStartDate != null)
                 _InfoRow(
                   label: 'Data Available', 
-                  value: 'Since ${GibsService.formatDate(_primaryLayer.dataStartDate!)}',
+                  value: 'Since ${GibsService.formatDate(_primaryLayer!.dataStartDate!)}',
                 ),
-              _InfoRow(label: 'Max Zoom', value: 'Level ${_primaryLayer.maxZoom}'),
-              _InfoRow(label: 'Category', value: _primaryLayer.category.displayName),
+              _InfoRow(label: 'Max Zoom', value: 'Level ${_primaryLayer!.maxZoom}'),
+              _InfoRow(label: 'Category', value: _primaryLayer!.category.displayName),
+            ] else ...[
+              Text(
+                'Select a satellite layer to view imagery',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 14,
+                ),
+              ),
             ],
             const SizedBox(height: 8),
             _InfoRow(label: 'Source', value: 'NASA GIBS WMTS'),
@@ -1585,11 +1593,9 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
     setState(() {
       final isActive = _isLayerActive(layer);
       if (isActive) {
-        // Remove layer (but keep at least one)
-        if (_activeLayers.length > 1) {
-          _activeLayers.removeWhere((l) => l.id == layer.id);
-          _activePreset = null; // Clear preset when manually toggling
-        }
+        // Remove layer (allow empty selection)
+        _activeLayers.removeWhere((l) => l.id == layer.id);
+        _activePreset = null; // Clear preset when manually toggling
       } else {
         // Add layer
         _activeLayers.add(layer);

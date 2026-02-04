@@ -155,7 +155,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             pinned: true,
             backgroundColor: _bgColor,
             leading: Padding(
-              padding: const EdgeInsets.only(top: 28),
+              padding: const EdgeInsets.only(top: 12),
               child: IconButton(
                 onPressed: () {
                   HapticFeedback.lightImpact();
@@ -990,7 +990,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             pinned: true,
             backgroundColor: _bgColor,
             leading: Padding(
-              padding: const EdgeInsets.only(top: 28),
+              padding: const EdgeInsets.only(top: 12),
               child: IconButton(
                 onPressed: () => context.pop(),
                 icon: const Icon(Icons.arrow_back, color: Colors.white),

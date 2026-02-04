@@ -2101,10 +2101,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           ),
         ),
         SizedBox(
-          width: 32,
+          width: 38,
           child: Text(
             '${(_opacity * 100).round()}%',
             style: const TextStyle(color: Colors.white54, fontSize: 10),
+            maxLines: 1,
+            overflow: TextOverflow.visible,
           ),
         ),
       ],
