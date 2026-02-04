@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -119,6 +120,9 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   String? _layerDate;
   String? _layerTime;
   String? _layerSource;
+  
+  // Fallback timer - if legend data not received within timeout, hide loading
+  Timer? _loadingFallbackTimer;
   
   /// Format the layer date/time from Copernicus (UTC) to user's local time
   /// Returns empty string if data is invalid (e.g., "fix 00:00" for future dates)
@@ -305,6 +309,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
     _loadSavedSnapshots();
   }
   
+  @override
+  void dispose() {
+    _loadingFallbackTimer?.cancel();
+    super.dispose();
+  }
+  
   // Check if opened from a spot
   bool get _hasSpotContext => widget.spotName != null;
 
@@ -359,12 +369,17 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         onMessageReceived: (message) {
           try {
             final data = jsonDecode(message.message);
+            // Cancel fallback timer since we received data
+            _loadingFallbackTimer?.cancel();
+            _loadingFallbackTimer = null;
             setState(() {
               _legendGradientCss = data['gradient'] as String?;
               _legendTicks = List<String>.from(data['ticks'] ?? []);
               _layerDate = data['date'] as String?;
               _layerTime = data['time'] as String?;
               _layerSource = data['source'] as String?;
+              // Hide loading now that we have legend data
+              _isLoading = false;
             });
           } catch (e) {
             debugPrint('Error parsing legend data: $e');
@@ -423,9 +438,16 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
       ..addJavaScriptChannel(
         'CustomizationsChannel',
         onMessageReceived: (message) {
-          // When customizations are complete, hide the loading overlay
+          // When customizations are complete, start fallback timer
+          // Legend data will set _isLoading = false when received
+          // If no legend data within 5 seconds, hide loading anyway (shows warning)
           if (message.message == 'done') {
-            setState(() => _isLoading = false);
+            _loadingFallbackTimer?.cancel();
+            _loadingFallbackTimer = Timer(const Duration(seconds: 5), () {
+              if (mounted && _isLoading) {
+                setState(() => _isLoading = false);
+              }
+            });
           }
         },
       )
@@ -1173,22 +1195,22 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   // Only ONE layer active at a time for reliability.
   // These exact strings are copied from working Copernicus URLs - DO NOT modify.
   static const Map<String, String> _verifiedLayerParams = {
-    // Wind layer with arrows - verified working 2024-01-29
-    'wind': 'H4sIAArZemkAA5XSXU.CMBQG4P.S6wFt9yHjDlGBBJE4EkOMOSldGUu6lXQFnIT.bjdAlJCoF7s5a3vO_7SvO6TMUuieUjouUGe3d5BaMZ6aEnVw0.cdJFkp9DBGHdQfPd12R9Add0ezaBg9PD3f97rRFG77PcCYAKbtFs9EVkCmYkikgnnCG6uFAZYvOOAm9WORwITcNTKgmLqEtPhSIgd9DPNYvNuODkqrTiCxrUqVRJxJgToLJgthC2myNH2t1qt6nsNerqTSGTuUjNA506Utb5hci8c0r2IQlwZh6HshCdvEx4F7_s1sT7cZtmlwE9SfG2Li2SGKQRrHwm42ei32zhWl31kmg9mRxbtgWS3LBl.rEwtuuz9cPBy0CsFgy2wc2Aip6vtwUGFKKSZMm5RLYeeohjtWIyUruSPUyZOeQekfQK82.ZfFy3B8BxakDj.yYPw8BUyodTgZqHnR2Kb5FwTk2oD0LAM5Po8pGVQKFN_0qoXfnod7juNei3Pd5yJkfeb_7ROZ.vqP_gIAAA--',
-    // Currents layer - Sea water velocity m/s - verified working 2024-01-29 (updated colors)
-    'cur': 'H4sIABDhe2kAAxWOywrCMBAA.2XPVVMVld6q_CgULdaLiCwhWWth20gSH7X0363XYWDm0oLxd7IrY6x2ELVdACwbsomGCLbpYRmnGO.j9Jwn_eZwXK.i.ITZ7oxChCjG05GqqHJYGY0FG3zcG5T1TaEYisVEU4HZKdwNKhz3rpiNHEl8S08WX8RGlb6BAL5JrekDUTgXAZT.MPKs52yKXEkmiG6SHQXgfMOUSetLxdTfevuk7voDQw8zzsQAAAA-',
-    // Chlorophyll - verified working 2024-01-29
-    'chl': 'H4sIAKuae2kAAzWPy26DMBRE._WuCbHNo5gdoS1Cok1Vuqmq6so15iEZjAypSqP8e0iiLGZzRqOZ_TqCmVtlU2NsNUF8PDlgRiG7eYGYuEHggBaLsnkFMWTFfpcUmLwmxWeZl8.796c0KT9wl6VICEXCoq3sVT9hbypstMGfRm7GekYx1BKJy4JKNfhGHzc9MsI8Srey1eDAfz5U6g9inzjQXapQkxVr05RSaAVxLfSkVtA17ZxZcxivg25habSxvbihWdlB2GXFv0If1Es3XH5Qj4WcBz6nPKIBCb27LdZSz_URCx.CqzxOqH.6PgP1m9AhGAEAAA--',
-    // Sea Surface Temperature - verified working 2024-01-29
-    'sst': 'H4sIADCbe2kAAx2OTQuCQBQA.8s7W61aEd5MKgVJSS8S8Vjc9QN2fbJ6yMT.nnUdBmaeM9DYSBMQGTGANy8WKD5JEwnw4BYnZz9G._7HRRZl1_RxCfwsxzQskDEbmbPflVrqATUJrBVh30zIu6pEtmUnV8ga09wONxqd1WXH3doaOYEFn6gT8g3egVnQ.lqo3BUrqrOSKwlexdUgLShJkdG8.._0XSVNR7C8vmFF3SG4AAAA',
-    // Swell Wave Height - verified working 2024-01-29
-    'waves': 'H4sIAH_be2kAAxXOywqCQBSA4Xc5a6vRosLdFF0Eu9CIEhGHwTmaMDow2sXEd8_2._b.bh2Y5kF2bYxVNfhd74CWLdlAgQ_78LTiIfIjD68iENvTZbPmIsKEx8iYi8xbTNKSyhpLozDXBt.yhbLKUmRjtpwqyvEcTfejAj3mzVx3Eu8PDEXiggPfoFL0AX.OHCj_N9SzIWuTi1RqAj_TuiYH6qbVdJa2KVJNA7GxT_rvP2FFTs65AAAA',
-    // Salinity - verified working 2024-01-29 (updated colors)
-    'sal': 'H4sIAFfhe2kAA72PzWrCQBSF3_Wup3Vii0p2qbRNINTQuJFSLsPMNQ7cZMrM9CeVvLsRFwruXZ6PA_d8H3twcUd_6Zw3AdL9IIBVT74wkMJruXrKSszesnJTF.XL6v15mdVrrPINSpmgnD5OdEttwNYZbNjh165H1W01ynu5eDDUYLVO8rsWp2NXziaBFP6qSB5.iJ22sQcB.0Vn6A.SZC4F2OMw8mzk7JpaKyZIt4oDCQixZ6qUj1YzjW_j.x6pDbk1hrpTHsStldylwuKsML9WGD4PeFnu1HEBAAA-',
-    // Phytoplankton - verified working 2024-01-29
-    'phyto': 'H4sIAHfme2kAAxXNwQqCMBgA4Hf5z5qbEYi3aSWCZLQuEfGztjmDzYl6yMR3r67f5bsv4KdWD7n3gxohXdYArJj1UCpIoajqjFXITqy68ZIf68shZ.yKWZEjIRRJnETSaTei8wqN9fg0MuybCUXXSCSbeKe0wTPdhw5jEm8pjfp2lhDAp_yUfkNKSQCv.4U2_bH1hkthNaSNsKNeH193v5KWoQAAAA--',
-    // Zooplankton - verified working 2024-01-29
-    'zoo': 'H4sIAJ7me2kAAxXNQQuCMBQA4P.yzpZzFJQ3tRJBMrJLRDzWNle07YV6KMX.Xl2_y3cZgfq7bjOiVnUQj1MAVnx0WyiIIS_rNCkx2SfluS7qXXXcZkl9wjTPkLEIGV_F0mnXoSOFxhLejJy9rPDPnjwK30hkc75U2uAh2swccsYXURQORBICGAqv9BtizgJ4.EO06x9bMrUUVkPcCNvp6foFyQgxHqYAAAA-',
+    // Currents layer - Sea water velocity m/s - verified working 2026-02-04
+    'cur': 'H4sIABSPg2kAAxWOywqCQBRA._WurcaKCHcWPQQpyTYRcRlmbipcnZiZHib_e7Y9HDjn2oHxJdm1MVY7iLo_AJYt2URDBLv0uIpTjA9xesmTfHs8bdZxfsZsf0EhQhTT_UTVVDusjcaCDT7KFmVzVyjGYjnTVGB2DvejGqeDKxYTRxLf0pPFF7FRlW8hgG.SaPpAtBABVP8ucjhgNkWuJBNEd8mOAnC_Zcqk9ZViGma9fVJ._wHpZZ3DwwAAAA--',
+    // Sea Surface Temperature - verified working 2026-02-04
+    'sst': 'H4sIAK6Og2kAAx2OywqCQBRA._WuLUd7EO5MKgVJSTcScRmc8QEzXhldZOK.Z20PB855zkBjI01AZMQA3rxYoPgkTSTAg1ucnP0Y.bsfF1mUXZPHJfCzHNOwQMYcZO7eLrXUA2oSWCvCvpmQd1WJbMtOOyFrTHMn3Gh0V5cd7bU1cgILPlEn5Bu8A7Og.bVQsRUrqrOSKwlexdUgLShJkdG8.._0XSVNR7C8vscNpV_4AAAA',
+    // Swell Wave Height - verified working 2026-02-04
+    'waves': 'H4sIAEWPg2kAAxXOywqCQBSA4Xc5a6ujBYW7KboIdqGJIiIOg3M0YXRgtIuJ755t.83.3Vqw9YPdwlqnKwjbzgOjGnaRhhDW8X4uYhI7EV9lJFf743Ih5Iku4kyIPmEwHSUFFxUVVlNmLL3Vi1SZJoRDnI01Z3Q4jTeDnAIMJr4.Om_2SPLigwffqNT8gXCKHuT.Gxnss7GZTJRhCFNlKvagqhvDB_XqPDHcE2v35O7_A3ox1Qi5AAAA',
+    // Salinity - verified working 2026-02-04
+    'sal': 'H4sIAHKPg2kAAxXNQQuCMBiA4f.ynS2nRchuSyoFSWleJOJjuKnB5mLrkIn.Pbu_vPDcZ7DvQbnUWic90HkJQItJuVwChUtRHlmB7MqKhuf8XN5OKeM1VlmDhERI4n3YGmU8Giux1xZfw4Ri7FokW5LspOqxqqNsYzBeX3IIvYUAvvko1QdoQgJ4.h3U0Zq17XkrtALaCe3V8vgB94exMZ0AAAA-',
+    // Wind layer with arrows - verified working 2026-02-04
+    'wind': 'H4sIAJ_Pg2kAAy2ObUvDMBSF.8v9XLc09s1_VdgKcxYdiIhcYnNtA3fNSFK1jv13M93Hczic53k9gg0DuVtrnfZQH08JsJrJNRpqeG62d7jaPGC7fsFNhtvHHYpUohDZstvT3qN991dfZtTYs8XDMOPoAnKGYpHKXFOP7S5doxRSinJ5HkICP82o6RvqG5GAOWOQRazZ9k_dYoL6Q7GnBHyYmVrlgumYoltwU2zZ9ENYOTsd.hQvn5_KJ7o3I9Tx9D_oiJDVIs8KkVZFVVyXZV7mp7dfqWE4avMAAAA-',
+    // Chlorophyll - verified working 2026-02-04
+    'chl': 'H4sIAMGNg2kAAxXNQQuCMBQA4P.yzo4285K3WmGCaFidIh5Tp4lPJ3NBJf736vpdvtsMxj20lcbYaoJwXjwg9dY2riCETB62qcyS7JpjlGS4iyQmAab5BTnfoOD_qux1P6EpJmZKbMhg0ZRsJDV0zgw4WIcUsEaNtdWa9U9yLQu6Hk9ijz7310Ks5DEBDz7xUOkXhAH3oP3fSOLHZJpzqUhDWCua9HL.AtXYSlGxAAAA',
+    // Phytoplankton - verified working 2026-02-04
+    'phyto': 'H4sIANKPg2kAAxXNwQqCMBgA4Hf5z5abEcRu00oEyWhdIuJnbXMGmxP1kInvXl2.y3efIYyN6bMQej0Am5cInJxMX2hgkJdVykvkJ17eRCGO1eWQcXHFNM_QEIok2cXKGz_gDxqtC.i0atXVI8q2VkjWyVYbi2e6X3lMSLKhNO6aSUEEn6LV5g2MEhLB65_hoz93wQolnQFWSzeY5fEF7LCNeaIAAAA-',
+    // Zooplankton - verified working 2026-02-04
+    'zoo': 'H4sIAO2Pg2kAAxXNQQuCMBQA4P.yzpqbFIQ3tRJBMrJLRDzWNle07YV6KMX.Xl2.y3eZgIa77nKiTvWQTHMAVnx0VypIoKjqLK0w3afVuSmbXX3c5mlzwqzIkTGOLF5H0mnXoyOFxhLejAxfVvjnQB6FbyWyRbxS2uCBb0KHMYuXnEcjkYQAxtIr.YaEcxbA4z_iZT_3ZBoprIakFbbX8.ULMd7jd6cAAAA-',
   };
 
   String _buildCopernicusUrl() {
@@ -1755,12 +1777,15 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
               child: CircularProgressIndicator(color: Colors.white),
             ),
           
-          // Loading overlay - spinner only
+          // Loading overlay - opaque, only covers WebView area
           if (_isLoading && _isOnline)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+            Positioned.fill(
+              bottom: MediaQuery.of(context).padding.bottom + 48,
+              child: Container(
+                color: Colors.black,
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
               ),
             ),
           
@@ -1826,21 +1851,27 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         ),
         const Spacer(),
         // Date and layer info - same height as back button (48px)
-        if (_hasValidLayerData)
-          GestureDetector(
-            onTap: _showDatePicker,
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
+        // Always show date picker so user can select a different date if today has no data
+        // Only show warning state when NOT loading AND data is invalid
+        GestureDetector(
+          onTap: _showDatePicker,
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (!_isLoading && !_hasValidLayerData) ? Colors.orange.withOpacity(0.6) : Colors.white24,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Layer color dot
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Warning icon when no data (after loading), otherwise layer color dot
+                if (!_isLoading && !_hasValidLayerData)
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 12)
+                else
                   Container(
                     width: 12,
                     height: 12,
@@ -1849,8 +1880,9 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Date/time (and spot name if available)
+                const SizedBox(width: 8),
+                // Date/time (and spot name if available) or warning message
+                if (_hasValidLayerData) ...[
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
@@ -1874,10 +1906,19 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
                       ),
                     ],
                   ),
-                ],
-              ),
+                ] else
+                  Text(
+                    _isLoading ? 'Loading...' : 'Try another date',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
             ),
           ),
+        ),
       ],
     );
   }
@@ -2116,6 +2157,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
   
   /// Build legend section
   Widget _buildLegendSection() {
+    // Hide legend when no valid data or no legend info
     if (!_hasValidLayerData || (_legendGradientCss == null && _legendTicks.isEmpty)) {
       return const SizedBox.shrink();
     }
