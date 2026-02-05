@@ -961,3 +961,56 @@ class UserSpotDetailResponse {
     );
   }
 }
+
+// ===========================================
+// ALL SPOTS (MAP MARKERS) MODELS
+// Lightweight data for displaying all spots on map
+// ===========================================
+
+/// Lightweight spot data for map markers.
+/// Contains only what's needed to display a marker - no conditions, fish, etc.
+class SpotMapMarker {
+  final String id;
+  final String name;
+  final Coordinates coordinates;
+  final String region;
+  final int? shakaScore;
+
+  const SpotMapMarker({
+    required this.id,
+    required this.name,
+    required this.coordinates,
+    required this.region,
+    this.shakaScore,
+  });
+
+  factory SpotMapMarker.fromJson(Map<String, dynamic> json) {
+    return SpotMapMarker(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      coordinates: Coordinates.fromJson(json['coordinates'] as Map<String, dynamic>),
+      region: json['region'] as String,
+      shakaScore: json['shakaScore'] as int?,
+    );
+  }
+}
+
+/// Response from /spots/all endpoint
+class AllSpotsResponse {
+  final List<SpotMapMarker> spots;
+  final int count;
+
+  const AllSpotsResponse({
+    required this.spots,
+    required this.count,
+  });
+
+  factory AllSpotsResponse.fromJson(Map<String, dynamic> json) {
+    return AllSpotsResponse(
+      spots: (json['spots'] as List)
+          .map((s) => SpotMapMarker.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      count: json['count'] as int,
+    );
+  }
+}
