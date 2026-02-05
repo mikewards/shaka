@@ -889,6 +889,7 @@ class UserSpotResponse {
   final String country;
   final DateTime createdAt;
   final bool isUserSpot;
+  final int? shakaScore;  // Latest Shaka Score (if available from API)
 
   UserSpotResponse({
     required this.id,
@@ -898,6 +899,7 @@ class UserSpotResponse {
     required this.country,
     required this.createdAt,
     this.isUserSpot = true,
+    this.shakaScore,
   });
 
   // Convenience getters
@@ -913,6 +915,7 @@ class UserSpotResponse {
       country: json['country'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       isUserSpot: json['isUserSpot'] as bool? ?? true,
+      shakaScore: json['shakaScore'] as int?,
     );
   }
 }

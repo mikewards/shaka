@@ -681,7 +681,8 @@ fun Application.configureRouting() {
                     region = created.region,
                     country = created.country,
                     createdAt = created.createdAt.toString(),
-                    isUserSpot = true
+                    isUserSpot = true,
+                    shakaScore = null  // No cached data yet for new spot
                 )
                 
                 call.respond(HttpStatusCode.Created, response)
@@ -701,6 +702,10 @@ fun Application.configureRouting() {
                 val spots = userSpotRepository.findByDeviceId(deviceId)
                 val response = UserSpotListResponse(
                     spots = spots.map { spot ->
+                        // Calculate score from cached data (fast, no API calls)
+                        val cacheId = userSpotRepository.getCacheId(spot.id.toString())
+                        val score = spotService.getUserSpotScore(cacheId)
+                        
                         UserSpotResponse(
                             id = spot.id.toString(),
                             name = spot.name,
@@ -708,7 +713,8 @@ fun Application.configureRouting() {
                             region = spot.region,
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
-                            isUserSpot = true
+                            isUserSpot = true,
+                            shakaScore = score  // null if no cached data
                         )
                     },
                     count = spots.size,
@@ -740,6 +746,10 @@ fun Application.configureRouting() {
                 val spots = userSpotRepository.searchByName(deviceId, query, limit)
                 val response = UserSpotListResponse(
                     spots = spots.map { spot ->
+                        // Calculate score from cached data (fast, no API calls)
+                        val cacheId = userSpotRepository.getCacheId(spot.id.toString())
+                        val score = spotService.getUserSpotScore(cacheId)
+                        
                         UserSpotResponse(
                             id = spot.id.toString(),
                             name = spot.name,
@@ -747,7 +757,8 @@ fun Application.configureRouting() {
                             region = spot.region,
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
-                            isUserSpot = true
+                            isUserSpot = true,
+                            shakaScore = score  // null if no cached data
                         )
                     },
                     count = spots.size,

@@ -378,7 +378,8 @@ data class UserSpotResponse(
     val region: String,
     val country: String,
     val createdAt: String,
-    val isUserSpot: Boolean = true  // Always true, used by frontend to show "Saved" badge
+    val isUserSpot: Boolean = true,  // Always true, used by frontend to show "Saved" badge
+    val shakaScore: Int? = null  // Latest score from cache (null if not yet calculated)
 )
 
 @Serializable

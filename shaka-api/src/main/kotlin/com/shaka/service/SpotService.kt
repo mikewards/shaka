@@ -1455,6 +1455,66 @@ class SpotService {
             )
         )
     }
+    
+    /**
+     * Quick score calculation for user spot list view.
+     * Uses cached data only - no API calls. Returns null if no cached data available.
+     */
+    fun getUserSpotScore(cacheId: String): Int? {
+        val cached = SpotDataCache.get(cacheId) ?: return null
+        
+        // Need at least tide data to calculate a meaningful score
+        if (cached.tide == null) return null
+        
+        val weather = if (cached.wind != null) {
+            WeatherData(
+                temperature = 25.0,
+                windSpeed = cached.wind.value.speedKnots / 0.539957,
+                windDirection = 0,
+                precipitation = 0.0,
+                cloudCover = 50,
+                visibility = 10000.0
+            )
+        } else {
+            WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
+        }
+        
+        val ocean = if (cached.swell != null) {
+            OceanData(
+                waveHeight = cached.swell.value.heightFt / 3.28084,
+                wavePeriod = cached.swell.value.periodSec,
+                waveDirection = 0,
+                waterTemperature = cached.sst?.value ?: 24.0,
+                swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
+                swellDirection = 0
+            )
+        } else {
+            OceanData(1.0, 8.0, 0, cached.sst?.value ?: 24.0, 1.0, 0)
+        }
+        
+        val waterQuality = WaterQuality(
+            chlorophyllA = cached.chlorophyll?.value,
+            turbidity = null,
+            visibility = cached.visibility?.value,
+            seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
+            dataSource = "Cached"
+        )
+        
+        val today = LocalDate.now().toString()
+        val score = ShakaScorer.generateScore(
+            targetDate = today,
+            weather = weather,
+            ocean = ocean,
+            waterQuality = waterQuality,
+            moonPhase = getMoonPhase(today),
+            seasonalMultiplier = 1.0,
+            recentSightings = 1,
+            hasParking = true,
+            permitRequired = false
+        )
+        
+        return score.overall
+    }
 
     /**
      * Prefetch all data for a single spot and save to cache.

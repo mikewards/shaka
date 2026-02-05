@@ -1,4 +1,4 @@
-import 'dart:math' show Point;
+import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -95,6 +95,10 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   final ShakaApiClient _apiClient = ShakaApiClient();
   List<UserSpotResponse> _savedSpots = [];
   bool _showSpotsOnMap = true;  // Default to ON
+  
+  // Tap detection for spot markers
+  Offset? _pointerDownPosition;
+  DateTime? _pointerDownTime;
   
   // Helper getters
   bool get _hasLayers => _activeLayers.isNotEmpty;
@@ -595,17 +599,29 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // CRITICAL: Check controller after each await (prevents crashes)
     if (_mapController == null) return;
     
-    // Build GeoJSON FeatureCollection
-    final features = _savedSpots.map((spot) => {
-      'type': 'Feature',
-      'geometry': {
-        'type': 'Point',
-        'coordinates': [spot.longitude, spot.latitude],
-      },
-      'properties': {
-        'name': spot.name,
-        'id': spot.id,
-      },
+    // Build GeoJSON FeatureCollection with score-based colors (like Explore map)
+    final features = _savedSpots.map((spot) {
+      final score = spot.shakaScore;
+      final hasScore = score != null;
+      final color = hasScore ? _getScoreColorHex(score) : '#808080';  // Gray if no score
+      
+      return {
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [spot.longitude, spot.latitude],
+        },
+        'properties': {
+          'id': spot.id,
+          'name': spot.name,
+          'score': hasScore ? score.toString() : '',  // Empty string if no score
+          'color': color,
+          'radius': 14,  // Match Explore map size
+          'strokeWidth': 2,
+          'strokeColor': '#FFFFFF',
+          'textSize': 11,
+        },
+      };
     }).toList();
     
     final geojson = {
@@ -623,33 +639,104 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     if (_mapController == null) return;
     
-    // Add circle layer (green markers)
+    // Add circle layer with score-based colors
     await _mapController!.addCircleLayer(
       'saved-spots-source',
       'saved-spots-layer',
       const CircleLayerProperties(
-        circleRadius: 8,
-        circleColor: '#6B8E7D',  // Sage green (AppColors.scoreExcellent)
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
+        circleRadius: ['get', 'radius'],
+        circleColor: ['get', 'color'],
+        circleStrokeColor: ['get', 'strokeColor'],
+        circleStrokeWidth: ['get', 'strokeWidth'],
+        circleOpacity: 1.0,
+        circleStrokeOpacity: 1.0,
       ),
     );
     
     if (_mapController == null) return;
     
-    // Add labels
+    // Add symbol layer for score text on top of circles
     await _mapController!.addSymbolLayer(
       'saved-spots-source',
       'saved-spots-labels',
       const SymbolLayerProperties(
-        textField: ['get', 'name'],
-        textSize: 11,
+        textField: ['get', 'score'],
+        textSize: ['get', 'textSize'],
         textColor: '#FFFFFF',
+        textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
         textHaloColor: '#000000',
-        textHaloWidth: 1,
-        textOffset: [0, 1.5],
+        textHaloWidth: 1.0,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
       ),
     );
+  }
+  
+  /// Convert score to hex color string for map styling
+  String _getScoreColorHex(int score) {
+    final color = AppColors.getScoreColor(score);
+    return '#${color.value.toRadixString(16).substring(2)}';
+  }
+  
+  /// Handle map tap - find closest spot and navigate to detail
+  Future<void> _handleMapTap(Offset screenPoint) async {
+    if (_mapController == null || _savedSpots.isEmpty || !_showSpotsOnMap) return;
+    
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    
+    // Try both coordinate interpretations (logical and physical)
+    final tapLogical = screenPoint;
+    final tapPhysical = screenPoint * devicePixelRatio;
+    
+    // Find closest spot
+    int? closestLogicalIndex;
+    double closestLogicalDist = double.infinity;
+    int? closestPhysicalIndex;
+    double closestPhysicalDist = double.infinity;
+    
+    for (int i = 0; i < _savedSpots.length; i++) {
+      if (_mapController == null) return;
+      
+      final spot = _savedSpots[i];
+      final spotLatLng = LatLng(spot.latitude, spot.longitude);
+      final spotScreenPos = await _mapController!.toScreenLocation(spotLatLng);
+      
+      if (_mapController == null) return;
+      
+      // Distance using logical tap
+      final dxL = tapLogical.dx - spotScreenPos.x;
+      final dyL = tapLogical.dy - spotScreenPos.y;
+      final distLogical = sqrt(dxL * dxL + dyL * dyL);
+      
+      // Distance using physical tap
+      final dxP = tapPhysical.dx - spotScreenPos.x;
+      final dyP = tapPhysical.dy - spotScreenPos.y;
+      final distPhysical = sqrt(dxP * dxP + dyP * dyP);
+      
+      if (distLogical < closestLogicalDist) {
+        closestLogicalDist = distLogical;
+        closestLogicalIndex = i;
+      }
+      if (distPhysical < closestPhysicalDist) {
+        closestPhysicalDist = distPhysical;
+        closestPhysicalIndex = i;
+      }
+    }
+    
+    // Navigate if tap is within threshold
+    const threshold = 50.0;
+    UserSpotResponse? tappedSpot;
+    
+    if (closestPhysicalDist < threshold && closestPhysicalIndex != null) {
+      tappedSpot = _savedSpots[closestPhysicalIndex];
+    } else if (closestLogicalDist < threshold && closestLogicalIndex != null) {
+      tappedSpot = _savedSpots[closestLogicalIndex];
+    }
+    
+    if (tappedSpot != null) {
+      HapticFeedback.selectionClick();
+      _navigateToSpotDetail(tappedSpot);
+    }
   }
 
   Future<void> _removeSpotMarkers() async {
@@ -872,9 +959,30 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       body: Stack(
         children: [
           // MapLibre Map - keyed to rebuild on background change
-          // Wrapped in Listener to detect pan gestures for continuous coordinate updates
+          // Wrapped in Listener to detect pan gestures and spot taps
           Listener(
             behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) {
+              _pointerDownPosition = event.localPosition;
+              _pointerDownTime = DateTime.now();
+            },
+            onPointerUp: (event) {
+              // Only handle quick taps (not pan gestures)
+              final downPos = _pointerDownPosition;
+              final downTime = _pointerDownTime;
+              _pointerDownPosition = null;
+              _pointerDownTime = null;
+              
+              if (downPos == null || downTime == null) return;
+              
+              // Check if it was a tap (short duration, small movement)
+              final duration = DateTime.now().difference(downTime);
+              final distance = (event.localPosition - downPos).distance;
+              
+              if (duration.inMilliseconds < 300 && distance < 20) {
+                _handleMapTap(event.localPosition);
+              }
+            },
             onPointerMove: (event) {
               if (_isPinMode && _mapController != null) {
                 // Poll camera position during drag for real-time coordinate updates
