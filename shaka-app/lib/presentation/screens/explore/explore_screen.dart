@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +9,6 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
-import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/search_overlay.dart';
 import '../../widgets/background_picker.dart';
@@ -28,42 +28,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final ShakaApiClient _apiClient = ShakaApiClient();
   final PageController _carouselController = PageController(viewportFraction: 0.85);
   final MapBackgroundService _bgService = MapBackgroundService();
-  final IpGeolocationService _ipGeoService = IpGeolocationService();
   
-  // Default fallback (Hawaii) - used if IP geolocation not available
-  static const _fallbackCenter = LatLng(21.3069, -157.8583);
-  static const _defaultZoom = 8.5; // ~30 mile radius
+  // Default to Hawaii
+  static const _defaultCenter = LatLng(21.3069, -157.8583);
+  static const _defaultZoom = 7.5;
   
-  // Actual default center (set in initState from IP geolocation or fallback)
-  late LatLng _defaultCenter;
-  
-  // NEW: All spots loaded once (for map markers - always visible)
-  List<SpotMapMarker> _allSpots = [];
-  
-  // NEW: Spots filtered to current viewport (for carousel)
-  List<SpotMapMarker> _visibleSpots = [];
-  
+  List<SpotSummary> _spots = [];
   bool _isLoading = true;
   bool _isMapReady = false;
   String? _error;
-  int? _selectedSpotIndex;
+  int? _selectedSpotIndex = 0;
   bool _showSearch = false;
   
   // Debounce timer for map animations
   Timer? _mapAnimationDebounce;
   bool _isFromMarkerTap = false;
   
-  // Debounce timer for viewport filtering (no API calls, just client-side filter)
-  Timer? _viewportFilterDebounce;
+  // Track last search center to detect significant map movement
+  LatLng _lastSearchCenter = _defaultCenter;
+  Timer? _mapMoveDebounce;
   
   // Key to force map rebuild when background changes
   int _mapKey = 0;
   
   // Style version to prevent race conditions during rapid style changes
   int _styleVersion = 0;
-  
-  // Load version to prevent race conditions between spot loads
-  int _loadVersion = 0;
   
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
@@ -75,61 +64,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Set default center from IP geolocation (if available) or fallback
-    final ipLocation = _ipGeoService.location;
-    if (ipLocation != null) {
-      _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
-      debugPrint('ExploreScreen: Using IP location ${ipLocation.city ?? "unknown"}');
-    } else {
-      _defaultCenter = _fallbackCenter;
-      debugPrint('ExploreScreen: Using fallback location (Hawaii) - listening for IP');
-      // Listen for IP location to become available (just for initial centering)
-      _ipGeoService.addListener(_onIpLocationChanged);
-    }
-    
     _bgService.addListener(_onBackgroundChanged);
-    // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
-  }
-  
-  /// Try to animate map to IP location - called from both IP callback and style loaded
-  /// Returns true if animation was performed
-  /// NOTE: No longer reloads spots - all spots are loaded once globally
-  bool _tryAnimateToIpLocation() {
-    final ipLocation = _ipGeoService.location;
-    
-    // Need: IP available, still at fallback, map ready
-    if (ipLocation != null && 
-        _defaultCenter == _fallbackCenter && 
-        _mapController != null && 
-        _isMapReady) {
-      debugPrint('ExploreScreen: Animating to IP location - ${ipLocation.city ?? "unknown"}');
-      _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
-      
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(_defaultCenter, _defaultZoom),
-      );
-      // After animation settles, _onCameraIdle will update _visibleSpots
-      
-      // Remove listener - we've successfully animated
-      _ipGeoService.removeListener(_onIpLocationChanged);
-      return true;
-    }
-    return false;
-  }
-  
-  /// Called when IP geolocation becomes available after initial load
-  void _onIpLocationChanged() {
-    _tryAnimateToIpLocation();
+    _loadSpots();
   }
   
   @override
   void dispose() {
     _mapAnimationDebounce?.cancel();
-    _viewportFilterDebounce?.cancel();
+    _mapMoveDebounce?.cancel();
     _carouselController.dispose();
     _bgService.removeListener(_onBackgroundChanged);
-    _ipGeoService.removeListener(_onIpLocationChanged);
     _mapController = null;
     super.dispose();
   }
@@ -172,14 +116,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
     if (mounted) setState(() => _isMapReady = true);
     
-    // Try to animate to IP location (just centering, no reload)
-    _tryAnimateToIpLocation();
-    
-    // Load ALL spots once (if not already loaded)
-    if (_allSpots.isEmpty) {
-      await _loadAllSpots();
-    }
-    
     // Add overlays first (raster tile layers)
     await _addOverlays();
     
@@ -194,9 +130,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     // Add markers on top - circle annotations should render above raster layers
     await _updateMarkers();
-    
-    // Update visible spots for carousel
-    await _updateVisibleSpots();
     
     debugPrint('_onStyleLoaded: Complete for ${_bgService.current}');
   }
@@ -254,96 +187,122 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
   
-  /// Handle map camera changes - filter visible spots for carousel (NO API reload)
+  /// Handle map camera changes - reload spots only if panned significantly
   void _onCameraIdle() {
     if (_mapController == null || !_isMapReady) return;
     
-    // Debounce viewport filtering for smoother UX
-    _viewportFilterDebounce?.cancel();
-    _viewportFilterDebounce = Timer(const Duration(milliseconds: 300), () async {
+    // NOTE: We do NOT update markers here - the GeoJSON layer auto-renders at correct positions
+    // We only reload spots if the user panned significantly to a new area
+    
+    _mapMoveDebounce?.cancel();
+    _mapMoveDebounce = Timer(const Duration(milliseconds: 800), () async {
       if (!mounted || _mapController == null) return;
-      await _updateVisibleSpots();
+      
+      final camera = _mapController!.cameraPosition;
+      if (camera == null) return;
+      
+      final newCenter = camera.target;
+      
+      // Calculate distance from last search (rough km estimate)
+      final latDiff = (newCenter.latitude - _lastSearchCenter.latitude).abs();
+      final lonDiff = (newCenter.longitude - _lastSearchCenter.longitude).abs();
+      final roughDistanceKm = (latDiff + lonDiff) * 111;
+      
+      // Only re-search if panned significantly (>100km) - increased threshold
+      if (roughDistanceKm > 100) {
+        _lastSearchCenter = newCenter;
+        _loadSpotsForLocation(newCenter.latitude, newCenter.longitude);
+      }
     });
   }
   
-  /// Filter all spots to those visible in current viewport (client-side, no API)
-  Future<void> _updateVisibleSpots() async {
-    if (_mapController == null || _allSpots.isEmpty) return;
-    
-    try {
-      // Get current visible bounds
-      final bounds = await _mapController!.getVisibleRegion();
-      
-      // Filter spots to those within bounds
-      final visible = _allSpots.where((spot) {
-        final lat = spot.coordinates.lat;
-        final lon = spot.coordinates.lon;
-        return lat >= bounds.southwest.latitude &&
-               lat <= bounds.northeast.latitude &&
-               lon >= bounds.southwest.longitude &&
-               lon <= bounds.northeast.longitude;
-      }).toList();
-      
-      // Sort by score (best first) for carousel
-      visible.sort((a, b) => (b.shakaScore ?? 0).compareTo(a.shakaScore ?? 0));
-      
-      if (mounted) {
-        setState(() {
-          _visibleSpots = visible;
-          // Reset selection when viewport changes
-          _selectedSpotIndex = visible.isNotEmpty ? 0 : null;
-        });
-        
-        // Jump carousel to first spot
-        if (visible.isNotEmpty && _carouselController.hasClients) {
-          _carouselController.jumpToPage(0);
-        }
-      }
-      
-      debugPrint('🗺️ Viewport: ${visible.length}/${_allSpots.length} spots visible');
-    } catch (e) {
-      debugPrint('Error updating visible spots: $e');
-    }
-  }
-  
-  /// Load ALL spots once from the server (lightweight data for map markers)
-  Future<void> _loadAllSpots({int retryCount = 0, int? version}) async {
-    // Increment load version to cancel any in-flight requests
-    final currentVersion = version ?? ++_loadVersion;
-    
+  /// Load spots for a specific location with retry
+  Future<void> _loadSpotsForLocation(double lat, double lon, {int retryCount = 0}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      debugPrint('🗺️ Loading ALL spots for map (v$currentVersion, attempt ${retryCount + 1})');
-      final response = await _apiClient.getAllSpots();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      debugPrint('🌊 Loading spots for: $lat, $lon (attempt ${retryCount + 1})');
+      final response = await _apiClient.searchSpots(
+        lat: lat,
+        lon: lon,
+        date: today,
+        radiusKm: 160,
+      );
       
-      // Only apply results if this is still the current load
-      if (mounted && currentVersion == _loadVersion) {
-        debugPrint('✅ Loaded ${response.count} spots globally (v$currentVersion)');
+      if (mounted) {
+        debugPrint('✅ Loaded ${response.spots.length} spots');
         setState(() {
-          _allSpots = response.spots;
+          _spots = response.spots;
+          _isLoading = false;
+          _selectedSpotIndex = _spots.isNotEmpty ? 0 : null;
+        });
+        
+        // Only jump to page if controller is attached
+        if (_spots.isNotEmpty && _carouselController.hasClients) {
+          _carouselController.jumpToPage(0);
+        }
+        
+        await _updateMarkers();
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading spots (attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3 && mounted) {
+        final delay = Duration(milliseconds: 500 * (retryCount + 1));
+        await Future.delayed(delay);
+        return _loadSpotsForLocation(lat, lon, retryCount: retryCount + 1);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _error = 'Could not load spots. Tap to retry.';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadSpots({int retryCount = 0}) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      debugPrint('🌊 Initial load (attempt ${retryCount + 1})');
+      final response = await _apiClient.searchSpots(
+        lat: _defaultCenter.latitude,
+        lon: _defaultCenter.longitude,
+        date: today,
+        radiusKm: 160,
+      );
+      
+      if (mounted) {
+        debugPrint('✅ Initial load: ${response.spots.length} spots');
+        setState(() {
+          _spots = response.spots;
           _isLoading = false;
         });
         
         if (_isMapReady) {
           await _updateMarkers();
         }
-      } else {
-        debugPrint('⏭️ Ignoring stale load (v$currentVersion, current is v$_loadVersion)');
       }
     } catch (e) {
-      debugPrint('❌ Failed to load all spots (v$currentVersion, attempt ${retryCount + 1}): $e');
-      // Retry up to 3 times with exponential backoff, but only if still current
-      if (retryCount < 3 && mounted && currentVersion == _loadVersion) {
+      debugPrint('❌ Initial load failed (attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3 && mounted) {
         final delay = Duration(milliseconds: 500 * (retryCount + 1));
         await Future.delayed(delay);
-        return _loadAllSpots(retryCount: retryCount + 1, version: currentVersion);
+        return _loadSpots(retryCount: retryCount + 1);
       }
       
-      if (mounted && currentVersion == _loadVersion) {
+      if (mounted) {
         setState(() {
           _error = 'Could not load spots. Tap to retry.';
           _isLoading = false;
@@ -353,13 +312,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
   
   /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
-  /// Shows ALL spots (not filtered) - markers persist during pan/zoom
+  /// This replaces the annotation approach which got buried under raster layers
   Future<void> _updateMarkers() async {
     if (_mapController == null || !_isMapReady) {
       return;
     }
     
-    final spots = _allSpots;
+    final spots = _filteredSpots;
     
     // Remove existing marker layers and source (use safe ?. operator)
     try {
@@ -379,21 +338,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return;
     }
     
-    // Build GeoJSON features for ALL spots (uniform styling - no selection highlight)
-    final features = spots.map((spot) {
-      final color = _getScoreColorHex(spot.shakaScore ?? 0);
+    // Build GeoJSON features for all spots
+    // Selected markers are MUCH larger with cyan accent stroke for clear visibility
+    final features = spots.asMap().entries.map((entry) {
+      final i = entry.key;
+      final spot = entry.value;
+      final isSelected = i == _selectedSpotIndex;
+      final color = _getScoreColorHex(spot.shakaScore);
       
       return {
         'type': 'Feature',
         'properties': {
-          'id': spot.id,
+          'index': i,
           'name': spot.name,
-          'score': (spot.shakaScore ?? 0).toString(),
+          'score': spot.shakaScore.toString(),
           'color': color,
-          'radius': 14,
-          'strokeWidth': 2,
-          'strokeColor': '#FFFFFF',
-          'textSize': 11,
+          // Selected: 2x larger with thick cyan stroke
+          'radius': isSelected ? 24 : 14,
+          'strokeWidth': isSelected ? 5 : 2,
+          'strokeColor': isSelected ? '#00BCD4' : '#FFFFFF',
+          'textSize': isSelected ? 13 : 11,
         },
         'geometry': {
           'type': 'Point',
@@ -452,12 +416,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
           textIgnorePlacement: true,
         ),
       );
-      
-      debugPrint('🗺️ Rendered ${spots.length} spot markers');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
   }
+
+  List<SpotSummary> get _filteredSpots => _spots;
+
+  Color _getScoreColor(int score) => AppColors.getScoreColor(score);
   
   String _getScoreColorHex(int score) {
     final color = AppColors.getScoreColor(score);
@@ -477,23 +443,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
     HapticFeedback.selectionClick();
     setState(() => _selectedSpotIndex = index);
     
-    // Animate to selected spot (no markers rebuild needed)
     _mapAnimationDebounce?.cancel();
     _mapAnimationDebounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted || _mapController == null) return;
-      if (index < _visibleSpots.length) {
-        final spot = _visibleSpots[index];
+      final spots = _filteredSpots;
+      if (index < spots.length) {
+        final spot = spots[index];
         _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(
             LatLng(spot.coordinates.lat, spot.coordinates.lon),
             10.0,
           ),
         );
+        _updateMarkers();
       }
     });
   }
   
-  /// Handle map taps - find tapped spot and select it in carousel
+  /// Handle map taps - test both with and without devicePixelRatio scaling
   Future<void> _handleMapTap(Offset screenPoint) async {
     if (_mapController == null || !_isMapReady) return;
     
@@ -503,83 +470,104 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final tapLogical = screenPoint;
     final tapPhysical = screenPoint * devicePixelRatio;
     
-    if (_allSpots.isEmpty) return;
+    debugPrint('');
+    debugPrint('=== TAP DIAGNOSTIC ===');
+    debugPrint('Device pixel ratio: $devicePixelRatio');
+    debugPrint('Tap LOGICAL (raw): (${tapLogical.dx.toStringAsFixed(1)}, ${tapLogical.dy.toStringAsFixed(1)})');
+    debugPrint('Tap PHYSICAL (*dpr): (${tapPhysical.dx.toStringAsFixed(1)}, ${tapPhysical.dy.toStringAsFixed(1)})');
     
-    // Find closest spot from ALL spots (markers are always visible)
-    SpotMapMarker? closestSpot;
-    double closestDist = double.infinity;
+    final spots = _filteredSpots;
+    if (spots.isEmpty) return;
     
-    for (final spot in _allSpots) {
+    // Find closest spot using BOTH coordinate systems
+    int? closestLogicalIndex;
+    double closestLogicalDist = double.infinity;
+    int? closestPhysicalIndex;
+    double closestPhysicalDist = double.infinity;
+    
+    for (int i = 0; i < spots.length; i++) {
       // Bail out if controller was nulled (style change)
       if (_mapController == null) return;
       
+      final spot = spots[i];
       final spotLatLng = LatLng(spot.coordinates.lat, spot.coordinates.lon);
       final spotScreenPos = await _mapController!.toScreenLocation(spotLatLng);
       
       // Check again after await
       if (_mapController == null) return;
       
-      // Try both coordinate systems and use the closer match
+      // Distance using logical tap
       final dxL = tapLogical.dx - spotScreenPos.x;
       final dyL = tapLogical.dy - spotScreenPos.y;
       final distLogical = sqrt(dxL * dxL + dyL * dyL);
       
+      // Distance using physical tap
       final dxP = tapPhysical.dx - spotScreenPos.x;
       final dyP = tapPhysical.dy - spotScreenPos.y;
       final distPhysical = sqrt(dxP * dxP + dyP * dyP);
       
-      final minDist = distLogical < distPhysical ? distLogical : distPhysical;
+      if (i < 3) {
+        debugPrint('Spot $i: mapPos=(${spotScreenPos.x.toStringAsFixed(0)}, ${spotScreenPos.y.toStringAsFixed(0)}) distL=${distLogical.toStringAsFixed(0)} distP=${distPhysical.toStringAsFixed(0)}');
+      }
       
-      if (minDist < closestDist) {
-        closestDist = minDist;
-        closestSpot = spot;
+      if (distLogical < closestLogicalDist) {
+        closestLogicalDist = distLogical;
+        closestLogicalIndex = i;
+      }
+      if (distPhysical < closestPhysicalDist) {
+        closestPhysicalDist = distPhysical;
+        closestPhysicalIndex = i;
       }
     }
     
-    // Use generous threshold to find match
-    const threshold = 50.0;
+    debugPrint('--- RESULTS ---');
+    debugPrint('LOGICAL closest: spot $closestLogicalIndex at ${closestLogicalDist.toStringAsFixed(1)}px');
+    debugPrint('PHYSICAL closest: spot $closestPhysicalIndex at ${closestPhysicalDist.toStringAsFixed(1)}px');
     
-    if (closestDist < threshold && closestSpot != null) {
-      debugPrint('Marker tap: ${closestSpot.name} (dist ${closestDist.toStringAsFixed(0)}px)');
-      _onMarkerTapped(closestSpot);
+    // Use whichever coordinate system gives a match within threshold
+    const threshold = 50.0; // Generous threshold to find ANY match
+    
+    if (closestPhysicalDist < threshold && closestPhysicalIndex != null) {
+      debugPrint('SELECTING via PHYSICAL coordinates');
+      _onMarkerTapped(closestPhysicalIndex);
+    } else if (closestLogicalDist < threshold && closestLogicalIndex != null) {
+      debugPrint('SELECTING via LOGICAL coordinates');
+      _onMarkerTapped(closestLogicalIndex);
+    } else {
+      debugPrint('NO MATCH within ${threshold}px threshold');
     }
+    debugPrint('=== END ===');
   }
   
-  /// Handle marker tap - navigate to spot (may need to zoom if out of viewport)
-  void _onMarkerTapped(SpotMapMarker tappedSpot) {
+  void _onMarkerTapped(int index) {
+    if (index == _selectedSpotIndex) return;
+    
+    _isFromMarkerTap = true;
     HapticFeedback.selectionClick();
+    setState(() => _selectedSpotIndex = index);
     
-    // Find spot in visible carousel (if present)
-    final visibleIndex = _visibleSpots.indexWhere((s) => s.id == tappedSpot.id);
+    final spot = _filteredSpots[index];
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(spot.coordinates.lat, spot.coordinates.lon),
+        10.0,
+      ),
+    );
     
-    if (visibleIndex >= 0) {
-      // Spot is in carousel - just select it
-      _isFromMarkerTap = true;
-      setState(() => _selectedSpotIndex = visibleIndex);
-      
-      _carouselController.animateToPage(
-        visibleIndex,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      // Spot is not in current viewport - animate to it
-      // After animation, _onCameraIdle will update _visibleSpots and it will appear
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(tappedSpot.coordinates.lat, tappedSpot.coordinates.lon),
-          10.0,
-        ),
-      );
-    }
+    _carouselController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    
+    _updateMarkers();
   }
 
-  /// Open spot detail page - works with either SpotMapMarker or SpotSummary
-  void _openSpotDetail(SpotMapMarker spot) {
+  void _openSpotDetail(SpotSummary spot) {
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     context.push('/spot/${spot.id}', extra: {
       'date': today,
-      // Don't pass spot summary - let detail page fetch it fresh
+      'spot': spot,
     });
   }
   
@@ -637,7 +625,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         onMapCreated: _onMapCreated,
                         onStyleLoadedCallback: _onStyleLoaded,
                         onCameraIdle: _onCameraIdle,
-                        initialCameraPosition: _lastCameraPosition ?? CameraPosition(
+                        initialCameraPosition: _lastCameraPosition ?? const CameraPosition(
                           target: _defaultCenter,
                           zoom: _defaultZoom,
                         ),
@@ -702,13 +690,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   ),
                                   const SizedBox(height: 12),
                                   TextButton(
-                                    onPressed: _loadAllSpots,
+                                    onPressed: _loadSpots,
                                     child: const Text('Retry'),
                                   ),
                                 ],
                               ),
                             )
-                          : _visibleSpots.isEmpty
+                          : _filteredSpots.isEmpty
                               ? const Center(
                                   child: Text(
                                     'No spots found',
@@ -746,13 +734,50 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   void _navigateToRegion(RegionInfo region) {
     // Zoom out more for regions to show all spots (zoom 6 for large regions)
-    // No API reload needed - all spots already loaded, _onCameraIdle will filter
     _mapController?.animateCamera(
       CameraUpdate.newLatLngZoom(
         LatLng(region.centerLat, region.centerLon),
         6.0,
       ),
     );
+    _loadSpotsForRegion(region);
+  }
+
+  Future<void> _loadSpotsForRegion(RegionInfo region) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      // Use larger radius (500km) for regions - some like Tahiti/French Polynesia span many islands
+      final response = await _apiClient.searchSpots(
+        lat: region.centerLat,
+        lon: region.centerLon,
+        date: today,
+        radiusKm: 500,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _spots = response.spots;
+          _isLoading = false;
+          _selectedSpotIndex = 0;
+        });
+        if (_spots.isNotEmpty) {
+          _carouselController.jumpToPage(0);
+        }
+        await _updateMarkers();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildSearchBar() {
@@ -814,7 +839,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: Row(
             children: [
               Text(
-                '${_visibleSpots.length} spots in view',
+                '${_filteredSpots.length} spots nearby',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 13,
@@ -823,10 +848,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               const Spacer(),
               Text(
-                '${_allSpots.length} total',
+                'Today\'s conditions',
                 style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -836,10 +862,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         Expanded(
           child: PageView.builder(
             controller: _carouselController,
-            itemCount: _visibleSpots.length,
+            itemCount: _filteredSpots.length,
             onPageChanged: _onSpotSelected,
             itemBuilder: (context, index) {
-              final spot = _visibleSpots[index];
+              final spot = _filteredSpots[index];
               final isSelected = index == _selectedSpotIndex;
               
               return AnimatedScale(
@@ -847,7 +873,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 duration: const Duration(milliseconds: 200),
                 child: GestureDetector(
                   onTap: () => _openSpotDetail(spot),
-                  child: _SpotMarkerCard(spot: spot),
+                  child: _SpotCard(spot: spot),
                 ),
               );
             },
@@ -860,7 +886,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
-              _visibleSpots.length.clamp(0, 10),
+              _filteredSpots.length.clamp(0, 10),
               (index) => AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -881,12 +907,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 }
 
-/// Lightweight spot card for carousel (uses SpotMapMarker, no conditions)
-/// Tap to open full detail page where conditions are shown
-class _SpotMarkerCard extends StatelessWidget {
-  final SpotMapMarker spot;
+/// Individual spot card in the carousel
+class _SpotCard extends StatelessWidget {
+  final SpotSummary spot;
 
-  const _SpotMarkerCard({required this.spot});
+  const _SpotCard({required this.spot});
 
   Color _getScoreColor(int score) => AppColors.getScoreColor(score);
 
@@ -897,101 +922,153 @@ class _SpotMarkerCard extends StatelessWidget {
     return 'Poor';
   }
 
+  String _formatConditionValue(String value) {
+    // Replace long/loading values with short placeholder
+    if (value.toLowerCase().contains('updating') || 
+        value.toLowerCase().contains('loading') ||
+        value.isEmpty) {
+      return '--';
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final score = spot.shakaScore ?? 0;
-    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Score badge
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _getScoreColor(score).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _getScoreColor(score),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: spot.shakaScore != null
-                  ? Text(
-                      '$score',
-                      style: TextStyle(
-                        color: _getScoreColor(score),
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : Icon(
-                      Icons.hourglass_empty,
-                      color: _getScoreColor(score),
-                      size: 22,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          
-          // Spot info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  spot.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _getScoreColor(spot.shakaScore).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _getScoreColor(spot.shakaScore),
+                    width: 2,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
+                child: Center(
+                  child: Text(
+                    '${spot.shakaScore}',
+                    style: TextStyle(
+                      color: _getScoreColor(spot.shakaScore),
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Text(
+                      spot.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _getScoreColor(score).withOpacity(0.2),
+                        color: _getScoreColor(spot.shakaScore).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        spot.shakaScore != null ? _getScoreLabel(score) : 'Loading...',
+                        _getScoreLabel(spot.shakaScore),
                         style: TextStyle(
-                          color: _getScoreColor(score),
-                          fontSize: 11,
+                          color: _getScoreColor(spot.shakaScore),
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      spot.region,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white38, size: 22),
+            ],
           ),
           
-          // Chevron hint
-          const Icon(Icons.chevron_right, color: Colors.white38, size: 24),
+          const SizedBox(height: 6),
+          
+          Row(
+            children: [
+              _ConditionChip(
+                icon: Icons.visibility,
+                value: _formatConditionValue(spot.conditions.visibility.split(' ').first),
+              ),
+              const SizedBox(width: 6),
+              _ConditionChip(
+                icon: Icons.thermostat,
+                value: _formatConditionValue(spot.conditions.waterTemp.split(' ').first),
+              ),
+              const SizedBox(width: 6),
+              _ConditionChip(
+                icon: Icons.waves,
+                value: _formatConditionValue(spot.conditions.swell.split('@').first.trim()),
+              ),
+              const SizedBox(width: 6),
+              _ConditionChip(
+                icon: Icons.air,
+                value: _formatConditionValue(spot.conditions.wind),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConditionChip extends StatelessWidget {
+  final IconData icon;
+  final String value;
+
+  const _ConditionChip({required this.icon, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white54, size: 18),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
