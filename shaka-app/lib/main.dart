@@ -7,6 +7,7 @@ import 'data/api/shaka_api_client.dart';
 import 'data/models/spot_models.dart';
 import 'data/repositories/spot_repository.dart';
 import 'data/services/health_service.dart';
+import 'data/services/ip_geolocation_service.dart';
 import 'data/services/map_background_service.dart';
 import 'presentation/bloc/search_bloc.dart';
 import 'presentation/shell/main_shell.dart';
@@ -42,6 +43,9 @@ void main() {
     ]);
     HealthProvider().checkHealthInBackground();
     MapBackgroundService().init();
+    
+    // Fetch IP geolocation for map defaults (non-blocking, cached)
+    IpGeolocationService().fetchLocation();
   });
 }
 

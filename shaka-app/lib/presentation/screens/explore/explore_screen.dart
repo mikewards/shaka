@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/search_overlay.dart';
 import '../../widgets/background_picker.dart';
@@ -28,10 +29,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final ShakaApiClient _apiClient = ShakaApiClient();
   final PageController _carouselController = PageController(viewportFraction: 0.85);
   final MapBackgroundService _bgService = MapBackgroundService();
+  final IpGeolocationService _ipGeoService = IpGeolocationService();
   
-  // Default to Hawaii
-  static const _defaultCenter = LatLng(21.3069, -157.8583);
-  static const _defaultZoom = 7.5;
+  // Default fallback (Hawaii) - used if IP geolocation not available
+  static const _fallbackCenter = LatLng(21.3069, -157.8583);
+  static const _defaultZoom = 8.5; // ~30 mile radius
+  
+  // Actual default center (set in initState from IP geolocation or fallback)
+  late LatLng _defaultCenter;
   
   List<SpotSummary> _spots = [];
   bool _isLoading = true;
@@ -45,7 +50,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _isFromMarkerTap = false;
   
   // Track last search center to detect significant map movement
-  LatLng _lastSearchCenter = _defaultCenter;
+  late LatLng _lastSearchCenter;
   Timer? _mapMoveDebounce;
   
   // Key to force map rebuild when background changes
@@ -53,6 +58,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   
   // Style version to prevent race conditions during rapid style changes
   int _styleVersion = 0;
+  
+  // Load version to prevent race conditions between spot loads
+  int _loadVersion = 0;
   
   // Store camera position to restore after style change
   CameraPosition? _lastCameraPosition;
@@ -64,8 +72,54 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Set default center from IP geolocation (if available) or fallback
+    final ipLocation = _ipGeoService.location;
+    if (ipLocation != null) {
+      _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
+      debugPrint('ExploreScreen: Using IP location ${ipLocation.city ?? "unknown"}');
+    } else {
+      _defaultCenter = _fallbackCenter;
+      debugPrint('ExploreScreen: Using fallback location (Hawaii) - listening for IP');
+      // Listen for IP location to become available
+      _ipGeoService.addListener(_onIpLocationChanged);
+    }
+    _lastSearchCenter = _defaultCenter;
+    
     _bgService.addListener(_onBackgroundChanged);
-    _loadSpots();
+    // NOTE: Don't load spots here - do it in _onStyleLoaded after checking IP location
+    // This prevents race condition between initial load and IP-based load
+  }
+  
+  /// Try to animate map to IP location - called from both IP callback and style loaded
+  /// Returns true if animation was performed
+  bool _tryAnimateToIpLocation() {
+    final ipLocation = _ipGeoService.location;
+    
+    // Need: IP available, still at fallback, map ready
+    if (ipLocation != null && 
+        _defaultCenter == _fallbackCenter && 
+        _mapController != null && 
+        _isMapReady) {
+      debugPrint('ExploreScreen: Animating to IP location - ${ipLocation.city ?? "unknown"}');
+      _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
+      _lastSearchCenter = _defaultCenter;
+      
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_defaultCenter, _defaultZoom),
+      );
+      _loadSpotsForLocation(_defaultCenter.latitude, _defaultCenter.longitude);
+      
+      // Remove listener - we've successfully animated
+      _ipGeoService.removeListener(_onIpLocationChanged);
+      return true;
+    }
+    return false;
+  }
+  
+  /// Called when IP geolocation becomes available after initial load
+  void _onIpLocationChanged() {
+    _tryAnimateToIpLocation();
   }
   
   @override
@@ -74,6 +128,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _mapMoveDebounce?.cancel();
     _carouselController.dispose();
     _bgService.removeListener(_onBackgroundChanged);
+    _ipGeoService.removeListener(_onIpLocationChanged);
     _mapController = null;
     super.dispose();
   }
@@ -115,6 +170,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
     if (mounted) setState(() => _isMapReady = true);
+    
+    // Check if IP location became available while map was loading
+    // If not, load spots for the default/fallback location
+    if (!_tryAnimateToIpLocation()) {
+      // IP not ready yet or already handled - load spots for current default center
+      if (_spots.isEmpty) {
+        _loadSpots();
+      }
+    }
     
     // Add overlays first (raster tile layers)
     await _addOverlays();
@@ -217,7 +281,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
   
   /// Load spots for a specific location with retry
-  Future<void> _loadSpotsForLocation(double lat, double lon, {int retryCount = 0}) async {
+  Future<void> _loadSpotsForLocation(double lat, double lon, {int retryCount = 0, int? version}) async {
+    // Increment load version to cancel any in-flight requests
+    final currentVersion = version ?? ++_loadVersion;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -225,7 +292,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      debugPrint('🌊 Loading spots for: $lat, $lon (attempt ${retryCount + 1})');
+      debugPrint('🌊 Loading spots for: $lat, $lon (v$currentVersion, attempt ${retryCount + 1})');
       final response = await _apiClient.searchSpots(
         lat: lat,
         lon: lon,
@@ -233,8 +300,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         radiusKm: 160,
       );
       
-      if (mounted) {
-        debugPrint('✅ Loaded ${response.spots.length} spots');
+      // Only apply results if this is still the current load
+      if (mounted && currentVersion == _loadVersion) {
+        debugPrint('✅ Loaded ${response.spots.length} spots (v$currentVersion)');
         setState(() {
           _spots = response.spots;
           _isLoading = false;
@@ -247,17 +315,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
         }
         
         await _updateMarkers();
+      } else {
+        debugPrint('⏭️ Ignoring stale load (v$currentVersion, current is v$_loadVersion)');
       }
     } catch (e) {
-      debugPrint('❌ Error loading spots (attempt ${retryCount + 1}): $e');
-      // Retry up to 3 times with exponential backoff
-      if (retryCount < 3 && mounted) {
+      debugPrint('❌ Error loading spots (v$currentVersion, attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff, but only if still current
+      if (retryCount < 3 && mounted && currentVersion == _loadVersion) {
         final delay = Duration(milliseconds: 500 * (retryCount + 1));
         await Future.delayed(delay);
-        return _loadSpotsForLocation(lat, lon, retryCount: retryCount + 1);
+        return _loadSpotsForLocation(lat, lon, retryCount: retryCount + 1, version: currentVersion);
       }
       
-      if (mounted) {
+      if (mounted && currentVersion == _loadVersion) {
         setState(() {
           _error = 'Could not load spots. Tap to retry.';
           _isLoading = false;
@@ -266,7 +336,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  Future<void> _loadSpots({int retryCount = 0}) async {
+  Future<void> _loadSpots({int retryCount = 0, int? version}) async {
+    // Increment load version to cancel any in-flight requests
+    final currentVersion = version ?? ++_loadVersion;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -274,7 +347,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      debugPrint('🌊 Initial load (attempt ${retryCount + 1})');
+      debugPrint('🌊 Initial load for ${_defaultCenter.latitude}, ${_defaultCenter.longitude} (v$currentVersion, attempt ${retryCount + 1})');
       final response = await _apiClient.searchSpots(
         lat: _defaultCenter.latitude,
         lon: _defaultCenter.longitude,
@@ -282,8 +355,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         radiusKm: 160,
       );
       
-      if (mounted) {
-        debugPrint('✅ Initial load: ${response.spots.length} spots');
+      // Only apply results if this is still the current load
+      if (mounted && currentVersion == _loadVersion) {
+        debugPrint('✅ Initial load: ${response.spots.length} spots (v$currentVersion)');
         setState(() {
           _spots = response.spots;
           _isLoading = false;
@@ -292,17 +366,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (_isMapReady) {
           await _updateMarkers();
         }
+      } else {
+        debugPrint('⏭️ Ignoring stale initial load (v$currentVersion, current is v$_loadVersion)');
       }
     } catch (e) {
-      debugPrint('❌ Initial load failed (attempt ${retryCount + 1}): $e');
-      // Retry up to 3 times with exponential backoff
-      if (retryCount < 3 && mounted) {
+      debugPrint('❌ Initial load failed (v$currentVersion, attempt ${retryCount + 1}): $e');
+      // Retry up to 3 times with exponential backoff, but only if still current
+      if (retryCount < 3 && mounted && currentVersion == _loadVersion) {
         final delay = Duration(milliseconds: 500 * (retryCount + 1));
         await Future.delayed(delay);
-        return _loadSpots(retryCount: retryCount + 1);
+        return _loadSpots(retryCount: retryCount + 1, version: currentVersion);
       }
       
-      if (mounted) {
+      if (mounted && currentVersion == _loadVersion) {
         setState(() {
           _error = 'Could not load spots. Tap to retry.';
           _isLoading = false;
@@ -625,7 +701,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         onMapCreated: _onMapCreated,
                         onStyleLoadedCallback: _onStyleLoaded,
                         onCameraIdle: _onCameraIdle,
-                        initialCameraPosition: _lastCameraPosition ?? const CameraPosition(
+                        initialCameraPosition: _lastCameraPosition ?? CameraPosition(
                           target: _defaultCenter,
                           zoom: _defaultZoom,
                         ),

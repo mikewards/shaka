@@ -11,6 +11,7 @@ import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/gibs_layer.dart';
 import '../../../data/models/map_background.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
@@ -68,7 +69,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   
   // Map center (default: Hawaii, or from spot if provided)
   late LatLng _initialCenter;
-  static const _defaultZoom = 5.0;
+  static const _defaultZoom = 8.5; // ~30 mile radius
   static const _spotZoom = 8.0; // Closer zoom when viewing a spot
   
   // Key to force map rebuild when background changes
@@ -108,10 +109,22 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // Load GIBS-specific preferences (decoupled from Explore)
     _loadPreferences();
     
-    // Set initial center from spot coordinates or default to Catalina Islands, CA
-    _initialCenter = (widget.initialLat != null && widget.initialLon != null)
-        ? LatLng(widget.initialLat!, widget.initialLon!)
-        : const LatLng(33.4, -118.4);
+    // Set initial center from:
+    // 1. Spot coordinates (if provided)
+    // 2. IP geolocation (if available)
+    // 3. Fallback to Catalina Islands, CA
+    if (widget.initialLat != null && widget.initialLon != null) {
+      _initialCenter = LatLng(widget.initialLat!, widget.initialLon!);
+    } else {
+      final ipLocation = IpGeolocationService().location;
+      if (ipLocation != null) {
+        _initialCenter = LatLng(ipLocation.lat, ipLocation.lon);
+        debugPrint('GIBS: Using IP location ${ipLocation.city ?? "unknown"}');
+      } else {
+        _initialCenter = const LatLng(33.4, -118.4);
+        debugPrint('GIBS: Using fallback location (Catalina)');
+      }
+    }
     
     // Immersive status bar
     SystemChrome.setSystemUIOverlayStyle(
