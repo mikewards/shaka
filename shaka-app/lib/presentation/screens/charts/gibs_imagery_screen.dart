@@ -1,4 +1,4 @@
-import 'dart:math' show Point;
+import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +11,7 @@ import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/gibs_layer.dart';
 import '../../../data/models/map_background.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
@@ -41,18 +42,18 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // GIBS-specific persistence keys (decoupled from Explore)
   static const _prefsKeyMapStyle = 'gibs_map_style';
   static const _prefsKeyLayers = 'gibs_active_layer_ids';
-  static const _prefsKeyPreset = 'gibs_active_preset';
   
   // GIBS has its own map style (decoupled from Explore)
   // Default to satellite for satellite imagery viewing
   MapBackground _gibsMapStyle = MapBackground.satellite;
   
   // Active layers (supports multiple for stacking)
-  // Default to Full Coverage preset for maximum satellite coverage
-  List<GibsLayer> _activeLayers = GibsLayerPreset.fullCoverage.layers;
-  
-  // Currently active preset (null if custom selection)
-  GibsLayerPreset? _activePreset = GibsLayerPreset.fullCoverage;
+  // Default to PACE + NOAA satellites (afternoon passes)
+  List<GibsLayer> _activeLayers = [
+    GibsLayer.paceChlorophyll,
+    GibsLayer.noaa20Chlorophyll,
+    GibsLayer.noaa21Chlorophyll,
+  ];
   
   // Selected date (defaults to yesterday for data availability)
   late DateTime _selectedDate;
@@ -66,9 +67,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Date validation warning message
   String? _dateWarning;
   
-  // Map center (default: Catalina Islands CA, or from spot if provided)
-  LatLng _initialCenter = const LatLng(33.4, -118.4);
-  static const _defaultZoom = 5.0;
+  // Map center (default: Hawaii, or from spot if provided)
+  late LatLng _initialCenter;
+  static const _defaultZoom = 8.5; // ~30 mile radius
   static const _spotZoom = 8.0; // Closer zoom when viewing a spot
   
   // Key to force map rebuild when background changes
@@ -93,7 +94,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Saved spots state
   final ShakaApiClient _apiClient = ShakaApiClient();
   List<UserSpotResponse> _savedSpots = [];
-  bool _showSpotsOnMap = false;
+  bool _showSpotsOnMap = true;  // Default to ON
+  
+  // Tap detection for spot markers
+  Offset? _pointerDownPosition;
+  DateTime? _pointerDownTime;
   
   // Helper getters
   bool get _hasLayers => _activeLayers.isNotEmpty;
@@ -108,10 +113,22 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // Load GIBS-specific preferences (decoupled from Explore)
     _loadPreferences();
     
-    // Set initial center from spot coordinates or default to Catalina Islands, CA
-    _initialCenter = (widget.initialLat != null && widget.initialLon != null)
-        ? LatLng(widget.initialLat!, widget.initialLon!)
-        : const LatLng(33.4, -118.4);
+    // Set initial center from:
+    // 1. Spot coordinates (if provided)
+    // 2. IP geolocation (if available)
+    // 3. Fallback to Catalina Islands, CA
+    if (widget.initialLat != null && widget.initialLon != null) {
+      _initialCenter = LatLng(widget.initialLat!, widget.initialLon!);
+    } else {
+      final ipLocation = IpGeolocationService().location;
+      if (ipLocation != null) {
+        _initialCenter = LatLng(ipLocation.lat, ipLocation.lon);
+        debugPrint('GIBS: Using IP location ${ipLocation.city ?? "unknown"}');
+      } else {
+        _initialCenter = const LatLng(33.4, -118.4);
+        debugPrint('GIBS: Using fallback location (Catalina)');
+      }
+    }
     
     // Immersive status bar
     SystemChrome.setSystemUIOverlayStyle(
@@ -151,16 +168,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         }
       }
       
-      // Load preset
-      final savedPresetId = prefs.getString(_prefsKeyPreset);
-      if (savedPresetId != null && savedPresetId.isNotEmpty) {
-        _activePreset = GibsLayerPreset.allPresets
-            .where((p) => p.id == savedPresetId).firstOrNull;
-      } else if (savedLayerIds != null) {
-        // Layers were saved but no preset - custom selection
-        _activePreset = null;
-      }
-      
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('GIBS: Failed to load preferences: $e');
@@ -174,7 +181,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await prefs.setString(_prefsKeyMapStyle, _gibsMapStyle.name);
       final layerIds = _activeLayers.map((l) => l.id).join(',');
       await prefs.setString(_prefsKeyLayers, layerIds);
-      await prefs.setString(_prefsKeyPreset, _activePreset?.id ?? '');
     } catch (e) {
       debugPrint('GIBS: Failed to save preferences: $e');
     }
@@ -472,10 +478,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 
   /// Set active layers (replaces all current layers)
-  void _setLayers(List<GibsLayer> layers, {GibsLayerPreset? preset}) async {
+  void _setLayers(List<GibsLayer> layers) async {
     setState(() {
       _activeLayers = layers;
-      _activePreset = preset;
       _isLoading = true;
       _dateWarning = null;
     });
@@ -498,12 +503,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       newLayers = [..._activeLayers, layer];
     }
     
-    _setLayers(newLayers, preset: null); // Clear preset when manually toggling
-  }
-  
-  /// Apply a preset
-  void _applyPreset(GibsLayerPreset preset) {
-    _setLayers(preset.layers, preset: preset);
+    _setLayers(newLayers);
   }
 
   /// Change date
@@ -526,9 +526,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       isScrollControlled: true,
       builder: (context) => _LayerPickerSheet(
         initialActiveLayers: List.from(_activeLayers),
-        initialActivePreset: _activePreset,
-        onSelectionChanged: (layers, preset) {
-          _setLayers(layers, preset: preset);
+        onSelectionChanged: (layers) {
+          _setLayers(layers);
         },
       ),
     );
@@ -586,9 +585,69 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
           await _updateSpotMarkers();
         }
+        
+        // Fetch scores for spots that don't have them (async, updates markers when done)
+        _fetchMissingScores();
       }
     } catch (e) {
       debugPrint('📍 GIBS: FAILED to load saved spots: $e');
+    }
+  }
+  
+  /// Fetch shaka scores for spots that don't have them from detail endpoint
+  Future<void> _fetchMissingScores() async {
+    final spotsNeedingScores = _savedSpots.where((s) => s.shakaScore == null).toList();
+    if (spotsNeedingScores.isEmpty) {
+      debugPrint('📍 GIBS: All spots have scores');
+      return;
+    }
+    
+    debugPrint('📍 GIBS: Fetching scores for ${spotsNeedingScores.length} spots...');
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    bool anyUpdated = false;
+    
+    // Fetch scores in parallel (max 5 at a time to avoid overwhelming the API)
+    final futures = <Future>[];
+    for (final spot in spotsNeedingScores) {
+      futures.add(_fetchSpotScore(spot.id, today).then((score) {
+        if (score != null) {
+          // Find and update the spot in our list
+          final index = _savedSpots.indexWhere((s) => s.id == spot.id);
+          if (index != -1) {
+            _savedSpots[index] = UserSpotResponse(
+              id: spot.id,
+              name: spot.name,
+              coordinates: spot.coordinates,
+              region: spot.region,
+              country: spot.country,
+              createdAt: spot.createdAt,
+              isUserSpot: spot.isUserSpot,
+              shakaScore: score,
+            );
+            anyUpdated = true;
+          }
+        }
+      }));
+    }
+    
+    await Future.wait(futures);
+    
+    // Update markers if any scores were fetched
+    if (anyUpdated && mounted && _showSpotsOnMap) {
+      debugPrint('📍 GIBS: Updated ${spotsNeedingScores.length} spot scores, refreshing markers');
+      setState(() {});  // Trigger rebuild
+      await _updateSpotMarkers();
+    }
+  }
+  
+  /// Fetch a single spot's score from the detail endpoint
+  Future<int?> _fetchSpotScore(String spotId, String date) async {
+    try {
+      final detail = await _apiClient.getUserSpotDetail(spotId: spotId, date: date);
+      return detail.spot.score.overall;
+    } catch (e) {
+      debugPrint('📍 GIBS: Failed to fetch score for $spotId: $e');
+      return null;
     }
   }
 
@@ -600,17 +659,29 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // CRITICAL: Check controller after each await (prevents crashes)
     if (_mapController == null) return;
     
-    // Build GeoJSON FeatureCollection
-    final features = _savedSpots.map((spot) => {
-      'type': 'Feature',
-      'geometry': {
-        'type': 'Point',
-        'coordinates': [spot.longitude, spot.latitude],
-      },
-      'properties': {
-        'name': spot.name,
-        'id': spot.id,
-      },
+    // Build GeoJSON FeatureCollection with score-based colors (like Explore map)
+    final features = _savedSpots.map((spot) {
+      final score = spot.shakaScore;
+      final hasScore = score != null;
+      final color = hasScore ? _getScoreColorHex(score) : '#808080';  // Gray if no score
+      
+      return {
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [spot.longitude, spot.latitude],
+        },
+        'properties': {
+          'id': spot.id,
+          'name': spot.name,
+          'score': hasScore ? score.toString() : '',  // Empty string if no score
+          'color': color,
+          'radius': 14,  // Match Explore map size
+          'strokeWidth': 2,
+          'strokeColor': '#FFFFFF',
+          'textSize': 11,
+        },
+      };
     }).toList();
     
     final geojson = {
@@ -628,33 +699,104 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     if (_mapController == null) return;
     
-    // Add circle layer (green markers)
+    // Add circle layer with score-based colors
     await _mapController!.addCircleLayer(
       'saved-spots-source',
       'saved-spots-layer',
       const CircleLayerProperties(
-        circleRadius: 8,
-        circleColor: '#6B8E7D',  // Sage green (AppColors.scoreExcellent)
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
+        circleRadius: ['get', 'radius'],
+        circleColor: ['get', 'color'],
+        circleStrokeColor: ['get', 'strokeColor'],
+        circleStrokeWidth: ['get', 'strokeWidth'],
+        circleOpacity: 1.0,
+        circleStrokeOpacity: 1.0,
       ),
     );
     
     if (_mapController == null) return;
     
-    // Add labels
+    // Add symbol layer for score text on top of circles
     await _mapController!.addSymbolLayer(
       'saved-spots-source',
       'saved-spots-labels',
       const SymbolLayerProperties(
-        textField: ['get', 'name'],
-        textSize: 11,
+        textField: ['get', 'score'],
+        textSize: ['get', 'textSize'],
         textColor: '#FFFFFF',
+        textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
         textHaloColor: '#000000',
-        textHaloWidth: 1,
-        textOffset: [0, 1.5],
+        textHaloWidth: 1.0,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
       ),
     );
+  }
+  
+  /// Convert score to hex color string for map styling
+  String _getScoreColorHex(int score) {
+    final color = AppColors.getScoreColor(score);
+    return '#${color.value.toRadixString(16).substring(2)}';
+  }
+  
+  /// Handle map tap - find closest spot and navigate to detail
+  Future<void> _handleMapTap(Offset screenPoint) async {
+    if (_mapController == null || _savedSpots.isEmpty || !_showSpotsOnMap) return;
+    
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    
+    // Try both coordinate interpretations (logical and physical)
+    final tapLogical = screenPoint;
+    final tapPhysical = screenPoint * devicePixelRatio;
+    
+    // Find closest spot
+    int? closestLogicalIndex;
+    double closestLogicalDist = double.infinity;
+    int? closestPhysicalIndex;
+    double closestPhysicalDist = double.infinity;
+    
+    for (int i = 0; i < _savedSpots.length; i++) {
+      if (_mapController == null) return;
+      
+      final spot = _savedSpots[i];
+      final spotLatLng = LatLng(spot.latitude, spot.longitude);
+      final spotScreenPos = await _mapController!.toScreenLocation(spotLatLng);
+      
+      if (_mapController == null) return;
+      
+      // Distance using logical tap
+      final dxL = tapLogical.dx - spotScreenPos.x;
+      final dyL = tapLogical.dy - spotScreenPos.y;
+      final distLogical = sqrt(dxL * dxL + dyL * dyL);
+      
+      // Distance using physical tap
+      final dxP = tapPhysical.dx - spotScreenPos.x;
+      final dyP = tapPhysical.dy - spotScreenPos.y;
+      final distPhysical = sqrt(dxP * dxP + dyP * dyP);
+      
+      if (distLogical < closestLogicalDist) {
+        closestLogicalDist = distLogical;
+        closestLogicalIndex = i;
+      }
+      if (distPhysical < closestPhysicalDist) {
+        closestPhysicalDist = distPhysical;
+        closestPhysicalIndex = i;
+      }
+    }
+    
+    // Navigate if tap is within threshold
+    const threshold = 50.0;
+    UserSpotResponse? tappedSpot;
+    
+    if (closestPhysicalDist < threshold && closestPhysicalIndex != null) {
+      tappedSpot = _savedSpots[closestPhysicalIndex];
+    } else if (closestLogicalDist < threshold && closestLogicalIndex != null) {
+      tappedSpot = _savedSpots[closestLogicalIndex];
+    }
+    
+    if (tappedSpot != null) {
+      HapticFeedback.selectionClick();
+      _navigateToSpotDetail(tappedSpot);
+    }
   }
 
   Future<void> _removeSpotMarkers() async {
@@ -877,9 +1019,30 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       body: Stack(
         children: [
           // MapLibre Map - keyed to rebuild on background change
-          // Wrapped in Listener to detect pan gestures for continuous coordinate updates
+          // Wrapped in Listener to detect pan gestures and spot taps
           Listener(
             behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) {
+              _pointerDownPosition = event.localPosition;
+              _pointerDownTime = DateTime.now();
+            },
+            onPointerUp: (event) {
+              // Only handle quick taps (not pan gestures)
+              final downPos = _pointerDownPosition;
+              final downTime = _pointerDownTime;
+              _pointerDownPosition = null;
+              _pointerDownTime = null;
+              
+              if (downPos == null || downTime == null) return;
+              
+              // Check if it was a tap (short duration, small movement)
+              final duration = DateTime.now().difference(downTime);
+              final distance = (event.localPosition - downPos).distance;
+              
+              if (duration.inMilliseconds < 300 && distance < 20) {
+                _handleMapTap(event.localPosition);
+              }
+            },
             onPointerMove: (event) {
               if (_isPinMode && _mapController != null) {
                 // Poll camera position during drag for real-time coordinate updates
@@ -1550,7 +1713,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                     children: [
                       Text(
                         _hasMultipleLayers 
-                            ? (_activePreset?.name ?? '${_activeLayers.length} Satellites')
+                            ? '${_activeLayers.length} Satellites'
                             : (_primaryLayer?.name ?? 'No Layers Selected'),
                         style: const TextStyle(
                           color: Colors.white,
@@ -1576,7 +1739,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             // Content based on single/multi layer
             if (_hasMultipleLayers) ...[
               Text(
-                _activePreset?.description ?? 'Multiple satellite layers combined for better coverage',
+                'Multiple satellite layers combined for better coverage',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 14,
@@ -1663,15 +1826,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 }
 
-/// Layer picker bottom sheet with checkbox multi-select and presets
+/// Layer picker bottom sheet with checkbox multi-select
 class _LayerPickerSheet extends StatefulWidget {
   final List<GibsLayer> initialActiveLayers;
-  final GibsLayerPreset? initialActivePreset;
-  final Function(List<GibsLayer>, GibsLayerPreset?) onSelectionChanged;
+  final Function(List<GibsLayer>) onSelectionChanged;
 
   const _LayerPickerSheet({
     required this.initialActiveLayers,
-    required this.initialActivePreset,
     required this.onSelectionChanged,
   });
 
@@ -1681,13 +1842,11 @@ class _LayerPickerSheet extends StatefulWidget {
 
 class _LayerPickerSheetState extends State<_LayerPickerSheet> {
   late List<GibsLayer> _activeLayers;
-  GibsLayerPreset? _activePreset;
 
   @override
   void initState() {
     super.initState();
     _activeLayers = List.from(widget.initialActiveLayers);
-    _activePreset = widget.initialActivePreset;
   }
   
   bool _isLayerActive(GibsLayer layer) {
@@ -1700,22 +1859,12 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
       if (isActive) {
         // Remove layer (allow empty selection)
         _activeLayers.removeWhere((l) => l.id == layer.id);
-        _activePreset = null; // Clear preset when manually toggling
       } else {
         // Add layer
         _activeLayers.add(layer);
-        _activePreset = null; // Clear preset when manually toggling
       }
     });
-    widget.onSelectionChanged(_activeLayers, _activePreset);
-  }
-  
-  void _applyPreset(GibsLayerPreset preset) {
-    setState(() {
-      _activeLayers = List.from(preset.layers);
-      _activePreset = preset;
-    });
-    widget.onSelectionChanged(_activeLayers, _activePreset);
+    widget.onSelectionChanged(_activeLayers);
   }
 
   @override
@@ -1775,9 +1924,6 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
               ),
             ),
             const Divider(color: Colors.white12, height: 1),
-            // Presets section
-            _buildPresetsSection(),
-            const Divider(color: Colors.white12, height: 1),
             // Layer list by category
             Expanded(
               child: ListView(
@@ -1792,74 +1938,6 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
             ),
           ],
         ),
-      ),
-    );
-  }
-  
-  Widget _buildPresetsSection() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'QUICK PRESETS',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: GibsLayerPreset.allPresets.map((preset) {
-                final isActive = _activePreset?.id == preset.id;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => _applyPreset(preset),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isActive 
-                            ? preset.color.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isActive 
-                              ? preset.color.withOpacity(0.5)
-                              : Colors.white24,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            preset.icon,
-                            color: isActive ? preset.color : Colors.white70,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            preset.name,
-                            style: TextStyle(
-                              color: isActive ? preset.color : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2072,6 +2150,11 @@ class _SavedSpotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasScore = spot.shakaScore != null;
+    final scoreColor = hasScore 
+        ? AppColors.getScoreColor(spot.shakaScore!) 
+        : Colors.grey;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2083,17 +2166,30 @@ class _SavedSpotCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Score badge (replaces location icon)
             Container(
-              width: 36,
-              height: 36,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF6B8E7D).withOpacity(0.2),
+                color: scoreColor.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
               ),
-              child: const Icon(
-                Icons.location_on,
-                color: Color(0xFF6B8E7D),
-                size: 20,
+              child: Center(
+                child: hasScore
+                    ? Text(
+                        '${spot.shakaScore}',
+                        style: TextStyle(
+                          color: scoreColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Icon(
+                        Icons.location_on,
+                        color: scoreColor,
+                        size: 20,
+                      ),
               ),
             ),
             const SizedBox(width: 12),

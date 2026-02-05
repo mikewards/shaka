@@ -95,6 +95,35 @@ fun Application.configureRouting() {
                 val regions = spotService.getAllRegions()
                 call.respond(regions)
             }
+            
+            /**
+             * Get ALL spots for map display.
+             * Returns lightweight SpotMapMarker data (no conditions, fish, etc.)
+             * Used by Explore map to load all ~800 spots once on startup.
+             */
+            get("/spots/all") {
+                val allSpots = SpotDatabase.getAllSpots()
+                
+                val markers = allSpots.map { spot ->
+                    // Get cached score if available (fast lookup, no API calls)
+                    val score = spotService.getUserSpotScore(spot.id)
+                    // Get region from spot ID (e.g., "oahu-sharks-cove" -> "Oahu")
+                    val region = spotService.getRegionForSpot(spot.id)
+                    
+                    SpotMapMarker(
+                        id = spot.id,
+                        name = spot.name,
+                        coordinates = spot.coordinates,
+                        region = region,
+                        shakaScore = score
+                    )
+                }
+                
+                call.respond(AllSpotsResponse(
+                    spots = markers,
+                    count = markers.size
+                ))
+            }
 
             // Get spot detail
             get("/spots/{id}") {
@@ -681,7 +710,8 @@ fun Application.configureRouting() {
                     region = created.region,
                     country = created.country,
                     createdAt = created.createdAt.toString(),
-                    isUserSpot = true
+                    isUserSpot = true,
+                    shakaScore = null  // No cached data yet for new spot
                 )
                 
                 call.respond(HttpStatusCode.Created, response)
@@ -701,6 +731,10 @@ fun Application.configureRouting() {
                 val spots = userSpotRepository.findByDeviceId(deviceId)
                 val response = UserSpotListResponse(
                     spots = spots.map { spot ->
+                        // Calculate score from cached data (fast, no API calls)
+                        val cacheId = userSpotRepository.getCacheId(spot.id.toString())
+                        val score = spotService.getUserSpotScore(cacheId)
+                        
                         UserSpotResponse(
                             id = spot.id.toString(),
                             name = spot.name,
@@ -708,7 +742,8 @@ fun Application.configureRouting() {
                             region = spot.region,
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
-                            isUserSpot = true
+                            isUserSpot = true,
+                            shakaScore = score  // null if no cached data
                         )
                     },
                     count = spots.size,
@@ -740,6 +775,10 @@ fun Application.configureRouting() {
                 val spots = userSpotRepository.searchByName(deviceId, query, limit)
                 val response = UserSpotListResponse(
                     spots = spots.map { spot ->
+                        // Calculate score from cached data (fast, no API calls)
+                        val cacheId = userSpotRepository.getCacheId(spot.id.toString())
+                        val score = spotService.getUserSpotScore(cacheId)
+                        
                         UserSpotResponse(
                             id = spot.id.toString(),
                             name = spot.name,
@@ -747,7 +786,8 @@ fun Application.configureRouting() {
                             region = spot.region,
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
-                            isUserSpot = true
+                            isUserSpot = true,
+                            shakaScore = score  // null if no cached data
                         )
                     },
                     count = spots.size,

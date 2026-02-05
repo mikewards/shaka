@@ -160,6 +160,24 @@ class ShakaApiClient {
     }
   }
 
+  /// Get ALL spots for map display (lightweight, no conditions)
+  /// Used by Explore map to load all ~800 spots once on startup.
+  Future<AllSpotsResponse> getAllSpots() async {
+    final stopwatch = Stopwatch()..start();
+    print('🗺️ API: Fetching all spots for map display');
+    try {
+      final response = await _dio.get('/spots/all');
+      stopwatch.stop();
+      final result = AllSpotsResponse.fromJson(response.data);
+      print('✅ API: Got ${result.count} spots in ${stopwatch.elapsedMilliseconds}ms');
+      return result;
+    } on DioException catch (e) {
+      stopwatch.stop();
+      print('❌ API: getAllSpots failed after ${stopwatch.elapsedMilliseconds}ms - ${e.type}: ${e.message}');
+      throw _handleError(e);
+    }
+  }
+
   /// Get detailed health status of external services
   /// Used for auto-degradation when services are down
   Future<ServiceHealth> getServiceHealth() async {
