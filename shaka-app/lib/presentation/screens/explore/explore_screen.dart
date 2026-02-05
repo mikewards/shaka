@@ -35,7 +35,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   static const _defaultZoom = 8.5; // ~30 mile radius
   
   // Actual default center (set in initState from IP geolocation or fallback)
-  late LatLng _defaultCenter;
+  LatLng _defaultCenter = _fallbackCenter;
   
   // NEW: All spots loaded once (for map markers - always visible)
   List<SpotMapMarker> _allSpots = [];

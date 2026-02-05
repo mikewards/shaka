@@ -67,8 +67,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Date validation warning message
   String? _dateWarning;
   
-  // Map center (default: Hawaii, or from spot if provided)
-  late LatLng _initialCenter;
+  // Map center (default: Catalina Islands CA, or from spot if provided)
+  LatLng _initialCenter = const LatLng(33.4, -118.4);
   static const _defaultZoom = 8.5; // ~30 mile radius
   static const _spotZoom = 8.0; // Closer zoom when viewing a spot
   
