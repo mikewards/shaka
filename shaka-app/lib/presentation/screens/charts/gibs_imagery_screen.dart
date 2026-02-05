@@ -585,9 +585,69 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         if (_showSpotsOnMap && _savedSpots.isNotEmpty) {
           await _updateSpotMarkers();
         }
+        
+        // Fetch scores for spots that don't have them (async, updates markers when done)
+        _fetchMissingScores();
       }
     } catch (e) {
       debugPrint('📍 GIBS: FAILED to load saved spots: $e');
+    }
+  }
+  
+  /// Fetch shaka scores for spots that don't have them from detail endpoint
+  Future<void> _fetchMissingScores() async {
+    final spotsNeedingScores = _savedSpots.where((s) => s.shakaScore == null).toList();
+    if (spotsNeedingScores.isEmpty) {
+      debugPrint('📍 GIBS: All spots have scores');
+      return;
+    }
+    
+    debugPrint('📍 GIBS: Fetching scores for ${spotsNeedingScores.length} spots...');
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    bool anyUpdated = false;
+    
+    // Fetch scores in parallel (max 5 at a time to avoid overwhelming the API)
+    final futures = <Future>[];
+    for (final spot in spotsNeedingScores) {
+      futures.add(_fetchSpotScore(spot.id, today).then((score) {
+        if (score != null) {
+          // Find and update the spot in our list
+          final index = _savedSpots.indexWhere((s) => s.id == spot.id);
+          if (index != -1) {
+            _savedSpots[index] = UserSpotResponse(
+              id: spot.id,
+              name: spot.name,
+              coordinates: spot.coordinates,
+              region: spot.region,
+              country: spot.country,
+              createdAt: spot.createdAt,
+              isUserSpot: spot.isUserSpot,
+              shakaScore: score,
+            );
+            anyUpdated = true;
+          }
+        }
+      }));
+    }
+    
+    await Future.wait(futures);
+    
+    // Update markers if any scores were fetched
+    if (anyUpdated && mounted && _showSpotsOnMap) {
+      debugPrint('📍 GIBS: Updated ${spotsNeedingScores.length} spot scores, refreshing markers');
+      setState(() {});  // Trigger rebuild
+      await _updateSpotMarkers();
+    }
+  }
+  
+  /// Fetch a single spot's score from the detail endpoint
+  Future<int?> _fetchSpotScore(String spotId, String date) async {
+    try {
+      final detail = await _apiClient.getUserSpotDetail(spotId: spotId, date: date);
+      return detail.spot.score.overall;
+    } catch (e) {
+      debugPrint('📍 GIBS: Failed to fetch score for $spotId: $e');
+      return null;
     }
   }
 
@@ -2090,6 +2150,11 @@ class _SavedSpotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasScore = spot.shakaScore != null;
+    final scoreColor = hasScore 
+        ? AppColors.getScoreColor(spot.shakaScore!) 
+        : Colors.grey;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2101,17 +2166,30 @@ class _SavedSpotCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Score badge (replaces location icon)
             Container(
-              width: 36,
-              height: 36,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF6B8E7D).withOpacity(0.2),
+                color: scoreColor.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
               ),
-              child: const Icon(
-                Icons.location_on,
-                color: Color(0xFF6B8E7D),
-                size: 20,
+              child: Center(
+                child: hasScore
+                    ? Text(
+                        '${spot.shakaScore}',
+                        style: TextStyle(
+                          color: scoreColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Icon(
+                        Icons.location_on,
+                        color: scoreColor,
+                        size: 20,
+                      ),
               ),
             ),
             const SizedBox(width: 12),
