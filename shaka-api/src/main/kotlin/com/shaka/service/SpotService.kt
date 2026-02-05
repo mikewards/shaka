@@ -744,6 +744,14 @@ class SpotService {
             )
         }.sortedBy { it.name }
     }
+    
+    /**
+     * Get human-readable region name for a spot (public accessor).
+     * Used by /spots/all endpoint for map markers.
+     */
+    fun getRegionForSpot(spotId: String): String {
+        return inferSpecificRegionFromSpotId(spotId)
+    }
 
     private fun getMoonPhase(date: String): Double {
         // Simplified moon phase calculation (0 = new, 0.5 = full)

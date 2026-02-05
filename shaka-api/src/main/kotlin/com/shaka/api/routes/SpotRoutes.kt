@@ -95,6 +95,35 @@ fun Application.configureRouting() {
                 val regions = spotService.getAllRegions()
                 call.respond(regions)
             }
+            
+            /**
+             * Get ALL spots for map display.
+             * Returns lightweight SpotMapMarker data (no conditions, fish, etc.)
+             * Used by Explore map to load all ~800 spots once on startup.
+             */
+            get("/spots/all") {
+                val allSpots = SpotDatabase.getAllSpots()
+                
+                val markers = allSpots.map { spot ->
+                    // Get cached score if available (fast lookup, no API calls)
+                    val score = spotService.getUserSpotScore(spot.id)
+                    // Get region from spot ID (e.g., "oahu-sharks-cove" -> "Oahu")
+                    val region = spotService.getRegionForSpot(spot.id)
+                    
+                    SpotMapMarker(
+                        id = spot.id,
+                        name = spot.name,
+                        coordinates = spot.coordinates,
+                        region = region,
+                        shakaScore = score
+                    )
+                }
+                
+                call.respond(AllSpotsResponse(
+                    spots = markers,
+                    count = markers.size
+                ))
+            }
 
             // Get spot detail
             get("/spots/{id}") {

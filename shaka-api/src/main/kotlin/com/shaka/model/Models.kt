@@ -394,3 +394,27 @@ data class UserSpotDetailResponse(
     val spot: SpotDetail,
     val isUserSpot: Boolean = true
 )
+
+// ============================================
+// ALL SPOTS (MAP MARKERS) MODELS
+// Lightweight data for displaying all spots on map
+// ============================================
+
+/**
+ * Lightweight spot data for map markers.
+ * Contains only what's needed to display a marker - no conditions, fish, etc.
+ */
+@Serializable
+data class SpotMapMarker(
+    val id: String,
+    val name: String,
+    val coordinates: Coordinates,
+    val region: String,
+    val shakaScore: Int?  // From cache, null if not yet calculated
+)
+
+@Serializable
+data class AllSpotsResponse(
+    val spots: List<SpotMapMarker>,
+    val count: Int
+)
