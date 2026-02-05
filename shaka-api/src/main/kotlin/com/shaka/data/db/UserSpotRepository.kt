@@ -25,7 +25,6 @@ class UserSpotRepository {
         val coordinates: Coordinates,
         val region: String,
         val country: String,
-        val accessType: String,
         val createdAt: LocalDateTime
     )
 
@@ -40,8 +39,7 @@ class UserSpotRepository {
         latitude: Double,
         longitude: Double,
         region: String,
-        country: String,
-        accessType: String
+        country: String
     ): UserSpotRecord? {
         return try {
             if (!DatabaseFactory.isConnected()) {
@@ -68,7 +66,7 @@ class UserSpotRepository {
                     it[UserSpotsTable.longitude] = longitude
                     it[UserSpotsTable.region] = region
                     it[UserSpotsTable.country] = country
-                    it[UserSpotsTable.accessType] = accessType
+                    it[UserSpotsTable.accessType] = "shore"  // Legacy field, kept for DB compatibility
                     it[UserSpotsTable.createdAt] = now
                 }.value
 
@@ -79,7 +77,6 @@ class UserSpotRepository {
                     coordinates = Coordinates(latitude, longitude),
                     region = region,
                     country = country,
-                    accessType = accessType,
                     createdAt = now
                 )
             }
@@ -235,7 +232,6 @@ class UserSpotRepository {
             ),
             region = row[UserSpotsTable.region],
             country = row[UserSpotsTable.country],
-            accessType = row[UserSpotsTable.accessType],
             createdAt = row[UserSpotsTable.createdAt]
         )
     }
@@ -266,7 +262,6 @@ class UserSpotRepository {
                                 ),
                                 region = row[UserSpotsTable.region],
                                 country = row[UserSpotsTable.country],
-                                accessType = row[UserSpotsTable.accessType],
                                 createdAt = row[UserSpotsTable.createdAt]
                             )
                         }

@@ -45,7 +45,6 @@ class FavoritesRepository {
       name: summary.name,
       lat: summary.coordinates.lat,
       lon: summary.coordinates.lon,
-      access: summary.access,
       region: region,
       savedAt: DateTime.now(),
     );
@@ -59,7 +58,6 @@ class FavoritesRepository {
       name: detail.name,
       lat: detail.coordinates.lat,
       lon: detail.coordinates.lon,
-      access: detail.access.type,
       region: region,
       savedAt: DateTime.now(),
     );

@@ -4,7 +4,6 @@ class SavedSpot {
   final String name;
   final double lat;
   final double lon;
-  final String access;
   final String region;
   final DateTime savedAt;
 
@@ -13,7 +12,6 @@ class SavedSpot {
     required this.name,
     required this.lat,
     required this.lon,
-    required this.access,
     required this.region,
     required this.savedAt,
   });
@@ -24,7 +22,6 @@ class SavedSpot {
       name: json['name'] ?? '',
       lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
       lon: (json['lon'] as num?)?.toDouble() ?? 0.0,
-      access: json['access'] ?? 'shore',
       region: json['region'] ?? '',
       savedAt: json['savedAt'] != null 
           ? DateTime.parse(json['savedAt']) 
@@ -37,7 +34,6 @@ class SavedSpot {
     'name': name,
     'lat': lat,
     'lon': lon,
-    'access': access,
     'region': region,
     'savedAt': savedAt.toIso8601String(),
   };

@@ -132,7 +132,7 @@ object DatabaseFactory {
                                 ${spot.coordinates.lon},
                                 '$region',
                                 '$country',
-                                '${spot.access}',
+                                'shore',
                                 ${spot.depth},
                                 ${spot.depth}
                             )

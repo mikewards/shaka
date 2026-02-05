@@ -94,7 +94,6 @@ class SpotSummary {
   final Coordinates coordinates;
   final int shakaScore;
   final int confidence;
-  final String access;
   final SpotConditions conditions;
   final List<String> expectedFish;
   final List<String> gearRecommendations;
@@ -108,7 +107,6 @@ class SpotSummary {
     required this.coordinates,
     required this.shakaScore,
     required this.confidence,
-    required this.access,
     required this.conditions,
     required this.expectedFish,
     required this.gearRecommendations,
@@ -124,7 +122,6 @@ class SpotSummary {
       coordinates: Coordinates.fromJson(json['coordinates'] ?? {}),
       shakaScore: json['shakaScore'] ?? 0,
       confidence: json['confidence'] ?? 0,
-      access: json['access'] ?? 'shore',
       conditions: SpotConditions.fromJson(json['conditions'] ?? {}),
       expectedFish: List<String>.from(json['expectedFish'] ?? []),
       gearRecommendations: List<String>.from(json['gearRecommendations'] ?? []),
@@ -138,27 +135,21 @@ class SpotSummary {
 }
 
 class AccessInfo {
-  final String type;
   final String directions;
   final String parkingInfo;
   final bool permitRequired;
-  final bool boatLaunchNearby;
 
   const AccessInfo({
-    required this.type,
     required this.directions,
     required this.parkingInfo,
     this.permitRequired = false,
-    this.boatLaunchNearby = false,
   });
 
   factory AccessInfo.fromJson(Map<String, dynamic> json) {
     return AccessInfo(
-      type: json['type'] ?? '',
       directions: json['directions'] ?? '',
       parkingInfo: json['parkingInfo'] ?? '',
       permitRequired: json['permitRequired'] ?? false,
-      boatLaunchNearby: json['boatLaunchNearby'] ?? false,
     );
   }
 }
@@ -704,7 +695,6 @@ class SpotSearchResult {
   final String name;
   final String region;
   final Coordinates coordinates;
-  final String access;
   final int shakaScore;
 
   const SpotSearchResult({
@@ -712,7 +702,6 @@ class SpotSearchResult {
     required this.name,
     required this.region,
     required this.coordinates,
-    required this.access,
     this.shakaScore = 0,
   });
 
@@ -722,7 +711,6 @@ class SpotSearchResult {
       name: json['name'] ?? '',
       region: json['region'] ?? '',
       coordinates: Coordinates.fromJson(json['coordinates'] ?? {}),
-      access: json['access'] ?? 'shore',
       shakaScore: json['shakaScore'] ?? json['score'] ?? 0,
     );
   }
@@ -899,7 +887,6 @@ class UserSpotResponse {
   final Coordinates coordinates;  // Uses existing Coordinates class
   final String region;
   final String country;
-  final String accessType;
   final DateTime createdAt;
   final bool isUserSpot;
 
@@ -909,7 +896,6 @@ class UserSpotResponse {
     required this.coordinates,
     required this.region,
     required this.country,
-    required this.accessType,
     required this.createdAt,
     this.isUserSpot = true,
   });
@@ -925,7 +911,6 @@ class UserSpotResponse {
       coordinates: Coordinates.fromJson(json['coordinates'] as Map<String, dynamic>),
       region: json['region'] as String,
       country: json['country'] as String,
-      accessType: json['accessType'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       isUserSpot: json['isUserSpot'] as bool? ?? true,
     );

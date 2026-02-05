@@ -51,21 +51,12 @@ class AppColors {
   static const Color error = Color(0xFFB87A7A);
   static const Color info = Color(0xFF7A9BB8);
 
-  // Semantic - Access Types (desaturated)
-  static const Color shoreDive = Color(0xFF7A9E8A);
-  static const Color boatDive = Color(0xFF7A9BB8);
-
   /// Get score color based on shaka score value
   static Color getScoreColor(int score) {
     if (score >= 80) return scoreExcellent;
     if (score >= 60) return scoreGood;
     if (score >= 40) return scoreFair;
     return scorePoor;
-  }
-
-  /// Get access type color
-  static Color getAccessColor(String access) {
-    return access.toLowerCase() == 'shore' ? shoreDive : boatDive;
   }
 
   // ===========================================

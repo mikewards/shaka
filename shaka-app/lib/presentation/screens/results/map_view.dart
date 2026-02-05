@@ -169,7 +169,7 @@ class _SpotPreviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${spot.access.toUpperCase()} · ${spot.bestTimeOfDay}',
+                        spot.bestTimeOfDay,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: AppColors.textMuted,
                         ),

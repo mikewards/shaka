@@ -79,7 +79,6 @@ class ForecastService {
                 moonPhase = getMoonPhase(today.toString()),
                 seasonalMultiplier = 1.0,
                 recentSightings = 0,
-                isShore = spot.access == "shore",
                 hasParking = true,
                 permitRequired = false
             )
@@ -135,7 +134,6 @@ class ForecastService {
                         moonPhase = getMoonPhase(dateStr),
                         seasonalMultiplier = 1.0,
                         recentSightings = 0,
-                        isShore = spot.access == "shore",
                         hasParking = true,
                         permitRequired = false
                     )
@@ -219,7 +217,6 @@ class ForecastService {
                     moonPhase = getMoonPhase(dateStr),
                     seasonalMultiplier = 1.0,
                     recentSightings = 0,
-                    isShore = true, // Default to shore
                     hasParking = true,
                     permitRequired = false
                 )

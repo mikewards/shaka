@@ -43,17 +43,11 @@ class SpotCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          _AccessBadge(access: spot.access),
-                          const SizedBox(width: 12),
-                          Text(
-                            spot.bestTimeOfDay,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        spot.bestTimeOfDay,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -208,27 +202,3 @@ class _Divider extends StatelessWidget {
   }
 }
 
-class _AccessBadge extends StatelessWidget {
-  final String access;
-
-  const _AccessBadge({required this.access});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.getAccessColor(access).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        access.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: AppColors.getAccessColor(access),
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}

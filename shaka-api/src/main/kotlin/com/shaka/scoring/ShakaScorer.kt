@@ -125,10 +125,10 @@ object ShakaScorer {
     /**
      * Calculate accessibility score.
      */
-    fun scoreAccessibility(isShore: Boolean, hasParking: Boolean, permitRequired: Boolean): Int {
-        var score = if (isShore) 90 else 60  // Shore dives more accessible
+    fun scoreAccessibility(hasParking: Boolean, permitRequired: Boolean): Int {
+        var score = 75  // Base score for all spots
 
-        if (hasParking) score += 5
+        if (hasParking) score += 15
         if (permitRequired) score -= 15
 
         return score.coerceIn(0, 100)
@@ -166,7 +166,6 @@ object ShakaScorer {
         moonPhase: Double,
         seasonalMultiplier: Double,
         recentSightings: Int,
-        isShore: Boolean,
         hasParking: Boolean,
         permitRequired: Boolean
     ): ShakaScore {
@@ -175,7 +174,7 @@ object ShakaScorer {
             weather = scoreWeather(weather),
             swell = scoreSwell(ocean),
             fishActivity = scoreFishActivity(moonPhase, seasonalMultiplier, recentSightings),
-            accessibility = scoreAccessibility(isShore, hasParking, permitRequired)
+            accessibility = scoreAccessibility(hasParking, permitRequired)
         )
 
         return ShakaScore(

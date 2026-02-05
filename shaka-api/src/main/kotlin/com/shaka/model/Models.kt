@@ -43,7 +43,6 @@ data class SpotSummary(
     val coordinates: Coordinates,
     val shakaScore: Int,
     val confidence: Int,
-    val access: String,
     val conditions: SpotConditions,
     val expectedFish: List<String>,
     val gearRecommendations: List<String>,
@@ -132,11 +131,9 @@ data class GibsSatelliteReadings(
 
 @Serializable
 data class AccessInfo(
-    val type: String,
     val directions: String,
     val parkingInfo: String,
-    val permitRequired: Boolean = false,
-    val boatLaunchNearby: Boolean = false
+    val permitRequired: Boolean = false
 )
 
 @Serializable
@@ -199,7 +196,6 @@ data class SpotSearchResult(
     val name: String,
     val region: String,
     val coordinates: Coordinates,
-    val access: String,
     val shakaScore: Int = 0
 )
 
@@ -371,8 +367,7 @@ data class SSTReading(
 data class CreateUserSpotRequest(
     val name: String,
     val latitude: Double,
-    val longitude: Double,
-    val accessType: String = "shore"  // shore, boat, kayak
+    val longitude: Double
 )
 
 @Serializable
@@ -382,7 +377,6 @@ data class UserSpotResponse(
     val coordinates: Coordinates,
     val region: String,
     val country: String,
-    val accessType: String,
     val createdAt: String,
     val isUserSpot: Boolean = true  // Always true, used by frontend to show "Saved" badge
 )

@@ -625,15 +625,6 @@ fun Application.configureRouting() {
                     )
                 }
                 
-                // Validate access type
-                val validAccessTypes = setOf("shore", "boat", "kayak")
-                if (request.accessType !in validAccessTypes) {
-                    return@post call.respond(
-                        HttpStatusCode.BadRequest,
-                        mapOf("error" to "Access type must be one of: shore, boat, kayak")
-                    )
-                }
-                
                 // Check limit
                 val currentCount = userSpotRepository.countByDevice(deviceId)
                 if (currentCount >= 100) {
@@ -658,8 +649,7 @@ fun Application.configureRouting() {
                     latitude = request.latitude,
                     longitude = request.longitude,
                     region = region,
-                    country = country,
-                    accessType = request.accessType
+                    country = country
                 )
                 
                 if (created == null) {
@@ -690,7 +680,6 @@ fun Application.configureRouting() {
                     coordinates = created.coordinates,
                     region = created.region,
                     country = created.country,
-                    accessType = created.accessType,
                     createdAt = created.createdAt.toString(),
                     isUserSpot = true
                 )
@@ -718,7 +707,6 @@ fun Application.configureRouting() {
                             coordinates = spot.coordinates,
                             region = spot.region,
                             country = spot.country,
-                            accessType = spot.accessType,
                             createdAt = spot.createdAt.toString(),
                             isUserSpot = true
                         )
@@ -758,7 +746,6 @@ fun Application.configureRouting() {
                             coordinates = spot.coordinates,
                             region = spot.region,
                             country = spot.country,
-                            accessType = spot.accessType,
                             createdAt = spot.createdAt.toString(),
                             isUserSpot = true
                         )

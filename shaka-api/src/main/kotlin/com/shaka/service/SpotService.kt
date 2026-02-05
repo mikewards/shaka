@@ -219,7 +219,6 @@ class SpotService {
                 moonPhase = getMoonPhase(date),
                 seasonalMultiplier = getSeasonalMultiplier(spot.id, date),
                 recentSightings = recentSightingsCount,
-                isShore = spot.access == "shore",
                 hasParking = true,
                 permitRequired = false
             )
@@ -263,7 +262,6 @@ class SpotService {
                 coordinates = spot.coordinates,
                 shakaScore = score.overall,
                 confidence = score.confidence,
-                access = spot.access,
                 conditions = SpotConditions(
                     visibility = cached?.visibility?.let { 
                         "${it.value.toInt()}m (${waterQuality.visibilityCategory})" 
@@ -284,7 +282,7 @@ class SpotService {
                 expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(actualSST, spot.depth),
                 risks = generateRisks(weather, ocean),
-                bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
+                bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
                 satelliteReadings = gibsReadings
             )
         }.sortedByDescending { it.shakaScore }
@@ -466,7 +464,6 @@ class SpotService {
             moonPhase = getMoonPhase(date),
             seasonalMultiplier = getSeasonalMultiplier(spotId, date),
             recentSightings = communityReports.size.coerceAtLeast(1),
-            isShore = spot.access == "shore",
             hasParking = true,
             permitRequired = false
         )
@@ -513,11 +510,9 @@ class SpotService {
             coordinates = spot.coordinates,
             score = score,
             access = AccessInfo(
-                type = spot.access,
                 directions = spot.directions,
                 parkingInfo = spot.parking,
-                permitRequired = false,
-                boatLaunchNearby = spot.access == "boat"
+                permitRequired = false
             ),
             conditions = SpotConditions(
                 visibility = cached?.visibility?.let { 
@@ -551,7 +546,7 @@ class SpotService {
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
             communityReports = communityReports,
-            bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date)),
+            bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,
             regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId)),
@@ -637,7 +632,6 @@ class SpotService {
                     name = spot.name,
                     region = inferRegionFromSpotId(spot.id),
                     coordinates = spot.coordinates,
-                    access = spot.access,
                     shakaScore = score
                 )
             }
@@ -680,7 +674,6 @@ class SpotService {
                     moonPhase = getMoonPhase(date),
                     seasonalMultiplier = getSeasonalMultiplier(spotId, date),
                     recentSightings = 1,
-                    isShore = spot.access == "shore",
                     hasParking = true,
                     permitRequired = false
                 )
@@ -693,7 +686,6 @@ class SpotService {
                     coordinates = spot.coordinates,
                     shakaScore = score.overall,
                     confidence = score.confidence,
-                    access = spot.access,
                     conditions = SpotConditions(
                         visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" }
                             ?: "Data unavailable",
@@ -705,7 +697,7 @@ class SpotService {
                     expectedFish = spot.commonFish,
                     gearRecommendations = emptyList(),
                     risks = emptyList(),
-                    bestTimeOfDay = getBestTimeOfDay(spot.access, getMoonPhase(date))
+                    bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date))
                 )
             } catch (e: Exception) {
                 logger.warn("Failed to fetch data for spot $spotId: ${e.message}")
@@ -1086,9 +1078,9 @@ class SpotService {
     }
     
     /**
-     * Determine best time of day based on conditions.
+     * Determine best time of day based on moon phase.
      */
-    private fun getBestTimeOfDay(access: String, moonPhase: Double): String {
+    private fun getBestTimeOfDay(moonPhase: Double): String {
         // Moon phase affects fish activity
         val moonActivity = when {
             moonPhase < 0.1 || moonPhase > 0.9 -> "high" // New moon
@@ -1096,10 +1088,9 @@ class SpotService {
             else -> "normal"
         }
         
-        return when {
-            access == "boat" && moonActivity == "high" -> "First light (5:30am-8am) or dusk"
-            access == "shore" && moonActivity == "high" -> "6am-10am for best visibility"
-            moonActivity == "moderate" -> "Early morning or late afternoon"
+        return when (moonActivity) {
+            "high" -> "First light (5:30am-8am) or dusk"
+            "moderate" -> "Early morning or late afternoon"
             else -> "6am-10am"
         }
     }
@@ -1366,7 +1357,6 @@ class SpotService {
             moonPhase = getMoonPhase(date),
             seasonalMultiplier = 1.0, // User spots don't have seasonal data
             recentSightings = 1,
-            isShore = userSpot.accessType == "shore",
             hasParking = true,
             permitRequired = false
         )
@@ -1425,11 +1415,9 @@ class SpotService {
             coordinates = userSpot.coordinates,
             score = score,
             access = AccessInfo(
-                type = userSpot.accessType,
                 directions = "User-saved location",
                 parkingInfo = "Check locally",
-                permitRequired = false,
-                boatLaunchNearby = userSpot.accessType == "boat"
+                permitRequired = false
             ),
             conditions = SpotConditions(
                 visibility = cached?.visibility?.let { 
@@ -1457,7 +1445,7 @@ class SpotService {
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
             communityReports = emptyList(), // No community data for user spots
-            bestTimeOfDay = getBestTimeOfDay(userSpot.accessType, getMoonPhase(date)),
+            bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
             imageUrl = null,
             satelliteReadings = gibsReadings,
             regulations = RegulationInfo(

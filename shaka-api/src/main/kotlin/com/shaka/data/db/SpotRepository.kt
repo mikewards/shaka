@@ -27,7 +27,6 @@ class SpotRepository {
         val coordinates: Coordinates,
         val region: String,
         val country: String,
-        val accessType: String,
         val depthMinM: Double?,
         val depthMaxM: Double?,
         val difficulty: String?,
@@ -150,7 +149,7 @@ class SpotRepository {
                 it[longitude] = spot.coordinates.lon
                 it[region] = spot.region
                 it[country] = spot.country
-                it[accessType] = spot.accessType
+                it[accessType] = "shore"  // Legacy field, kept for DB compatibility
                 it[depthMinM] = spot.depthMinM
                 it[depthMaxM] = spot.depthMaxM
                 it[difficulty] = spot.difficulty
@@ -181,7 +180,7 @@ class SpotRepository {
                 this[SpotsTable.longitude] = spot.coordinates.lon
                 this[SpotsTable.region] = spot.region
                 this[SpotsTable.country] = spot.country
-                this[SpotsTable.accessType] = spot.accessType
+                this[SpotsTable.accessType] = "shore"  // Legacy field, kept for DB compatibility
                 this[SpotsTable.depthMinM] = spot.depthMinM
                 this[SpotsTable.depthMaxM] = spot.depthMaxM
                 this[SpotsTable.difficulty] = spot.difficulty
@@ -228,7 +227,6 @@ class SpotRepository {
             coordinates = Coordinates(row[SpotsTable.latitude], row[SpotsTable.longitude]),
             region = row[SpotsTable.region],
             country = row[SpotsTable.country],
-            accessType = row[SpotsTable.accessType],
             depthMinM = row[SpotsTable.depthMinM],
             depthMaxM = row[SpotsTable.depthMaxM],
             difficulty = row[SpotsTable.difficulty],
@@ -287,10 +285,9 @@ class SpotRepository {
             coordinates = spot.coordinates,
             region = region,
             country = country,
-            accessType = spot.access,
             depthMinM = spot.depth.toDouble() - 2,
             depthMaxM = spot.depth.toDouble() + 5,
-            difficulty = inferDifficulty(spot.depth, spot.access),
+            difficulty = inferDifficulty(spot.depth),
             parking = spot.parking.isNotBlank() && spot.parking.lowercase() != "none",
             parkingInfo = spot.parking,
             permitsRequired = false,
@@ -360,9 +357,9 @@ class SpotRepository {
         }
     }
 
-    private fun inferDifficulty(depth: Int, access: String): String {
+    private fun inferDifficulty(depth: Int): String {
         return when {
-            depth > 30 || access == "boat" && depth > 20 -> "advanced"
+            depth > 30 -> "advanced"
             depth > 15 -> "intermediate"
             else -> "beginner"
         }
