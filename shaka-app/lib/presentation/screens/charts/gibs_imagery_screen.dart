@@ -42,18 +42,18 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // GIBS-specific persistence keys (decoupled from Explore)
   static const _prefsKeyMapStyle = 'gibs_map_style';
   static const _prefsKeyLayers = 'gibs_active_layer_ids';
-  static const _prefsKeyPreset = 'gibs_active_preset';
   
   // GIBS has its own map style (decoupled from Explore)
   // Default to satellite for satellite imagery viewing
   MapBackground _gibsMapStyle = MapBackground.satellite;
   
   // Active layers (supports multiple for stacking)
-  // Default to Full Coverage preset for maximum satellite coverage
-  List<GibsLayer> _activeLayers = GibsLayerPreset.fullCoverage.layers;
-  
-  // Currently active preset (null if custom selection)
-  GibsLayerPreset? _activePreset = GibsLayerPreset.fullCoverage;
+  // Default to PACE + NOAA satellites (afternoon passes)
+  List<GibsLayer> _activeLayers = [
+    GibsLayer.paceChlorophyll,
+    GibsLayer.noaa20Chlorophyll,
+    GibsLayer.noaa21Chlorophyll,
+  ];
   
   // Selected date (defaults to yesterday for data availability)
   late DateTime _selectedDate;
@@ -94,7 +94,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Saved spots state
   final ShakaApiClient _apiClient = ShakaApiClient();
   List<UserSpotResponse> _savedSpots = [];
-  bool _showSpotsOnMap = false;
+  bool _showSpotsOnMap = true;  // Default to ON
   
   // Helper getters
   bool get _hasLayers => _activeLayers.isNotEmpty;
@@ -164,16 +164,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         }
       }
       
-      // Load preset
-      final savedPresetId = prefs.getString(_prefsKeyPreset);
-      if (savedPresetId != null && savedPresetId.isNotEmpty) {
-        _activePreset = GibsLayerPreset.allPresets
-            .where((p) => p.id == savedPresetId).firstOrNull;
-      } else if (savedLayerIds != null) {
-        // Layers were saved but no preset - custom selection
-        _activePreset = null;
-      }
-      
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('GIBS: Failed to load preferences: $e');
@@ -187,7 +177,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await prefs.setString(_prefsKeyMapStyle, _gibsMapStyle.name);
       final layerIds = _activeLayers.map((l) => l.id).join(',');
       await prefs.setString(_prefsKeyLayers, layerIds);
-      await prefs.setString(_prefsKeyPreset, _activePreset?.id ?? '');
     } catch (e) {
       debugPrint('GIBS: Failed to save preferences: $e');
     }
@@ -485,10 +474,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 
   /// Set active layers (replaces all current layers)
-  void _setLayers(List<GibsLayer> layers, {GibsLayerPreset? preset}) async {
+  void _setLayers(List<GibsLayer> layers) async {
     setState(() {
       _activeLayers = layers;
-      _activePreset = preset;
       _isLoading = true;
       _dateWarning = null;
     });
@@ -511,12 +499,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       newLayers = [..._activeLayers, layer];
     }
     
-    _setLayers(newLayers, preset: null); // Clear preset when manually toggling
-  }
-  
-  /// Apply a preset
-  void _applyPreset(GibsLayerPreset preset) {
-    _setLayers(preset.layers, preset: preset);
+    _setLayers(newLayers);
   }
 
   /// Change date
@@ -539,9 +522,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       isScrollControlled: true,
       builder: (context) => _LayerPickerSheet(
         initialActiveLayers: List.from(_activeLayers),
-        initialActivePreset: _activePreset,
-        onSelectionChanged: (layers, preset) {
-          _setLayers(layers, preset: preset);
+        onSelectionChanged: (layers) {
+          _setLayers(layers);
         },
       ),
     );
@@ -1563,7 +1545,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                     children: [
                       Text(
                         _hasMultipleLayers 
-                            ? (_activePreset?.name ?? '${_activeLayers.length} Satellites')
+                            ? '${_activeLayers.length} Satellites'
                             : (_primaryLayer?.name ?? 'No Layers Selected'),
                         style: const TextStyle(
                           color: Colors.white,
@@ -1589,7 +1571,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             // Content based on single/multi layer
             if (_hasMultipleLayers) ...[
               Text(
-                _activePreset?.description ?? 'Multiple satellite layers combined for better coverage',
+                'Multiple satellite layers combined for better coverage',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 14,
@@ -1676,15 +1658,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 }
 
-/// Layer picker bottom sheet with checkbox multi-select and presets
+/// Layer picker bottom sheet with checkbox multi-select
 class _LayerPickerSheet extends StatefulWidget {
   final List<GibsLayer> initialActiveLayers;
-  final GibsLayerPreset? initialActivePreset;
-  final Function(List<GibsLayer>, GibsLayerPreset?) onSelectionChanged;
+  final Function(List<GibsLayer>) onSelectionChanged;
 
   const _LayerPickerSheet({
     required this.initialActiveLayers,
-    required this.initialActivePreset,
     required this.onSelectionChanged,
   });
 
@@ -1694,13 +1674,11 @@ class _LayerPickerSheet extends StatefulWidget {
 
 class _LayerPickerSheetState extends State<_LayerPickerSheet> {
   late List<GibsLayer> _activeLayers;
-  GibsLayerPreset? _activePreset;
 
   @override
   void initState() {
     super.initState();
     _activeLayers = List.from(widget.initialActiveLayers);
-    _activePreset = widget.initialActivePreset;
   }
   
   bool _isLayerActive(GibsLayer layer) {
@@ -1713,22 +1691,12 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
       if (isActive) {
         // Remove layer (allow empty selection)
         _activeLayers.removeWhere((l) => l.id == layer.id);
-        _activePreset = null; // Clear preset when manually toggling
       } else {
         // Add layer
         _activeLayers.add(layer);
-        _activePreset = null; // Clear preset when manually toggling
       }
     });
-    widget.onSelectionChanged(_activeLayers, _activePreset);
-  }
-  
-  void _applyPreset(GibsLayerPreset preset) {
-    setState(() {
-      _activeLayers = List.from(preset.layers);
-      _activePreset = preset;
-    });
-    widget.onSelectionChanged(_activeLayers, _activePreset);
+    widget.onSelectionChanged(_activeLayers);
   }
 
   @override
@@ -1788,9 +1756,6 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
               ),
             ),
             const Divider(color: Colors.white12, height: 1),
-            // Presets section
-            _buildPresetsSection(),
-            const Divider(color: Colors.white12, height: 1),
             // Layer list by category
             Expanded(
               child: ListView(
@@ -1805,74 +1770,6 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
             ),
           ],
         ),
-      ),
-    );
-  }
-  
-  Widget _buildPresetsSection() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'QUICK PRESETS',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: GibsLayerPreset.allPresets.map((preset) {
-                final isActive = _activePreset?.id == preset.id;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => _applyPreset(preset),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isActive 
-                            ? preset.color.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isActive 
-                              ? preset.color.withOpacity(0.5)
-                              : Colors.white24,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            preset.icon,
-                            color: isActive ? preset.color : Colors.white70,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            preset.name,
-                            style: TextStyle(
-                              color: isActive ? preset.color : Colors.white70,
-                              fontSize: 13,
-                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
       ),
     );
   }
