@@ -1515,7 +1515,7 @@ class SpotService {
             ocean = ocean,
             waterQuality = waterQuality,
             moonPhase = getMoonPhase(today),
-            seasonalMultiplier = 1.0,
+            seasonalMultiplier = getSeasonalMultiplier(cacheId, today),
             recentSightings = 1,
             hasParking = true,
             permitRequired = false
