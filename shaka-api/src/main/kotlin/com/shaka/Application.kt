@@ -191,17 +191,19 @@ private fun Application.configureScheduledJobs() {
     // Scrapes SoCal fishing reports every 2 hours
     // Fully isolated - can be disabled without affecting other features
     
+    // Initialize fishing intel database tables IMMEDIATELY at startup
+    try {
+        FishingIntelDb.createTablesIfNotExists()
+        FishingIntelDb.seedLandings()
+        FishingIntelDb.seedSources()
+        logger.info("Fishing intel tables initialized")
+    } catch (e: Exception) {
+        logger.error("Failed to initialize fishing intel tables: ${e.message}")
+    }
+    
+    // Schedule scraping job (delayed start, then every 2 hours)
     backgroundScope.launch {
-        delay(600_000)  // 10 minute initial delay (let other jobs start first)
-        
-        // Initialize fishing intel database tables
-        try {
-            FishingIntelDb.createTablesIfNotExists()
-            FishingIntelDb.seedLandings()
-            logger.info("Fishing intel tables initialized")
-        } catch (e: Exception) {
-            logger.error("Failed to initialize fishing intel tables: ${e.message}")
-        }
+        delay(300_000)  // 5 minute initial delay before first scrape
         
         // Run initial scrape
         try {
