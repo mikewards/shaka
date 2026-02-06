@@ -343,8 +343,8 @@ object FishingIntelPrefetchJob {
         var reports = 0
         var claims = 0
         
-        // Scrape main page which has daily totals
-        val mainUrl = "https://www.976-tuna.com"
+        // Scrape counts page which has current daily totals
+        val mainUrl = "https://www.976-tuna.com/counts"
         val mainDoc = fetchWithRetry(mainUrl, RateLimiters.tuna976)
         
         if (mainDoc != null) {
