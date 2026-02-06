@@ -18,11 +18,13 @@ class FishingIntelService {
       // No intel available for this spot
       return FishingIntelResponse(
         spotId: spotId,
-        highlights: [],
-        speciesSummary: [],
-        baitStatus: [],
+        headline: null,
+        hotSpecies: [],
+        coldSpecies: [],
+        recentCatches: [],
         sourcesUsed: [],
         dataFreshness: DateTime.now().toIso8601String(),
+        totalReports: 0,
       );
     } else {
       throw Exception('Failed to load fishing intel: ${response.statusCode}');
