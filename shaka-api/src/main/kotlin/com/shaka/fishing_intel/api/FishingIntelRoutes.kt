@@ -5,11 +5,11 @@ import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
 import org.slf4j.LoggerFactory
 import java.time.Instant
-import java.time.format.DateTimeFormatter
+import java.time.Duration
 
 /**
  * API handlers for Fishing Intel endpoints.
- * Called from SpotRoutes.kt.
+ * Designed to get anglers STOKED!
  */
 object FishingIntelRoutes {
     private val logger = LoggerFactory.getLogger(FishingIntelRoutes::class.java)
@@ -24,105 +24,132 @@ object FishingIntelRoutes {
         "seaforth" to "Seaforth Landing"
     )
     
+    // Headlines for hot species
+    private val fireMessages = listOf(
+        "%s ARE FIRING!",
+        "%s ARE ON FIRE!",
+        "%s BITE IS HOT!",
+        "THE %s BITE IS ON!"
+    )
+    
     /**
-     * Get fishing intel for a spot.
+     * Get fishing intel for a spot - with TRENDS!
      */
     fun getSpotIntel(spotId: String, since: String): SpotIntelResponse? {
-        // Get spot coordinates
         val spot = SpotDatabase.findSpotById(spotId) ?: return null
         
-        // Parse time window
-        val hours = parseTimeWindow(since)
-        
-        // Get reports near this spot
-        val reports = FishingIntelDb.getReportsNearby(
+        // Get reports from last 72h to calculate trends
+        val allReports = FishingIntelDb.getReportsNearby(
             spot.coordinates.lat,
             spot.coordinates.lon,
             radiusKm = 50,
-            hoursBack = hours
+            hoursBack = 72
         )
         
-        if (reports.isEmpty()) return null
+        if (allReports.isEmpty()) return null
         
-        // Track sources used
-        val sourcesUsed = reports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
+        val now = Instant.now()
+        val twentyFourHoursAgo = now.minus(Duration.ofHours(24))
         
-        // Build highlights from claims (flatten claims into individual highlight cards)
-        val highlights = mutableListOf<IntelHighlightResponse>()
-        for (report in reports.take(10)) {
-            val catchClaims = report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }
-            if (catchClaims.isNotEmpty()) {
-                // Group by species within this report
-                for (claim in catchClaims) {
-                    highlights.add(
-                        IntelHighlightResponse(
-                            type = "CATCH",
-                            species = claim.species ?: "",
-                            countKept = claim.countKept,
-                            countReleased = claim.countReleased,
-                            boatName = claim.boatName,
-                            landingName = claim.landingName ?: "Unknown",
-                            distanceMi = 0.0, // TODO: Calculate actual distance
-                            publishedAt = report.publishedAt?.toString() ?: "",
-                            excerpt = report.rawExcerpt ?: "",
-                            sourceUrl = report.url,
-                            sourceName = sourceNames[report.sourceId] ?: report.sourceId,
-                            corroboratedBy = emptyList()
-                        )
+        // Split into recent (24h) and previous (24-72h)
+        val recent24h = allReports.filter { report ->
+            report.publishedAt?.isAfter(twentyFourHoursAgo) == true
+        }
+        val previous = allReports.filter { report ->
+            report.publishedAt?.isBefore(twentyFourHoursAgo) == true
+        }
+        
+        // Count species in each period
+        val recentCounts = countSpecies(recent24h)
+        val previousCounts = countSpecies(previous)
+        
+        // Calculate trends
+        val allSpecies = (recentCounts.keys + previousCounts.keys).distinct()
+        val trends = allSpecies.mapNotNull { species ->
+            // Skip weird parsed artifacts
+            if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
+            
+            val recent = recentCounts[species] ?: SpeciesAgg()
+            val prev = previousCounts[species] ?: SpeciesAgg()
+            
+            val recentTotal = recent.kept + recent.released
+            val prevTotal = prev.kept + prev.released
+            
+            // Need some activity to be relevant
+            if (recentTotal == 0 && prevTotal == 0) return@mapNotNull null
+            
+            val percentChange = when {
+                prevTotal == 0 && recentTotal > 0 -> 999  // New activity!
+                prevTotal == 0 -> 0
+                else -> ((recentTotal - prevTotal) * 100) / prevTotal
+            }
+            
+            val trend = when {
+                percentChange > 20 -> "UP"
+                percentChange < -20 -> "DOWN"
+                else -> "STABLE"
+            }
+            
+            TrendingSpeciesResponse(
+                species = formatSpeciesName(species),
+                count24h = recentTotal,
+                countPrevious = prevTotal,
+                trend = trend,
+                percentChange = percentChange,
+                topLanding = recent.topLanding ?: prev.topLanding
+            )
+        }.sortedByDescending { it.count24h }
+        
+        // Separate hot (UP) and cold (DOWN)
+        val hotSpecies = trends.filter { it.trend == "UP" && it.count24h > 0 }.take(5)
+        val coldSpecies = trends.filter { it.trend == "DOWN" }.take(3)
+        
+        // Build headline from the hottest species
+        val headline = hotSpecies.firstOrNull()?.let { top ->
+            val heatLevel = when {
+                top.percentChange > 200 -> 3  // ON FIRE
+                top.percentChange > 100 -> 2  // HOT
+                else -> 1  // WARM
+            }
+            val message = fireMessages.random().format(top.species.uppercase())
+            HeadlineResponse(
+                species = top.species,
+                message = message,
+                heatLevel = heatLevel,
+                count24h = top.count24h,
+                topLanding = top.topLanding
+            )
+        }
+        
+        // Build recent catches list
+        val recentCatches = recent24h.take(10).flatMap { report ->
+            val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
+            report.claims
+                .filter { it.claimType == ClaimType.CATCH && it.species != null }
+                .filter { !it.species!!.contains("total_fish") && !it.species!!.contains("released.") }
+                .map { claim ->
+                    RecentCatchResponse(
+                        species = formatSpeciesName(claim.species!!),
+                        count = (claim.countKept ?: 0) + (claim.countReleased ?: 0),
+                        boatName = claim.boatName,
+                        landingName = claim.landingName ?: "Unknown",
+                        hoursAgo = hoursAgo,
+                        sourceName = sourceNames[report.sourceId] ?: report.sourceId
                     )
                 }
-            }
-        }
+        }.take(5)
         
-        // Build species summary
-        val speciesCounts = mutableMapOf<String, SpeciesAggregator>()
-        for (report in reports) {
-            for (claim in report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }) {
-                val species = claim.species!!
-                val current = speciesCounts.getOrPut(species) { SpeciesAggregator() }
-                current.totalKept += claim.countKept ?: 0
-                current.totalReleased += claim.countReleased ?: 0
-                current.reportCount++
-            }
-        }
-        
-        val speciesSummary = speciesCounts.entries
-            .sortedByDescending { it.value.totalKept + it.value.totalReleased }
-            .take(10)
-            .map { (species, agg) ->
-                SpeciesSummaryResponse(
-                    species = species,
-                    totalKept = agg.totalKept,
-                    totalReleased = agg.totalReleased,
-                    reportCount = agg.reportCount
-                )
-            }
-        
-        // Build bait status (from BAIT reports)
-        val baitStatus = reports
-            .filter { it.reportType == ReportType.BAIT }
-            .flatMap { report ->
-                report.claims
-                    .filter { it.claimType == ClaimType.BAIT_AVAILABILITY }
-                    .map { claim ->
-                        BaitStatusResponse(
-                            location = claim.landingName ?: "Unknown",
-                            baitType = claim.baitType ?: "Live Bait",
-                            status = claim.baitStatus ?: "Available",
-                            updatedAt = report.publishedAt?.toString() ?: ""
-                        )
-                    }
-            }
+        val sourcesUsed = allReports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
         
         return SpotIntelResponse(
             spotId = spotId,
-            highlights = highlights.take(5),
-            speciesSummary = speciesSummary,
-            baitStatus = baitStatus,
+            headline = headline,
+            hotSpecies = hotSpecies,
+            coldSpecies = coldSpecies,
+            recentCatches = recentCatches,
             sourcesUsed = sourcesUsed,
             dataFreshness = Instant.now().toString(),
-            reportCount = reports.size,
-            timeWindowHours = hours
+            totalReports = allReports.size
         )
     }
     
@@ -131,18 +158,13 @@ object FishingIntelRoutes {
      */
     fun getSpotEvidence(spotId: String, species: String?): EvidenceResponse {
         val spot = SpotDatabase.findSpotById(spotId) 
-            ?: return EvidenceResponse(
-                spotId = spotId,
-                species = species,
-                evidence = emptyList(),
-                count = 0
-            )
+            ?: return EvidenceResponse(spotId = spotId, species = species, evidence = emptyList(), count = 0)
         
         val reports = FishingIntelDb.getReportsNearby(
             spot.coordinates.lat,
             spot.coordinates.lon,
             radiusKm = 50,
-            hoursBack = 168 // 7 days for evidence
+            hoursBack = 168
         )
         
         val filtered = if (species != null) {
@@ -186,26 +208,22 @@ object FishingIntelRoutes {
      * Get trending species for SoCal region.
      */
     fun getTrending(hours: Int): TrendingResponse {
-        // Get all reports from past N hours across SoCal
-        val reports = FishingIntelDb.getReportsNearby(
-            33.0, -117.5, // SoCal center
-            radiusKm = 200,
-            hoursBack = hours
-        )
+        val reports = FishingIntelDb.getReportsNearby(33.0, -117.5, radiusKm = 200, hoursBack = hours)
         
-        // Count species mentions
         val speciesCounts = mutableMapOf<String, Int>()
         for (report in reports) {
             for (claim in report.claims.filter { it.species != null }) {
                 val species = claim.species!!
-                speciesCounts[species] = speciesCounts.getOrDefault(species, 0) + 1
+                if (!species.contains("total_fish") && !species.contains("released.")) {
+                    speciesCounts[species] = speciesCounts.getOrDefault(species, 0) + 1
+                }
             }
         }
         
         val trending = speciesCounts.entries
             .sortedByDescending { it.value }
             .take(10)
-            .map { TrendingSpecies(species = it.key, mentions = it.value) }
+            .map { TrendingSpecies(species = formatSpeciesName(it.key), mentions = it.value) }
         
         return TrendingResponse(
             region = "socal",
@@ -216,7 +234,7 @@ object FishingIntelRoutes {
     }
     
     /**
-     * Get health status of fishing intel system.
+     * Get health status.
      */
     fun getHealth(): IntelHealthResponse {
         val sourceStats = FishingIntelDb.getSourceStats()
@@ -248,17 +266,42 @@ object FishingIntelRoutes {
         )
     }
     
-    private fun parseTimeWindow(since: String): Int {
-        return when {
-            since.endsWith("h") -> since.dropLast(1).toIntOrNull() ?: 72
-            since.endsWith("d") -> (since.dropLast(1).toIntOrNull() ?: 3) * 24
-            else -> 72
+    // --- Helpers ---
+    
+    private fun countSpecies(reports: List<ReportWithClaims>): Map<String, SpeciesAgg> {
+        val counts = mutableMapOf<String, SpeciesAgg>()
+        for (report in reports) {
+            for (claim in report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }) {
+                val species = claim.species!!
+                val agg = counts.getOrPut(species) { SpeciesAgg() }
+                agg.kept += claim.countKept ?: 0
+                agg.released += claim.countReleased ?: 0
+                if (claim.landingName != null) {
+                    agg.landingCounts[claim.landingName] = 
+                        agg.landingCounts.getOrDefault(claim.landingName, 0) + 1
+                }
+            }
         }
+        // Calculate top landing for each
+        for (agg in counts.values) {
+            agg.topLanding = agg.landingCounts.maxByOrNull { it.value }?.key
+        }
+        return counts
     }
     
-    private class SpeciesAggregator {
-        var totalKept: Int = 0
-        var totalReleased: Int = 0
-        var reportCount: Int = 0
+    private fun formatSpeciesName(species: String): String {
+        return species
+            .replace("_", " ")
+            .split(" ")
+            .joinToString(" ") { word ->
+                word.replaceFirstChar { it.uppercase() }
+            }
+    }
+    
+    private class SpeciesAgg {
+        var kept: Int = 0
+        var released: Int = 0
+        val landingCounts = mutableMapOf<String, Int>()
+        var topLanding: String? = null
     }
 }

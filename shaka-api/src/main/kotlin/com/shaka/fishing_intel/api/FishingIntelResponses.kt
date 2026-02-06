@@ -4,21 +4,56 @@ import kotlinx.serialization.Serializable
 
 /**
  * Response models for Fishing Intel API endpoints.
- * These match the Flutter client's expected JSON structure.
+ * Designed to get anglers STOKED about what's happening!
  */
 
 @Serializable
 data class SpotIntelResponse(
     val spotId: String,
-    val highlights: List<IntelHighlightResponse>,
-    val speciesSummary: List<SpeciesSummaryResponse>,
-    val baitStatus: List<BaitStatusResponse>,
+    // The headline - what's the #1 story right now?
+    val headline: HeadlineResponse?,
+    // What's hot (trending UP)
+    val hotSpecies: List<TrendingSpeciesResponse>,
+    // What's cooling off (trending DOWN)
+    val coldSpecies: List<TrendingSpeciesResponse>,
+    // Recent notable catches
+    val recentCatches: List<RecentCatchResponse>,
+    // Meta
     val sourcesUsed: List<String>,
     val dataFreshness: String,
-    val reportCount: Int,
-    val timeWindowHours: Int
+    val totalReports: Int
 )
 
+@Serializable
+data class HeadlineResponse(
+    val species: String,
+    val message: String,  // e.g., "YELLOWTAIL ARE FIRING!"
+    val heatLevel: Int,   // 1-3 (warm, hot, on fire)
+    val count24h: Int,
+    val topLanding: String?
+)
+
+@Serializable
+data class TrendingSpeciesResponse(
+    val species: String,
+    val count24h: Int,          // catches in last 24h
+    val countPrevious: Int,     // catches in previous period (24-72h)
+    val trend: String,          // "UP", "DOWN", "STABLE"
+    val percentChange: Int,     // e.g., +150 means 150% increase
+    val topLanding: String?     // where they're biting most
+)
+
+@Serializable
+data class RecentCatchResponse(
+    val species: String,
+    val count: Int,
+    val boatName: String?,
+    val landingName: String,
+    val hoursAgo: Int,
+    val sourceName: String
+)
+
+// Legacy response types (keep for backwards compat)
 @Serializable
 data class IntelHighlightResponse(
     val type: String,

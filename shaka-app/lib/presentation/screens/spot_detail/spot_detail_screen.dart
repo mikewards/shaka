@@ -8,9 +8,6 @@ import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
 import '../../../features/fishing_intel/models/fishing_intel_models.dart';
 import '../../../features/fishing_intel/services/fishing_intel_service.dart';
-import '../../../features/fishing_intel/widgets/intel_highlight_card.dart';
-import '../../../features/fishing_intel/widgets/species_summary_card.dart';
-import '../../../features/fishing_intel/widgets/bait_status_card.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/shaka_score_badge.dart';
 import '../../widgets/conditions_card.dart';
@@ -1008,7 +1005,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  /// FISHING TAB - Real catch reports from SoCal landings
+  /// FISHING TAB - What's HOT right now!
   Widget _buildFishingIntelTab() {
     if (_fishingIntelLoading) {
       return const Center(
@@ -1032,7 +1029,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     }
     
     final intel = _fishingIntel;
-    if (intel == null || intel.highlights.isEmpty) {
+    if (intel == null || !intel.hasData) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -1055,50 +1052,243 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Species Summary
-        if (intel.speciesSummary.isNotEmpty) ...[
-          _buildSectionHeader('RECENT CATCHES (72h)'),
-          const SizedBox(height: 10),
-          SpeciesSummaryCard(species: intel.speciesSummary),
+        // HEADLINE - The big story
+        if (intel.headline != null) ...[
+          _buildHeadlineCard(intel.headline!),
           const SizedBox(height: 20),
         ],
         
-        // Bait Status
-        if (intel.baitStatus.isNotEmpty) ...[
-          _buildSectionHeader('BAIT AVAILABILITY'),
+        // HOT SPECIES - Trending UP
+        if (intel.hotSpecies.isNotEmpty) ...[
+          _buildSectionHeader('TRENDING UP'),
           const SizedBox(height: 10),
-          BaitStatusCard(baitStatus: intel.baitStatus),
-          const SizedBox(height: 20),
+          ...intel.hotSpecies.map((s) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildTrendCard(s, isHot: true),
+          )),
+          const SizedBox(height: 16),
         ],
         
-        // Recent Reports
-        _buildSectionHeader('RECENT REPORTS'),
-        const SizedBox(height: 10),
-        ...intel.highlights.map((highlight) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: IntelHighlightCard(highlight: highlight),
-        )),
+        // COLD SPECIES - Trending DOWN
+        if (intel.coldSpecies.isNotEmpty) ...[
+          _buildSectionHeader('SLOWING DOWN'),
+          const SizedBox(height: 10),
+          ...intel.coldSpecies.map((s) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildTrendCard(s, isHot: false),
+          )),
+          const SizedBox(height: 16),
+        ],
         
-        const SizedBox(height: 16),
+        // RECENT CATCHES
+        if (intel.recentCatches.isNotEmpty) ...[
+          _buildSectionHeader('RECENT CATCHES'),
+          const SizedBox(height: 10),
+          ...intel.recentCatches.map((c) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildRecentCatchCard(c),
+          )),
+          const SizedBox(height: 16),
+        ],
         
-        // Data attribution
+        // Attribution
         Text(
-          'Data from: ${intel.sourcesUsed.join(", ")}',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 11,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          'Updated ${_formatFreshness(intel.dataFreshness)}',
-          style: TextStyle(
-            color: Colors.grey[700],
-            fontSize: 10,
-          ),
+          '${intel.totalReports} reports from ${intel.sourcesUsed.join(", ")}',
+          style: TextStyle(color: Colors.grey[600], fontSize: 11),
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+  
+  /// Big headline card when something is FIRING
+  Widget _buildHeadlineCard(Headline headline) {
+    final fireEmoji = headline.heatLevel >= 3 
+        ? '🔥🔥🔥' 
+        : headline.heatLevel >= 2 
+            ? '🔥🔥' 
+            : '🔥';
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF8B0000).withOpacity(0.3),
+            const Color(0xFFFF4500).withOpacity(0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFF4500).withOpacity(0.5), width: 2),
+      ),
+      child: Column(
+        children: [
+          Text(
+            fireEmoji,
+            style: const TextStyle(fontSize: 32),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            headline.message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${headline.count24h} caught in last 24h',
+            style: TextStyle(
+              color: Colors.orange[300],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (headline.topLanding != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Hot at ${headline.topLanding}',
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  /// Trend card for hot/cold species
+  Widget _buildTrendCard(TrendingSpecies species, {required bool isHot}) {
+    final arrow = isHot ? '↑' : '↓';
+    final arrowColor = isHot ? Colors.green : Colors.red;
+    final changeText = species.percentChange > 500 
+        ? 'NEW!' 
+        : '${species.percentChange > 0 ? '+' : ''}${species.percentChange}%';
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isHot 
+              ? Colors.green.withOpacity(0.3) 
+              : Colors.red.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Arrow
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: arrowColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                arrow,
+                style: TextStyle(
+                  color: arrowColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Species name
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  species.species,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (species.topLanding != null)
+                  Text(
+                    species.topLanding!,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          // Count and change
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${species.count24h}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                changeText,
+                style: TextStyle(
+                  color: arrowColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Recent catch card
+  Widget _buildRecentCatchCard(RecentCatch catch_) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        children: [
+          const Text('🐟', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${catch_.count} ${catch_.species}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '${catch_.boatName != null ? "${catch_.boatName} @ " : ""}${catch_.landingName}',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Text(
+            catch_.timeDisplay,
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
   
