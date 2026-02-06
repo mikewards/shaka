@@ -1001,29 +1001,52 @@ class _SpotMarkerCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Condition row (swell + wind)
+                // Condition row (swell + wind) with bordered chips
                 if (spot.swell != null || spot.wind != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 6),
                     child: Row(
                       children: [
                         if (spot.swell != null) ...[
-                          const Icon(Icons.waves, size: 12, color: Colors.white54),
-                          const SizedBox(width: 4),
-                          Text(
-                            spot.swell!,
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white24),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.waves, size: 11, color: Colors.white54),
+                                const SizedBox(width: 4),
+                                Text(
+                                  spot.swell!,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 6),
                         ],
-                        if (spot.wind != null) ...[
-                          const Icon(Icons.air, size: 12, color: Colors.white54),
-                          const SizedBox(width: 4),
-                          Text(
-                            spot.wind!,
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        if (spot.wind != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white24),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.air, size: 11, color: Colors.white54),
+                                const SizedBox(width: 4),
+                                Text(
+                                  spot.wind!,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
                       ],
                     ),
                   ),

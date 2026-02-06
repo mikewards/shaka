@@ -17,6 +17,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
@@ -1030,8 +1032,23 @@ class SpotService {
         val countryLinks = links[country]?.jsonObject
         val regionLinks = countryLinks?.get(region)?.jsonObject
             ?: countryLinks?.entries?.firstOrNull { (_, value) ->
-                value.jsonObject["regions"]?.toString()?.contains(region, ignoreCase = true) == true
+                value is JsonObject && value["regions"]?.toString()?.contains(region, ignoreCase = true) == true
             }?.value?.jsonObject
+        
+        // Handle flat country structures (e.g., Bahamas) where regions array is directly on the country object
+        if (regionLinks == null && countryLinks != null && 
+            countryLinks["agency"] != null &&
+            countryLinks["regions"]?.jsonArray?.any { 
+                it.jsonPrimitive.content.contains(region, ignoreCase = true) 
+            } == true) {
+            return RegulationInfo(
+                regulatoryAgency = countryLinks["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
+                regulationsUrl = countryLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
+                licensingUrl = countryLinks["licensingUrl"]?.jsonPrimitive?.content,
+                note = countryLinks["note"]?.jsonPrimitive?.content,
+                mpaStatus = mpaStatus
+            )
+        }
         
         if (regionLinks != null) {
             return RegulationInfo(
@@ -1046,7 +1063,7 @@ class SpotService {
         // Try direct region match in other sections (Caribbean, Pacific, etc.)
         for ((section, sectionData) in links) {
             if (section == "default") continue
-            val sectionObj = sectionData.jsonObject
+            val sectionObj = try { sectionData.jsonObject } catch (e: Exception) { continue }
             
             // Check if this section directly matches the country
             if (section.equals(country, ignoreCase = true)) {
