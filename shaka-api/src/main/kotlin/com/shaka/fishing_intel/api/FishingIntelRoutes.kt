@@ -4,6 +4,8 @@ import com.shaka.data.client.SpotDatabase
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
 import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 /**
  * API handlers for Fishing Intel endpoints.
@@ -12,10 +14,20 @@ import org.slf4j.LoggerFactory
 object FishingIntelRoutes {
     private val logger = LoggerFactory.getLogger(FishingIntelRoutes::class.java)
     
+    // Source name lookup
+    private val sourceNames = mapOf(
+        "socal-fish-reports" to "SoCal Fish Reports",
+        "san-diego-fish-reports" to "San Diego Fish Reports",
+        "976-tuna" to "976-TUNA",
+        "22nd-street" to "22nd Street Landing",
+        "fishermans-landing" to "Fisherman's Landing",
+        "seaforth" to "Seaforth Landing"
+    )
+    
     /**
      * Get fishing intel for a spot.
      */
-    fun getSpotIntel(spotId: String, since: String): Map<String, Any?>? {
+    fun getSpotIntel(spotId: String, since: String): SpotIntelResponse? {
         // Get spot coordinates
         val spot = SpotDatabase.findSpotById(spotId) ?: return null
         
@@ -32,81 +44,99 @@ object FishingIntelRoutes {
         
         if (reports.isEmpty()) return null
         
-        // Build highlights (top 5 most recent)
-        val highlights = reports.take(5).map { report ->
-            mapOf(
-                "title" to report.title,
-                "excerpt" to report.rawExcerpt,
-                "sourceUrl" to report.url,
-                "publishedAt" to report.publishedAt?.toString(),
-                "reportType" to report.reportType.name,
-                "claims" to report.claims.map { claim ->
-                    mapOf(
-                        "type" to claim.claimType.name,
-                        "species" to claim.species,
-                        "countKept" to claim.countKept,
-                        "countReleased" to claim.countReleased,
-                        "boatName" to claim.boatName,
-                        "landingName" to claim.landingName
+        // Track sources used
+        val sourcesUsed = reports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
+        
+        // Build highlights from claims (flatten claims into individual highlight cards)
+        val highlights = mutableListOf<IntelHighlightResponse>()
+        for (report in reports.take(10)) {
+            val catchClaims = report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }
+            if (catchClaims.isNotEmpty()) {
+                // Group by species within this report
+                for (claim in catchClaims) {
+                    highlights.add(
+                        IntelHighlightResponse(
+                            type = "CATCH",
+                            species = claim.species ?: "",
+                            countKept = claim.countKept,
+                            countReleased = claim.countReleased,
+                            boatName = claim.boatName,
+                            landingName = claim.landingName ?: "Unknown",
+                            distanceMi = 0.0, // TODO: Calculate actual distance
+                            publishedAt = report.publishedAt?.toString() ?: "",
+                            excerpt = report.rawExcerpt ?: "",
+                            sourceUrl = report.url,
+                            sourceName = sourceNames[report.sourceId] ?: report.sourceId,
+                            corroboratedBy = emptyList()
+                        )
                     )
                 }
-            )
+            }
         }
         
         // Build species summary
-        val speciesCounts = mutableMapOf<String, SpeciesCount>()
+        val speciesCounts = mutableMapOf<String, SpeciesAggregator>()
         for (report in reports) {
             for (claim in report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }) {
                 val species = claim.species!!
-                val current = speciesCounts.getOrPut(species) { SpeciesCount(species, 0, 0, mutableSetOf(), null) }
-                speciesCounts[species] = current.copy(
-                    totalKept = current.totalKept + (claim.countKept ?: 0),
-                    totalReleased = current.totalReleased + (claim.countReleased ?: 0),
-                    sources = current.sources.apply { claim.landingName?.let { add(it) } },
-                    lastSeenAt = report.publishedAt ?: current.lastSeenAt
-                )
+                val current = speciesCounts.getOrPut(species) { SpeciesAggregator() }
+                current.totalKept += claim.countKept ?: 0
+                current.totalReleased += claim.countReleased ?: 0
+                current.reportCount++
             }
         }
         
-        val speciesSummary = speciesCounts.values.sortedByDescending { it.totalKept + it.totalReleased }.take(10)
+        val speciesSummary = speciesCounts.entries
+            .sortedByDescending { it.value.totalKept + it.value.totalReleased }
+            .take(10)
+            .map { (species, agg) ->
+                SpeciesSummaryResponse(
+                    species = species,
+                    totalKept = agg.totalKept,
+                    totalReleased = agg.totalReleased,
+                    reportCount = agg.reportCount
+                )
+            }
         
         // Build bait status (from BAIT reports)
-        val baitReports = reports.filter { it.reportType == ReportType.BAIT }
-        val baitStatus = baitReports.flatMap { report ->
-            report.claims.filter { it.claimType == ClaimType.BAIT_AVAILABILITY }.map { claim ->
-                mapOf(
-                    "baitType" to claim.baitType,
-                    "status" to claim.baitStatus,
-                    "location" to claim.landingName,
-                    "reportedAt" to report.publishedAt?.toString()
-                )
+        val baitStatus = reports
+            .filter { it.reportType == ReportType.BAIT }
+            .flatMap { report ->
+                report.claims
+                    .filter { it.claimType == ClaimType.BAIT_AVAILABILITY }
+                    .map { claim ->
+                        BaitStatusResponse(
+                            location = claim.landingName ?: "Unknown",
+                            baitType = claim.baitType ?: "Live Bait",
+                            status = claim.baitStatus ?: "Available",
+                            updatedAt = report.publishedAt?.toString() ?: ""
+                        )
+                    }
             }
-        }
         
-        return mapOf(
-            "spotId" to spotId,
-            "highlights" to highlights,
-            "species" to speciesSummary.map { 
-                mapOf(
-                    "species" to it.species,
-                    "totalKept" to it.totalKept,
-                    "totalReleased" to it.totalReleased,
-                    "sources" to it.sources.toList(),
-                    "lastSeenAt" to it.lastSeenAt?.toString()
-                )
-            },
-            "bait" to baitStatus,
-            "reportCount" to reports.size,
-            "timeWindowHours" to hours
+        return SpotIntelResponse(
+            spotId = spotId,
+            highlights = highlights.take(5),
+            speciesSummary = speciesSummary,
+            baitStatus = baitStatus,
+            sourcesUsed = sourcesUsed,
+            dataFreshness = Instant.now().toString(),
+            reportCount = reports.size,
+            timeWindowHours = hours
         )
     }
     
     /**
      * Get raw evidence cards for a spot.
      */
-    fun getSpotEvidence(spotId: String, species: String?): Map<String, Any?> {
+    fun getSpotEvidence(spotId: String, species: String?): EvidenceResponse {
         val spot = SpotDatabase.findSpotById(spotId) 
-            ?: return mapOf("evidence" to emptyList<Any>(), "error" to "Spot not found")
+            ?: return EvidenceResponse(
+                spotId = spotId,
+                species = species,
+                evidence = emptyList(),
+                count = 0
+            )
         
         val reports = FishingIntelDb.getReportsNearby(
             spot.coordinates.lat,
@@ -123,39 +153,39 @@ object FishingIntelRoutes {
             reports
         }
         
-        return mapOf(
-            "spotId" to spotId,
-            "species" to species,
-            "evidence" to filtered.map { report ->
-                mapOf(
-                    "reportId" to report.reportId,
-                    "title" to report.title,
-                    "excerpt" to report.rawExcerpt,
-                    "sourceUrl" to report.url,
-                    "sourceId" to report.sourceId,
-                    "publishedAt" to report.publishedAt?.toString(),
-                    "reportType" to report.reportType.name,
-                    "claims" to report.claims.map { claim ->
-                        mapOf(
-                            "type" to claim.claimType.name,
-                            "species" to claim.species,
-                            "countKept" to claim.countKept,
-                            "countReleased" to claim.countReleased,
-                            "boatName" to claim.boatName,
-                            "landingName" to claim.landingName,
-                            "notes" to claim.notes
+        return EvidenceResponse(
+            spotId = spotId,
+            species = species,
+            evidence = filtered.map { report ->
+                EvidenceItem(
+                    reportId = report.reportId,
+                    title = report.title,
+                    excerpt = report.rawExcerpt,
+                    sourceUrl = report.url,
+                    sourceId = report.sourceId,
+                    publishedAt = report.publishedAt?.toString(),
+                    reportType = report.reportType.name,
+                    claims = report.claims.map { claim ->
+                        EvidenceClaimResponse(
+                            type = claim.claimType.name,
+                            species = claim.species,
+                            countKept = claim.countKept,
+                            countReleased = claim.countReleased,
+                            boatName = claim.boatName,
+                            landingName = claim.landingName,
+                            notes = claim.notes
                         )
                     }
                 )
             },
-            "count" to filtered.size
+            count = filtered.size
         )
     }
     
     /**
      * Get trending species for SoCal region.
      */
-    fun getTrending(hours: Int): Map<String, Any> {
+    fun getTrending(hours: Int): TrendingResponse {
         // Get all reports from past N hours across SoCal
         val reports = FishingIntelDb.getReportsNearby(
             33.0, -117.5, // SoCal center
@@ -175,37 +205,46 @@ object FishingIntelRoutes {
         val trending = speciesCounts.entries
             .sortedByDescending { it.value }
             .take(10)
-            .map { mapOf("species" to it.key, "mentions" to it.value) }
+            .map { TrendingSpecies(species = it.key, mentions = it.value) }
         
-        return mapOf(
-            "region" to "socal",
-            "timeWindowHours" to hours,
-            "trending" to trending,
-            "totalReports" to reports.size
+        return TrendingResponse(
+            region = "socal",
+            timeWindowHours = hours,
+            trending = trending,
+            totalReports = reports.size
         )
     }
     
     /**
      * Get health status of fishing intel system.
      */
-    fun getHealth(): Map<String, Any> {
-        val sources = FishingIntelDb.getSourceStats()
-        return mapOf(
-            "status" to "ok",
-            "sources" to sources,
-            "message" to "Fishing intel system operational"
+    fun getHealth(): IntelHealthResponse {
+        val sourceStats = FishingIntelDb.getSourceStats()
+        return IntelHealthResponse(
+            status = "ok",
+            sources = sourceStats.map { stat ->
+                SourceStats(
+                    sourceId = stat["sourceId"] as? String ?: "",
+                    name = stat["name"] as? String ?: "",
+                    enabled = stat["enabled"] as? Boolean ?: false,
+                    lastSuccessfulFetch = stat["lastSuccessfulFetch"] as? String,
+                    reportCount = stat["reportCount"] as? Int ?: 0,
+                    claimCount = stat["claimCount"] as? Int ?: 0
+                )
+            },
+            message = "Fishing intel system operational"
         )
     }
     
     /**
      * Toggle a source on/off.
      */
-    fun toggleSource(sourceId: String, enabled: Boolean): Map<String, Any> {
+    fun toggleSource(sourceId: String, enabled: Boolean): ToggleSourceResponse {
         FishingIntelDb.toggleSource(sourceId, enabled)
-        return mapOf(
-            "sourceId" to sourceId,
-            "enabled" to enabled,
-            "message" to "Source ${if (enabled) "enabled" else "disabled"}"
+        return ToggleSourceResponse(
+            sourceId = sourceId,
+            enabled = enabled,
+            message = "Source ${if (enabled) "enabled" else "disabled"}"
         )
     }
     
@@ -217,11 +256,9 @@ object FishingIntelRoutes {
         }
     }
     
-    private data class SpeciesCount(
-        val species: String,
-        val totalKept: Int,
-        val totalReleased: Int,
-        val sources: MutableSet<String>,
-        val lastSeenAt: java.time.Instant?
-    )
+    private class SpeciesAggregator {
+        var totalKept: Int = 0
+        var totalReleased: Int = 0
+        var reportCount: Int = 0
+    }
 }

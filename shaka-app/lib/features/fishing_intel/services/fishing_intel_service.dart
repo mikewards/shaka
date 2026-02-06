@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/fishing_intel_models.dart';
 
 class FishingIntelService {
-  static const _baseUrl = 'https://shaka-api.up.railway.app';
+  static const _baseUrl = 'https://shaka-production.up.railway.app';
   
   Future<FishingIntelResponse> getSpotIntel(String spotId, {String since = '72h'}) async {
     final response = await http.get(

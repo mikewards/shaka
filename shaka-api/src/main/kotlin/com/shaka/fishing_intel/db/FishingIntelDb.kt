@@ -285,16 +285,33 @@ object FishingIntelDb {
     }
     
     /**
-     * Get source health stats.
+     * Get source health stats with report and claim counts.
      */
     fun getSourceStats(): List<Map<String, Any?>> {
         return transaction {
             FishingIntelSourcesTable.selectAll().map { row ->
+                val sourceId = row[FishingIntelSourcesTable.sourceId]
+                
+                // Count reports for this source
+                val reportCount = FishingIntelReportsTable
+                    .select { FishingIntelReportsTable.sourceId eq sourceId }
+                    .count()
+                    .toInt()
+                
+                // Count claims for this source (via reports)
+                val claimCount = FishingIntelClaimsTable
+                    .innerJoin(FishingIntelReportsTable)
+                    .select { FishingIntelReportsTable.sourceId eq sourceId }
+                    .count()
+                    .toInt()
+                
                 mapOf<String, Any?>(
-                    "sourceId" to row[FishingIntelSourcesTable.sourceId],
+                    "sourceId" to sourceId,
                     "name" to row[FishingIntelSourcesTable.name],
                     "enabled" to row[FishingIntelSourcesTable.enabled],
-                    "lastSuccessfulFetch" to row[FishingIntelSourcesTable.lastSuccessfulFetch]?.toString()
+                    "lastSuccessfulFetch" to row[FishingIntelSourcesTable.lastSuccessfulFetch]?.toString(),
+                    "reportCount" to reportCount,
+                    "claimCount" to claimCount
                 )
             }
         }
