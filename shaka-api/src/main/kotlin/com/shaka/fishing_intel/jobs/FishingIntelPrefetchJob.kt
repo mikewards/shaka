@@ -956,9 +956,28 @@ object FishingIntelPrefetchJob {
      * Explore BD Outdoors forum structure and dump sample data for analysis.
      * This is a development/analysis function, not for production scraping.
      */
+    /**
+     * Explore BD Outdoors using pre-exported cookies (bypasses Cloudflare).
+     */
+    suspend fun exploreBDOutdoorsWithCookies(cookieString: String): String {
+        val results = StringBuilder()
+        results.appendLine("=== BD Outdoors Forum Exploration (Cookie Mode) ===\n")
+        
+        val session = com.shaka.fishing_intel.auth.BDOutdoorsSession
+        val cookiesLoaded = session.setCookiesFromString(cookieString)
+        results.appendLine("Cookies loaded: ${if (cookiesLoaded) "SUCCESS" else "FAILED"}")
+        results.appendLine("Cookies: ${session.getCookies().keys}\n")
+        
+        if (!cookiesLoaded) {
+            return results.toString()
+        }
+        
+        return exploreBDOutdoorsInternal(results, session)
+    }
+    
     suspend fun exploreBDOutdoors(username: String, password: String): String {
         val results = StringBuilder()
-        results.appendLine("=== BD Outdoors Forum Exploration ===\n")
+        results.appendLine("=== BD Outdoors Forum Exploration (Login Mode) ===\n")
         
         // Login
         val session = com.shaka.fishing_intel.auth.BDOutdoorsSession
@@ -974,6 +993,14 @@ object FishingIntelPrefetchJob {
             return results.toString()
         }
         
+        return exploreBDOutdoorsInternal(results, session)
+    }
+    
+    private suspend fun exploreBDOutdoorsInternal(
+        results: StringBuilder,
+        session: com.shaka.fishing_intel.auth.BDOutdoorsSession
+    ): String {
+        
         // Delay to be polite
         delay(2000)
         
@@ -983,6 +1010,11 @@ object FishingIntelPrefetchJob {
         results.appendLine("URL: $socalReportsUrl\n")
         
         val socalPage = session.fetchAuthenticated(socalReportsUrl)
+        if (socalPage == null) {
+            results.appendLine("FAILED to fetch forum page")
+            results.appendLine("Error: ${session.lastFetchError}")
+            return results.toString()
+        }
         if (socalPage != null) {
             // Find thread listings
             val threads = socalPage.select("div.structItem--thread, .structItem")

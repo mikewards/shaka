@@ -957,16 +957,39 @@ fun Application.configureRouting() {
             /**
              * Explore BD Outdoors forums for data analysis (admin endpoint).
              * Returns raw forum data for schema design.
+             * 
+             * Can use either:
+             * - cookies parameter (full cookie string from browser)
+             * - Individual cookie params: bdo_user, bdo_session, bdo_csrf, cf_clearance
+             * - username/password (may fail due to Cloudflare)
              */
             get("/admin/fishing-intel/explore-bdoutdoors") {
-                val username = call.parameters["username"]
-                    ?: System.getenv("BD_USERNAME")
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "username required"))
-                val password = call.parameters["password"]
-                    ?: System.getenv("BD_PASSWORD")
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "password required"))
+                // Try cookies first (most reliable)
+                val cookies = call.parameters["cookies"]
+                val bdoUser = call.parameters["bdo_user"] ?: System.getenv("BDO_USER")
+                val bdoSession = call.parameters["bdo_session"] ?: System.getenv("BDO_SESSION")
+                val bdoCsrf = call.parameters["bdo_csrf"] ?: System.getenv("BDO_CSRF")
+                val cfClearance = call.parameters["cf_clearance"] ?: System.getenv("CF_CLEARANCE")
                 
-                val result = com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoors(username, password)
+                val result = if (cookies != null) {
+                    com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoorsWithCookies(cookies)
+                } else if (bdoUser != null && bdoSession != null && bdoCsrf != null) {
+                    com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoorsWithCookies(
+                        "bdo_user=$bdoUser; bdo_session=$bdoSession; bdo_csrf=$bdoCsrf" +
+                        (if (cfClearance != null) "; cf_clearance=$cfClearance" else "")
+                    )
+                } else {
+                    // Fall back to login attempt
+                    val username = call.parameters["username"] ?: System.getenv("BD_USERNAME")
+                    val password = call.parameters["password"] ?: System.getenv("BD_PASSWORD")
+                    
+                    if (username != null && password != null) {
+                        com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoors(username, password)
+                    } else {
+                        "Error: Provide either 'cookies' param, individual cookie params (bdo_user, bdo_session, bdo_csrf), or username/password"
+                    }
+                }
+                
                 call.respondText(result, ContentType.Text.Plain)
             }
             
