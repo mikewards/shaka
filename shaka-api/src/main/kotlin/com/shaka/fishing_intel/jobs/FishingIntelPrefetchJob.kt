@@ -965,6 +965,11 @@ object FishingIntelPrefetchJob {
         val loginSuccess = session.login(username, password)
         results.appendLine("Login: ${if (loginSuccess) "SUCCESS" else "FAILED"}")
         
+        // Include debug info
+        results.appendLine("\n--- Login Debug Info ---")
+        results.appendLine(session.lastLoginDebug)
+        results.appendLine("--- End Debug Info ---\n")
+        
         if (!loginSuccess) {
             return results.toString()
         }
