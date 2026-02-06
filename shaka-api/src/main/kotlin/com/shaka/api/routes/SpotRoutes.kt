@@ -954,6 +954,22 @@ fun Application.configureRouting() {
                 call.respond(result)
             }
             
+            /**
+             * Explore BD Outdoors forums for data analysis (admin endpoint).
+             * Returns raw forum data for schema design.
+             */
+            get("/admin/fishing-intel/explore-bdoutdoors") {
+                val username = call.parameters["username"]
+                    ?: System.getenv("BD_USERNAME")
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "username required"))
+                val password = call.parameters["password"]
+                    ?: System.getenv("BD_PASSWORD")
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "password required"))
+                
+                val result = com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoors(username, password)
+                call.respondText(result, ContentType.Text.Plain)
+            }
+            
         }
     }
 }

@@ -947,4 +947,129 @@ object FishingIntelPrefetchJob {
         logger.info("$sourceId total: $reports reports, $claims claims")
         return reports to claims
     }
+    
+    // =============================================================================
+    // BD Outdoors Forum Explorer (for data analysis)
+    // =============================================================================
+    
+    /**
+     * Explore BD Outdoors forum structure and dump sample data for analysis.
+     * This is a development/analysis function, not for production scraping.
+     */
+    suspend fun exploreBDOutdoors(username: String, password: String): String {
+        val results = StringBuilder()
+        results.appendLine("=== BD Outdoors Forum Exploration ===\n")
+        
+        // Login
+        val session = com.shaka.fishing_intel.auth.BDOutdoorsSession
+        val loginSuccess = session.login(username, password)
+        results.appendLine("Login: ${if (loginSuccess) "SUCCESS" else "FAILED"}")
+        
+        if (!loginSuccess) {
+            return results.toString()
+        }
+        
+        // Delay to be polite
+        delay(2000)
+        
+        // Explore Southern California Fishing Reports forum
+        val socalReportsUrl = "https://www.bdoutdoors.com/forums/forums/southern-california-fishing-reports.9/"
+        results.appendLine("\n--- Southern California Fishing Reports ---")
+        results.appendLine("URL: $socalReportsUrl\n")
+        
+        val socalPage = session.fetchAuthenticated(socalReportsUrl)
+        if (socalPage != null) {
+            // Find thread listings
+            val threads = socalPage.select("div.structItem--thread, .structItem")
+            results.appendLine("Found ${threads.size} thread elements\n")
+            
+            // Analyze first 5 threads
+            for ((index, thread) in threads.take(5).withIndex()) {
+                results.appendLine("--- Thread ${index + 1} ---")
+                
+                // Title
+                val titleEl = thread.selectFirst("div.structItem-title a, .structItem-title a")
+                val title = titleEl?.text() ?: "NO TITLE"
+                val threadUrl = titleEl?.absUrl("href") ?: ""
+                results.appendLine("Title: $title")
+                results.appendLine("URL: $threadUrl")
+                
+                // Author
+                val author = thread.selectFirst(".structItem-minor a.username, .username")?.text() ?: "unknown"
+                results.appendLine("Author: $author")
+                
+                // Date
+                val dateEl = thread.selectFirst("time")
+                val date = dateEl?.attr("datetime") ?: dateEl?.text() ?: "unknown"
+                results.appendLine("Date: $date")
+                
+                // Reply count
+                val replies = thread.selectFirst(".structItem-cell--meta dd")?.text() ?: "?"
+                results.appendLine("Replies: $replies")
+                
+                results.appendLine("")
+            }
+            
+            // Now fetch one thread to see post structure
+            val firstThreadUrl = threads.firstOrNull()?.selectFirst("div.structItem-title a, .structItem-title a")?.absUrl("href")
+            if (firstThreadUrl != null) {
+                delay(3000)  // Polite delay
+                
+                results.appendLine("\n=== SAMPLE POST DETAIL ===")
+                results.appendLine("Fetching: $firstThreadUrl\n")
+                
+                val threadPage = session.fetchAuthenticated(firstThreadUrl)
+                if (threadPage != null) {
+                    // First post content
+                    val firstPost = threadPage.selectFirst("article.message, .message--post")
+                    if (firstPost != null) {
+                        // Post author
+                        val postAuthor = firstPost.selectFirst(".message-name, .username")?.text() ?: "unknown"
+                        results.appendLine("Post Author: $postAuthor")
+                        
+                        // Post date
+                        val postDate = firstPost.selectFirst("time")?.attr("datetime") ?: "unknown"
+                        results.appendLine("Post Date: $postDate")
+                        
+                        // Post content
+                        val content = firstPost.selectFirst(".message-body, .bbWrapper")?.text() ?: ""
+                        results.appendLine("\nPost Content (first 1000 chars):")
+                        results.appendLine(content.take(1000))
+                        
+                        // Look for any structured data (images, attachments)
+                        val images = firstPost.select("img.bbImage, img[data-src]")
+                        results.appendLine("\nImages found: ${images.size}")
+                        
+                        // Check for location tags or other metadata
+                        val tags = threadPage.select(".tagList a, .p-tags a")
+                        if (tags.isNotEmpty()) {
+                            results.appendLine("Tags: ${tags.map { it.text() }.joinToString(", ")}")
+                        }
+                    }
+                }
+            }
+        } else {
+            results.appendLine("FAILED to fetch forum page")
+        }
+        
+        // Also check Southern California Sportboats forum
+        delay(3000)
+        val sportboatsUrl = "https://www.bdoutdoors.com/forums/forums/southern-california-sportboats.15/"
+        results.appendLine("\n\n=== Southern California Sportboats ===")
+        results.appendLine("URL: $sportboatsUrl\n")
+        
+        val sportboatsPage = session.fetchAuthenticated(sportboatsUrl)
+        if (sportboatsPage != null) {
+            val threads = sportboatsPage.select("div.structItem--thread, .structItem")
+            results.appendLine("Found ${threads.size} thread elements\n")
+            
+            for ((index, thread) in threads.take(3).withIndex()) {
+                val title = thread.selectFirst("div.structItem-title a, .structItem-title a")?.text() ?: "NO TITLE"
+                val date = thread.selectFirst("time")?.attr("datetime") ?: "unknown"
+                results.appendLine("${index + 1}. $title (${date})")
+            }
+        }
+        
+        return results.toString()
+    }
 }
