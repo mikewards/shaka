@@ -57,6 +57,9 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:0.46.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.46.0")
 
+    // HTML Parsing for web scraping
+    implementation("org.jsoup:jsoup:1.17.2")
+
     // Testing
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlinVersion")

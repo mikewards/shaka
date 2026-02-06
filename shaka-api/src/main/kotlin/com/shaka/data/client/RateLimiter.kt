@@ -210,6 +210,36 @@ object RateLimiters {
     )
     
     /**
+     * SoCalFishReports - be respectful to TECK.net sites
+     * 1 request/second with burst of 2
+     */
+    val socalFishReports = RateLimiter(
+        name = "socal-fish-reports",
+        requestsPerSecond = 1.0,
+        burstSize = 2
+    )
+    
+    /**
+     * SanDiegoFishReports - same network as SoCal
+     * 1 request/second with burst of 2
+     */
+    val sanDiegoFishReports = RateLimiter(
+        name = "san-diego-fish-reports",
+        requestsPerSecond = 1.0,
+        burstSize = 2
+    )
+    
+    /**
+     * 976-TUNA - independent site, be conservative
+     * 1 request/second with burst of 3
+     */
+    val tuna976 = RateLimiter(
+        name = "976-tuna",
+        requestsPerSecond = 1.0,
+        burstSize = 3
+    )
+    
+    /**
      * Get stats for all rate limiters.
      */
     fun getAllStats(): Map<String, Map<String, Any>> = mapOf(
@@ -218,7 +248,10 @@ object RateLimiters {
         "noaa" to noaa.getStats(),
         "noaaTides" to noaaTides.getStats(),
         "globalFishingWatch" to globalFishingWatch.getStats(),
-        "solunar" to solunar.getStats()
+        "solunar" to solunar.getStats(),
+        "socalFishReports" to socalFishReports.getStats(),
+        "sanDiegoFishReports" to sanDiegoFishReports.getStats(),
+        "tuna976" to tuna976.getStats()
     )
     
     /**

@@ -6,6 +6,7 @@ import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
+import com.shaka.fishing_intel.api.FishingIntelRoutes
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
@@ -886,6 +887,71 @@ fun Application.configureRouting() {
                 SpotDataCache.remove(cacheId)
                 
                 call.respond(mapOf("status" to "ok", "deleted" to spotId))
+            }
+            
+            // ============================================
+            // FISHING INTEL ENDPOINTS (ISOLATED)
+            // ============================================
+            
+            /**
+             * Get fishing intel for a spot.
+             * Returns highlights, species summary, and bait status.
+             */
+            get("/spots/{spotId}/intel") {
+                val spotId = call.parameters["spotId"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
+                val since = call.parameters["since"] ?: "72h"
+                
+                val intel = FishingIntelRoutes.getSpotIntel(spotId, since)
+                if (intel != null) {
+                    call.respond(intel)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf(
+                        "error" to "No fishing intel available for this spot",
+                        "spotId" to spotId
+                    ))
+                }
+            }
+            
+            /**
+             * Get raw evidence cards for a spot (optionally filtered by species).
+             */
+            get("/spots/{spotId}/intel/evidence") {
+                val spotId = call.parameters["spotId"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
+                val species = call.parameters["species"]
+                
+                val evidence = FishingIntelRoutes.getSpotEvidence(spotId, species)
+                call.respond(evidence)
+            }
+            
+            /**
+             * Get trending species for SoCal (based on report frequency).
+             */
+            get("/regions/socal/trending") {
+                val hours = call.parameters["hours"]?.toIntOrNull() ?: 72
+                val trending = FishingIntelRoutes.getTrending(hours)
+                call.respond(trending)
+            }
+            
+            /**
+             * Fishing intel health check (admin endpoint).
+             */
+            get("/admin/fishing-intel/health") {
+                val health = FishingIntelRoutes.getHealth()
+                call.respond(health)
+            }
+            
+            /**
+             * Toggle source enabled/disabled (admin endpoint).
+             */
+            post("/admin/fishing-intel/sources/{sourceId}/toggle") {
+                val sourceId = call.parameters["sourceId"]
+                    ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "sourceId required"))
+                val enabled = call.parameters["enabled"]?.toBoolean() ?: true
+                
+                val result = FishingIntelRoutes.toggleSource(sourceId, enabled)
+                call.respond(result)
             }
             
         }

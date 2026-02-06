@@ -6,6 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../features/fishing_intel/models/fishing_intel_models.dart';
+import '../../../features/fishing_intel/services/fishing_intel_service.dart';
+import '../../../features/fishing_intel/widgets/intel_highlight_card.dart';
+import '../../../features/fishing_intel/widgets/species_summary_card.dart';
+import '../../../features/fishing_intel/widgets/bait_status_card.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/shaka_score_badge.dart';
 import '../../widgets/conditions_card.dart';
@@ -46,10 +51,16 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   bool _userSpotLoading = false;
   String? _userSpotError;
 
+  // Fishing intel state
+  final _fishingIntelService = FishingIntelService();
+  FishingIntelResponse? _fishingIntel;
+  bool _fishingIntelLoading = false;
+  String? _fishingIntelError;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadSpotDetail();
   }
 
@@ -71,6 +82,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             date: widget.date,
           ));
     }
+    
+    // Load fishing intel for this spot
+    _loadFishingIntel();
   }
 
   Future<void> _loadUserSpotDetail() async {
@@ -91,6 +105,26 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         setState(() {
           _userSpotError = e.toString();
           _userSpotLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadFishingIntel() async {
+    setState(() => _fishingIntelLoading = true);
+    try {
+      final response = await _fishingIntelService.getSpotIntel(widget.spotId);
+      if (mounted) {
+        setState(() {
+          _fishingIntel = response;
+          _fishingIntelLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fishingIntelError = e.toString();
+          _fishingIntelLoading = false;
         });
       }
     }
@@ -180,6 +214,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _buildCurrentTab(spot),
           _buildForecastTab(spot),
           _buildGuideTab(spot),
+          _buildFishingIntelTab(),
         ],
       ),
     );
@@ -264,6 +299,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           Tab(text: 'Conditions'),
           Tab(text: 'Forecast'),
           Tab(text: 'Regulations'),
+          Tab(text: 'Fishing'),
         ],
       ),
     );
@@ -972,6 +1008,118 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
+  /// FISHING TAB - Real catch reports from SoCal landings
+  Widget _buildFishingIntelTab() {
+    if (_fishingIntelLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(color: AppColors.info),
+        ),
+      );
+    }
+    
+    if (_fishingIntelError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Unable to load fishing reports',
+            style: TextStyle(color: Colors.grey[500]),
+          ),
+        ),
+      );
+    }
+    
+    final intel = _fishingIntel;
+    if (intel == null || intel.highlights.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.phishing, size: 48, color: Colors.grey[700]),
+              const SizedBox(height: 16),
+              Text(
+                'No recent fishing reports near this spot',
+                style: TextStyle(color: Colors.grey[500]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Species Summary
+        if (intel.speciesSummary.isNotEmpty) ...[
+          _buildSectionHeader('RECENT CATCHES (72h)'),
+          const SizedBox(height: 10),
+          SpeciesSummaryCard(species: intel.speciesSummary),
+          const SizedBox(height: 20),
+        ],
+        
+        // Bait Status
+        if (intel.baitStatus.isNotEmpty) ...[
+          _buildSectionHeader('BAIT AVAILABILITY'),
+          const SizedBox(height: 10),
+          BaitStatusCard(baitStatus: intel.baitStatus),
+          const SizedBox(height: 20),
+        ],
+        
+        // Recent Reports
+        _buildSectionHeader('RECENT REPORTS'),
+        const SizedBox(height: 10),
+        ...intel.highlights.map((highlight) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: IntelHighlightCard(highlight: highlight),
+        )),
+        
+        const SizedBox(height: 16),
+        
+        // Data attribution
+        Text(
+          'Data from: ${intel.sourcesUsed.join(", ")}',
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 11,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          'Updated ${_formatFreshness(intel.dataFreshness)}',
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 10,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+  
+  String _formatFreshness(String isoDate) {
+    try {
+      final date = DateTime.parse(isoDate);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      
+      if (diff.inMinutes < 60) {
+        return '${diff.inMinutes}m ago';
+      } else if (diff.inHours < 24) {
+        return '${diff.inHours}h ago';
+      } else {
+        return '${diff.inDays}d ago';
+      }
+    } catch (e) {
+      return 'recently';
+    }
+  }
+
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -1090,6 +1238,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ],
             ],
           ),
+          // Fishing intel tab
+          _buildFishingIntelTab(),
         ],
       ),
     );

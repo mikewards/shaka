@@ -5,6 +5,8 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.*
 import com.shaka.data.db.DatabaseFactory
 import com.shaka.service.DataPrefetchJobs
+import com.shaka.fishing_intel.db.FishingIntelDb
+import com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -184,6 +186,44 @@ private fun Application.configureScheduledJobs() {
             }
         }
     }
+    
+    // ==================== FISHING INTEL (ISOLATED) ====================
+    // Scrapes SoCal fishing reports every 2 hours
+    // Fully isolated - can be disabled without affecting other features
+    
+    backgroundScope.launch {
+        delay(600_000)  // 10 minute initial delay (let other jobs start first)
+        
+        // Initialize fishing intel database tables
+        try {
+            FishingIntelDb.createTablesIfNotExists()
+            FishingIntelDb.seedLandings()
+            logger.info("Fishing intel tables initialized")
+        } catch (e: Exception) {
+            logger.error("Failed to initialize fishing intel tables: ${e.message}")
+        }
+        
+        // Run initial scrape
+        try {
+            logger.info("Running initial FISHING INTEL scrape")
+            FishingIntelPrefetchJob.run()
+        } catch (e: Exception) {
+            logger.error("Initial fishing intel scrape failed: ${e.message}", e)
+        }
+        
+        // Schedule every 2 hours
+        while (true) {
+            delay(7_200_000)  // 2 hours = 7,200,000 ms
+            try {
+                logger.info("Running scheduled FISHING INTEL scrape")
+                FishingIntelPrefetchJob.run()
+            } catch (e: Exception) {
+                logger.error("Scheduled fishing intel scrape failed: ${e.message}", e)
+            }
+        }
+    }
+    
+    logger.info("Fishing intel job configured: every 2 hours")
     
     // Clean up when application stops
     environment.monitor.subscribe(ApplicationStopped) {

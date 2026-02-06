@@ -2584,3 +2584,132 @@ CREATE INDEX IF NOT EXISTS user_spots_location_idx ON user_spots USING GIST (
 
 -- Index for name search
 CREATE INDEX IF NOT EXISTS user_spots_name_idx ON user_spots(name);
+
+-- ============================================
+-- FISHING INTEL TABLES (ISOLATED)
+-- SoCal fishing report aggregation
+-- ============================================
+
+-- Sources of fishing intel data
+CREATE TABLE IF NOT EXISTS fishing_intel_sources (
+    source_id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    base_url VARCHAR(255) NOT NULL,
+    trust_tier CHAR(1) NOT NULL DEFAULT 'B',  -- A=landing, B=aggregator, C=other
+    rate_limit_rps DECIMAL(3,1) DEFAULT 1.0,
+    enabled BOOLEAN DEFAULT true,
+    last_successful_fetch TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Raw HTML snapshots for debugging
+CREATE TABLE IF NOT EXISTS fishing_intel_raw_pages (
+    raw_page_id SERIAL PRIMARY KEY,
+    source_id VARCHAR(50) REFERENCES fishing_intel_sources(source_id),
+    url VARCHAR(512) NOT NULL,
+    fetched_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    http_status INTEGER,
+    etag VARCHAR(255),
+    last_modified VARCHAR(255),
+    html_blob TEXT,
+    sha256 VARCHAR(64),
+    CONSTRAINT fishing_intel_raw_pages_unique UNIQUE(url, fetched_at)
+);
+
+-- Parsed reports
+CREATE TABLE IF NOT EXISTS fishing_intel_reports (
+    report_id SERIAL PRIMARY KEY,
+    source_id VARCHAR(50) REFERENCES fishing_intel_sources(source_id),
+    url VARCHAR(512) NOT NULL,
+    published_at TIMESTAMP,
+    observed_at TIMESTAMP,
+    report_type VARCHAR(30) NOT NULL,  -- FISH_COUNT, DOCK_TOTAL, NARRATIVE, BAIT, AUDIO_LINK, TRIP_ANNOUNCEMENT
+    title VARCHAR(255),
+    raw_excerpt TEXT,
+    canonical_fingerprint VARCHAR(64),
+    confidence DECIMAL(3,2) DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Structured claims extracted from reports
+CREATE TABLE IF NOT EXISTS fishing_intel_claims (
+    claim_id SERIAL PRIMARY KEY,
+    report_id INTEGER REFERENCES fishing_intel_reports(report_id) ON DELETE CASCADE,
+    claim_type VARCHAR(30) NOT NULL,  -- CATCH, BAIT_AVAILABILITY, TARGETING, LOCATION_MENTION
+    species VARCHAR(50),
+    count_kept INTEGER,
+    count_released INTEGER,
+    bait_type VARCHAR(50),
+    bait_status VARCHAR(50),
+    trip_type VARCHAR(50),
+    angler_count INTEGER,
+    boat_name VARCHAR(100),
+    landing_name VARCHAR(100),
+    landing_city VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- SoCal landings with coordinates (gazetteer)
+CREATE TABLE IF NOT EXISTS fishing_intel_landings (
+    landing_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    normalized_name VARCHAR(100) NOT NULL,
+    city VARCHAR(100),
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    default_radius_km INTEGER DEFAULT 25
+);
+
+-- Geotags linking reports to locations
+CREATE TABLE IF NOT EXISTS fishing_intel_report_geos (
+    report_geo_id SERIAL PRIMARY KEY,
+    report_id INTEGER REFERENCES fishing_intel_reports(report_id) ON DELETE CASCADE,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    geo_type VARCHAR(30) NOT NULL,  -- LANDING_ANCHOR, PLACE_MENTION, REGION_FALLBACK
+    radius_m INTEGER DEFAULT 25000
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS fishing_intel_reports_source_idx ON fishing_intel_reports(source_id);
+CREATE INDEX IF NOT EXISTS fishing_intel_reports_fingerprint_idx ON fishing_intel_reports(canonical_fingerprint);
+CREATE INDEX IF NOT EXISTS fishing_intel_reports_published_idx ON fishing_intel_reports(published_at DESC);
+CREATE INDEX IF NOT EXISTS fishing_intel_claims_report_idx ON fishing_intel_claims(report_id);
+CREATE INDEX IF NOT EXISTS fishing_intel_claims_species_idx ON fishing_intel_claims(species);
+CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_report_idx ON fishing_intel_report_geos(report_id);
+
+-- Spatial index for nearby queries (uses PostGIS)
+CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_location_idx ON fishing_intel_report_geos USING GIST (
+    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+);
+
+-- Seed initial sources
+INSERT INTO fishing_intel_sources (source_id, name, base_url, trust_tier, rate_limit_rps) VALUES
+    ('socal-fish-reports', 'SoCalFishReports', 'https://www.socalfishreports.com', 'B', 1.0),
+    ('san-diego-fish-reports', 'SanDiegoFishReports', 'https://www.sandiegofishreports.com', 'B', 1.0),
+    ('976-tuna', '976-TUNA', 'https://www.976-tuna.com', 'B', 1.0),
+    ('22nd-street', '22nd Street Landing', 'https://www.22ndstreet.com', 'A', 0.5),
+    ('fishermans-landing', 'Fisherman''s Landing', 'https://www.fishermanslanding.com', 'A', 0.5),
+    ('seaforth', 'Seaforth Sportfishing', 'https://www.seaforthlanding.com', 'A', 0.5)
+ON CONFLICT (source_id) DO NOTHING;
+
+-- Seed SoCal landings
+INSERT INTO fishing_intel_landings (name, normalized_name, city, latitude, longitude, default_radius_km) VALUES
+    ('22nd Street Landing', '22nd_street', 'San Pedro', 33.7305, -118.2730, 30),
+    ('Dana Wharf Sportfishing', 'dana_wharf', 'Dana Point', 33.4598, -117.6984, 25),
+    ('Davey''s Locker', 'daveys_locker', 'Newport Beach', 33.6035, -117.9030, 25),
+    ('Fisherman''s Landing', 'fishermans_landing', 'San Diego', 32.7235, -117.2260, 35),
+    ('H&M Landing', 'hm_landing', 'San Diego', 32.7130, -117.2340, 35),
+    ('Marina del Rey Sportfishing', 'marina_del_rey', 'Marina del Rey', 33.9744, -118.4493, 25),
+    ('Newport Landing Sportfishing', 'newport_landing', 'Newport Beach', 33.6035, -117.9030, 25),
+    ('Pierpoint Landing', 'pierpoint', 'Long Beach', 33.7605, -118.1965, 25),
+    ('Point Loma Sportfishing', 'point_loma', 'San Diego', 32.7130, -117.2340, 35),
+    ('Redondo Beach Sportfishing', 'redondo', 'Redondo Beach', 33.8425, -118.3920, 25),
+    ('San Diego Sportfishing', 'sd_sportfishing', 'San Diego', 32.7235, -117.2260, 35),
+    ('Santa Barbara Landing', 'santa_barbara', 'Santa Barbara', 34.4070, -119.6900, 30),
+    ('Seaforth Sportfishing', 'seaforth', 'San Diego', 32.7650, -117.2295, 35),
+    ('Ventura Sportfishing', 'ventura', 'Ventura', 34.2466, -119.2615, 30),
+    ('Westport Landing', 'westport', 'San Diego', 32.7553, -117.2285, 35),
+    ('Long Beach Sportfishing', 'long_beach', 'Long Beach', 33.7595, -118.1880, 25)
+ON CONFLICT (name) DO NOTHING;
