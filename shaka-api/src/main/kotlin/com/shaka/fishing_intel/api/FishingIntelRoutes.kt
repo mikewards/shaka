@@ -39,10 +39,11 @@ object FishingIntelRoutes {
         val spot = SpotDatabase.findSpotById(spotId) ?: return null
         
         // Get reports from last 72h to calculate trends
+        // Use 150km radius to include offshore long-range reports for all SoCal spots
         val allReports = FishingIntelDb.getReportsNearby(
             spot.coordinates.lat,
             spot.coordinates.lon,
-            radiusKm = 50,
+            radiusKm = 150,
             hoursBack = 72
         )
         

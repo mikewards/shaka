@@ -669,8 +669,9 @@ object FishingIntelPrefetchJob {
                     claims++
                 }
                 
-                // Geotag to offshore SoCal/Baja waters
-                FishingIntelDb.saveReportGeo(reportId, 30.5, -118.0, GeoType.REGION_FALLBACK, 300000)
+                // Geotag to San Diego (where long-range boats depart) with large radius
+                // so data shows up for all SoCal coastal spots
+                FishingIntelDb.saveReportGeo(reportId, 32.7157, -117.1611, GeoType.REGION_FALLBACK, 150000)
                 
             } catch (e: Exception) {
                 logger.debug("Error parsing 976-TUNA long-range post: ${e.message}")
