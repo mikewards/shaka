@@ -1016,10 +1016,20 @@ object FishingIntelPrefetchJob {
             return results.toString()
         }
         
+        // Debug: show page info
+        results.appendLine("Page title: ${categoryPage.title()}")
+        results.appendLine("Body length: ${categoryPage.body().text().length} chars")
+        
+        // Find ALL links on the page for debugging
+        val allLinks = categoryPage.select("a[href]").toList().take(30)
+        results.appendLine("\nFirst 30 links on page:")
+        allLinks.forEach { results.appendLine("  ${it.text().take(50)} -> ${it.attr("href")}") }
+        results.appendLine("")
+        
         // List all sub-forums in this category
         val subForums = categoryPage.select("a[href*='/forums/']")
             .toList()
-            .filter { it.attr("href").contains("/forums/forums/") }
+            .filter { it.attr("href").contains("/forums/forums/") || it.attr("href").matches(Regex(".*/forums/[a-z-]+\\.\\d+/")) }
             .map { it.text().trim() to it.attr("href") }
             .filter { it.first.isNotBlank() }
             .distinctBy { it.second }
