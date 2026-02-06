@@ -343,13 +343,24 @@ object FishingIntelPrefetchJob {
         var reports = 0
         var claims = 0
         
-        // Scrape counts page which has current daily totals
+        // Scrape counts page which has current daily totals (local boats)
         val mainUrl = "https://www.976-tuna.com/counts"
         val mainDoc = fetchWithRetry(mainUrl, RateLimiters.tuna976)
         
         if (mainDoc != null) {
             FishingIntelDb.saveRawPage("976-tuna", mainUrl, mainDoc.html(), 200, null, null)
             val (r, c) = parse976TunaMain(mainDoc, mainUrl)
+            reports += r
+            claims += c
+        }
+        
+        // Scrape long-range posts for offshore action (tuna, wahoo, yellowtail)
+        val longRangeUrl = "https://www.976-tuna.com/posts/long-range"
+        val longRangeDoc = fetchWithRetry(longRangeUrl, RateLimiters.tuna976)
+        
+        if (longRangeDoc != null) {
+            FishingIntelDb.saveRawPage("976-tuna-longrange", longRangeUrl, longRangeDoc.html(), 200, null, null)
+            val (r, c) = parse976TunaLongRange(longRangeDoc, longRangeUrl)
             reports += r
             claims += c
         }
@@ -542,6 +553,199 @@ object FishingIntelPrefetchJob {
         }
         
         return reports to claims
+    }
+    
+    /**
+     * Parse 976-TUNA long-range posts page for offshore action.
+     * Extracts trip reports from long-range boats (Independence, Red Rooster, Excel, etc.)
+     */
+    private fun parse976TunaLongRange(doc: Document, url: String): Pair<Int, Int> {
+        var reports = 0
+        var claims = 0
+        
+        // Find all post links - they contain boat names and report content
+        val postLinks = doc.select("a[href*='/posts/']")
+        val processedPosts = mutableSetOf<String>()
+        
+        for (postLink in postLinks) {
+            try {
+                val postUrl = postLink.attr("href")
+                if (postUrl.isBlank() || processedPosts.contains(postUrl)) continue
+                if (!postUrl.contains("/posts/") || postUrl.contains("/long-range")) continue
+                
+                val linkText = postLink.text().trim()
+                if (!linkText.contains("Fish Report", ignoreCase = true)) continue
+                
+                processedPosts.add(postUrl)
+                
+                // Extract boat name from link text (e.g., "Independence Long Range Sportfishing Fish Report")
+                val boatName = linkText
+                    .replace(Regex("""(?i)\s*Long[- ]?Range.*Fish Report.*"""), "")
+                    .replace(Regex("""(?i)\s*Fish Report.*"""), "")
+                    .trim()
+                
+                if (boatName.isBlank()) continue
+                
+                // Find the date and report text in siblings
+                var dateText: String? = null
+                var reportText: String? = null
+                var currentElement = postLink.parent()
+                
+                // Look for date pattern like "Wed Feb 4th 8:26 PM"
+                for (i in 0..10) {
+                    if (currentElement == null) break
+                    val text = currentElement.text()
+                    
+                    // Look for date pattern
+                    if (dateText == null) {
+                        val dateMatch = Regex("""(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d+(?:st|nd|rd|th)\s+\d+:\d+\s*(?:AM|PM)""", RegexOption.IGNORE_CASE).find(text)
+                        if (dateMatch != null) {
+                            dateText = dateMatch.value
+                        }
+                    }
+                    
+                    // Check if we've found the report text (longer text after date)
+                    if (text.length > 100 && !text.contains("Fish Report")) {
+                        reportText = text
+                        break
+                    }
+                    
+                    currentElement = currentElement.nextElementSibling() ?: currentElement.parent()
+                }
+                
+                // If no report text found, try to get text from parent container
+                if (reportText == null) {
+                    reportText = postLink.parent()?.parent()?.text() ?: ""
+                }
+                
+                if (reportText.isBlank()) continue
+                
+                // Parse date or use today
+                val reportDate = if (dateText != null) {
+                    try {
+                        DateParser.parse976TunaPost(dateText) ?: LocalDate.now()
+                    } catch (e: Exception) {
+                        LocalDate.now()
+                    }
+                } else LocalDate.now()
+                
+                // Extract fish species and counts from report text
+                val fishClaims = parseLongRangeReportText(reportText)
+                if (fishClaims.isEmpty()) continue
+                
+                val fingerprint = Deduplicator.buildFingerprint(
+                    "976-TUNA-LR", boatName, postUrl, reportDate, null, fishClaims
+                )
+                
+                if (FishingIntelDb.fingerprintExists(fingerprint)) continue
+                
+                val fullPostUrl = if (postUrl.startsWith("http")) postUrl else "https://www.976-tuna.com$postUrl"
+                
+                val report = FishingReport(
+                    sourceId = "976-tuna",
+                    url = fullPostUrl,
+                    publishedAt = reportDate.atStartOfDay().toInstant(ZoneOffset.UTC),
+                    observedAt = Instant.now(),
+                    reportType = ReportType.NARRATIVE,
+                    title = "$boatName Long Range - ${reportDate}",
+                    rawExcerpt = reportText.take(300),
+                    fingerprint = fingerprint,
+                    confidence = 0.9
+                )
+                
+                val reportId = FishingIntelDb.saveReport(report)
+                reports++
+                
+                for (fishCount in fishClaims) {
+                    val claim = FishingClaim(
+                        claimType = ClaimType.CATCH,
+                        species = SpeciesNormalizer.normalize(fishCount.species),
+                        countKept = fishCount.kept,
+                        countReleased = fishCount.released,
+                        boatName = boatName,
+                        landingName = "Long Range Fleet"
+                    )
+                    FishingIntelDb.saveClaim(reportId, claim)
+                    claims++
+                }
+                
+                // Geotag to offshore SoCal/Baja waters
+                FishingIntelDb.saveReportGeo(reportId, 30.5, -118.0, GeoType.REGION_FALLBACK, 300000)
+                
+            } catch (e: Exception) {
+                logger.debug("Error parsing 976-TUNA long-range post: ${e.message}")
+            }
+        }
+        
+        return reports to claims
+    }
+    
+    /**
+     * Parse long-range report text to extract species and estimated counts.
+     * Looks for patterns like:
+     * - "21 bluefin over 100 pounds"
+     * - "nice yellowfin from 40 to 130 lbs"
+     * - "252 pounder" / "200 pound class"
+     * - "bluefin and yellowfin"
+     */
+    private fun parseLongRangeReportText(text: String): List<FishCount> {
+        val claims = mutableListOf<FishCount>()
+        val textLower = text.lowercase()
+        
+        // Species to look for in long-range reports
+        val offshoreSpecies = mapOf(
+            "bluefin" to "Bluefin Tuna",
+            "yellowfin" to "Yellowfin Tuna",
+            "bigeye" to "Bigeye Tuna",
+            "yellowtail" to "Yellowtail",
+            "wahoo" to "Wahoo",
+            "dorado" to "Dorado",
+            "mahi" to "Dorado",
+            "swordfish" to "Swordfish",
+            "marlin" to "Marlin",
+            "skipjack" to "Skipjack Tuna",
+            "tuna" to "Tuna"  // Generic tuna if not specified
+        )
+        
+        // Look for count patterns first: "21 bluefin", "a couple of bluefin", etc.
+        val countPatterns = listOf(
+            Regex("""(\d+)\s+(bluefin|yellowfin|bigeye|yellowtail|wahoo|dorado|mahi|swordfish|marlin|skipjack|tuna)""", RegexOption.IGNORE_CASE),
+            Regex("""(bluefin|yellowfin|bigeye|yellowtail|wahoo|dorado|mahi|swordfish|marlin|skipjack|tuna)[s]?\s+(?:from|ranging|between)?\s*(\d+)""", RegexOption.IGNORE_CASE)
+        )
+        
+        val foundSpecies = mutableSetOf<String>()
+        
+        // Try count patterns first
+        for (pattern in countPatterns) {
+            val matches = pattern.findAll(text)
+            for (match in matches) {
+                val groups = match.groupValues
+                val count = groups.find { it.matches(Regex("""\d+""")) }?.toIntOrNull()
+                val speciesKey = groups.find { offshoreSpecies.containsKey(it.lowercase()) }?.lowercase()
+                
+                if (speciesKey != null && !foundSpecies.contains(speciesKey)) {
+                    val normalizedSpecies = offshoreSpecies[speciesKey] ?: continue
+                    // Don't double count generic "tuna" if we found specific tuna
+                    if (speciesKey == "tuna" && (foundSpecies.contains("bluefin") || foundSpecies.contains("yellowfin"))) continue
+                    
+                    foundSpecies.add(speciesKey)
+                    claims.add(FishCount(normalizedSpecies, count ?: 1, 0))
+                }
+            }
+        }
+        
+        // Also check for species mentioned without counts
+        for ((key, normalized) in offshoreSpecies) {
+            if (foundSpecies.contains(key)) continue
+            if (key == "tuna" && (foundSpecies.contains("bluefin") || foundSpecies.contains("yellowfin"))) continue
+            
+            if (textLower.contains(key)) {
+                foundSpecies.add(key)
+                claims.add(FishCount(normalized, 1, 0))
+            }
+        }
+        
+        return claims
     }
     
     // =============================================================================

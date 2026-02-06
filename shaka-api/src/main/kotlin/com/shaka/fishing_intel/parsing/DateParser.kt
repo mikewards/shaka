@@ -95,6 +95,14 @@ object DateParser {
     }
     
     /**
+     * Parse 976-TUNA long-range post dates like "Wed Feb 4th 8:26 PM"
+     * Returns just the LocalDate portion.
+     */
+    fun parse976TunaPost(dateStr: String, year: Int = LocalDate.now().year): LocalDate? {
+        return parse976TunaReports(dateStr, year)?.toLocalDate()
+    }
+    
+    /**
      * Helper to parse month names (full or abbreviated)
      */
     private fun parseMonthName(monthStr: String): Month {
