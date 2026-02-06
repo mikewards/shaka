@@ -54,23 +54,7 @@ object DateParser {
             val minute = match.groupValues[5].toInt()
             val amPm = match.groupValues[6].uppercase()
             
-            val month = Month.valueOf(monthStr.uppercase().take(3).let {
-                when (it) {
-                    "JAN" -> "JANUARY"
-                    "FEB" -> "FEBRUARY"
-                    "MAR" -> "MARCH"
-                    "APR" -> "APRIL"
-                    "MAY" -> "MAY"
-                    "JUN" -> "JUNE"
-                    "JUL" -> "JULY"
-                    "AUG" -> "AUGUST"
-                    "SEP" -> "SEPTEMBER"
-                    "OCT" -> "OCTOBER"
-                    "NOV" -> "NOVEMBER"
-                    "DEC" -> "DECEMBER"
-                    else -> it
-                }
-            })
+            val month = parseMonthName(monthStr)
             
             val hour24 = when {
                 amPm == "AM" && hour == 12 -> 0
@@ -81,6 +65,53 @@ object DateParser {
             ZonedDateTime.of(year, month.value, day, hour24, minute, 0, 0, PACIFIC_ZONE)
         } catch (e: Exception) {
             null
+        }
+    }
+    
+    /**
+     * Parse date strings like "Wed February 4th 2026" or "Sat April 26th 2025"
+     * Used for 976-tuna landing page date headers.
+     */
+    fun parse976TunaReportsDate(dateStr: String): LocalDate? {
+        // Pattern: "DayOfWeek Month Day Year" with optional ordinal suffix
+        val pattern = Regex(
+            """(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*\s+(\w+)\s+(\d+)(?:st|nd|rd|th)?\s+(\d{4})""",
+            RegexOption.IGNORE_CASE
+        )
+        
+        val match = pattern.find(dateStr) ?: return null
+        
+        return try {
+            val monthStr = match.groupValues[1]
+            val day = match.groupValues[2].toInt()
+            val year = match.groupValues[3].toInt()
+            
+            val month = parseMonthName(monthStr)
+            
+            LocalDate.of(year, month, day)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Helper to parse month names (full or abbreviated)
+     */
+    private fun parseMonthName(monthStr: String): Month {
+        return when (monthStr.uppercase().take(3)) {
+            "JAN" -> Month.JANUARY
+            "FEB" -> Month.FEBRUARY
+            "MAR" -> Month.MARCH
+            "APR" -> Month.APRIL
+            "MAY" -> Month.MAY
+            "JUN" -> Month.JUNE
+            "JUL" -> Month.JULY
+            "AUG" -> Month.AUGUST
+            "SEP" -> Month.SEPTEMBER
+            "OCT" -> Month.OCTOBER
+            "NOV" -> Month.NOVEMBER
+            "DEC" -> Month.DECEMBER
+            else -> throw IllegalArgumentException("Unknown month: $monthStr")
         }
     }
 }
