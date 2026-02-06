@@ -1,7 +1,7 @@
 Shaka
 =====
 
-Spearfishing conditions app. Aggregates real-time ocean data from NASA, NOAA, and Copernicus satellites to score dive locations. Multi-platform Flutter client backed by a Kotlin API server.
+Spearfishing conditions app. Aggregates real-time ocean data from NASA, NOAA, and Copernicus satellites to score dive locations. Scrapes SoCal fishing intel from multiple sources. Multi-platform Flutter client backed by a Kotlin API server.
 
 Download
 --------
@@ -26,7 +26,7 @@ cd shaka-api
 ./gradlew run
 ```
 
-Server starts at `http://localhost:8080`. Requires PostgreSQL.
+Server starts at `http://localhost:8080`. Requires PostgreSQL with PostGIS extension.
 
 Environment variables:
 ```
@@ -81,7 +81,7 @@ shaka/
 │       │   │   ├── NOAATidesClient      CO-OPS tide data
 │       │   │   ├── CopernicusClient     Ocean conditions (SST, ZSD)
 │       │   │   ├── GIBSClient           NASA satellite imagery URLs
-│       │   │   └── CircuitBreaker       Failure isolation
+│       │   │   └── RateLimiters         Per-source rate limiting
 │       │   ├── cache/
 │       │   │   ├── SpotDataCache        Pre-fetched spot conditions
 │       │   │   └── OceanDataCache       TTL-based fallback cache
@@ -89,6 +89,13 @@ shaka/
 │       │       ├── SpotRepository       Spot CRUD operations
 │       │       ├── UserSpotRepository   User-saved locations
 │       │       └── SpotTables           Exposed table definitions
+│       ├── fishing_intel/     SoCal fishing reports scraping
+│       │   ├── api/           REST endpoints for intel data
+│       │   ├── db/            Database tables and operations
+│       │   ├── jobs/          Scheduled scraping jobs
+│       │   ├── models/        Data classes and enums
+│       │   ├── parsing/       Fish count and date parsers
+│       │   └── processing/    Normalization, deduplication
 │       ├── model/             Domain models
 │       ├── scoring/           
 │       │   └── ShakaScorer    Score calculation algorithm
@@ -98,34 +105,42 @@ shaka/
 │           ├── DataPrefetchJobs   Background cache refresh
 │           └── HealthService      External dependency monitoring
 │
-└── shaka-app/                 Flutter mobile client
-    └── lib/
-        ├── main.dart          App entry, router configuration
-        ├── core/
-        │   └── theme/         AppColors, AppTheme definitions
-        ├── data/
-        │   ├── api/
-        │   │   ├── shaka_api_client.dart    Backend REST client
-        │   │   └── gibs_service.dart        NASA GIBS tile URLs
-        │   ├── models/
-        │   │   ├── spot_models.dart         API response models
-        │   │   ├── gibs_layer.dart          Satellite layer config
-        │   │   └── map_background.dart      Map style definitions
-        │   └── services/
-        │       ├── device_id_service.dart   Anonymous user ID
-        │       └── map_background_service.dart  Map style persistence
-        └── presentation/
-            ├── bloc/              Search state management
-            ├── screens/
-            │   ├── explore/       Map + spot carousel
-            │   ├── charts/
-            │   │   ├── charts_hub_screen.dart      Chart type selection
-            │   │   ├── gibs_imagery_screen.dart    NASA satellite viewer
-            │   │   └── ocean_charts_webview.dart   Copernicus viewer
-            │   ├── spot_detail/   Individual spot view
-            │   └── profile/       Settings, saved spots
-            ├── shell/             Bottom navigation
-            └── widgets/           Reusable components
+├── shaka-app/                 Flutter mobile client
+│   └── lib/
+│       ├── main.dart          App entry, router configuration
+│       ├── core/
+│       │   └── theme/         AppColors, AppTheme definitions
+│       ├── data/
+│       │   ├── api/
+│       │   │   ├── shaka_api_client.dart    Backend REST client
+│       │   │   └── gibs_service.dart        NASA GIBS tile URLs
+│       │   ├── models/
+│       │   │   ├── spot_models.dart         API response models
+│       │   │   ├── gibs_layer.dart          Satellite layer config
+│       │   │   └── map_background.dart      Map style definitions
+│       │   └── services/
+│       │       ├── device_id_service.dart   Anonymous user ID
+│       │       └── map_background_service.dart  Map style persistence
+│       ├── features/
+│       │   └── fishing_intel/ Fishing reports UI
+│       │       ├── models/    Dart data models
+│       │       ├── services/  API client
+│       │       └── widgets/   Highlight, species, bait cards
+│       └── presentation/
+│           ├── bloc/              Search state management
+│           ├── screens/
+│           │   ├── explore/       Map + spot carousel
+│           │   ├── charts/
+│           │   │   ├── charts_hub_screen.dart      Chart type selection
+│           │   │   ├── gibs_imagery_screen.dart    NASA satellite viewer
+│           │   │   └── ocean_charts_webview.dart   Copernicus viewer
+│           │   ├── spot_detail/   Individual spot view + Fishing tab
+│           │   └── profile/       Settings, saved spots
+│           ├── shell/             Bottom navigation
+│           └── widgets/           Reusable components
+│
+└── db/
+    └── init.sql               Database schema with PostGIS
 ```
 
 API
@@ -182,6 +197,34 @@ DELETE /v1/user-spots/{id}
 X-Device-ID: abc123
 ```
 
+### Fishing Intel
+
+Real-time fishing reports scraped from SoCal sources.
+
+```
+GET /v1/spots/{spotId}/intel?since=72h
+```
+
+Returns fishing highlights, species summary, and bait status for spots near the location.
+
+```
+GET /v1/spots/{spotId}/intel/evidence?species=yellowtail
+```
+
+Raw evidence cards filtered by optional species.
+
+```
+GET /v1/regions/socal/trending?hours=72
+```
+
+Trending species based on recent report frequency.
+
+```
+GET /v1/admin/fishing-intel/health
+```
+
+Scraper status and source statistics.
+
 ### Health Check
 
 ```
@@ -202,17 +245,30 @@ Data Sources
 | True Color | NASA GIBS MODIS/VIIRS | Daily |
 | SST, Visibility | Copernicus Marine | Daily |
 | Currents, Waves | Copernicus Marine | 6 hours |
+| Fishing Intel | SoCal Fish Reports | Every 2 hours |
+
+### Fishing Intel Sources
+
+| Source | Type | Coverage |
+|--------|------|----------|
+| SoCalFishReports | Dock totals | LA to San Diego |
+| SanDiegoFishReports | Dock totals | San Diego |
+| 976-TUNA | Daily counts, landing data | SoCal region |
+| 22nd Street Landing | Boat reports | San Pedro |
+| Fishermans Landing | Boat reports | Point Loma |
+| Seaforth Landing | Boat reports | Mission Bay |
 
 Pre-fetch System
 ----------------
 
-The backend pre-fetches conditions for all 631 spots on startup and maintains freshness via scheduled jobs:
+The backend pre-fetches conditions for all 789 spots on startup and maintains freshness via scheduled jobs:
 
 | Data | Refresh Interval |
 |------|------------------|
 | Tides | Hourly |
 | Weather/Swell | Every 3 hours |
 | SST/Visibility | Every 6 hours |
+| Fishing Intel | Every 2 hours |
 
 Initial cache warmup takes approximately 45 seconds. During warmup, requests fall through to live API calls.
 
@@ -238,6 +294,25 @@ App Features
 ### Explore
 
 Interactive map with spot markers. Markers display Shaka Score and respond to tap. Bottom carousel shows spot cards with current conditions. Map style defaults to satellite imagery.
+
+### Spot Detail
+
+Four-tab interface for comprehensive spot information:
+
+- **Overview** - Current conditions, Shaka Score breakdown, 7-day forecast
+- **Details** - Depth, access type, target species, hazards
+- **Tides** - NOAA tide predictions with chart visualization
+- **Fishing** - Live fishing intel from SoCal report sources
+
+### Fishing Intel Tab
+
+Real-time fishing intelligence for SoCal spots:
+
+- **Highlights** - Recent catches with species, counts, boat/landing info
+- **Species Summary** - Top species caught in the area
+- **Bait Status** - Live bait availability at nearby landings
+
+Data is scraped every 2 hours from dock totals and landing reports.
 
 ### NASA GIBS Satellite Imagery
 
@@ -281,6 +356,7 @@ The app continues functioning when external services fail:
 | Copernicus | Option hidden from Charts hub |
 | OpenMeteo | Weather shows "unavailable" |
 | NOAA | Falls back to regional SST |
+| Fishing Intel | Tab shows "no data available" |
 | Backend | Error message, cached data used |
 
 All external clients have 10-second timeouts. The app queries `/v1/health/detailed` on startup to determine feature availability.
@@ -291,6 +367,9 @@ Deployment
 ### Backend
 
 Railway auto-deploys from main branch. Configuration via `railway.toml`.
+
+Required environment variables on Railway:
+- `DATABASE_URL` - PostgreSQL connection string (auto-provisioned)
 
 ### iOS
 
@@ -316,6 +395,21 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 
 USB debugging must be enabled on device.
 
+Database Schema
+---------------
+
+Core tables:
+- `spots` - 789 curated dive locations with coordinates and metadata
+- `spot_cache` - Pre-fetched conditions cache with TTL tracking
+- `user_spots` - User-created custom locations
+
+Fishing intel tables:
+- `fishing_intel_sources` - Scraping source configuration
+- `fishing_intel_reports` - Deduplicated fishing reports
+- `fishing_intel_claims` - Individual catch/targeting claims
+- `fishing_intel_landings` - SoCal landing definitions
+- `fishing_intel_report_geos` - PostGIS spatial indexing
+
 Known Issues
 ------------
 
@@ -327,6 +421,15 @@ Known Issues
 
 Recent Changes
 --------------
+
+### v0.5.0 - SoCal Fishing Intel
+
+- Real-time fishing report scraping from 6 sources
+- New "Fishing" tab in spot detail with highlights, species, bait status
+- Automatic scraping every 2 hours with rate limiting
+- Deduplication via SHA-256 fingerprinting
+- PostGIS-based proximity queries for nearby reports
+- Species normalization and count parsing
 
 ### v0.4.0 - UI Polish and Layout Improvements
 
@@ -355,11 +458,6 @@ Recent Changes
 - Copernicus WebView with snapshot save/share
 - Unified date picker across chart views
 - Dynamic legends extracted from data sources
-
-Contributing
-------------
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 License
 -------
