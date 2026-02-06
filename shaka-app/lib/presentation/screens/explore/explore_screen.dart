@@ -170,7 +170,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final currentVersion = _styleVersion;
     
     debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
-    if (mounted) setState(() => _isMapReady = true);
+    // DON'T set _isMapReady here - wait until overlays are loaded
     
     // Try to animate to IP location (just centering, no reload)
     _tryAnimateToIpLocation();
@@ -185,6 +185,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     // CRITICAL: Bail out if style changed during await (prevents iOS crash)
     if (!mounted || _styleVersion != currentVersion) return;
+    
+    // For styles with overlays, add delay for tiles to start loading
+    if (_bgService.hasOverlays(_bgService.current)) {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted || _styleVersion != currentVersion) return;
+    }
+    
+    // NOW set map ready - opaque overlay will hide, revealing loaded map
+    if (mounted) setState(() => _isMapReady = true);
     
     // Wait for raster layers to be registered before adding circle annotations
     await Future.delayed(const Duration(milliseconds: 500));
@@ -665,12 +674,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: _buildBackgroundButton(),
                     ),
                     
-                    // Loading indicator
+                    // Loading overlay - opaque dark background hides map until ready
                     if (_isLoading || !_isMapReady)
-                      const Positioned.fill(
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.info,
+                      Positioned.fill(
+                        child: Container(
+                          color: const Color(0xFF0D0D0D),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.info,
+                            ),
                           ),
                         ),
                       ),
@@ -977,15 +989,44 @@ class _SpotMarkerCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      spot.region,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
+                    Expanded(
+                      child: Text(
+                        spot.region,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
+                // Condition row (swell + wind)
+                if (spot.swell != null || spot.wind != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        if (spot.swell != null) ...[
+                          const Icon(Icons.waves, size: 12, color: Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(
+                            spot.swell!,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        if (spot.wind != null) ...[
+                          const Icon(Icons.air, size: 12, color: Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(
+                            spot.wind!,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

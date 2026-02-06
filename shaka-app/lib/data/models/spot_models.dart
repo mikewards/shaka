@@ -968,13 +968,17 @@ class UserSpotDetailResponse {
 // ===========================================
 
 /// Lightweight spot data for map markers.
-/// Contains only what's needed to display a marker - no conditions, fish, etc.
+/// Contains score and basic conditions from cache for carousel display.
 class SpotMapMarker {
   final String id;
   final String name;
   final Coordinates coordinates;
   final String region;
   final int? shakaScore;
+  // Condition fields from cache (nullable - may not have data)
+  final String? swell;      // "3ft @ 12s NW"
+  final String? wind;       // "8 kts NE"
+  final String? waterTemp;  // "24°C / 75°F"
 
   const SpotMapMarker({
     required this.id,
@@ -982,6 +986,9 @@ class SpotMapMarker {
     required this.coordinates,
     required this.region,
     this.shakaScore,
+    this.swell,
+    this.wind,
+    this.waterTemp,
   });
 
   factory SpotMapMarker.fromJson(Map<String, dynamic> json) {
@@ -991,6 +998,9 @@ class SpotMapMarker {
       coordinates: Coordinates.fromJson(json['coordinates'] as Map<String, dynamic>),
       region: json['region'] as String,
       shakaScore: json['shakaScore'] as int?,
+      swell: json['swell'] as String?,
+      wind: json['wind'] as String?,
+      waterTemp: json['waterTemp'] as String?,
     );
   }
 }

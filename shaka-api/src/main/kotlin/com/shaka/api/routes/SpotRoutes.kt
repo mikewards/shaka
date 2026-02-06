@@ -98,7 +98,7 @@ fun Application.configureRouting() {
             
             /**
              * Get ALL spots for map display.
-             * Returns lightweight SpotMapMarker data (no conditions, fish, etc.)
+             * Returns SpotMapMarker with score and basic conditions from cache.
              * Used by Explore map to load all ~800 spots once on startup.
              */
             get("/spots/all") {
@@ -109,13 +109,24 @@ fun Application.configureRouting() {
                     val score = spotService.getUserSpotScore(spot.id)
                     // Get region from spot ID (e.g., "oahu-sharks-cove" -> "Oahu")
                     val region = spotService.getRegionForSpot(spot.id)
+                    // Get cached condition data for display
+                    val cached = SpotDataCache.get(spot.id)
                     
                     SpotMapMarker(
                         id = spot.id,
                         name = spot.name,
                         coordinates = spot.coordinates,
                         region = region,
-                        shakaScore = score
+                        shakaScore = score,
+                        swell = cached?.swell?.value?.let { 
+                            "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
+                        },
+                        wind = cached?.wind?.value?.let { 
+                            "${it.speedKnots.toInt()} kts ${it.direction}" 
+                        },
+                        waterTemp = cached?.sst?.value?.let { sst ->
+                            "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
+                        }
                     )
                 }
                 

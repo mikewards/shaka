@@ -410,7 +410,11 @@ data class SpotMapMarker(
     val name: String,
     val coordinates: Coordinates,
     val region: String,
-    val shakaScore: Int?  // From cache, null if not yet calculated
+    val shakaScore: Int?,  // From cache, null if not yet calculated
+    // Condition fields from cache (nullable - may not have data)
+    val swell: String? = null,      // "3ft @ 12s NW"
+    val wind: String? = null,       // "8 kts NE"
+    val waterTemp: String? = null   // "24°C / 75°F"
 )
 
 @Serializable
