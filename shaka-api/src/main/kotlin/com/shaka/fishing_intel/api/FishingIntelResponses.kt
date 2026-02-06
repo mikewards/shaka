@@ -154,3 +154,29 @@ data class ToggleSourceResponse(
     val enabled: Boolean,
     val message: String
 )
+
+/**
+ * Request model for ingesting scraped forum posts from local scraper.
+ */
+@Serializable
+data class IngestPostRequest(
+    val threadUrl: String,
+    val title: String,
+    val author: String,
+    val date: String,  // ISO-8601 format: "2026-02-06T12:00:00Z"
+    val content: String,
+    val speciesMentioned: List<String>,
+    val locationMentioned: String? = null,
+    val forumName: String
+)
+
+/**
+ * Response model for ingest endpoint.
+ */
+@Serializable
+data class IngestResponse(
+    val status: String,
+    val saved: Int,
+    val skipped: Int,
+    val errors: List<String> = emptyList()
+)

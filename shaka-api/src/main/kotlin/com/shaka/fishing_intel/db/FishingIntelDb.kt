@@ -64,7 +64,8 @@ object FishingIntelDb {
                 SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0),
                 SourceConfig("22nd-street", "22nd Street Landing", "https://www.22ndstreet.com", TrustTier.A, 0.5),
                 SourceConfig("fishermans-landing", "Fisherman's Landing", "https://www.fishermanslanding.com", TrustTier.A, 0.5),
-                SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5)
+                SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5),
+                SourceConfig("bd-outdoors", "BD Outdoors Forums", "https://www.bdoutdoors.com/forums/", TrustTier.B, 0.5)
             )
             
             sources.forEach { source ->

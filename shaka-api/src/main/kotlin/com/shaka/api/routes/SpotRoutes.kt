@@ -7,6 +7,12 @@ import com.shaka.data.client.SpotDatabase
 import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.fishing_intel.api.FishingIntelRoutes
+import com.shaka.fishing_intel.api.IngestPostRequest
+import com.shaka.fishing_intel.api.IngestResponse
+import com.shaka.fishing_intel.db.FishingIntelDb
+import com.shaka.fishing_intel.processing.Deduplicator
+import com.shaka.fishing_intel.processing.SpeciesNormalizer
+import com.shaka.fishing_intel.models.*
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
@@ -991,6 +997,107 @@ fun Application.configureRouting() {
                 }
                 
                 call.respondText(result, ContentType.Text.Plain)
+            }
+            
+            /**
+             * Ingest fishing intel from local BD Outdoors scraper.
+             * Accepts JSON array of forum posts with extracted fishing data.
+             * 
+             * POST /v1/intel/ingest
+             * Body: [{"threadUrl": "...", "title": "...", ...}]
+             */
+            post("/intel/ingest") {
+                val errors = mutableListOf<String>()
+                var saved = 0
+                var skipped = 0
+                
+                try {
+                    val posts = call.receive<List<IngestPostRequest>>()
+                    
+                    for ((index, post) in posts.withIndex()) {
+                        try {
+                            // Parse date - try ISO format, fallback to now
+                            val publishedDate = try {
+                                java.time.Instant.parse(post.date)
+                            } catch (e: Exception) {
+                                java.time.Instant.now()
+                            }
+                            val localDate = java.time.LocalDateTime.ofInstant(
+                                publishedDate, java.time.ZoneOffset.UTC
+                            ).toLocalDate()
+                            
+                            // Build fingerprint for deduplication
+                            val fingerprint = Deduplicator.buildNarrativeFingerprint(
+                                post.threadUrl,
+                                post.title,
+                                localDate
+                            )
+                            
+                            // Skip duplicates
+                            if (FishingIntelDb.fingerprintExists(fingerprint)) {
+                                skipped++
+                                continue
+                            }
+                            
+                            // Create report
+                            val report = FishingReport(
+                                sourceId = "bd-outdoors",
+                                url = post.threadUrl,
+                                publishedAt = publishedDate,
+                                observedAt = java.time.Instant.now(),
+                                reportType = ReportType.NARRATIVE,
+                                title = post.title,
+                                rawExcerpt = post.content.take(500),
+                                fingerprint = fingerprint,
+                                confidence = 0.8
+                            )
+                            
+                            val reportId = FishingIntelDb.saveReport(report)
+                            
+                            // Save claims for each species mentioned
+                            for (species in post.speciesMentioned) {
+                                val normalizedSpecies = SpeciesNormalizer.normalize(species)
+                                val claim = FishingClaim(
+                                    claimType = ClaimType.CATCH,
+                                    species = normalizedSpecies,
+                                    countKept = 1,
+                                    landingName = post.locationMentioned ?: "BD Outdoors Forum"
+                                )
+                                FishingIntelDb.saveClaim(reportId, claim)
+                            }
+                            
+                            // Geotag to San Diego as regional hub (150km radius)
+                            FishingIntelDb.saveReportGeo(
+                                reportId = reportId,
+                                lat = 32.7157,
+                                lon = -117.1611,
+                                geoType = GeoType.REGION_FALLBACK,
+                                radiusM = 150000
+                            )
+                            
+                            saved++
+                        } catch (e: Exception) {
+                            errors.add("Post $index (${post.title.take(30)}): ${e.message}")
+                        }
+                    }
+                    
+                    call.respond(IngestResponse(
+                        status = if (errors.isEmpty()) "ok" else "partial",
+                        saved = saved,
+                        skipped = skipped,
+                        errors = errors.take(10)
+                    ))
+                } catch (e: Exception) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        IngestResponse(
+                            status = "error",
+                            saved = 0,
+                            skipped = 0,
+                            errors = listOf(e.message ?: "Unknown error")
+                        )
+                    )
+                }
             }
             
         }
