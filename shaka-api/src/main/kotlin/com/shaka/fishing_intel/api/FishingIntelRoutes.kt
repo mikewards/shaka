@@ -191,16 +191,23 @@ object FishingIntelRoutes {
                 .filter { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
                 .firstOrNull()
             if (trophyClaim == null) return@mapNotNull null
+            val species = formatSpeciesName(trophyClaim.species!!)
+            val excerpt = (report.rawExcerpt ?: "").take(200)
+            val tldr = "$species at $location. ${excerpt.take(60).trim()}".replace(Regex("\\s+"), " ").trim().take(120)
             NarrativeInsight(
-                species = formatSpeciesName(trophyClaim.species!!),
+                species = species,
                 location = location,
-                excerpt = (report.rawExcerpt ?: "").take(200),
+                excerpt = excerpt,
                 sourceName = sourceNames[report.sourceId] ?: report.sourceId,
                 threadUrl = report.threadUrl ?: report.url,
-                publishedAt = report.publishedAt?.toString() ?: ""
+                publishedAt = report.publishedAt?.toString() ?: "",
+                tldr = tldr
             )
         }
-        return eligible.sortedByDescending { it.publishedAt }.take(3)
+        val dedupedByThread = eligible.groupBy { it.threadUrl }.values.map { group ->
+            group.maxByOrNull { it.publishedAt } ?: group.first()
+        }
+        return dedupedByThread.sortedByDescending { it.publishedAt }.take(3)
     }
     
     /**

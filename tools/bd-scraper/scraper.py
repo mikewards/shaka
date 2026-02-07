@@ -264,6 +264,33 @@ def extract_species(text: str) -> List[str]:
     return list(found)
 
 
+# Phrases that indicate a species was actually caught (not just targeted/mentioned)
+_CAUGHT_PHRASES = re.compile(
+    r"\b(caught|landed|got|limited on|brought in|ended with|in the box)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_species_caught(text: str) -> List[str]:
+    """Extract species only when in a 'caught' context (caught, landed, got, etc.)."""
+    text_lower = text.lower()
+    found: Set[str] = set()
+    # Look for caught-type phrases and extract species from nearby text
+    for m in _CAUGHT_PHRASES.finditer(text_lower):
+        start = m.start()
+        end = m.end()
+        # Window after phrase (e.g. "caught a white seabass")
+        after = text_lower[end : end + 80]
+        # For "in the box" take text before (e.g. "2 white seabass in the box")
+        before = text_lower[max(0, start - 50) : start] if m.group(1).lower() == "in the box" else ""
+        for pattern, species in SPECIES_PATTERNS.items():
+            if re.search(pattern, after, re.IGNORECASE) or (
+                before and re.search(pattern, before, re.IGNORECASE)
+            ):
+                found.add(species)
+    return list(found)
+
+
 def extract_location(text: str) -> Optional[str]:
     """Extract first matching location from text"""
     text_lower = text.lower()
@@ -385,8 +412,9 @@ def scrape_thread(
             return skip(f"content too short ({len(content) if content else 0} chars)")
         full_text = f"{title} {content}"
         species = extract_species(full_text)
+        species_caught = extract_species_caught(full_text)
         location = extract_location(full_text)
-        if not species and not allow_no_species:
+        if not species and not species_caught and not allow_no_species:
             return skip("no species")
         date_for_api = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
         out.append({
@@ -396,6 +424,7 @@ def scrape_thread(
             "date": date_for_api,
             "content": content[:2000],
             "speciesMentioned": species,
+            "speciesCaught": species_caught,
             "locationMentioned": location,
             "forumName": forum_name,
             "threadZone": thread_zone,
@@ -424,8 +453,9 @@ def scrape_thread(
                 continue
             reply_full = f"{title} {reply_content}"
             reply_species = extract_species(reply_full)
+            reply_species_caught = extract_species_caught(reply_full)
             reply_location = extract_location(reply_full)
-            if not reply_species and not allow_no_species:
+            if not reply_species and not reply_species_caught and not allow_no_species:
                 continue
             reply_date_api = reply_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
             out.append({
@@ -435,6 +465,7 @@ def scrape_thread(
                 "date": reply_date_api,
                 "content": reply_content[:2000],
                 "speciesMentioned": reply_species,
+                "speciesCaught": reply_species_caught,
                 "locationMentioned": reply_location,
                 "forumName": forum_name,
                 "threadZone": thread_zone,

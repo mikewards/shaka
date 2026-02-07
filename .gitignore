@@ -39,6 +39,9 @@ shaka-api/out/
 .env.local
 *.local
 
+# BD scraper (session cookies - do not commit)
+tools/bd-scraper/.cookies
+
 # Logs
 *.log
 

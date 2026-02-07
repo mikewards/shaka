@@ -1122,6 +1122,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   }
 
   Widget _buildNarrativeInsightCard(NarrativeInsight insight) {
+    final displayTldr = insight.tldr.isNotEmpty
+        ? insight.tldr
+        : '${insight.species} at ${insight.location}';
+    final dateLabel = _formatInsightDate(insight.publishedAt);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1133,19 +1137,21 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${insight.species} at ${insight.location}',
+            displayTldr,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          if (insight.excerpt.isNotEmpty) ...[
-            const SizedBox(height: 8),
+          if (insight.excerpt.isNotEmpty && insight.tldr.isEmpty) ...[
+            const SizedBox(height: 6),
             Text(
               insight.excerpt,
               style: TextStyle(color: Colors.grey[400], fontSize: 13),
-              maxLines: 3,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ],
@@ -1156,6 +1162,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 insight.sourceName,
                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
               ),
+              if (dateLabel.isNotEmpty) ...[
+                Text(
+                  ' · $dateLabel',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
               const SizedBox(width: 12),
               TextButton(
                 onPressed: () async {
@@ -1176,9 +1188,28 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ),
             ],
           ),
+          Text(
+            'Link may require BD Outdoors login.',
+            style: TextStyle(color: Colors.grey[600], fontSize: 11),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatInsightDate(String publishedAt) {
+    if (publishedAt.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(publishedAt);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inDays == 0) return 'Today';
+      if (diff.inDays == 1) return 'Yesterday';
+      if (diff.inDays < 7) return '${diff.inDays} days ago';
+      return '${dt.month}/${dt.day}';
+    } catch (_) {
+      return '';
+    }
   }
   
   /// Headline card — restrained, no fire emojis (Quiet Luxury tone)

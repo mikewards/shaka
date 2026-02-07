@@ -1084,7 +1084,8 @@ fun Application.configureRouting() {
                             
                             val reportId = FishingIntelDb.saveReport(report)
                             
-                            for (species in post.speciesMentioned) {
+                            val speciesForCatch = post.speciesCaught.ifEmpty { post.speciesMentioned }
+                            for (species in speciesForCatch) {
                                 val normalizedSpecies = SpeciesNormalizer.normalize(species)
                                 val claim = FishingClaim(
                                     claimType = ClaimType.CATCH,

@@ -61,7 +61,8 @@ data class NarrativeInsight(
     val excerpt: String,
     val sourceName: String,
     val threadUrl: String,
-    val publishedAt: String
+    val publishedAt: String,
+    val tldr: String = ""
 )
 
 // Legacy response types (keep for backwards compat)
@@ -178,6 +179,7 @@ data class IngestPostRequest(
     val date: String,  // ISO-8601 format: "2026-02-06T12:00:00Z"
     val content: String,
     val speciesMentioned: List<String> = emptyList(),
+    val speciesCaught: List<String> = emptyList(),
     val locationMentioned: String? = null,
     val forumName: String,
     // Optional normalized fields (all geos)
