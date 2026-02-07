@@ -86,3 +86,12 @@ object FishingIntelReportGeosTable : IntIdTable("fishing_intel_report_geos", "re
     val geoType = varchar("geo_type", 30)
     val radiusM = integer("radius_m").default(25000)
 }
+
+/** Persisted key insights per region per time slot (morning/afternoon/night). Slot key = "YYYY-MM-DD_morning|afternoon|night". */
+object FishingIntelRegionInsightsTable : Table("fishing_intel_region_insights") {
+    val regionId = varchar("region_id", 50)
+    val slotKey = varchar("slot_key", 30)
+    val insightsJson = text("insights_json")
+    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    override val primaryKey = PrimaryKey(regionId, slotKey)
+}

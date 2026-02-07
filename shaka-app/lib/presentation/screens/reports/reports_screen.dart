@@ -371,20 +371,24 @@ class _ReportsScreenState extends State<ReportsScreen>
                     maxLines: 1,
                   ),
                 ),
-                // Fixed-width block so carets and count align across all rows
+                // Fixed-width block: caret column (32) then count + chevron so all ^/v align
                 SizedBox(
-                  width: 96,
+                  width: 100,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _TrendArrow(
-                        isUp: isUp,
-                        isDown: isDown,
-                        percentChange: s.percentChange,
-                        color: trendColor,
-                        showPercentInFlyoutOnly: true,
+                      SizedBox(
+                        width: 32,
+                        child: Center(
+                          child: _TrendArrow(
+                            isUp: isUp,
+                            isDown: isDown,
+                            percentChange: s.percentChange,
+                            color: trendColor,
+                            showPercentInFlyoutOnly: true,
+                          ),
+                        ),
                       ),
                       Text(
                         '${s.count24h}',
@@ -415,7 +419,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
-  /// Flyout below selected row: calculation explanation + 48h/5-day counts + vs trailing avg.
+  /// Flyout below selected row: vs 5 day trailing avg and percent only.
   Widget _buildSpeciesFlyout(TrendingSpecies s) {
     final isUp = s.isUp;
     final isDown = s.isDown;
@@ -434,74 +438,33 @@ class _ReportsScreenState extends State<ReportsScreen>
     return Padding(
       padding: const EdgeInsets.only(left: 12),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: _bgColor,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _borderColor),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
             Text(
-              'These values contribute to the last 48hr count & comparison vs prior 5 days.',
+              'vs 5 day trailing avg',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.75),
-                fontSize: 12,
-                height: 1.35,
+                color: Colors.white.withOpacity(0.85),
+                fontSize: 13,
               ),
             ),
-            const SizedBox(height: 14),
-            _flyoutCountRow('Fish counts last 48 hours', s.count24h),
-            const SizedBox(height: 10),
-            _flyoutCountRow('Fish counts trailing 5 days', s.countPrevious),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(
-                  'vs 5 day trailing avg',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  changeText,
-                  style: TextStyle(
-                    color: trendColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            const SizedBox(width: 8),
+            Text(
+              changeText,
+              style: TextStyle(
+                color: trendColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _flyoutCountRow(String label, int count) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.85),
-            fontSize: 13,
-          ),
-        ),
-        Text(
-          '$count',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 

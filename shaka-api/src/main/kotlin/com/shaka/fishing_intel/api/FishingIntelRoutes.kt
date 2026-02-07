@@ -210,7 +210,9 @@ object FishingIntelRoutes {
      * Used by the Reports tab; regionId can be "socal" (API) or "so_cal" (DB).
      */
     fun getIntelForRegion(regionId: String, since: String, tzOffset: Int? = null): SpotIntelResponse? {
-        val cacheKey = "$since:${tzOffset ?: "auto"}"
+        val offset = tzOffset ?: -8
+        val slotKey = insightSlotKey(offset)
+        val cacheKey = "$since:${tzOffset ?: "auto"}:$slotKey"
         val normalizedRegionId = when (regionId.lowercase()) {
             "socal" -> "so_cal"
             else -> regionId.lowercase()
@@ -224,7 +226,6 @@ object FishingIntelRoutes {
             group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
         }
 
-        val offset = tzOffset ?: -8
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
         val fortyEightHoursAgo = nowInUserZone.minusHours(48).toInstant()
@@ -350,14 +351,26 @@ object FishingIntelRoutes {
         }
         val tldrs = narrativeInsights.map { it.tldr }.filter { it.isNotBlank() }
         val regionLabel = if (normalizedRegionId == "so_cal") "SoCal" else normalizedRegionId
-        val keyInsights = runBlocking {
-            FishingIntelAiService.generateRegionInsights(
-                speciesSummary = speciesSummary,
-                narrativeTldrs = tldrs,
-                totalReports = dedupedReports.size,
-                regionLabel = regionLabel
-            ) ?: emptyList()
+        // Insights change 3x/day by user timezone: morning 03–11:59, afternoon 12–19:59, night 20:00–02:59. Persist per slot so they don't change when app closes.
+        var keyInsights = FishingIntelDb.getRegionInsights(normalizedRegionId, slotKey)
+        if (keyInsights == null || keyInsights.isEmpty()) {
+            keyInsights = runBlocking {
+                FishingIntelAiService.generateRegionInsights(
+                    speciesSummary = speciesSummary,
+                    narrativeTldrs = tldrs,
+                    totalReports = dedupedReports.size,
+                    regionLabel = regionLabel
+                ) ?: emptyList()
+            }
+            if (!keyInsights.isNullOrEmpty()) {
+                try {
+                    FishingIntelDb.setRegionInsights(normalizedRegionId, slotKey, keyInsights)
+                } catch (e: Exception) {
+                    logger.warn("Failed to persist region insights: ${e.message}")
+                }
+            }
         }
+        val finalKeyInsights = keyInsights ?: emptyList()
 
         val response = SpotIntelResponse(
             spotId = normalizedRegionId,
@@ -370,10 +383,24 @@ object FishingIntelRoutes {
             dataFreshness = Instant.now().toString(),
             totalReports = dedupedReports.size,
             narrativeInsights = narrativeInsights,
-            keyInsights = keyInsights
+            keyInsights = finalKeyInsights
         )
         IntelCache.set(normalizedRegionId, cacheKey, response)
         return response
+    }
+
+    /** Morning 03:00–11:59, afternoon 12:00–19:59, night 20:00–02:59. Returns e.g. "2025-02-08_afternoon". */
+    private fun insightSlotKey(tzOffsetHours: Int): String {
+        val zone = ZoneOffset.ofHours(tzOffsetHours)
+        val now = ZonedDateTime.now(zone)
+        val hour = now.hour
+        val (slotName, date) = when {
+            hour in 3..11 -> "morning" to now.toLocalDate()
+            hour in 12..19 -> "afternoon" to now.toLocalDate()
+            hour >= 20 -> "night" to now.toLocalDate()
+            else -> "night" to now.toLocalDate().minusDays(1) // 00–02:59 = previous day's night
+        }
+        return "${date}_$slotName"
     }
 
     private fun reportFingerprint(report: ReportWithClaims): String {

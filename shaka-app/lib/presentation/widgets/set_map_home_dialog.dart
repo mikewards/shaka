@@ -63,7 +63,7 @@ class SetMapHomeDialog extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             SizedBox(
-              height: 48,
+              height: 52,
               child: ElevatedButton(
                 onPressed: () {
                   HapticFeedback.lightImpact();
@@ -87,6 +87,7 @@ class SetMapHomeDialog extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.info,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

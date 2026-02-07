@@ -29,7 +29,8 @@ object FishingIntelDb {
                 FishingIntelReportsTable,
                 FishingIntelClaimsTable,
                 FishingIntelLandingsTable,
-                FishingIntelReportGeosTable
+                FishingIntelReportGeosTable,
+                FishingIntelRegionInsightsTable
             )
             val conn = this.connection.connection as java.sql.Connection
             addReportColumnsIfMissing(conn)
@@ -520,6 +521,42 @@ object FishingIntelDb {
                     "reportCount" to reportCount,
                     "claimCount" to claimCount
                 )
+            }
+        }
+    }
+
+    /**
+     * Get persisted key insights for a region and time slot (e.g. "2025-02-08_morning").
+     * Returns null if not found.
+     */
+    fun getRegionInsights(regionId: String, slotKey: String): List<String>? {
+        return transaction {
+            val rid = regionId
+            val sk = slotKey
+            val row = FishingIntelRegionInsightsTable.select {
+                (FishingIntelRegionInsightsTable.regionId eq rid) and
+                (FishingIntelRegionInsightsTable.slotKey eq sk)
+            }.singleOrNull() ?: return@transaction null
+            val raw = row[FishingIntelRegionInsightsTable.insightsJson]
+            raw.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+    }
+
+    /**
+     * Persist key insights for a region and time slot so they stay the same until the next slot.
+     */
+    fun setRegionInsights(regionId: String, slotKey: String, insights: List<String>) {
+        transaction {
+            val conn = this.connection.connection as java.sql.Connection
+            conn.prepareStatement("DELETE FROM fishing_intel_region_insights WHERE region_id = ? AND slot_key = ?").use { stmt ->
+                stmt.setString(1, regionId)
+                stmt.setString(2, slotKey)
+                stmt.executeUpdate()
+            }
+            FishingIntelRegionInsightsTable.insert {
+                it[FishingIntelRegionInsightsTable.regionId] = regionId
+                it[FishingIntelRegionInsightsTable.slotKey] = slotKey
+                it[FishingIntelRegionInsightsTable.insightsJson] = insights.joinToString("\n")
             }
         }
     }

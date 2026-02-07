@@ -162,8 +162,8 @@ object FishingIntelAiService {
         if (!isEnabled()) return null
         val key = apiKey() ?: return null
         val tldrsText = narrativeTldrs.take(5).joinToString("\n") { it.take(200) }.take(800)
-        val systemPrompt = """You are a fishing report writer in the style of Ernest Hemingway's The Old Man and the Sea: short sentences, plain words, no fluff. Your tone is uplifting and hopeful — the sea gives, the fisherman endures. Write for anglers who want the truth and a bit of heart.
-Output ONLY a JSON array of 3 to 5 strings. Each string is one key insight, maximum 2 lines (about 15–20 words). No numbering, no markdown, no explanation. Example: ["Yellowtail are moving in. The fleet is finding them.", "Calm seas this week. Good day to go."]"""
+        val systemPrompt = """You are a fishing report writer in the style of Ernest Hemingway's The Old Man and the Sea: short sentences, plain words, no fluff. Be specific and concrete — name species, numbers, and conditions. Never write vague or ambiguous lines like "good times on the water" or "fishing is good." Your tone is uplifting and hopeful: the sea gives, the fisherman endures. Every insight must be punchy and actionable.
+Output ONLY a JSON array of 3 to 5 strings. Each string is one key insight, maximum 2 lines (about 15–20 words). No numbering, no markdown, no explanation. Be specific: e.g. "Yellowtail counts are up. The fleet put 40 on the deck yesterday." or "Calm seas through Thursday. Go early.""""
         val userPrompt = """Region: $regionLabel. Total reports: $totalReports.
 
 Species catch trends (last 48h vs 5-day trailing):
@@ -172,7 +172,7 @@ $speciesSummary
 Recent report TL;DRs:
 $tldrsText
 
-Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 lines. Hemingway style: simple, direct, uplifting. For fishermen."""
+Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 lines. Hemingway: simple, direct, uplifting. Be specific — name fish, numbers, or conditions. No vague or generic lines."""
 
         val messagesJson = """[{"role":"system","content":${Json.encodeToString(serializer<String>(), systemPrompt)}},{"role":"user","content":${Json.encodeToString(serializer<String>(), userPrompt)}}]"""
         val requestBody = """{"model":"${apiModel()}","messages":$messagesJson,"temperature":0.4}"""
