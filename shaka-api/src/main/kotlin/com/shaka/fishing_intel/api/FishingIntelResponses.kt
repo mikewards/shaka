@@ -10,15 +10,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SpotIntelResponse(
     val spotId: String,
-    // The headline - what's the #1 story right now?
     val headline: HeadlineResponse?,
-    // What's hot (trending UP)
-    val hotSpecies: List<TrendingSpeciesResponse>,
-    // What's cooling off (trending DOWN)
-    val coldSpecies: List<TrendingSpeciesResponse>,
-    // Recent notable catches
+    @Deprecated("Use speciesWithTrends") val hotSpecies: List<TrendingSpeciesResponse> = emptyList(),
+    @Deprecated("Use speciesWithTrends") val coldSpecies: List<TrendingSpeciesResponse> = emptyList(),
+    /** Single list sorted by desirability (most to least). Last 24h vs 6-day avg. */
+    val speciesWithTrends: List<TrendingSpeciesResponse> = emptyList(),
     val recentCatches: List<RecentCatchResponse>,
-    // Meta
     val sourcesUsed: List<String>,
     val dataFreshness: String,
     val totalReports: Int,
@@ -37,11 +34,13 @@ data class HeadlineResponse(
 @Serializable
 data class TrendingSpeciesResponse(
     val species: String,
-    val count24h: Int,          // catches in last 24h
-    val countPrevious: Int,     // catches in previous period (24-72h)
-    val trend: String,          // "UP", "DOWN", "STABLE"
-    val percentChange: Int,     // e.g., +150 means 150% increase
-    val topLanding: String?     // where they're biting most
+    val count24h: Int,              // catches in last 24h
+    val countPrevious: Int,          // total in previous 6 days (24h–168h)
+    val trend: String,              // "UP", "DOWN", "STABLE"
+    val percentChange: Int,         // vs 6-day daily average
+    val topLanding: String?,
+    val trendLabel: String? = null,  // "Above average", "Below average", "Average", "New!"
+    val avgPerDayPrevious: Double? = null
 )
 
 @Serializable

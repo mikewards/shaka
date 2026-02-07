@@ -2,6 +2,7 @@ package com.shaka.fishing_intel.api
 
 import com.shaka.data.cache.IntelCache
 import com.shaka.data.client.SpotDatabase
+import com.shaka.fishing_intel.SpeciesOrder
 import com.shaka.fishing_intel.SpeciesTier
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
@@ -63,39 +64,63 @@ object FishingIntelRoutes {
         val previousCounts = countSpecies(previous)
 
         val allSpecies = (recentCounts.keys + previousCounts.keys).distinct()
-        val trends = allSpecies.mapNotNull { species ->
+        val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
+
+        // Trend = last 24h vs 6-day daily average (not 24h vs 6-day total)
+        val trendsWithMeta = allSpecies.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
             val recent = recentCounts[species] ?: SpeciesAgg()
             val prev = previousCounts[species] ?: SpeciesAgg()
             val recentTotal = recent.kept + recent.released
             val prevTotal = prev.kept + prev.released
             if (recentTotal == 0 && prevTotal == 0) return@mapNotNull null
+            val avgPerDayPrevious = if (prevTotal == 0) 0.0 else prevTotal / 6.0
             val percentChange = when {
                 prevTotal == 0 && recentTotal > 0 -> 999
                 prevTotal == 0 -> 0
-                else -> ((recentTotal - prevTotal) * 100) / prevTotal
+                avgPerDayPrevious == 0.0 -> 0
+                else -> ((recentTotal - avgPerDayPrevious) * 100 / avgPerDayPrevious).toInt()
             }
             val trend = when {
                 percentChange > 20 -> "UP"
                 percentChange < -20 -> "DOWN"
                 else -> "STABLE"
             }
-            TrendingSpeciesResponse(
-                species = formatSpeciesName(species),
-                count24h = recentTotal,
-                countPrevious = prevTotal,
-                trend = trend,
-                percentChange = percentChange,
-                topLanding = recent.topLanding ?: prev.topLanding
+            val trendLabel = when {
+                prevTotal == 0 && recentTotal > 0 -> "New!"
+                trend == "UP" -> "Above average"
+                trend == "DOWN" -> "Below average"
+                else -> "Average"
+            }
+            Pair(
+                species,
+                TrendingSpeciesResponse(
+                    species = formatSpeciesName(species),
+                    count24h = recentTotal,
+                    countPrevious = prevTotal,
+                    trend = trend,
+                    percentChange = percentChange,
+                    topLanding = recent.topLanding ?: prev.topLanding,
+                    trendLabel = trendLabel,
+                    avgPerDayPrevious = if (avgPerDayPrevious > 0) avgPerDayPrevious else null
+                )
             )
-        }.sortedByDescending { it.count24h }
+        }
 
-        val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
-        val hotSpecies = trends
-            .filter { it.trend == "UP" && it.count24h > 0 }
+        // Single list sorted by desirability (most to least), then by 24h count. Cap at 15.
+        val speciesWithTrends = trendsWithMeta
+            .sortedWith(
+                compareBy<Pair<String, TrendingSpeciesResponse>> { SpeciesOrder.sortKey(it.first) }
+                    .thenByDescending { it.second.count24h }
+            )
+            .map { it.second }
+            .take(15)
+
+        // Backward compat: hot/cold for old clients
+        val hotSpecies = trendsWithMeta.map { it.second }.filter { it.trend == "UP" && it.count24h > 0 }
             .sortedWith(compareByDescending<TrendingSpeciesResponse> { it.species in trophyDisplayNames }.thenByDescending { it.count24h })
             .take(5)
-        val coldSpecies = trends.filter { it.trend == "DOWN" }.take(3)
+        val coldSpecies = trendsWithMeta.map { it.second }.filter { it.trend == "DOWN" }.take(3)
 
         val narrativeInsights = buildNarrativeInsights(dedupedReports)
 
@@ -111,7 +136,7 @@ object FishingIntelRoutes {
                 topLanding = null
             )
             else -> {
-                val trophyUp = trends
+                val trophyUp = trendsWithMeta.map { it.second }
                     .filter { it.trend == "UP" && it.count24h > 0 && it.species in trophyDisplayNames }
                     .sortedByDescending { it.count24h }
                     .firstOrNull()
@@ -152,6 +177,7 @@ object FishingIntelRoutes {
             headline = headline,
             hotSpecies = hotSpecies,
             coldSpecies = coldSpecies,
+            speciesWithTrends = speciesWithTrends,
             recentCatches = recentCatches,
             sourcesUsed = sourcesUsed,
             dataFreshness = Instant.now().toString(),

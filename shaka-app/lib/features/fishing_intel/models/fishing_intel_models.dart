@@ -34,12 +34,14 @@ class NarrativeInsight {
   }
 }
 
-/// Fishing intel response - focused on what's HOT!
+/// Fishing intel response - one list, desirability order, last 24h vs 6-day avg.
 class FishingIntelResponse {
   final String spotId;
   final Headline? headline;
   final List<TrendingSpecies> hotSpecies;
   final List<TrendingSpecies> coldSpecies;
+  /// Single list sorted by desirability (most to least). Prefer over hot/cold.
+  final List<TrendingSpecies> speciesWithTrends;
   final List<RecentCatch> recentCatches;
   final List<String> sourcesUsed;
   final String dataFreshness;
@@ -51,6 +53,7 @@ class FishingIntelResponse {
     this.headline,
     required this.hotSpecies,
     required this.coldSpecies,
+    this.speciesWithTrends = const [],
     required this.recentCatches,
     required this.sourcesUsed,
     required this.dataFreshness,
@@ -59,20 +62,18 @@ class FishingIntelResponse {
   });
 
   factory FishingIntelResponse.fromJson(Map<String, dynamic> json) {
+    final hot = (json['hotSpecies'] as List? ?? []).map((e) => TrendingSpecies.fromJson(e)).toList();
+    final cold = (json['coldSpecies'] as List? ?? []).map((e) => TrendingSpecies.fromJson(e)).toList();
+    final speciesWithTrends = (json['speciesWithTrends'] as List? ?? [])
+        .map((e) => TrendingSpecies.fromJson(e))
+        .toList();
     return FishingIntelResponse(
       spotId: json['spotId'] ?? '',
-      headline: json['headline'] != null 
-          ? Headline.fromJson(json['headline']) 
-          : null,
-      hotSpecies: (json['hotSpecies'] as List? ?? [])
-          .map((e) => TrendingSpecies.fromJson(e))
-          .toList(),
-      coldSpecies: (json['coldSpecies'] as List? ?? [])
-          .map((e) => TrendingSpecies.fromJson(e))
-          .toList(),
-      recentCatches: (json['recentCatches'] as List? ?? [])
-          .map((e) => RecentCatch.fromJson(e))
-          .toList(),
+      headline: json['headline'] != null ? Headline.fromJson(json['headline']) : null,
+      hotSpecies: hot,
+      coldSpecies: cold,
+      speciesWithTrends: speciesWithTrends.isNotEmpty ? speciesWithTrends : [...hot, ...cold],
+      recentCatches: (json['recentCatches'] as List? ?? []).map((e) => RecentCatch.fromJson(e)).toList(),
       sourcesUsed: (json['sourcesUsed'] as List? ?? []).cast<String>(),
       dataFreshness: json['dataFreshness'] ?? '',
       totalReports: json['totalReports'] ?? 0,
@@ -81,8 +82,16 @@ class FishingIntelResponse {
           .toList(),
     );
   }
-  
-  bool get hasData => headline != null || hotSpecies.isNotEmpty || recentCatches.isNotEmpty || narrativeInsights.isNotEmpty;
+
+  /// Species list to show: backend list if present, else hot + cold for old API.
+  List<TrendingSpecies> get speciesList =>
+      speciesWithTrends.isNotEmpty ? speciesWithTrends : [...hotSpecies, ...coldSpecies];
+
+  bool get hasData =>
+      headline != null ||
+      speciesList.isNotEmpty ||
+      recentCatches.isNotEmpty ||
+      narrativeInsights.isNotEmpty;
 }
 
 /// The headline - what's the #1 story?
@@ -112,7 +121,7 @@ class Headline {
   }
 }
 
-/// Species with trend info
+/// Species with trend info (last 24h vs 6-day avg).
 class TrendingSpecies {
   final String species;
   final int count24h;
@@ -120,6 +129,8 @@ class TrendingSpecies {
   final String trend; // "UP", "DOWN", "STABLE"
   final int percentChange;
   final String? topLanding;
+  /// "Above average", "Below average", "Average", "New!"
+  final String? trendLabel;
 
   const TrendingSpecies({
     required this.species,
@@ -128,6 +139,7 @@ class TrendingSpecies {
     required this.trend,
     required this.percentChange,
     this.topLanding,
+    this.trendLabel,
   });
 
   factory TrendingSpecies.fromJson(Map<String, dynamic> json) {
@@ -138,9 +150,25 @@ class TrendingSpecies {
       trend: json['trend'] ?? 'STABLE',
       percentChange: json['percentChange'] ?? 0,
       topLanding: json['topLanding'],
+      trendLabel: json['trendLabel'],
     );
   }
-  
+
+  String get primaryLabel {
+    if (trendLabel != null && trendLabel!.isNotEmpty) return trendLabel!;
+    if (percentChange > 500) return 'New!';
+    if (trend == 'UP') return 'Above average';
+    if (trend == 'DOWN') return 'Below average';
+    return 'Average';
+  }
+
+  String get secondaryLabel {
+    if (percentChange > 500) return '';
+    final p = percentChange;
+    final sign = p > 0 ? '+' : '';
+    return '$sign$p% vs 6-day avg';
+  }
+
   bool get isUp => trend == 'UP';
   bool get isDown => trend == 'DOWN';
 }

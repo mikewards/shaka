@@ -1060,47 +1060,40 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           )),
           const SizedBox(height: 20),
         ],
-        // HEADLINE - Only show if real signal (not baseline hype from old API)
-        if (intel.headline != null && _isRealHeadline(intel.headline!)) ...[
-          _buildHeadlineCard(intel.headline!),
-          const SizedBox(height: 20),
-        ],
-        // Light activity when no headline or headline was suppressed (e.g. "Calico Bass Bite is on")
-        if ((intel.headline == null || !_isRealHeadline(intel.headline!)) && intel.hasData) ...[
+        // Light activity when no narrative insights (headline card removed)
+        if (intel.hasData && intel.narrativeInsights.isEmpty) ...[
           Text(
             'Light activity — no standout bite.',
             style: TextStyle(color: Colors.grey[500], fontSize: 14, fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 16),
         ],
-        // TRENDING UP
-        if (intel.hotSpecies.isNotEmpty) ...[
-          _buildSectionHeader('TRENDING UP'),
-          const SizedBox(height: 10),
-          ...intel.hotSpecies.map((s) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildTrendCard(s, isHot: true),
-          )),
-          const SizedBox(height: 16),
-        ],
-        // SLOWING DOWN
-        if (intel.coldSpecies.isNotEmpty) ...[
-          _buildSectionHeader('SLOWING DOWN'),
-          const SizedBox(height: 10),
-          ...intel.coldSpecies.map((s) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildTrendCard(s, isHot: false),
-          )),
-          const SizedBox(height: 16),
-        ],
-        // RECENT CATCHES (Also reported) - de-emphasized
-        if (intel.recentCatches.isNotEmpty) ...[
-          _buildSectionHeader('Also reported'),
-          const SizedBox(height: 10),
-          ...intel.recentCatches.map((c) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildRecentCatchCard(c),
-          )),
+        // What's being caught — one list (desirability order), then Recent. Simple.
+        if (intel.speciesList.isNotEmpty || intel.recentCatches.isNotEmpty) ...[
+          _buildSectionHeader('WHAT\'S BEING CAUGHT'),
+          const SizedBox(height: 4),
+          Text(
+            'Last 24h vs 6-day average',
+            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          if (intel.speciesList.isNotEmpty)
+            ...intel.speciesList.map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _buildSpeciesRow(s),
+            )),
+          if (intel.recentCatches.isNotEmpty) ...[
+            if (intel.speciesList.isNotEmpty) const SizedBox(height: 16),
+            Text(
+              'Recent',
+              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2),
+            ),
+            const SizedBox(height: 8),
+            ...intel.recentCatches.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _buildRecentCatchCard(c),
+            )),
+          ],
           const SizedBox(height: 16),
         ],
         // Attribution
@@ -1111,14 +1104,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ),
       ],
     );
-  }
-
-  /// Suppress baseline/hype headlines from old API (e.g. "The Calico Bass Bite is on!").
-  bool _isRealHeadline(Headline headline) {
-    final msg = headline.message.toLowerCase();
-    if (headline.species == 'Calico Bass') return false;
-    if (msg.contains('bite is on') || msg.contains('are firing')) return false;
-    return true;
   }
 
   Widget _buildNarrativeInsightCard(NarrativeInsight insight) {
@@ -1141,7 +1126,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment: Alignment.centerLeft,
                 child: Text(
                   dateLabel,
                   style: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -1187,128 +1172,56 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     }
   }
   
-  /// Headline card — restrained, no fire emojis (Quiet Luxury tone)
-  Widget _buildHeadlineCard(Headline headline) {
+  /// One species row: name, 24h count, primary label, secondary %. Simple.
+  Widget _buildSpeciesRow(TrendingSpecies s) {
+    final isUp = s.isUp;
+    final isDown = s.isDown;
+    final primaryColor = isUp
+        ? const Color(0xFF22C55E)
+        : isDown
+            ? const Color(0xFFEF4444)
+            : Colors.white.withOpacity(0.5);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.coral.withOpacity(0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            headline.message,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (headline.count24h > 0) ...[
-            const SizedBox(height: 6),
-            Text(
-              '${headline.count24h} in last 24h',
-              style: TextStyle(color: AppColors.scoreGood, fontSize: 14),
-            ),
-          ],
-          if (headline.topLanding != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'At ${headline.topLanding}',
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-  
-  /// Trend card for hot/cold species
-  Widget _buildTrendCard(TrendingSpecies species, {required bool isHot}) {
-    final arrow = isHot ? '↑' : '↓';
-    final arrowColor = isHot ? Colors.green : Colors.red;
-    final changeText = species.percentChange > 500 
-        ? 'NEW!' 
-        : '${species.percentChange > 0 ? '+' : ''}${species.percentChange}%';
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isHot 
-              ? Colors.green.withOpacity(0.3) 
-              : Colors.red.withOpacity(0.3),
-        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _borderColor),
       ),
       child: Row(
         children: [
-          // Arrow
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: arrowColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                arrow,
-                style: TextStyle(
-                  color: arrowColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Species name
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  species.species,
+                  s.species,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (species.topLanding != null)
+                const SizedBox(height: 2),
+                Text(
+                  s.primaryLabel,
+                  style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+                if (s.secondaryLabel.isNotEmpty)
                   Text(
-                    species.topLanding!,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    s.secondaryLabel,
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
                   ),
               ],
             ),
           ),
-          // Count and change
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${species.count24h}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                changeText,
-                style: TextStyle(
-                  color: arrowColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          Text(
+            '${s.count24h}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
