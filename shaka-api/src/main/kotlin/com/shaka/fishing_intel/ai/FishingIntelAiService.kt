@@ -105,7 +105,7 @@ object FishingIntelAiService {
         val contentTruncated = combinedContent.take(MAX_CONTENT_CHARS)
         val systemPrompt = """You are a fishing report analyst. For the given forum thread, output ONLY valid JSON with three keys (no markdown, no explanation):
 (1) "species_caught": array of species actually caught on this trip, normalized with underscores (e.g. bluefin_tuna, yellowtail). Do NOT include species only mentioned as chum, bait, from the freezer, or from a past trip.
-(2) "tldr": one or two sentences summarizing what was caught, where, and conditions if relevant. Standalone; no "read more" or links. Factual, angler-friendly tone.
+(2) "tldr": one or two SHORT sentences (max 25 words) summarizing what was caught, where, and conditions. Must fit on a single mobile card. No "read more" or links. Factual, angler-friendly tone.
 (3) "is_catch_intel": boolean. true if the thread is mostly actual catch reports or conditions intel; false if mostly off-topic (e.g. general chat, tackle shop visit with no report, non-fishing)."""
         val userPrompt = "Title: $title\n\nContent: $contentTruncated"
         val messagesJson = """[{"role":"system","content":${Json.encodeToString(serializer<String>(), systemPrompt)}},{"role":"user","content":${Json.encodeToString(serializer<String>(), userPrompt)}}]"""

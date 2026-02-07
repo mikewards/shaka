@@ -1137,6 +1137,17 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (dateLabel.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  dateLabel,
+                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                ),
+              ),
+            ),
           Text(
             displayTldr,
             style: const TextStyle(
@@ -1144,8 +1155,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 8,
+            overflow: TextOverflow.clip,
           ),
           if (showExcerpt) ...[
             const SizedBox(height: 6),
@@ -1156,34 +1167,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                insight.sourceName,
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
-              ),
-              if (dateLabel.isNotEmpty) ...[
-                Text(
-                  ' · $dateLabel',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ],
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () async {
-                  final uri = Uri.parse(insight.threadUrl);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: Text(
-                  'View original thread',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
