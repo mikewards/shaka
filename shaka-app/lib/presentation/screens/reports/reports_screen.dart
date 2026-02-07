@@ -31,6 +31,8 @@ class _ReportsScreenState extends State<ReportsScreen>
   final Map<String, FishingIntelResponse?> _intelByRegion = {};
   final Map<String, bool> _loading = {};
   final Map<String, String?> _error = {};
+  /// Expanded species key per region: when set, that fish row shows calculation details.
+  final Map<String, String?> _expandedSpeciesByRegion = {};
 
   @override
   void initState() {
@@ -184,7 +186,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
           const SizedBox(height: 16),
         ],
-        // Last 48hr catch numbers
+        // Last 48hr catch numbers (expandable rows)
         if (intel.speciesList.isNotEmpty) ...[
           Text(
             'Last 48hr » Catch Numbers',
@@ -197,24 +199,9 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(height: 12),
           ...intel.speciesList.map((s) => Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child: _buildSpeciesRow(s),
+                child: _buildSpeciesRow(s, regionId, intel),
               )),
-          const SizedBox(height: 16),
         ],
-        // Attribution
-        Text(
-          '${intel.totalReports} reports from ${intel.sourcesUsed.join(", ")}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 11),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        // More regions coming soon
-        Center(
-          child: Text(
-            'More regions coming soon',
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          ),
-        ),
       ],
     );
   }
@@ -301,62 +288,170 @@ class _ReportsScreenState extends State<ReportsScreen>
     }
   }
 
-  Widget _buildSpeciesRow(TrendingSpecies s) {
+  Widget _buildSpeciesRow(
+      TrendingSpecies s, String regionId, FishingIntelResponse intel) {
     final isUp = s.isUp;
     final isDown = s.isDown;
-    final primaryColor = isUp
+    final trendColor = isUp
         ? const Color(0xFF22C55E)
         : isDown
             ? const Color(0xFFEF4444)
-            : Colors.white.withOpacity(0.5);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            : Colors.white54;
+    final isExpanded = _expandedSpeciesByRegion[regionId] == s.species;
+    final sourcesLabel = intel.sourcesUsed.isEmpty
+        ? 'Regional reports'
+        : intel.sourcesUsed.join(', ');
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            setState(() {
+              _expandedSpeciesByRegion[regionId] =
+                  isExpanded ? null : s.species;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _borderColor),
+            ),
+            child: Row(
               children: [
-                Text(
-                  s.species,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                // Species name
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    s.species,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  s.primaryLabel,
-                  style: TextStyle(
-                      color: primaryColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500),
-                ),
-                if (s.secondaryLabel.isNotEmpty)
-                  Text(
-                    s.secondaryLabel,
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(0.4), fontSize: 11),
+                // Trend arrow (ticker style)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _TrendArrow(
+                    isUp: isUp,
+                    isDown: isDown,
+                    percentChange: s.percentChange,
+                    color: trendColor,
                   ),
+                ),
+                // Count + % on one line
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      '${s.count24h}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (s.secondaryLabel.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        s.secondaryLabel,
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white38,
+                  size: 20,
+                ),
               ],
             ),
           ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 6),
+          _buildSpeciesDetail(s, sourcesLabel),
+        ],
+      ],
+    );
+  }
+
+  /// Expandable section: last 48h and trailing 5-day counts + sources.
+  Widget _buildSpeciesDetail(TrendingSpecies s, String sourcesLabel) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            '${s.count24h}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
+            'These values contribute to the last 48hr count & comparison vs prior 5 days.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 12,
             ),
           ),
+          const SizedBox(height: 12),
+          _detailRow('Last 48 hours', s.count24h, sourcesLabel),
+          const SizedBox(height: 10),
+          _detailRow('Trailing 5 days', s.countPrevious, sourcesLabel),
         ],
       ),
+    );
+  }
+
+  Widget _detailRow(String periodLabel, int count, String sourcesLabel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              periodLabel,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$count catches',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Sources: $sourcesLabel',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 
@@ -365,6 +460,48 @@ class _ReportsScreenState extends State<ReportsScreen>
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+}
+
+/// Ticker-style trend indicator: ↑ green, ↓ red, − gray.
+class _TrendArrow extends StatelessWidget {
+  final bool isUp;
+  final bool isDown;
+  final int percentChange;
+  final Color color;
+
+  const _TrendArrow({
+    required this.isUp,
+    required this.isDown,
+    required this.percentChange,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    IconData icon;
+    String? suffix;
+    if (isUp) {
+      icon = Icons.arrow_drop_up;
+      if (percentChange > 500) suffix = 'New!';
+      else if (percentChange > 0) suffix = '+$percentChange%';
+    } else if (isDown) {
+      icon = Icons.arrow_drop_down;
+      suffix = '$percentChange%';
+    } else {
+      icon = Icons.remove;
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 28),
+        if (suffix != null)
+          Text(
+            suffix,
+            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+      ],
+    );
   }
 }
 

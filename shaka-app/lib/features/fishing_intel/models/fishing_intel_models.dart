@@ -167,7 +167,7 @@ class TrendingSpecies {
     if (percentChange > 500) return '';
     final p = percentChange;
     final sign = p > 0 ? '+' : '';
-    return '$sign$p% vs 6-day avg';
+    return '$sign$p% vs 5-day trailing avg';
   }
 
   bool get isUp => trend == 'UP';
