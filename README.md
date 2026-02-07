@@ -364,6 +364,17 @@ All external clients have 10-second timeouts. The app queries `/v1/health/detail
 Deployment
 ----------
 
+**Full checklist (for API + app on phone):**
+
+1. **Backend (Railway)** – Push to `main`; Railway auto-deploys. Wait for deploy to finish in Railway dashboard.
+2. **Optional: BD data** – Run scraper so production has fresh reports:  
+   `cd tools/bd-scraper && .venv/bin/python scraper.py` (or `python3 scraper.py` with deps installed).
+3. **iPhone app** – Build and install so the device gets the latest UI:  
+   `cd shaka-app && flutter build ios --release && flutter install -d iPhone`  
+   Then force-quit the app on the phone and reopen.
+
+Until both (1) and (3) are done, the phone can show old UI and the API can return old response shapes.
+
 ### Backend
 
 Railway auto-deploys from main branch. Configuration via `railway.toml`.
