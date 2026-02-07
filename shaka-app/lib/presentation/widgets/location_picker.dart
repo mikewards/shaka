@@ -91,9 +91,6 @@ class _LocationPickerSheet extends StatefulWidget {
 }
 
 class _LocationPickerSheetState extends State<_LocationPickerSheet> {
-  MapLibreMapController? _mapController;
-  /// When true, show full map with reticle; center = selected point (pan to move).
-  bool _pinMode = false;
   LatLng _currentCenter = const LatLng(21.4389, -158.0001);
 
   static const _popularLocations = [
@@ -111,179 +108,27 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     {'name': 'Cozumel', 'lat': 20.4230, 'lon': -86.9223},
   ];
 
-  void _onMapCreated(MapLibreMapController controller) {
-    _mapController = controller;
-  }
-
-  void _onCameraMove() {
-    if (!_pinMode || _mapController == null) return;
-    final pos = _mapController!.cameraPosition;
-    if (pos != null) {
-      setState(() => _currentCenter = pos.target);
-    }
-  }
-
   void _enterPinMode() {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _pinMode = true;
-      _currentCenter = const LatLng(21.4389, -158.0001);
-    });
-  }
-
-  void _exitPinMode() {
-    setState(() => _pinMode = false);
-  }
-
-  void _confirmMapHome() {
-    widget.onLocationSelected(
-      _currentCenter.latitude,
-      _currentCenter.longitude,
-      '${_currentCenter.latitude.toStringAsFixed(4)}°, ${_currentCenter.longitude.toStringAsFixed(4)}°',
-    );
+    final initialCenter = _currentCenter;
+    final onLocationSelected = widget.onLocationSelected;
+    // Use full-screen route so map gets pan gestures (bottom sheet would steal drag).
     Navigator.of(context).pop();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => _DropPinScreen(
+          initialCenter: initialCenter,
+          onLocationSelected: onLocationSelected,
+          onCancel: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height * 0.9;
-    final topSafe = MediaQuery.of(context).padding.top;
-    final bottomSafe = MediaQuery.of(context).padding.bottom;
-
-    if (_pinMode) {
-      return Container(
-        height: height,
-        decoration: const BoxDecoration(
-          color: Color(0xFF0D0D0D),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Stack(
-          children: [
-            // Full map - center is the selected point
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                child: MapLibreMap(
-                  onMapCreated: _onMapCreated,
-                  onCameraIdle: _onCameraMove,
-                  trackCameraPosition: true,
-                  initialCameraPosition: CameraPosition(
-                    target: _currentCenter,
-                    zoom: 8,
-                  ),
-                  styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-                  compassEnabled: false,
-                  attributionButtonMargins: const Point(-100, -100),
-                  logoViewMargins: const Point(-100, -100),
-                ),
-              ),
-            ),
-            // Coordinates at top
-            Positioned(
-              top: topSafe + 12,
-              left: 16,
-              right: 16,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${_currentCenter.latitude.toStringAsFixed(5)}, ${_currentCenter.longitude.toStringAsFixed(5)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Reticle at center
-            const Center(
-              child: SizedBox(
-                width: 120,
-                height: 120,
-                child: CustomPaint(painter: _LocationReticlePainter()),
-              ),
-            ),
-            // Bottom bar: Cancel + Set as Map Home
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: bottomSafe + 16,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _exitPinMode();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.white70, fontSize: 15),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _confirmMapHome();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Set as Map Home',
-                              style: TextStyle(
-                                color: Color(0xFF1A1A1A),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     // List view: header + "Drop pin on map" + popular spots (dark theme, no zip field)
     return Container(
       height: height,
@@ -422,6 +267,182 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Full-screen drop-pin map so pan gestures go to the map (not a bottom sheet).
+class _DropPinScreen extends StatefulWidget {
+  final LatLng initialCenter;
+  final void Function(double lat, double lon, String name) onLocationSelected;
+  final VoidCallback onCancel;
+
+  const _DropPinScreen({
+    required this.initialCenter,
+    required this.onLocationSelected,
+    required this.onCancel,
+  });
+
+  @override
+  State<_DropPinScreen> createState() => _DropPinScreenState();
+}
+
+class _DropPinScreenState extends State<_DropPinScreen> {
+  MapLibreMapController? _mapController;
+  late LatLng _currentCenter;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentCenter = widget.initialCenter;
+  }
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _mapController = controller;
+  }
+
+  void _onCameraIdle() {
+    if (_mapController == null) return;
+    final pos = _mapController!.cameraPosition;
+    if (pos != null) setState(() => _currentCenter = pos.target);
+  }
+
+  void _confirm() {
+    HapticFeedback.lightImpact();
+    widget.onLocationSelected(
+      _currentCenter.latitude,
+      _currentCenter.longitude,
+      '${_currentCenter.latitude.toStringAsFixed(4)}°, ${_currentCenter.longitude.toStringAsFixed(4)}°',
+    );
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+    // Place coords well below status bar / Dynamic Island (avoid camera overlap)
+    const coordTopExtra = 28.0;
+    final coordTop = topPadding + coordTopExtra;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0D0D),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              onMapCreated: _onMapCreated,
+              onCameraIdle: _onCameraIdle,
+              trackCameraPosition: true,
+              initialCameraPosition: CameraPosition(
+                target: _currentCenter,
+                zoom: 8,
+              ),
+              styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+              compassEnabled: false,
+              attributionButtonMargins: const Point(-100, -100),
+              logoViewMargins: const Point(-100, -100),
+            ),
+          ),
+          Positioned(
+            top: coordTop,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_currentCenter.latitude.toStringAsFixed(5)}, ${_currentCenter.longitude.toStringAsFixed(5)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Center(
+            child: IgnorePointer(
+              child: SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(painter: _LocationReticlePainter()),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: bottomSafe + 16,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        widget.onCancel();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: Colors.white70, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _confirm,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Set as Map Home',
+                            style: TextStyle(
+                              color: Color(0xFF1A1A1A),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

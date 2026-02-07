@@ -81,8 +81,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void initState() {
     super.initState();
     _bgService.addListener(_onBackgroundChanged);
+    MapHomeService.mapHomeChanged.addListener(_onMapHomeChanged);
     _initDefaultCenter();
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
+  }
+
+  /// When user sets Map Home from Profile, animate to new center.
+  void _onMapHomeChanged() {
+    if (!mounted) return;
+    MapHomeService().getMapHome().then((home) {
+      if (home != null && _mapController != null && mounted) {
+        _defaultCenter = LatLng(home.lat, home.lon);
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(LatLng(home.lat, home.lon), _mapHomeZoom),
+        );
+        debugPrint('ExploreScreen: Moved to Map Home (${home.lat}, ${home.lon})');
+      }
+    });
   }
   
   Future<void> _initDefaultCenter() async {
@@ -168,6 +183,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _viewportFilterDebounce?.cancel();
     _carouselController.dispose();
     _bgService.removeListener(_onBackgroundChanged);
+    MapHomeService.mapHomeChanged.removeListener(_onMapHomeChanged);
     _ipGeoService.removeListener(_onIpLocationChanged);
     _mapController = null;
     super.dispose();
@@ -487,7 +503,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Check after await
       if (_mapController == null) return;
       
-      // Add symbol layer for score text. Collision on: only show label for top (highest sortKey) spot when overlapping.
+      // Score labels only when zoomed in (minzoom 12) so overlapping bubbles don't show scores.
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-labels',
@@ -502,6 +518,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           textIgnorePlacement: false,
           symbolSortKey: ['get', 'sortKey'],
         ),
+        minzoom: 12,
       );
       
       debugPrint('🗺️ Rendered ${spots.length} spot markers');

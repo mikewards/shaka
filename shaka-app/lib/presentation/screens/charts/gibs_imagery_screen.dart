@@ -113,10 +113,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   void initState() {
     super.initState();
     _selectedDate = GibsService.yesterdayUtc;
-    
+    MapHomeService.mapHomeChanged.addListener(_onMapHomeChanged);
+
     // Load GIBS-specific preferences (decoupled from Explore)
     _loadPreferences();
-    
+
     // Set initial center from:
     // 1. Spot coordinates (if provided)
     // 2. Map Home (if set)
@@ -234,8 +235,24 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Check if opened from a spot
   bool get _hasSpotContext => widget.spotName != null;
 
+  /// When user sets Map Home from Profile, animate to new center (only if not opened from a spot).
+  void _onMapHomeChanged() {
+    if (widget.initialLat != null && widget.initialLon != null) return;
+    if (!mounted) return;
+    MapHomeService().getMapHome().then((home) {
+      if (home != null && _mapController != null && mounted) {
+        _initialCenter = LatLng(home.lat, home.lon);
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(LatLng(home.lat, home.lon), _mapHomeZoom),
+        );
+        debugPrint('GIBS: Moved to Map Home (${home.lat}, ${home.lon})');
+      }
+    });
+  }
+
   @override
   void dispose() {
+    MapHomeService.mapHomeChanged.removeListener(_onMapHomeChanged);
     _mapController = null;
     super.dispose();
   }
@@ -742,7 +759,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     if (_mapController == null) return;
     
-    // Symbol layer with collision: only show label for top (highest sortKey) spot when overlapping.
+    // Score labels only when zoomed in (minzoom 12) so overlapping bubbles don't show scores.
     await _mapController!.addSymbolLayer(
       'saved-spots-source',
       'saved-spots-labels',
@@ -757,6 +774,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         textIgnorePlacement: false,
         symbolSortKey: ['get', 'sortKey'],
       ),
+      minzoom: 12,
     );
   }
   

@@ -186,25 +186,14 @@ class _ReportsScreenState extends State<ReportsScreen>
             ),
           ),
           const SizedBox(height: 12),
-          Builder(
-            builder: (context) {
-              final baseHeight = (intel.speciesList.length * 52.0).clamp(200.0, 320.0);
-              final rowHeight = baseHeight / intel.speciesList.length;
-              final hasExpanded = intel.speciesList.any(
-                (s) => _expandedSpeciesByRegion[regionId] == s.species,
-              );
-              const flyoutHeight = 56.0;
-              final totalHeight = baseHeight + (hasExpanded ? flyoutHeight : 0);
-              return Container(
-                height: totalHeight,
-                child: Column(
-                  children: intel.speciesList
-                      .map((s) => _buildSpeciesRow(s, regionId, intel, rowHeight))
-                      .toList(),
-                ),
-              );
-            },
-          ),
+          ...intel.speciesList.asMap().entries.map((entry) {
+            final index = entry.key;
+            final s = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < intel.speciesList.length - 1 ? 6 : 0),
+              child: _buildSpeciesRow(s, regionId, intel),
+            );
+          }),
           const SizedBox(height: 16),
           _buildSourcesAndDetails(intel),
         ],
@@ -338,7 +327,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     TrendingSpecies s,
     String regionId,
     FishingIntelResponse intel,
-    double rowHeight,
   ) {
     final isUp = s.isUp;
     final isDown = s.isDown;
@@ -353,76 +341,82 @@ class _ReportsScreenState extends State<ReportsScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: rowHeight,
-          child: GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() {
-                _expandedSpeciesByRegion[regionId] =
-                    isExpanded ? null : s.species;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: _cardColor,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _borderColor),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      s.species,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8, right: 8),
-                    child: _TrendArrow(
-                      isUp: isUp,
-                      isDown: isDown,
-                      percentChange: s.percentChange,
-                      color: trendColor,
-                      showPercentInFlyoutOnly: true,
-                    ),
-                  ),
-                  Text(
-                    '${s.count24h}',
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            setState(() {
+              _expandedSpeciesByRegion[regionId] =
+                  isExpanded ? null : s.species;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _borderColor),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    s.species,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.white38,
-                    size: 20,
+                ),
+                // Fixed-width block so carets and count align across all rows
+                SizedBox(
+                  width: 96,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _TrendArrow(
+                        isUp: isUp,
+                        isDown: isDown,
+                        percentChange: s.percentChange,
+                        color: trendColor,
+                        showPercentInFlyoutOnly: true,
+                      ),
+                      Text(
+                        '${s.count24h}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.white38,
+                        size: 22,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
         if (isExpanded) ...[
           const SizedBox(height: 6),
-          _buildSpeciesDetail(s),
+          _buildSpeciesFlyout(s),
         ],
       ],
     );
   }
 
-  /// Flyout: only "vs 5 day trailing avg" and percent change.
-  Widget _buildSpeciesDetail(TrendingSpecies s) {
+  /// Flyout below selected row: calculation explanation + 48h/5-day counts + vs trailing avg.
+  Widget _buildSpeciesFlyout(TrendingSpecies s) {
     final isUp = s.isUp;
     final isDown = s.isDown;
     final trendColor = isUp
@@ -437,33 +431,77 @@ class _ReportsScreenState extends State<ReportsScreen>
       final sign = s.percentChange > 0 ? '+' : '';
       changeText = '$sign${s.percentChange}%';
     }
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardColor.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        children: [
-          Text(
-            'vs 5 day trailing avg',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 13,
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: BoxDecoration(
+          color: _bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'These values contribute to the last 48hr count & comparison vs prior 5 days.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.75),
+                fontSize: 12,
+                height: 1.35,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            changeText,
-            style: TextStyle(
-              color: trendColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: 14),
+            _flyoutCountRow('Fish counts last 48 hours', s.count24h),
+            const SizedBox(height: 10),
+            _flyoutCountRow('Fish counts trailing 5 days', s.countPrevious),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'vs 5 day trailing avg',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  changeText,
+                  style: TextStyle(
+                    color: trendColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _flyoutCountRow(String label, int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 13,
+          ),
+        ),
+        Text(
+          '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
