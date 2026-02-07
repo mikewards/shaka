@@ -427,16 +427,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return;
     }
     
-    // Build GeoJSON features for ALL spots (uniform styling - no selection highlight)
+    // Build GeoJSON features for ALL spots. sortKey = score so when labels overlap,
+    // only the highest-score (top) spot's number is shown.
     final features = spots.map((spot) {
-      final color = _getScoreColorHex(spot.shakaScore ?? 0);
-      
+      final score = spot.shakaScore ?? 0;
+      final color = _getScoreColorHex(score);
       return {
         'type': 'Feature',
         'properties': {
           'id': spot.id,
           'name': spot.name,
-          'score': (spot.shakaScore ?? 0).toString(),
+          'score': score.toString(),
+          'sortKey': score,
           'color': color,
           'radius': 14,
           'strokeWidth': 2,
@@ -485,7 +487,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Check after await
       if (_mapController == null) return;
       
-      // Add symbol layer for score text on top of circles
+      // Add symbol layer for score text. Collision on: only show label for top (highest sortKey) spot when overlapping.
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-labels',
@@ -496,8 +498,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
           textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
           textHaloColor: '#000000',
           textHaloWidth: 1.0,
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
+          textAllowOverlap: false,
+          textIgnorePlacement: false,
+          symbolSortKey: ['get', 'sortKey'],
         ),
       );
       

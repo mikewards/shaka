@@ -19,7 +19,9 @@ data class SpotIntelResponse(
     val sourcesUsed: List<String>,
     val dataFreshness: String,
     val totalReports: Int,
-    val narrativeInsights: List<NarrativeInsight> = emptyList()
+    val narrativeInsights: List<NarrativeInsight> = emptyList(),
+    /** AI-generated key insights (Groq). Hemingway style, uplifting, 2 lines max each. */
+    val keyInsights: List<String> = emptyList()
 )
 
 @Serializable

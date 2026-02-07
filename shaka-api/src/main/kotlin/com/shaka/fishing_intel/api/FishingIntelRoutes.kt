@@ -2,6 +2,7 @@ package com.shaka.fishing_intel.api
 
 import com.shaka.data.cache.IntelCache
 import com.shaka.data.client.SpotDatabase
+import com.shaka.fishing_intel.ai.FishingIntelAiService
 import com.shaka.fishing_intel.SpeciesOrder
 import com.shaka.fishing_intel.SpeciesTier
 import com.shaka.fishing_intel.db.FishingIntelDb
@@ -10,6 +11,7 @@ import com.shaka.fishing_intel.processing.Deduplicator
 import com.shaka.fishing_intel.processing.SoCalGazetteer
 import com.shaka.fishing_intel.processing.SpeciesNormalizer
 import com.shaka.fishing_intel.processing.ThreadIntelScorer
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.Duration
@@ -343,6 +345,20 @@ object FishingIntelRoutes {
 
         val sourcesUsed = dedupedReports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
 
+        val speciesSummary = speciesWithTrends.take(12).joinToString("\n") { s ->
+            "${s.species}: ${s.count24h} (last 48h), ${s.countPrevious} (5-day baseline), ${s.trend} ${s.percentChange}%"
+        }
+        val tldrs = narrativeInsights.map { it.tldr }.filter { it.isNotBlank() }
+        val regionLabel = if (normalizedRegionId == "so_cal") "SoCal" else normalizedRegionId
+        val keyInsights = runBlocking {
+            FishingIntelAiService.generateRegionInsights(
+                speciesSummary = speciesSummary,
+                narrativeTldrs = tldrs,
+                totalReports = dedupedReports.size,
+                regionLabel = regionLabel
+            ) ?: emptyList()
+        }
+
         val response = SpotIntelResponse(
             spotId = normalizedRegionId,
             headline = headline,
@@ -353,7 +369,8 @@ object FishingIntelRoutes {
             sourcesUsed = sourcesUsed,
             dataFreshness = Instant.now().toString(),
             totalReports = dedupedReports.size,
-            narrativeInsights = narrativeInsights
+            narrativeInsights = narrativeInsights,
+            keyInsights = keyInsights
         )
         IntelCache.set(normalizedRegionId, cacheKey, response)
         return response

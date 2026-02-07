@@ -170,26 +170,15 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
         ),
         const SizedBox(height: 16),
-        // Narrative insights
-        if (intel.narrativeInsights.isNotEmpty) ...[
-          ...intel.narrativeInsights.map((insight) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildNarrativeCard(insight),
-              )),
+        // Insights (Groq-generated, Hemingway-style)
+        if (intel.keyInsights.isNotEmpty) ...[
+          _buildInsightsSection(intel.keyInsights),
           const SizedBox(height: 20),
         ],
-        if (intel.hasData && intel.narrativeInsights.isEmpty) ...[
-          Text(
-            'Light activity — no standout bite.',
-            style: TextStyle(
-                color: Colors.grey[500], fontSize: 14, fontStyle: FontStyle.italic),
-          ),
-          const SizedBox(height: 16),
-        ],
-        // Last 48hr catch numbers (expandable rows)
+        // Catch numbers (expandable rows; proportional height)
         if (intel.speciesList.isNotEmpty) ...[
           Text(
-            'Last 48hr » Catch Numbers',
+            'Catch Numbers | Last 48hr',
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 18,
@@ -197,12 +186,69 @@ class _ReportsScreenState extends State<ReportsScreen>
             ),
           ),
           const SizedBox(height: 12),
-          ...intel.speciesList.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: _buildSpeciesRow(s, regionId, intel),
-              )),
+          Builder(
+            builder: (context) {
+              final baseHeight = (intel.speciesList.length * 52.0).clamp(200.0, 320.0);
+              final rowHeight = baseHeight / intel.speciesList.length;
+              final hasExpanded = intel.speciesList.any(
+                (s) => _expandedSpeciesByRegion[regionId] == s.species,
+              );
+              const flyoutHeight = 56.0;
+              final totalHeight = baseHeight + (hasExpanded ? flyoutHeight : 0);
+              return Container(
+                height: totalHeight,
+                child: Column(
+                  children: intel.speciesList
+                      .map((s) => _buildSpeciesRow(s, regionId, intel, rowHeight))
+                      .toList(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildSourcesAndDetails(intel),
         ],
       ],
+    );
+  }
+
+  Widget _buildInsightsSection(List<String> keyInsights) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Insights',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...keyInsights.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                line,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -289,7 +335,11 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   Widget _buildSpeciesRow(
-      TrendingSpecies s, String regionId, FishingIntelResponse intel) {
+    TrendingSpecies s,
+    String regionId,
+    FishingIntelResponse intel,
+    double rowHeight,
+  ) {
     final isUp = s.isUp;
     final isDown = s.isDown;
     final trendColor = isUp
@@ -298,100 +348,95 @@ class _ReportsScreenState extends State<ReportsScreen>
             ? const Color(0xFFEF4444)
             : Colors.white54;
     final isExpanded = _expandedSpeciesByRegion[regionId] == s.species;
-    final sourcesLabel = intel.sourcesUsed.isEmpty
-        ? 'Regional reports'
-        : intel.sourcesUsed.join(', ');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _expandedSpeciesByRegion[regionId] =
-                  isExpanded ? null : s.species;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _borderColor),
-            ),
-            child: Row(
-              children: [
-                // Species name
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    s.species,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                // Trend arrow (ticker style)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _TrendArrow(
-                    isUp: isUp,
-                    isDown: isDown,
-                    percentChange: s.percentChange,
-                    color: trendColor,
-                  ),
-                ),
-                // Count + % on one line
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      '${s.count24h}',
+        SizedBox(
+          height: rowHeight,
+          child: GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() {
+                _expandedSpeciesByRegion[regionId] =
+                    isExpanded ? null : s.species;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _borderColor),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      s.species,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                    if (s.secondaryLabel.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        s.secondaryLabel,
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.white38,
-                  size: 20,
-                ),
-              ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 8),
+                    child: _TrendArrow(
+                      isUp: isUp,
+                      isDown: isDown,
+                      percentChange: s.percentChange,
+                      color: trendColor,
+                      showPercentInFlyoutOnly: true,
+                    ),
+                  ),
+                  Text(
+                    '${s.count24h}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.white38,
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         if (isExpanded) ...[
           const SizedBox(height: 6),
-          _buildSpeciesDetail(s, sourcesLabel),
+          _buildSpeciesDetail(s),
         ],
       ],
     );
   }
 
-  /// Expandable section: last 48h and trailing 5-day counts + sources.
-  Widget _buildSpeciesDetail(TrendingSpecies s, String sourcesLabel) {
+  /// Flyout: only "vs 5 day trailing avg" and percent change.
+  Widget _buildSpeciesDetail(TrendingSpecies s) {
+    final isUp = s.isUp;
+    final isDown = s.isDown;
+    final trendColor = isUp
+        ? const Color(0xFF22C55E)
+        : isDown
+            ? const Color(0xFFEF4444)
+            : Colors.white54;
+    String changeText;
+    if (s.percentChange > 500) {
+      changeText = 'New!';
+    } else {
+      final sign = s.percentChange > 0 ? '+' : '';
+      changeText = '$sign${s.percentChange}%';
+    }
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -399,59 +444,62 @@ class _ReportsScreenState extends State<ReportsScreen>
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _borderColor),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
           Text(
-            'These values contribute to the last 48hr count & comparison vs prior 5 days.',
+            'vs 5 day trailing avg',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 12,
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 13,
             ),
           ),
-          const SizedBox(height: 12),
-          _detailRow('Last 48 hours', s.count24h, sourcesLabel),
-          const SizedBox(height: 10),
-          _detailRow('Trailing 5 days', s.countPrevious, sourcesLabel),
+          const SizedBox(width: 8),
+          Text(
+            changeText,
+            style: TextStyle(
+              color: trendColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _detailRow(String periodLabel, int count, String sourcesLabel) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              periodLabel,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+  Widget _buildSourcesAndDetails(FishingIntelResponse intel) {
+    final sourcesLabel = intel.sourcesUsed.isEmpty
+        ? 'Regional reports'
+        : intel.sourcesUsed.join(', ');
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _cardColor.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sources and details',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(width: 8),
-            Text(
-              '$count catches',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Sources: $sourcesLabel',
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            '${intel.totalReports} reports. Data: last 48hr catch counts vs 5-day trailing average. Sources: $sourcesLabel.',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -463,18 +511,21 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 }
 
-/// Ticker-style trend indicator: ↑ green, ↓ red, − gray.
+/// Ticker-style trend indicator: ↑ green, ↓ red, − gray. Percent can be shown on row or only in flyout.
 class _TrendArrow extends StatelessWidget {
   final bool isUp;
   final bool isDown;
   final int percentChange;
   final Color color;
+  /// When true, show only the caret on the row; percent is shown in the flyout.
+  final bool showPercentInFlyoutOnly;
 
   const _TrendArrow({
     required this.isUp,
     required this.isDown,
     required this.percentChange,
     required this.color,
+    this.showPercentInFlyoutOnly = false,
   });
 
   @override
@@ -483,11 +534,13 @@ class _TrendArrow extends StatelessWidget {
     String? suffix;
     if (isUp) {
       icon = Icons.arrow_drop_up;
-      if (percentChange > 500) suffix = 'New!';
-      else if (percentChange > 0) suffix = '+$percentChange%';
+      if (!showPercentInFlyoutOnly) {
+        if (percentChange > 500) suffix = 'New!';
+        else if (percentChange > 0) suffix = '+$percentChange%';
+      }
     } else if (isDown) {
       icon = Icons.arrow_drop_down;
-      suffix = '$percentChange%';
+      if (!showPercentInFlyoutOnly) suffix = '$percentChange%';
     } else {
       icon = Icons.remove;
     }

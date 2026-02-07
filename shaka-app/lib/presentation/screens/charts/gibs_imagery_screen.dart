@@ -685,12 +685,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     // CRITICAL: Check controller after each await (prevents crashes)
     if (_mapController == null) return;
     
-    // Build GeoJSON FeatureCollection with score-based colors (like Explore map)
+    // Build GeoJSON with sortKey so when labels overlap, only top (highest score) spot's number shows.
     final features = _savedSpots.map((spot) {
       final score = spot.shakaScore;
       final hasScore = score != null;
-      final color = hasScore ? _getScoreColorHex(score) : '#808080';  // Gray if no score
-      
+      final sortKey = score ?? -1;
+      final color = hasScore ? _getScoreColorHex(score!) : '#808080';
       return {
         'type': 'Feature',
         'geometry': {
@@ -700,9 +700,10 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         'properties': {
           'id': spot.id,
           'name': spot.name,
-          'score': hasScore ? score.toString() : '',  // Empty string if no score
+          'score': hasScore ? score.toString() : '',
+          'sortKey': sortKey,
           'color': color,
-          'radius': 14,  // Match Explore map size
+          'radius': 14,
           'strokeWidth': 2,
           'strokeColor': '#FFFFFF',
           'textSize': 11,
@@ -741,7 +742,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     if (_mapController == null) return;
     
-    // Add symbol layer for score text on top of circles
+    // Symbol layer with collision: only show label for top (highest sortKey) spot when overlapping.
     await _mapController!.addSymbolLayer(
       'saved-spots-source',
       'saved-spots-labels',
@@ -752,8 +753,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
         textHaloColor: '#000000',
         textHaloWidth: 1.0,
-        textAllowOverlap: true,
-        textIgnorePlacement: true,
+        textAllowOverlap: false,
+        textIgnorePlacement: false,
+        symbolSortKey: ['get', 'sortKey'],
       ),
     );
   }

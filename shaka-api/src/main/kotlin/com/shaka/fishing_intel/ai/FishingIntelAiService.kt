@@ -147,4 +147,55 @@ object FishingIntelAiService {
         if (!isEnabled()) return false
         return speciesMentioned.any { it in SpeciesTier.TROPHY_SPECIES }
     }
+
+    /**
+     * Generate 3–5 short key insights for a region report.
+     * Style: Ernest Hemingway, Old Man and the Sea — simple, direct, but uplifting and easy to read.
+     * Max 2 lines per insight. Uses species trends and narrative TL;DRs.
+     */
+    suspend fun generateRegionInsights(
+        speciesSummary: String,
+        narrativeTldrs: List<String>,
+        totalReports: Int,
+        regionLabel: String = "SoCal"
+    ): List<String>? {
+        if (!isEnabled()) return null
+        val key = apiKey() ?: return null
+        val tldrsText = narrativeTldrs.take(5).joinToString("\n") { it.take(200) }.take(800)
+        val systemPrompt = """You are a fishing report writer in the style of Ernest Hemingway's The Old Man and the Sea: short sentences, plain words, no fluff. Your tone is uplifting and hopeful — the sea gives, the fisherman endures. Write for anglers who want the truth and a bit of heart.
+Output ONLY a JSON array of 3 to 5 strings. Each string is one key insight, maximum 2 lines (about 15–20 words). No numbering, no markdown, no explanation. Example: ["Yellowtail are moving in. The fleet is finding them.", "Calm seas this week. Good day to go."]"""
+        val userPrompt = """Region: $regionLabel. Total reports: $totalReports.
+
+Species catch trends (last 48h vs 5-day trailing):
+$speciesSummary
+
+Recent report TL;DRs:
+$tldrsText
+
+Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 lines. Hemingway style: simple, direct, uplifting. For fishermen."""
+
+        val messagesJson = """[{"role":"system","content":${Json.encodeToString(serializer<String>(), systemPrompt)}},{"role":"user","content":${Json.encodeToString(serializer<String>(), userPrompt)}}]"""
+        val requestBody = """{"model":"${apiModel()}","messages":$messagesJson,"temperature":0.4}"""
+
+        return withTimeoutOrNull(TIMEOUT_MS) {
+            try {
+                val response = HttpClientFactory.shared.post(apiUrl()) {
+                    header(HttpHeaders.Authorization, "Bearer $key")
+                    contentType(ContentType.Application.Json)
+                    setBody(requestBody)
+                }
+                val body = response.body<String>()
+                val json = Json.parseToJsonElement(body).jsonObject
+                val choices = json["choices"]?.jsonArray ?: return@withTimeoutOrNull null
+                val first = choices.firstOrNull()?.jsonObject ?: return@withTimeoutOrNull null
+                val message = first["message"]?.jsonObject ?: return@withTimeoutOrNull null
+                val contentStr = message["content"]?.jsonPrimitive?.content ?: return@withTimeoutOrNull null
+                val arr = Json.parseToJsonElement(contentStr.trim().removeSurrounding("```json", "```").trim()).jsonArray
+                arr.mapNotNull { it.jsonPrimitive?.content?.trim()?.take(200)?.takeIf { s -> s.length in 5..200 } }
+            } catch (e: Exception) {
+                logger.warn("Region insights AI failed: ${e.message}")
+                null
+            }
+        }
+    }
 }

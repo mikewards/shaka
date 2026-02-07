@@ -47,6 +47,8 @@ class FishingIntelResponse {
   final String dataFreshness;
   final int totalReports;
   final List<NarrativeInsight> narrativeInsights;
+  /// Key insights for fishermen (Groq-generated, Hemingway-style, max 2 lines each).
+  final List<String> keyInsights;
 
   const FishingIntelResponse({
     required this.spotId,
@@ -59,6 +61,7 @@ class FishingIntelResponse {
     required this.dataFreshness,
     required this.totalReports,
     this.narrativeInsights = const [],
+    this.keyInsights = const [],
   });
 
   factory FishingIntelResponse.fromJson(Map<String, dynamic> json) {
@@ -80,6 +83,7 @@ class FishingIntelResponse {
       narrativeInsights: (json['narrativeInsights'] as List? ?? [])
           .map((e) => NarrativeInsight.fromJson(e as Map<String, dynamic>))
           .toList(),
+      keyInsights: (json['keyInsights'] as List? ?? []).cast<String>(),
     );
   }
 
@@ -91,7 +95,8 @@ class FishingIntelResponse {
       headline != null ||
       speciesList.isNotEmpty ||
       recentCatches.isNotEmpty ||
-      narrativeInsights.isNotEmpty;
+      narrativeInsights.isNotEmpty ||
+      keyInsights.isNotEmpty;
 }
 
 /// The headline - what's the #1 story?
