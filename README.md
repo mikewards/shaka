@@ -366,9 +366,11 @@ Deployment
 
 **Full checklist (for API + app on phone):**
 
-1. **Backend (Railway)** – Push to `main`; Railway auto-deploys. Wait for deploy to finish in Railway dashboard.
-2. **Optional: BD data** – Run scraper so production has fresh reports:  
-   `cd tools/bd-scraper && .venv/bin/python scraper.py` (or `python3 scraper.py` with deps installed).
+1. **Backend (Railway)** – Push to `main`; Railway auto-deploys. Wait for deploy to finish in Railway dashboard.  
+   Schema changes (e.g. `thread_url`, `thread_zone`) and geo backfill run automatically on API startup; no manual migration.
+2. **BD data (required after schema/ingest changes)** – Existing BD rows were ingested without `thread_url`/`speciesCaught`. Ingest only inserts (skips duplicates), so to get one card per thread and “actually caught” species you must clear and re-ingest:  
+   `cd tools/bd-scraper && .venv/bin/python scraper.py --clear-bd-first`  
+   (Without `--clear-bd-first`, re-run only adds new posts; existing 25 will be skipped.)
 3. **iPhone app** – Build and install so the device gets the latest UI:  
    `cd shaka-app && flutter build ios --release && flutter install -d iPhone`  
    Then force-quit the app on the phone and reopen.

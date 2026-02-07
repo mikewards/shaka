@@ -11,9 +11,8 @@ Prerequisites:
 3. Close Firefox before running (or cookies may be locked)
 
 Usage:
-    python scraper.py                    # Normal run
+    python scraper.py                    # Normal run (first page of each forum, 7-day filter)
     python scraper.py --dry-run          # Parse but don't send to API
-    python scraper.py --max-threads 5    # Limit threads per forum
 
 If Firefox clears cookies on exit, use manual cookies instead:
     1. Log in at https://www.bdoutdoors.com/forums/ (keep Firefox open).
@@ -270,9 +269,27 @@ _CAUGHT_PHRASES = re.compile(
     re.IGNORECASE,
 )
 
+# Phrases that indicate species was NOT caught (chum, bait, freezer, past trip)
+_NEGATIVE_CONTEXT_PHRASES = re.compile(
+    r"\b(chum|chumming|chummed|freezer|from summer|from last year|leftover|"
+    r"used\s+.*\s+to\s+chum|for chum|as chum|to chum|"
+    r"for bait|as bait|bait\s+fish|had\s+.*\s+in my freezer|"
+    r"stored|saved|had a bunch of|from the freezer)\b",
+    re.IGNORECASE,
+)
+
+
+def _species_in_negative_context(text_lower: str, start: int, end: int) -> bool:
+    """Return True if the text window around [start:end] contains chum/bait/freezer context."""
+    window_start = max(0, start - 100)
+    window_end = min(len(text_lower), end + 100)
+    window = text_lower[window_start:window_end]
+    return _NEGATIVE_CONTEXT_PHRASES.search(window) is not None
+
 
 def extract_species_caught(text: str) -> List[str]:
-    """Extract species only when in a 'caught' context (caught, landed, got, etc.)."""
+    """Extract species only when in a 'caught' context (caught, landed, got, etc.).
+    Excludes species that appear in chum/bait/freezer context (e.g. 'used bluefin to chum')."""
     text_lower = text.lower()
     found: Set[str] = set()
     # Look for caught-type phrases and extract species from nearby text
@@ -284,9 +301,19 @@ def extract_species_caught(text: str) -> List[str]:
         # For "in the box" take text before (e.g. "2 white seabass in the box")
         before = text_lower[max(0, start - 50) : start] if m.group(1).lower() == "in the box" else ""
         for pattern, species in SPECIES_PATTERNS.items():
-            if re.search(pattern, after, re.IGNORECASE) or (
-                before and re.search(pattern, before, re.IGNORECASE)
-            ):
+            match_after = re.search(pattern, after, re.IGNORECASE)
+            match_before = re.search(pattern, before, re.IGNORECASE) if before else None
+            if match_after or match_before:
+                # Check if this species mention is in negative context (chum, freezer, etc.)
+                if match_after:
+                    span_start = end + match_after.start()
+                    span_end = end + match_after.end()
+                else:
+                    before_start = max(0, start - 50)
+                    span_start = before_start + (match_before.start() if match_before else 0)
+                    span_end = before_start + (match_before.end() if match_before else 0)
+                if _species_in_negative_context(text_lower, span_start, span_end):
+                    continue
                 found.add(species)
     return list(found)
 
@@ -338,6 +365,25 @@ def is_older_than_days(date_str: str, days: int) -> bool:
     return (datetime.now(timezone.utc) - dt).days > days
 
 
+# General location tags at start of BD thread titles (no space): Inshore, Offshore, Islands, Bay, Harbor
+_LOCATION_TAG_RE = re.compile(
+    r"^(Inshore|Offshore|Islands|Bay|Harbor)\s*(.*)$",
+    re.IGNORECASE,
+)
+
+
+def parse_title_for_location_tag(title: str) -> tuple[Optional[str], str]:
+    """If title starts with a general location tag, return (zone, cleaned_title); else (None, title)."""
+    if not title or not title.strip():
+        return None, title or ""
+    m = _LOCATION_TAG_RE.match(title.strip())
+    if not m:
+        return None, title
+    zone = m.group(1).capitalize() if m.group(1) else None
+    rest = (m.group(2) or "").strip()
+    return zone, rest if rest else title
+
+
 def infer_content_type(title: str) -> str:
     """Infer contentType from thread title (region-agnostic)."""
     t = title.lower()
@@ -372,7 +418,6 @@ def scrape_thread(
     allow_no_species: bool = False,
     debug: bool = False,
     last_activity_iso: Optional[str] = None,
-    max_replies_per_thread: int = 50,
 ) -> List[Dict]:
     """Scrape a thread: first post (thread starter) plus replies. Returns list of payloads."""
     def skip(reason: str) -> List[Dict]:
@@ -380,7 +425,7 @@ def scrape_thread(
             print(f"        skip: {reason}")
         return []
     cutoff_days = max_age_days if max_age_days is not None else MAX_AGE_DAYS
-    thread_url_base = url.split("#")[0].rstrip("/")
+    thread_url_base = normalize_thread_url(url.split("#")[0].rstrip("/"))
     try:
         resp = session.get(url, timeout=30)
         if resp.status_code != 200:
@@ -416,10 +461,13 @@ def scrape_thread(
         location = extract_location(full_text)
         if not species and not species_caught and not allow_no_species:
             return skip("no species")
+        parsed_zone, cleaned_title = parse_title_for_location_tag(title)
+        send_zone = thread_zone if thread_zone else parsed_zone
+        send_title = (cleaned_title[:200] if cleaned_title else title[:200])
         date_for_api = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
         out.append({
-            "threadUrl": url,
-            "title": title[:200],
+            "threadUrl": thread_url_base,
+            "title": send_title,
             "author": author,
             "date": date_for_api,
             "content": content[:2000],
@@ -427,13 +475,13 @@ def scrape_thread(
             "speciesCaught": species_caught,
             "locationMentioned": location,
             "forumName": forum_name,
-            "threadZone": thread_zone,
+            "threadZone": send_zone,
             "postRole": "thread_starter",
             "contentType": infer_content_type(title),
             "lastActivityAt": last_activity_iso if last_activity_iso else date_for_api,
         })
-        # ---- Replies (posts 2..n, capped) ----
-        for post_el in post_els[1:max_replies_per_thread + 1]:
+        # ---- Replies (posts 2..n; all on first page) ----
+        for post_el in post_els[1:]:
             post_id = _post_id_from_article(post_el)
             if not post_id:
                 continue
@@ -457,10 +505,13 @@ def scrape_thread(
             reply_location = extract_location(reply_full)
             if not reply_species and not reply_species_caught and not allow_no_species:
                 continue
+            reply_zone, reply_cleaned_title = parse_title_for_location_tag(title)
+            reply_send_zone = thread_zone if thread_zone else reply_zone
+            reply_send_title = (reply_cleaned_title[:200] if reply_cleaned_title else title[:200])
             reply_date_api = reply_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
             out.append({
-                "threadUrl": url,
-                "title": title[:200],
+                "threadUrl": thread_url_base,
+                "title": reply_send_title,
                 "author": reply_author,
                 "date": reply_date_api,
                 "content": reply_content[:2000],
@@ -468,7 +519,7 @@ def scrape_thread(
                 "speciesCaught": reply_species_caught,
                 "locationMentioned": reply_location,
                 "forumName": forum_name,
-                "threadZone": thread_zone,
+                "threadZone": reply_send_zone,
                 "postRole": "reply",
                 "postUrl": post_url,
                 "contentType": "reply",
@@ -488,43 +539,35 @@ def scrape_thread(
 def scrape_forum(
     session: requests.Session,
     forum_path: str,
-    max_threads: int,
     max_age_days: Optional[int] = None,
     allow_no_species: bool = False,
     debug: bool = False,
-    max_replies_per_thread: int = 50,
 ) -> List[Dict]:
-    """Scrape threads from a forum"""
+    """Scrape all threads from the first page of a forum; for each thread, all posts on its first page. 7-day filter applied."""
     posts = []
     url = BASE_URL + forum_path
     forum_name = "SoCal Sportboats" if "sportboat" in forum_path.lower() else "SoCal Fishing Reports"
-    
+
     print(f"\n[*] Scraping: {forum_name}")
     print(f"    URL: {url}")
-    
+
     try:
         resp = session.get(url, timeout=30)
         if resp.status_code == 403:
             print(f"    [-] HTTP 403 - Cloudflare blocking")
-            print(f"        Refresh BD Outdoors in Firefox and try again")
             return posts
         if resp.status_code != 200:
             print(f"    [-] HTTP {resp.status_code}")
             return posts
-        
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        # Check for Cloudflare challenge
-        if 'cf-browser-verification' in resp.text or 'Just a moment' in soup.get_text():
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        if "cf-browser-verification" in resp.text or "Just a moment" in soup.get_text():
             print(f"    [-] Cloudflare challenge detected")
-            print(f"        Open BD Outdoors in Firefox, solve captcha, try again")
             return posts
-        
-        # Only actual thread pages (slug.id), not list pages like /threads/trending
+
         thread_page_pattern = re.compile(r"/threads/[^/]+\.\d+")
-        seen_urls = set()
-        thread_list: List[tuple] = []  # (url, zone, last_activity_iso)
-        # Prefer structItem rows so we can get zone and last-activity per thread
+        seen_urls: Set[str] = set()
+        thread_list: List[tuple] = []
         struct_items = soup.select("div.structItem")
         if struct_items:
             for item in struct_items:
@@ -544,8 +587,7 @@ def scrape_forum(
                         thread_list.append((href, zone, last_activity))
                         break
         if not thread_list:
-            thread_links = soup.select('a[href*="/threads/"]')
-            for link in thread_links:
+            for link in soup.select('a[href*="/threads/"]'):
                 href = link.get('href', '')
                 if '/threads/' not in href:
                     continue
@@ -555,28 +597,28 @@ def scrape_forum(
                 if thread_page_pattern.search(href) and href not in seen_urls:
                     seen_urls.add(href)
                     thread_list.append((href, None, None))
-        
-        thread_list = thread_list[:max_threads]
+
+        # Use all threads from first page (no cap)
         print(f"    [+] Found {len(thread_list)} threads")
-        
+
         for i, (thread_url, thread_zone, last_activity_iso) in enumerate(thread_list, 1):
             time.sleep(REQUEST_DELAY)
             print(f"    [{i}/{len(thread_list)}] Scraping...")
             thread_posts = scrape_thread(
                 session, thread_url, forum_name, thread_zone, max_age_days,
-                allow_no_species, debug, last_activity_iso, max_replies_per_thread
+                allow_no_species, debug, last_activity_iso
             )
             for post in thread_posts:
                 species_str = ", ".join(post["speciesMentioned"][:3]) if post["speciesMentioned"] else "(no species)"
                 role = post.get("postRole", "thread_starter")
                 print(f"        + [{role}] {post['title'][:36]}... [{species_str}]")
                 posts.append(post)
-    
+
     except requests.Timeout:
         print(f"    [-] Timeout loading forum")
     except Exception as e:
         print(f"    [-] Error: {e}")
-    
+
     return posts
 
 
@@ -645,9 +687,7 @@ def send_to_api(posts: List[Dict], dry_run: bool = False, clear_bd_first: bool =
 def main():
     parser = argparse.ArgumentParser(description='BD Outdoors Scraper for Shaka')
     parser.add_argument('--dry-run', action='store_true', help='Parse only, no API calls')
-    parser.add_argument('--max-threads', type=int, default=10, help='Max threads per forum')
     parser.add_argument('--max-age-days', type=int, default=7, help='Skip posts older than N days (default 7)')
-    parser.add_argument('--max-replies-per-thread', type=int, default=50, help='Max reply posts to scrape per thread (default 50)')
     parser.add_argument('--allow-no-species', action='store_true', help='Include posts with no species match (for DB populate)')
     parser.add_argument('--clear-bd-first', action='store_true', help='Delete all bd-outdoors reports before ingesting (clean slate)')
     parser.add_argument('--debug', action='store_true', help='Print why threads are skipped')
@@ -660,7 +700,7 @@ def main():
     print("=" * 60)
     print("BD Outdoors Scraper for Shaka")
     print("=" * 60)
-    
+
     cookies = get_cookies()
     if not cookies:
         print("\n[-] No cookies.")
@@ -677,7 +717,7 @@ def main():
     
     all_posts = []
     for forum in FORUMS:
-        posts = scrape_forum(session, forum, args.max_threads, args.max_age_days, args.allow_no_species, args.debug, args.max_replies_per_thread)
+        posts = scrape_forum(session, forum, args.max_age_days, args.allow_no_species, args.debug)
         all_posts.extend(posts)
         if forum != FORUMS[-1]:
             print(f"\n[*] Waiting {FORUM_DELAY}s...")

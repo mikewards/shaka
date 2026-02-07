@@ -41,6 +41,7 @@ object FishingIntelReportsTable : IntIdTable("fishing_intel_reports", "report_id
     val reportType = varchar("report_type", 30)
     val title = varchar("title", 255).nullable()
     val rawExcerpt = text("raw_excerpt").nullable()
+    val tldr = text("tldr").nullable()
     val canonicalFingerprint = varchar("canonical_fingerprint", 64).nullable()
     val confidence = decimal("confidence", 3, 2).default(java.math.BigDecimal.ONE)
     val threadZone = varchar("thread_zone", 50).nullable()

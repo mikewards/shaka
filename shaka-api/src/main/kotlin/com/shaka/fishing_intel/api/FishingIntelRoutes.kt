@@ -193,7 +193,9 @@ object FishingIntelRoutes {
             if (trophyClaim == null) return@mapNotNull null
             val species = formatSpeciesName(trophyClaim.species!!)
             val excerpt = (report.rawExcerpt ?: "").take(200)
-            val tldr = "$species at $location. ${excerpt.take(60).trim()}".replace(Regex("\\s+"), " ").trim().take(120)
+            // Prefer stored TL;DR (from AI or backfill); else build fallback with longer excerpt for context
+            val tldr = report.tldr?.takeIf { it.isNotBlank() }
+                ?: "$species at $location. ${excerpt.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(180)
             NarrativeInsight(
                 species = species,
                 location = location,

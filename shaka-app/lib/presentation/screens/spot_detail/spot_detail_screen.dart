@@ -1126,6 +1126,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ? insight.tldr
         : '${insight.species} at ${insight.location}';
     final dateLabel = _formatInsightDate(insight.publishedAt);
+    final showExcerpt = insight.excerpt.isNotEmpty &&
+        insight.excerpt != displayTldr &&
+        (insight.tldr.isEmpty || insight.excerpt.length > displayTldr.length);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1143,15 +1146,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
-            maxLines: 2,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          if (insight.excerpt.isNotEmpty && insight.tldr.isEmpty) ...[
+          if (showExcerpt) ...[
             const SizedBox(height: 6),
             Text(
               insight.excerpt,
               style: TextStyle(color: Colors.grey[400], fontSize: 13),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
@@ -1182,14 +1185,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  'Read report',
+                  'Original thread',
                   style: TextStyle(color: AppColors.coral, fontSize: 13),
                 ),
               ),
             ],
           ),
           Text(
-            'Link may require BD Outdoors login.',
+            'May require BD Outdoors login.',
             style: TextStyle(color: Colors.grey[600], fontSize: 11),
           ),
         ],

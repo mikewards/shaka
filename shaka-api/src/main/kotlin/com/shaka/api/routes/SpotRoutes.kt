@@ -10,6 +10,7 @@ import com.shaka.fishing_intel.api.FishingIntelRoutes
 import com.shaka.fishing_intel.api.IngestPostRequest
 import com.shaka.fishing_intel.api.IngestResponse
 import com.shaka.fishing_intel.db.FishingIntelDb
+import com.shaka.fishing_intel.ai.FishingIntelAiService
 import com.shaka.fishing_intel.processing.Deduplicator
 import com.shaka.fishing_intel.processing.GeoResolver
 import com.shaka.fishing_intel.processing.ResolvedGeo
@@ -27,6 +28,16 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
+
+/** Parse BD thread title for leading general location tag (Inshore, Offshore, Islands, Bay, Harbor). Returns (zone, cleanedTitle) or (null, null). */
+private fun parseBdTitleForLocationTag(title: String?): Pair<String?, String?> {
+    if (title.isNullOrBlank()) return null to null
+    val regex = Regex("^(Inshore|Offshore|Islands|Bay|Harbor)\\s*(.*)$", RegexOption.IGNORE_CASE)
+    val match = regex.find(title.trim()) ?: return null to null
+    val zone = match.groupValues[1].replaceFirstChar { it.uppercase() }
+    val rest = match.groupValues[2].trim()
+    return zone to rest.ifBlank { null }
+}
 
 fun Application.configureRouting() {
     val spotService = SpotService()
@@ -1066,25 +1077,38 @@ fun Application.configureRouting() {
                             } ?: publishedDate
                             val reportUrl = post.postUrl?.take(512) ?: post.threadUrl
                             val threadUrl = post.threadUrl.split("#").first().trimEnd('/').take(512)
+                            // Parse general location tag from title (e.g. "Inshore45 lb..." -> zone=Inshore, cleaned="45 lb...")
+                            val (parsedZone, cleanedTitle) = parseBdTitleForLocationTag(post.title)
+                            val effectiveThreadZone = post.threadZone?.takeIf { it.isNotBlank() } ?: parsedZone
+                            val effectiveTitle = cleanedTitle?.takeIf { it.isNotBlank() } ?: post.title
+                            // Optional AI: only for narrative BD posts with trophy species mentioned
+                            val aiResult = if (FishingIntelAiService.shouldAnalyze(post.speciesMentioned)) {
+                                FishingIntelAiService.analyzePost(effectiveTitle, post.content, post.speciesMentioned)
+                            } else null
+                            val (speciesForCatch, reportTldr) = when (val r = aiResult) {
+                                null -> post.speciesCaught to null
+                                else -> r.first to r.second
+                            }
                             val report = FishingReport(
                                 sourceId = "bd-outdoors",
                                 url = reportUrl,
                                 publishedAt = publishedDate,
                                 observedAt = java.time.Instant.now(),
                                 reportType = ReportType.NARRATIVE,
-                                title = post.title,
+                                title = effectiveTitle.take(255),
                                 rawExcerpt = post.content.take(500),
                                 fingerprint = fingerprint,
                                 confidence = 0.8,
-                                threadZone = post.threadZone,
+                                threadZone = effectiveThreadZone,
                                 contentType = post.contentType,
                                 lastActivityAt = lastActivityInstant,
-                                threadUrl = threadUrl
+                                threadUrl = threadUrl,
+                                tldr = reportTldr
                             )
                             
                             val reportId = FishingIntelDb.saveReport(report)
                             
-                            val speciesForCatch = post.speciesCaught.ifEmpty { post.speciesMentioned }
+                            // CATCH only from speciesCaught (or AI species_caught when AI ran)
                             for (species in speciesForCatch) {
                                 val normalizedSpecies = SpeciesNormalizer.normalize(species)
                                 val claim = FishingClaim(
@@ -1096,7 +1120,7 @@ fun Application.configureRouting() {
                                 FishingIntelDb.saveClaim(reportId, claim)
                             }
                             
-                            val geo = GeoResolver.resolve("bd-outdoors", post.threadZone, post.locationMentioned)
+                            val geo = GeoResolver.resolve("bd-outdoors", effectiveThreadZone, post.locationMentioned)
                                 ?: ResolvedGeo(32.7157, -117.1611, 150_000, GeoType.REGION_FALLBACK)
                             FishingIntelDb.saveReportGeo(
                                 reportId = reportId,

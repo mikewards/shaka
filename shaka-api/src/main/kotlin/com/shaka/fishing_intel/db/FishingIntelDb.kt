@@ -68,6 +68,12 @@ object FishingIntelDb {
         } catch (e: Exception) {
             logger.warn("thread_url index: ${e.message}")
         }
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN tldr TEXT")
+            logger.info("Added column fishing_intel_reports.tldr")
+        } catch (e: Exception) {
+            if (!e.message.orEmpty().contains("already exists")) logger.warn("tldr column: ${e.message}")
+        }
     }
     
     /**
@@ -158,6 +164,7 @@ object FishingIntelDb {
                 report.contentType?.let { v -> it[contentType] = v }
                 report.lastActivityAt?.let { ts -> it[lastActivityAt] = LocalDateTime.ofInstant(ts, ZoneOffset.UTC) }
                 report.threadUrl?.let { v -> it[threadUrl] = v.take(512) }
+                report.tldr?.let { v -> it[tldr] = v }
             }.value
         }
     }
@@ -328,6 +335,7 @@ object FishingIntelDb {
                         threadUrl = row[FishingIntelReportsTable.threadUrl],
                         threadZone = row[FishingIntelReportsTable.threadZone],
                         canonicalFingerprint = row[FishingIntelReportsTable.canonicalFingerprint],
+                        tldr = row[FishingIntelReportsTable.tldr],
                         claims = claims
                     )
                 }

@@ -2626,6 +2626,7 @@ CREATE TABLE IF NOT EXISTS fishing_intel_reports (
     report_type VARCHAR(30) NOT NULL,  -- FISH_COUNT, DOCK_TOTAL, NARRATIVE, BAIT, AUDIO_LINK, TRIP_ANNOUNCEMENT
     title VARCHAR(255),
     raw_excerpt TEXT,
+    tldr TEXT,
     canonical_fingerprint VARCHAR(64),
     confidence DECIMAL(3,2) DEFAULT 1.0,
     thread_zone VARCHAR(50),
