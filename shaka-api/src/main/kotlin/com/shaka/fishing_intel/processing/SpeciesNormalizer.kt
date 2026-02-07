@@ -2,9 +2,12 @@ package com.shaka.fishing_intel.processing
 
 /**
  * Normalizes species names to canonical forms.
- * Handles common variants and misspellings.
+ * Handles common variants, misspellings, and bad punctuation (e.g. "Halibut." → "halibut").
  */
 object SpeciesNormalizer {
+    /** Strip leading/trailing punctuation so "Halibut." and "Halibut" collapse to same canonical form. */
+    private val PUNCT_TRIMMER = Regex("^[\\s.,;:]+|[\\s.,;:]+$")
+
     private val SPECIES_MAP = mapOf(
         // Rockfish variants
         "rockfish" to "rockfish",
@@ -69,7 +72,8 @@ object SpeciesNormalizer {
     )
     
     fun normalize(species: String): String {
-        val lower = species.lowercase().trim()
-        return SPECIES_MAP[lower] ?: lower.replace(" ", "_")
+        val cleaned = PUNCT_TRIMMER.replace(species.trim(), "").lowercase()
+        if (cleaned.isBlank()) return species.lowercase().trim().replace(" ", "_")
+        return SPECIES_MAP[cleaned] ?: cleaned.replace(" ", "_")
     }
 }

@@ -8,6 +8,7 @@ import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
 import com.shaka.fishing_intel.processing.Deduplicator
 import com.shaka.fishing_intel.processing.SoCalGazetteer
+import com.shaka.fishing_intel.processing.SpeciesNormalizer
 import com.shaka.fishing_intel.processing.ThreadIntelScorer
 import org.slf4j.LoggerFactory
 import java.time.Instant
@@ -172,8 +173,9 @@ object FishingIntelRoutes {
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
                 .filter { !it.species!!.contains("total_fish") && !it.species!!.contains("released.") }
                 .map { claim ->
+                    val canonical = SpeciesNormalizer.normalize(claim.species!!)
                     RecentCatchResponse(
-                        species = formatSpeciesName(claim.species!!),
+                        species = formatSpeciesName(canonical),
                         count = (claim.countKept ?: 0) + (claim.countReleased ?: 0),
                         boatName = claim.boatName,
                         landingName = claim.landingName ?: "Unknown",
@@ -327,8 +329,9 @@ object FishingIntelRoutes {
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
                 .filter { !it.species!!.contains("total_fish") && !it.species!!.contains("released.") }
                 .map { claim ->
+                    val canonical = SpeciesNormalizer.normalize(claim.species!!)
                     RecentCatchResponse(
-                        species = formatSpeciesName(claim.species!!),
+                        species = formatSpeciesName(canonical),
                         count = (claim.countKept ?: 0) + (claim.countReleased ?: 0),
                         boatName = claim.boatName,
                         landingName = claim.landingName ?: "Unknown",
@@ -380,7 +383,7 @@ object FishingIntelRoutes {
     private fun buildNarrativeInsights(reports: List<ReportWithClaims>): List<NarrativeInsight> {
         val bdReports = reports.filter { it.sourceId == "bd-outdoors" }
         val eligible = bdReports.filter { report ->
-            report.claims.any { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
+            report.claims.any { it.claimType == ClaimType.CATCH && it.species != null && SpeciesNormalizer.normalize(it.species!!) in SpeciesTier.TROPHY_SPECIES }
         }
         val byThread = eligible.groupBy { it.threadUrl ?: it.url }
         val representatives = byThread.values.map { group ->
@@ -393,9 +396,9 @@ object FishingIntelRoutes {
             val location = SoCalGazetteer.findInText(report.rawExcerpt ?: "").firstOrNull()?.name
                 ?: SoCalGazetteer.findInText(report.title ?: "").firstOrNull()?.name ?: ""
             val trophyClaim = report.claims
-                .filter { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
+                .filter { it.claimType == ClaimType.CATCH && it.species != null && SpeciesNormalizer.normalize(it.species!!) in SpeciesTier.TROPHY_SPECIES }
                 .firstOrNull()
-            val species = formatSpeciesName(trophyClaim?.species ?: "fish")
+            val species = formatSpeciesName(SpeciesNormalizer.normalize(trophyClaim?.species ?: "fish"))
             val excerpt = (report.rawExcerpt ?: "").take(200)
             val tldr = report.tldr?.takeIf { it.isNotBlank() }
                 ?: "$species at ${location.ifBlank { "SoCal" }}. ${excerpt.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(180)
@@ -472,9 +475,10 @@ object FishingIntelRoutes {
         val speciesCounts = mutableMapOf<String, Int>()
         for (report in reports) {
             for (claim in report.claims.filter { it.species != null }) {
-                val species = claim.species!!
-                if (!species.contains("total_fish") && !species.contains("released.")) {
-                    speciesCounts[species] = speciesCounts.getOrDefault(species, 0) + 1
+                val raw = claim.species!!
+                if (!raw.contains("total_fish") && !raw.contains("released.")) {
+                    val key = SpeciesNormalizer.normalize(raw)
+                    speciesCounts[key] = speciesCounts.getOrDefault(key, 0) + 1
                 }
             }
         }
@@ -531,8 +535,9 @@ object FishingIntelRoutes {
         val counts = mutableMapOf<String, SpeciesAgg>()
         for (report in reports) {
             for (claim in report.claims.filter { it.claimType == ClaimType.CATCH && it.species != null }) {
-                val species = claim.species!!
-                val agg = counts.getOrPut(species) { SpeciesAgg() }
+                val raw = claim.species!!
+                val key = SpeciesNormalizer.normalize(raw) // merge "Halibut." into "halibut"
+                val agg = counts.getOrPut(key) { SpeciesAgg() }
                 agg.kept += claim.countKept ?: 0
                 agg.released += claim.countReleased ?: 0
                 if (claim.landingName != null) {
