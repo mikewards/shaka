@@ -38,42 +38,27 @@ object FishingIntelDb {
     }
 
     private fun addReportColumnsIfMissing(conn: Connection) {
-        try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN thread_zone VARCHAR(50)")
-            logger.info("Added column fishing_intel_reports.thread_zone")
-        } catch (e: Exception) {
-            if (!e.message.orEmpty().contains("already exists")) logger.warn("thread_zone column: ${e.message}")
-        }
-        try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN content_type VARCHAR(30)")
-            logger.info("Added column fishing_intel_reports.content_type")
-        } catch (e: Exception) {
-            if (!e.message.orEmpty().contains("already exists")) logger.warn("content_type column: ${e.message}")
-        }
-        try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN last_activity_at TIMESTAMP")
-            logger.info("Added column fishing_intel_reports.last_activity_at")
-        } catch (e: Exception) {
-            if (!e.message.orEmpty().contains("already exists")) logger.warn("last_activity_at column: ${e.message}")
-        }
-        try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN thread_url VARCHAR(512)")
-            logger.info("Added column fishing_intel_reports.thread_url")
-        } catch (e: Exception) {
-            if (!e.message.orEmpty().contains("already exists")) logger.warn("thread_url column: ${e.message}")
+        // Use IF NOT EXISTS for all so one "already exists" doesn't abort the transaction and block later columns (e.g. tldr).
+        val alters = listOf(
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS thread_zone VARCHAR(50)",
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS content_type VARCHAR(30)",
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP",
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS thread_url VARCHAR(512)",
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS tldr TEXT"
+        )
+        alters.forEach { sql ->
+            try {
+                conn.createStatement().execute(sql)
+            } catch (e: Exception) {
+                logger.warn("Fishing intel report column migration: ${e.message}")
+            }
         }
         try {
             conn.createStatement().execute("CREATE INDEX IF NOT EXISTS fishing_intel_reports_thread_url_idx ON fishing_intel_reports(thread_url)")
-            logger.info("Created index fishing_intel_reports_thread_url_idx")
         } catch (e: Exception) {
             logger.warn("thread_url index: ${e.message}")
         }
-        try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS tldr TEXT")
-            logger.info("Added column fishing_intel_reports.tldr (if missing)")
-        } catch (e: Exception) {
-            logger.warn("tldr column: ${e.message}")
-        }
+        logger.info("Fishing intel reports columns verified")
     }
     
     /**
