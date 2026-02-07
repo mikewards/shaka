@@ -202,11 +202,19 @@ object FishingIntelDb {
     
     /**
      * Delete all reports for a source (e.g. bd-outdoors). Use to clear bad/old data before re-ingest.
-     * Child rows (claims, report_geos) are removed by DB ON DELETE CASCADE.
+     * Deletes child rows (claims, report_geos) first so it works even without ON DELETE CASCADE.
      */
     fun deleteReportsBySource(source: String): Int {
         return transaction {
             val conn = this.connection.connection as java.sql.Connection
+            conn.prepareStatement("DELETE FROM fishing_intel_claims WHERE report_id IN (SELECT report_id FROM fishing_intel_reports WHERE source_id = ?)").use { stmt ->
+                stmt.setString(1, source)
+                stmt.executeUpdate()
+            }
+            conn.prepareStatement("DELETE FROM fishing_intel_report_geos WHERE report_id IN (SELECT report_id FROM fishing_intel_reports WHERE source_id = ?)").use { stmt ->
+                stmt.setString(1, source)
+                stmt.executeUpdate()
+            }
             conn.prepareStatement("DELETE FROM fishing_intel_reports WHERE source_id = ?").use { stmt ->
                 stmt.setString(1, source)
                 stmt.executeUpdate()
