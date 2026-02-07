@@ -184,10 +184,10 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
           const SizedBox(height: 16),
         ],
-        // Last 24hr catch numbers
+        // Last 48hr catch numbers
         if (intel.speciesList.isNotEmpty) ...[
           Text(
-            'Last 24hr » Catch Numbers',
+            'Last 48hr » Catch Numbers',
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 18,

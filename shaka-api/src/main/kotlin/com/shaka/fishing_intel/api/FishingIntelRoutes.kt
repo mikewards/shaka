@@ -57,36 +57,42 @@ object FishingIntelRoutes {
             group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
         }
 
-        // Last 24h cutoff in user's local timezone (reuse SolunarClient pattern: derive from lon when not provided)
+        // Last 48h and baseline (5 days prior: today-2 through today-7) in user's local timezone
         val offset = tzOffset ?: (spot.coordinates.lon / 15).toInt()
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
-        val twentyFourHoursAgo = nowInUserZone.minusHours(24).toInstant()
+        val fortyEightHoursAgo = nowInUserZone.minusHours(48).toInstant()
+        val baselineStart = nowInUserZone.minusHours(168).toInstant() // 7 days ago
 
-        // Last 24h = reports published in last 24h (publishedAt only; matches "all fishing reports" filter)
-        val recent24h = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) == true }
-        val previous = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) != true }
+        // Recent 48h = reports published in last 48h (publishedAt only)
+        val recent48h = dedupedReports.filter { it.publishedAt?.isAfter(fortyEightHoursAgo) == true }
+        // Baseline = 5 days prior to last 48h: [now-7d, now-48h)
+        val baseline = dedupedReports.filter { r ->
+            val t = r.publishedAt ?: return@filter false
+            !t.isBefore(baselineStart) && t.isBefore(fortyEightHoursAgo)
+        }
 
-        val recentCounts = countSpecies(recent24h)
-        val previousCounts = countSpecies(previous)
+        val recentCounts = countSpecies(recent48h)
+        val baselineCounts = countSpecies(baseline)
 
-        val allSpecies = (recentCounts.keys + previousCounts.keys).distinct()
+        val allSpecies = (recentCounts.keys + baselineCounts.keys).distinct()
         val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
 
-        // Trend = last 24h vs 6-day daily average (not 24h vs 6-day total)
+        // Trend = last 48h vs (5-day baseline total × 2/5) = equivalent 48h rate from baseline
+        val baselineMultiplier = 2.0 / 5.0
         val trendsWithMeta = allSpecies.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
             val recent = recentCounts[species] ?: SpeciesAgg()
-            val prev = previousCounts[species] ?: SpeciesAgg()
+            val base = baselineCounts[species] ?: SpeciesAgg()
             val recentTotal = recent.kept + recent.released
-            val prevTotal = prev.kept + prev.released
-            if (recentTotal == 0 && prevTotal == 0) return@mapNotNull null
-            val avgPerDayPrevious = if (prevTotal == 0) 0.0 else prevTotal / 6.0
+            val baseTotal = base.kept + base.released
+            if (recentTotal == 0 && baseTotal == 0) return@mapNotNull null
+            val baselineEquivalent48h = if (baseTotal == 0) 0.0 else baseTotal * baselineMultiplier
             val percentChange = when {
-                prevTotal == 0 && recentTotal > 0 -> 999
-                prevTotal == 0 -> 0
-                avgPerDayPrevious == 0.0 -> 0
-                else -> ((recentTotal - avgPerDayPrevious) * 100 / avgPerDayPrevious).toInt()
+                baseTotal == 0 && recentTotal > 0 -> 999
+                baseTotal == 0 -> 0
+                baselineEquivalent48h == 0.0 -> 0
+                else -> ((recentTotal - baselineEquivalent48h) * 100 / baselineEquivalent48h).toInt()
             }
             val trend = when {
                 percentChange > 20 -> "UP"
@@ -94,7 +100,7 @@ object FishingIntelRoutes {
                 else -> "STABLE"
             }
             val trendLabel = when {
-                prevTotal == 0 && recentTotal > 0 -> "New!"
+                baseTotal == 0 && recentTotal > 0 -> "New!"
                 trend == "UP" -> "Above average"
                 trend == "DOWN" -> "Below average"
                 else -> "Average"
@@ -104,17 +110,17 @@ object FishingIntelRoutes {
                 TrendingSpeciesResponse(
                     species = formatSpeciesName(species),
                     count24h = recentTotal,
-                    countPrevious = prevTotal,
+                    countPrevious = baseTotal,
                     trend = trend,
                     percentChange = percentChange,
-                    topLanding = recent.topLanding ?: prev.topLanding,
+                    topLanding = recent.topLanding ?: base.topLanding,
                     trendLabel = trendLabel,
-                    avgPerDayPrevious = if (avgPerDayPrevious > 0) avgPerDayPrevious else null
+                    avgPerDayPrevious = if (baselineEquivalent48h > 0) baselineEquivalent48h else null
                 )
             )
         }
 
-        // Single list sorted by desirability (most to least), then by 24h count. No cap — show all species.
+        // Single list sorted by desirability (most to least), then by 48h count. No cap — show all species.
         val speciesWithTrends = trendsWithMeta
             .sortedWith(
                 compareBy<Pair<String, TrendingSpeciesResponse>> { SpeciesOrder.sortKey(it.first) }
@@ -160,7 +166,7 @@ object FishingIntelRoutes {
         }
 
         val now = nowInUserZone.toInstant()
-        val recentCatches = recent24h.take(10).flatMap { report ->
+        val recentCatches = recent48h.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
             report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
@@ -217,30 +223,35 @@ object FishingIntelRoutes {
         val offset = tzOffset ?: -8
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
-        val twentyFourHoursAgo = nowInUserZone.minusHours(24).toInstant()
+        val fortyEightHoursAgo = nowInUserZone.minusHours(48).toInstant()
+        val baselineStart = nowInUserZone.minusHours(168).toInstant()
 
-        val recent24h = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) == true }
-        val previous = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) != true }
+        val recent48h = dedupedReports.filter { it.publishedAt?.isAfter(fortyEightHoursAgo) == true }
+        val baseline = dedupedReports.filter { r ->
+            val t = r.publishedAt ?: return@filter false
+            !t.isBefore(baselineStart) && t.isBefore(fortyEightHoursAgo)
+        }
 
-        val recentCounts = countSpecies(recent24h)
-        val previousCounts = countSpecies(previous)
+        val recentCounts = countSpecies(recent48h)
+        val baselineCounts = countSpecies(baseline)
 
-        val allSpecies = (recentCounts.keys + previousCounts.keys).distinct()
+        val allSpecies = (recentCounts.keys + baselineCounts.keys).distinct()
         val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
 
+        val baselineMultiplier = 2.0 / 5.0
         val trendsWithMeta = allSpecies.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
             val recent = recentCounts[species] ?: SpeciesAgg()
-            val prev = previousCounts[species] ?: SpeciesAgg()
+            val base = baselineCounts[species] ?: SpeciesAgg()
             val recentTotal = recent.kept + recent.released
-            val prevTotal = prev.kept + prev.released
-            if (recentTotal == 0 && prevTotal == 0) return@mapNotNull null
-            val avgPerDayPrevious = if (prevTotal == 0) 0.0 else prevTotal / 6.0
+            val baseTotal = base.kept + base.released
+            if (recentTotal == 0 && baseTotal == 0) return@mapNotNull null
+            val baselineEquivalent48h = if (baseTotal == 0) 0.0 else baseTotal * baselineMultiplier
             val percentChange = when {
-                prevTotal == 0 && recentTotal > 0 -> 999
-                prevTotal == 0 -> 0
-                avgPerDayPrevious == 0.0 -> 0
-                else -> ((recentTotal - avgPerDayPrevious) * 100 / avgPerDayPrevious).toInt()
+                baseTotal == 0 && recentTotal > 0 -> 999
+                baseTotal == 0 -> 0
+                baselineEquivalent48h == 0.0 -> 0
+                else -> ((recentTotal - baselineEquivalent48h) * 100 / baselineEquivalent48h).toInt()
             }
             val trend = when {
                 percentChange > 20 -> "UP"
@@ -248,7 +259,7 @@ object FishingIntelRoutes {
                 else -> "STABLE"
             }
             val trendLabel = when {
-                prevTotal == 0 && recentTotal > 0 -> "New!"
+                baseTotal == 0 && recentTotal > 0 -> "New!"
                 trend == "UP" -> "Above average"
                 trend == "DOWN" -> "Below average"
                 else -> "Average"
@@ -258,12 +269,12 @@ object FishingIntelRoutes {
                 TrendingSpeciesResponse(
                     species = formatSpeciesName(species),
                     count24h = recentTotal,
-                    countPrevious = prevTotal,
+                    countPrevious = baseTotal,
                     trend = trend,
                     percentChange = percentChange,
-                    topLanding = recent.topLanding ?: prev.topLanding,
+                    topLanding = recent.topLanding ?: base.topLanding,
                     trendLabel = trendLabel,
-                    avgPerDayPrevious = if (avgPerDayPrevious > 0) avgPerDayPrevious else null
+                    avgPerDayPrevious = if (baselineEquivalent48h > 0) baselineEquivalent48h else null
                 )
             )
         }
@@ -310,7 +321,7 @@ object FishingIntelRoutes {
         }
 
         val now = nowInUserZone.toInstant()
-        val recentCatches = recent24h.take(10).flatMap { report ->
+        val recentCatches = recent48h.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
             report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }

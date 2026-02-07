@@ -34,7 +34,7 @@ class NarrativeInsight {
   }
 }
 
-/// Fishing intel response - one list, desirability order, last 24h vs 6-day avg.
+/// Fishing intel response - one list, desirability order, last 48h vs 5-day baseline (×2/5).
 class FishingIntelResponse {
   final String spotId;
   final Headline? headline;
@@ -121,9 +121,10 @@ class Headline {
   }
 }
 
-/// Species with trend info (last 24h vs 6-day avg).
+/// Species with trend info (last 48h vs 5-day baseline ×2/5).
 class TrendingSpecies {
   final String species;
+  /// Catches in last 48h (field name count24h kept for API compat).
   final int count24h;
   final int countPrevious;
   final String trend; // "UP", "DOWN", "STABLE"
