@@ -107,14 +107,13 @@ object FishingIntelRoutes {
             )
         }
 
-        // Single list sorted by desirability (most to least), then by 24h count. Cap at 15.
+        // Single list sorted by desirability (most to least), then by 24h count. No cap — show all species.
         val speciesWithTrends = trendsWithMeta
             .sortedWith(
                 compareBy<Pair<String, TrendingSpeciesResponse>> { SpeciesOrder.sortKey(it.first) }
                     .thenByDescending { it.second.count24h }
             )
             .map { it.second }
-            .take(15)
 
         // Backward compat: hot/cold for old clients
         val hotSpecies = trendsWithMeta.map { it.second }.filter { it.trend == "UP" && it.count24h > 0 }
