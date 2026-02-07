@@ -56,15 +56,24 @@ class LocationPicker extends StatelessWidget {
   }
 
   void _showLocationPicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _LocationPickerSheet(
-        onLocationSelected: onLocationSelected,
-      ),
-    );
+    showLocationPickerSheet(context, onLocationSelected: onLocationSelected);
   }
+}
+
+/// Shows the location picker as a modal sheet (e.g. for setting Map Home).
+/// When the user selects a location, [onLocationSelected] is called with (lat, lon, name).
+void showLocationPickerSheet(
+  BuildContext context, {
+  required void Function(double lat, double lon, String name) onLocationSelected,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _LocationPickerSheet(
+      onLocationSelected: onLocationSelected,
+    ),
+  );
 }
 
 class _LocationPickerSheet extends StatefulWidget {

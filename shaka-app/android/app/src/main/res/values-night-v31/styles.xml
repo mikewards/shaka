@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ Splash Screen Theme (Night Mode) -->
+    <!-- Android 12+ Splash Screen Theme (Night Mode, dark background only, no icon) -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowSplashScreenBackground">#0D0D0D</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_inset</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#0D0D0D</item>
     </style>
     
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">

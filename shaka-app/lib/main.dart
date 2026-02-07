@@ -12,6 +12,7 @@ import 'presentation/bloc/search_bloc.dart';
 import 'presentation/shell/main_shell.dart';
 import 'presentation/screens/explore/explore_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
+import 'presentation/screens/profile/saved_spots_screen.dart';
 import 'presentation/screens/results/results_screen.dart';
 import 'presentation/screens/spot_detail/spot_detail_screen.dart';
 import 'presentation/screens/charts/charts_hub_screen.dart';
@@ -124,6 +125,12 @@ final _router = GoRouter(
             GoRoute(
               path: '/profile',
               builder: (context, state) => const ProfileScreen(),
+              routes: [
+                GoRoute(
+                  path: 'saved-spots',
+                  builder: (context, state) => const SavedSpotsScreen(),
+                ),
+              ],
             ),
           ],
         ),

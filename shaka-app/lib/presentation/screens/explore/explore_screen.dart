@@ -10,8 +10,10 @@ import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
 import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
+import '../../../data/services/map_home_service.dart';
 import '../../widgets/search_overlay.dart';
 import '../../widgets/background_picker.dart';
+import '../../widgets/set_map_home_dialog.dart';
 
 /// Full-screen explore map for discovering dive spots.
 /// Surfline-style: Map 70% top, horizontal spot carousel 30% bottom.
@@ -30,12 +32,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final MapBackgroundService _bgService = MapBackgroundService();
   final IpGeolocationService _ipGeoService = IpGeolocationService();
   
-  // Default fallback (Hawaii) - used if IP geolocation not available
+  // Default fallback (Hawaii) - used if Map Home and IP geolocation not available
   static const _fallbackCenter = LatLng(21.3069, -157.8583);
-  static const _defaultZoom = 8.5; // ~30 mile radius
+  static const _defaultZoom = 8.5; // ~30 mile radius when not using Map Home
+  // When using Map Home: ~200 km radius view
+  static final _mapHomeZoom = MapHomeService.mapHomeZoom;
   
-  // Actual default center (set in initState from IP geolocation or fallback)
+  // Actual default center (set in initState from Map Home, IP geolocation, or fallback)
   LatLng _defaultCenter = _fallbackCenter;
+  double _initialZoom = _defaultZoom;
   
   // NEW: All spots loaded once (for map markers - always visible)
   List<SpotMapMarker> _allSpots = [];
@@ -75,42 +80,76 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Set default center from IP geolocation (if available) or fallback
-    final ipLocation = _ipGeoService.location;
-    if (ipLocation != null) {
-      _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
-      debugPrint('ExploreScreen: Using IP location ${ipLocation.city ?? "unknown"}');
-    } else {
-      _defaultCenter = _fallbackCenter;
-      debugPrint('ExploreScreen: Using fallback location (Hawaii) - listening for IP');
-      // Listen for IP location to become available (just for initial centering)
-      _ipGeoService.addListener(_onIpLocationChanged);
-    }
-    
     _bgService.addListener(_onBackgroundChanged);
+    _initDefaultCenter();
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
   }
   
+  Future<void> _initDefaultCenter() async {
+    final mapHome = await MapHomeService().getMapHome();
+    if (mapHome != null) {
+      _defaultCenter = LatLng(mapHome.lat, mapHome.lon);
+      _initialZoom = _mapHomeZoom;
+      debugPrint('ExploreScreen: Using Map Home (${mapHome.lat}, ${mapHome.lon})');
+    } else {
+      final ipLocation = _ipGeoService.location;
+      if (ipLocation != null) {
+        _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
+        _initialZoom = _defaultZoom;
+        debugPrint('ExploreScreen: Using IP location ${ipLocation.city ?? "unknown"}');
+      } else {
+        _defaultCenter = _fallbackCenter;
+        _initialZoom = _defaultZoom;
+        debugPrint('ExploreScreen: Using fallback location (Hawaii) - listening for IP');
+        _ipGeoService.addListener(_onIpLocationChanged);
+      }
+    }
+    if (mounted) {
+      setState(() {});
+      // If map was already created with fallback, animate to Map Home
+      final home = mapHome;
+      if (home != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_mapController != null && mounted) {
+            _mapController!.animateCamera(
+              CameraUpdate.newLatLngZoom(
+                LatLng(home.lat, home.lon),
+                _mapHomeZoom,
+              ),
+            );
+          }
+        });
+      }
+    }
+    // Show first-launch Map Home prompt if not set (after first frame)
+    if (mapHome == null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await SetMapHomeDialog.showIfNeeded(context);
+      });
+    }
+  }
+  
   /// Try to animate map to IP location - called from both IP callback and style loaded
-  /// Returns true if animation was performed
+  /// Returns true if animation was performed (only when not using Map Home)
   /// NOTE: No longer reloads spots - all spots are loaded once globally
   bool _tryAnimateToIpLocation() {
     final ipLocation = _ipGeoService.location;
     
-    // Need: IP available, still at fallback, map ready
-    if (ipLocation != null && 
-        _defaultCenter == _fallbackCenter && 
-        _mapController != null && 
+    // Need: IP available, still at fallback (no Map Home), map ready
+    if (ipLocation != null &&
+        _defaultCenter == _fallbackCenter &&
+        _mapController != null &&
         _isMapReady) {
       debugPrint('ExploreScreen: Animating to IP location - ${ipLocation.city ?? "unknown"}');
       _defaultCenter = LatLng(ipLocation.lat, ipLocation.lon);
-      
+      _initialZoom = _defaultZoom;
+
       _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(_defaultCenter, _defaultZoom),
+        CameraUpdate.newLatLngZoom(_defaultCenter, _initialZoom),
       );
       // After animation settles, _onCameraIdle will update _visibleSpots
-      
+
       // Remove listener - we've successfully animated
       _ipGeoService.removeListener(_onIpLocationChanged);
       return true;
@@ -648,7 +687,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         onCameraIdle: _onCameraIdle,
                         initialCameraPosition: _lastCameraPosition ?? CameraPosition(
                           target: _defaultCenter,
-                          zoom: _defaultZoom,
+                          zoom: _initialZoom,
                         ),
                         styleString: _bgService.getStyleUrl(_bgService.current),
                         minMaxZoomPreference: const MinMaxZoomPreference(3, 18),

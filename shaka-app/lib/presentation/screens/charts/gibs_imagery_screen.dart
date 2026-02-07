@@ -13,6 +13,7 @@ import '../../../data/models/map_background.dart';
 import '../../../data/models/spot_models.dart';
 import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
+import '../../../data/services/map_home_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/save_spot_sheet.dart';
@@ -67,10 +68,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   // Date validation warning message
   String? _dateWarning;
   
-  // Map center (default: Catalina Islands CA, or from spot if provided)
+  // Map center: from spot if provided, else Map Home, else IP, else Catalina
   LatLng _initialCenter = const LatLng(33.4, -118.4);
-  static const _defaultZoom = 8.5; // ~30 mile radius
+  double _initialZoom = 8.5; // _defaultZoom or _mapHomeZoom
+  static const _defaultZoom = 8.5; // ~30 mile radius when not using Map Home
   static const _spotZoom = 8.0; // Closer zoom when viewing a spot
+  // When using Map Home: ~200 km radius (same as Explore)
+  static double get _mapHomeZoom => MapHomeService.mapHomeZoom;
   
   // Key to force map rebuild when background changes
   int _mapKey = 0;
@@ -115,21 +119,17 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     // Set initial center from:
     // 1. Spot coordinates (if provided)
-    // 2. IP geolocation (if available)
-    // 3. Fallback to Catalina Islands, CA
+    // 2. Map Home (if set)
+    // 3. IP geolocation (if available)
+    // 4. Fallback to Catalina Islands, CA
     if (widget.initialLat != null && widget.initialLon != null) {
       _initialCenter = LatLng(widget.initialLat!, widget.initialLon!);
+      _initialZoom = _spotZoom;
     } else {
-      final ipLocation = IpGeolocationService().location;
-      if (ipLocation != null) {
-        _initialCenter = LatLng(ipLocation.lat, ipLocation.lon);
-        debugPrint('GIBS: Using IP location ${ipLocation.city ?? "unknown"}');
-      } else {
-        _initialCenter = const LatLng(33.4, -118.4);
-        debugPrint('GIBS: Using fallback location (Catalina)');
-      }
+      _initialZoom = _defaultZoom;
+      _loadInitialCenter();
     }
-    
+
     // Immersive status bar
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -141,6 +141,25 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     _loadSavedSpots();
   }
   
+  Future<void> _loadInitialCenter() async {
+    final mapHome = await MapHomeService().getMapHome();
+    if (mapHome != null) {
+      _initialCenter = LatLng(mapHome.lat, mapHome.lon);
+      _initialZoom = _mapHomeZoom;
+      debugPrint('GIBS: Using Map Home (${mapHome.lat}, ${mapHome.lon})');
+    } else {
+      final ipLocation = IpGeolocationService().location;
+      if (ipLocation != null) {
+        _initialCenter = LatLng(ipLocation.lat, ipLocation.lon);
+        debugPrint('GIBS: Using IP location ${ipLocation.city ?? "unknown"}');
+      } else {
+        _initialCenter = const LatLng(33.4, -118.4);
+        debugPrint('GIBS: Using fallback location (Catalina)');
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
   /// Load GIBS-specific preferences (map style + layers)
   Future<void> _loadPreferences() async {
     try {
@@ -254,7 +273,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     if (!mounted || _styleVersion != currentVersion) return;
     
     setState(() => _isLoading = false);
-    
+
+    // If we're using Map Home and map was created before async load, animate to it
+    if (_mapController != null && _initialZoom == _mapHomeZoom) {
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_initialCenter, _initialZoom),
+      );
+    }
+
     // Add spot marker if opened from a spot
     if (_hasSpotContext && _mapController != null) {
       _addSpotMarker();
@@ -1059,7 +1085,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               styleString: _bgService.getStyleUrl(_gibsMapStyle),
               initialCameraPosition: _lastCameraPosition ?? CameraPosition(
                 target: _initialCenter,
-                zoom: _hasSpotContext ? _spotZoom : _defaultZoom,
+                zoom: _hasSpotContext ? _spotZoom : _initialZoom,
               ),
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,

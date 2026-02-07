@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/map_home_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../widgets/location_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,49 +16,66 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   List<UserSpotResponse> _savedSpots = [];
-  bool _isLoading = true;
-  String? _error;
-  
+  bool _isLoadingSpots = true;
+  MapHomeLocation? _mapHome;
+  bool _isLoadingMapHome = true;
+
   final _apiClient = ShakaApiClient();
 
   @override
   void initState() {
     super.initState();
-    _loadSavedSpots();
+    _loadSavedSpotsCount();
+    _loadMapHome();
   }
 
-  Future<void> _loadSavedSpots() async {
-    debugPrint('📍 Profile: Loading saved spots...');
+  Future<void> _loadSavedSpotsCount() async {
     try {
       final response = await _apiClient.getUserSpots();
-      debugPrint('📍 Profile: Got ${response.spots.length} spots from API');
-      for (final spot in response.spots) {
-        debugPrint('📍 Profile: Spot - id=${spot.id}, name=${spot.name}');
-      }
       if (mounted) {
         setState(() {
           _savedSpots = response.spots;
-          _isLoading = false;
+          _isLoadingSpots = false;
         });
       }
     } catch (e) {
-      debugPrint('📍 Profile: ERROR loading spots - $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
-          _isLoading = false;
+          _savedSpots = [];
+          _isLoadingSpots = false;
         });
       }
     }
   }
 
-  void _navigateToSpot(UserSpotResponse spot) {
-    final today = DateTime.now();
-    final date = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    context.push('/spot/${spot.id}', extra: {
-      'date': date,
-      'isUserSpot': true,
-    });
+  Future<void> _loadMapHome() async {
+    final location = await MapHomeService().getMapHome();
+    if (mounted) {
+      setState(() {
+        _mapHome = location;
+        _isLoadingMapHome = false;
+      });
+    }
+  }
+
+  void _openMapHomePicker() {
+    HapticFeedback.lightImpact();
+    showLocationPickerSheet(
+      context,
+      onLocationSelected: (lat, lon, name) async {
+        await MapHomeService().setMapHome(lat, lon);
+        if (mounted) {
+          setState(() => _mapHome = MapHomeLocation(lat: lat, lon: lon));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Map Home set to $name'),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -71,123 +91,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         centerTitle: true,
       ),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          // Saved Spots Header
+          // Section label
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Row(
-              children: [
-                Text(
-                  'SAVED SPOTS',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const Spacer(),
-                if (!_isLoading && _error == null)
-                  Text(
-                    '${_savedSpots.length} spots',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  ),
-              ],
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'SETTINGS',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
-          
-          // Content
-          Expanded(
-            child: _buildContent(),
+          // Map Home row
+          _ProfileRow(
+            icon: Icons.home_outlined,
+            iconColor: AppColors.info,
+            title: 'Map Home',
+            subtitle: _isLoadingMapHome
+                ? 'Loading...'
+                : (_mapHome?.displaySubtitle ?? 'Not set — tap to choose'),
+            onTap: _openMapHomePicker,
+          ),
+          const SizedBox(height: 12),
+          // Saved Spots row (single row; tap opens full list)
+          _ProfileRow(
+            icon: Icons.bookmark_border,
+            iconColor: AppColors.scoreExcellent,
+            title: 'Saved Spots',
+            subtitle: _isLoadingSpots
+                ? 'Loading...'
+                : '${_savedSpots.length} spot${_savedSpots.length == 1 ? '' : 's'}',
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              await context.push('/profile/saved-spots');
+              if (mounted) _loadSavedSpotsCount();
+            },
           ),
         ],
       ),
     );
   }
-
-  Widget _buildContent() {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.darkAccent),
-      );
-    }
-    
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white38, size: 48),
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: Colors.white54)),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isLoading = true;
-                  _error = null;
-                });
-                _loadSavedSpots();
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    if (_savedSpots.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.bookmark_border, color: Colors.white24, size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'No saved spots yet',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Save spots from the Satellite Imagery map',
-              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    return RefreshIndicator(
-      onRefresh: _loadSavedSpots,
-      color: AppColors.darkAccent,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _savedSpots.length,
-        itemBuilder: (context, index) {
-          final spot = _savedSpots[index];
-          return _ProfileSpotCard(
-            spot: spot,
-            onTap: () => _navigateToSpot(spot),
-          );
-        },
-      ),
-    );
-  }
 }
 
-class _ProfileSpotCard extends StatelessWidget {
-  final UserSpotResponse spot;
+class _ProfileRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
-  const _ProfileSpotCard({required this.spot, required this.onTap});
+  const _ProfileRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.darkSurface,
@@ -200,14 +170,10 @@ class _ProfileSpotCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.scoreExcellent.withOpacity(0.15),
+                color: iconColor.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
-                Icons.location_on,
-                color: AppColors.scoreExcellent,
-                size: 24,
-              ),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -215,7 +181,7 @@ class _ProfileSpotCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    spot.name,
+                    title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -224,12 +190,13 @@ class _ProfileSpotCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
+                    subtitle,
                     style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 12,
-                      fontFamily: 'monospace',
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
