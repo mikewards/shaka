@@ -104,6 +104,7 @@ object FishingIntelDb {
                 SourceConfig("socal-fish-reports", "SoCalFishReports", "https://www.socalfishreports.com", TrustTier.B, 1.0),
                 SourceConfig("san-diego-fish-reports", "SanDiegoFishReports", "https://www.sandiegofishreports.com", TrustTier.B, 1.0),
                 SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0),
+                SourceConfig("976-tuna-longrange", "976-TUNA Long Range", "https://www.976-tuna.com", TrustTier.B, 1.0),
                 SourceConfig("22nd-street", "22nd Street Landing", "https://www.22ndstreet.com", TrustTier.A, 0.5),
                 SourceConfig("fishermans-landing", "Fisherman's Landing", "https://www.fishermanslanding.com", TrustTier.A, 0.5),
                 SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5),
