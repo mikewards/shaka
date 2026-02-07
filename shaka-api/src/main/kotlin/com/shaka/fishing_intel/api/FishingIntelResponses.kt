@@ -62,7 +62,8 @@ data class NarrativeInsight(
     val sourceName: String,
     val threadUrl: String,
     val publishedAt: String,
-    val tldr: String = ""
+    val tldr: String = "",
+    val threadZone: String? = null
 )
 
 // Legacy response types (keep for backwards compat)

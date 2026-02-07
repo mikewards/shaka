@@ -7,6 +7,7 @@ import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
 import com.shaka.fishing_intel.processing.Deduplicator
 import com.shaka.fishing_intel.processing.SoCalGazetteer
+import com.shaka.fishing_intel.processing.ThreadIntelScorer
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.Duration
@@ -102,7 +103,9 @@ object FishingIntelRoutes {
         val headline = when {
             narrativeInsights.isNotEmpty() -> HeadlineResponse(
                 species = narrativeInsights.first().species,
-                message = "${narrativeInsights.first().species} at ${narrativeInsights.first().location}",
+                message = if (narrativeInsights.first().location.isNotBlank())
+                    "${narrativeInsights.first().species} at ${narrativeInsights.first().location}"
+                else narrativeInsights.first().species,
                 heatLevel = 1,
                 count24h = 0,
                 topLanding = null
@@ -182,20 +185,26 @@ object FishingIntelRoutes {
 
     private fun buildNarrativeInsights(reports: List<ReportWithClaims>): List<NarrativeInsight> {
         val bdReports = reports.filter { it.sourceId == "bd-outdoors" }
-        val eligible = bdReports.mapNotNull { report ->
-            val location = report.threadZone?.takeIf { it.isNotBlank() }
-                ?: SoCalGazetteer.findInText(report.rawExcerpt ?: "").firstOrNull()?.name
-                ?: SoCalGazetteer.findInText(report.title ?: "").firstOrNull()?.name
-            if (location.isNullOrBlank()) return@mapNotNull null
+        val eligible = bdReports.filter { report ->
+            report.claims.any { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
+        }
+        val byThread = eligible.groupBy { it.threadUrl ?: it.url }
+        val representatives = byThread.values.map { group ->
+            group.firstOrNull { it.tldr?.isNotBlank() == true } ?: group.maxByOrNull { it.publishedAt?.toString() ?: "" } ?: group.first()
+        }
+        val scored = representatives.map { report ->
+            report to ThreadIntelScorer.score(report, report.tldr)
+        }.filter { (_, score) -> score >= 5.0 }.sortedByDescending { (_, score) -> score }.take(3)
+        return scored.map { (report, _) ->
+            val location = SoCalGazetteer.findInText(report.rawExcerpt ?: "").firstOrNull()?.name
+                ?: SoCalGazetteer.findInText(report.title ?: "").firstOrNull()?.name ?: ""
             val trophyClaim = report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
                 .firstOrNull()
-            if (trophyClaim == null) return@mapNotNull null
-            val species = formatSpeciesName(trophyClaim.species!!)
+            val species = formatSpeciesName(trophyClaim?.species ?: "fish")
             val excerpt = (report.rawExcerpt ?: "").take(200)
-            // Prefer stored TL;DR (from AI or backfill); else build fallback with longer excerpt for context
             val tldr = report.tldr?.takeIf { it.isNotBlank() }
-                ?: "$species at $location. ${excerpt.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(180)
+                ?: "$species at ${location.ifBlank { "SoCal" }}. ${excerpt.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(180)
             NarrativeInsight(
                 species = species,
                 location = location,
@@ -203,13 +212,10 @@ object FishingIntelRoutes {
                 sourceName = sourceNames[report.sourceId] ?: report.sourceId,
                 threadUrl = report.threadUrl ?: report.url,
                 publishedAt = report.publishedAt?.toString() ?: "",
-                tldr = tldr
+                tldr = tldr,
+                threadZone = report.threadZone
             )
         }
-        val dedupedByThread = eligible.groupBy { it.threadUrl }.values.map { group ->
-            group.maxByOrNull { it.publishedAt } ?: group.first()
-        }
-        return dedupedByThread.sortedByDescending { it.publishedAt }.take(3)
     }
     
     /**

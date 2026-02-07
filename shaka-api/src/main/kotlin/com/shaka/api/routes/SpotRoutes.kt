@@ -15,6 +15,7 @@ import com.shaka.fishing_intel.processing.Deduplicator
 import com.shaka.fishing_intel.processing.GeoResolver
 import com.shaka.fishing_intel.processing.ResolvedGeo
 import com.shaka.fishing_intel.processing.SpeciesNormalizer
+import com.shaka.fishing_intel.processing.SoCalGazetteer
 import com.shaka.fishing_intel.models.*
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
@@ -1030,7 +1031,31 @@ fun Application.configureRouting() {
                 }
                 try {
                     val posts = call.receive<List<IngestPostRequest>>()
-                    
+                    fun norm(u: String) = u.split("#").first().trimEnd('/').take(512)
+                    val byThread = posts.groupBy { norm(it.threadUrl) }
+                    val threadTldr = mutableMapOf<String, Pair<String?, Boolean?>>()
+                    val threadSpecies = mutableMapOf<String, List<String>>()
+                    for ((threadUrl, threadPosts) in byThread) {
+                        val title = threadPosts.firstOrNull { it.postRole == "thread_starter" }?.title ?: threadPosts.first().title
+                        val combinedContent = threadPosts.sortedBy { it.date }.map { it.content }.joinToString("\n\n").take(4000)
+                        if (FishingIntelAiService.isEnabled()) {
+                            val result = FishingIntelAiService.analyzeThread(title, combinedContent)
+                            if (result != null) {
+                                threadTldr[threadUrl] = result.second to result.third
+                                threadSpecies[threadUrl] = result.first
+                            } else {
+                                val fallbackSpecies = threadPosts.flatMap { it.speciesCaught }.distinct()
+                                val summary = "Caught ${fallbackSpecies.joinToString(", ").ifBlank { "fish" }}. ${combinedContent.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(300)
+                                threadTldr[threadUrl] = summary to null
+                                threadSpecies[threadUrl] = fallbackSpecies
+                            }
+                        } else {
+                            val fallbackSpecies = threadPosts.flatMap { it.speciesCaught }.distinct()
+                            val summary = "Caught ${fallbackSpecies.joinToString(", ").ifBlank { "fish" }}. ${combinedContent.take(120).trim()}".replace(Regex("\\s+"), " ").trim().take(300)
+                            threadTldr[threadUrl] = summary to null
+                            threadSpecies[threadUrl] = fallbackSpecies
+                        }
+                    }
                     for ((index, post) in posts.withIndex()) {
                         try {
                             // Parse date: accept ISO-8601 with offset (e.g. -0800). Never use now().
@@ -1076,19 +1101,14 @@ fun Application.configureRouting() {
                                 }
                             } ?: publishedDate
                             val reportUrl = post.postUrl?.take(512) ?: post.threadUrl
-                            val threadUrl = post.threadUrl.split("#").first().trimEnd('/').take(512)
-                            // Parse general location tag from title (e.g. "Inshore45 lb..." -> zone=Inshore, cleaned="45 lb...")
+                            val threadUrl = norm(post.threadUrl)
                             val (parsedZone, cleanedTitle) = parseBdTitleForLocationTag(post.title)
                             val effectiveThreadZone = post.threadZone?.takeIf { it.isNotBlank() } ?: parsedZone
                             val effectiveTitle = cleanedTitle?.takeIf { it.isNotBlank() } ?: post.title
-                            // Optional AI: only for narrative BD posts with trophy species mentioned
-                            val aiResult = if (FishingIntelAiService.shouldAnalyze(post.speciesMentioned)) {
-                                FishingIntelAiService.analyzePost(effectiveTitle, post.content, post.speciesMentioned)
-                            } else null
-                            val (speciesForCatch, reportTldr) = when (val r = aiResult) {
-                                null -> post.speciesCaught to null
-                                else -> r.first to r.second
-                            }
+                            val isThreadStarter = post.postRole == "thread_starter"
+                            val reportTldr = if (isThreadStarter) threadTldr[threadUrl]?.first else null
+                            val reportIsCatchIntel = if (isThreadStarter) threadTldr[threadUrl]?.second else null
+                            val speciesForCatch = if (isThreadStarter) (threadSpecies[threadUrl] ?: emptyList()) else post.speciesCaught
                             val report = FishingReport(
                                 sourceId = "bd-outdoors",
                                 url = reportUrl,
@@ -1103,7 +1123,8 @@ fun Application.configureRouting() {
                                 contentType = post.contentType,
                                 lastActivityAt = lastActivityInstant,
                                 threadUrl = threadUrl,
-                                tldr = reportTldr
+                                tldr = reportTldr,
+                                isCatchIntel = reportIsCatchIntel
                             )
                             
                             val reportId = FishingIntelDb.saveReport(report)

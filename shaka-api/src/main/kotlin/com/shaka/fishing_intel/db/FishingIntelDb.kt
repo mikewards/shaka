@@ -44,7 +44,8 @@ object FishingIntelDb {
             "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS content_type VARCHAR(30)",
             "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP",
             "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS thread_url VARCHAR(512)",
-            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS tldr TEXT"
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS tldr TEXT",
+            "ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS is_catch_intel BOOLEAN"
         )
         alters.forEach { sql ->
             try {
@@ -151,6 +152,7 @@ object FishingIntelDb {
                 report.lastActivityAt?.let { ts -> it[lastActivityAt] = LocalDateTime.ofInstant(ts, ZoneOffset.UTC) }
                 report.threadUrl?.let { v -> it[threadUrl] = v.take(512) }
                 report.tldr?.let { v -> it[tldr] = v }
+                report.isCatchIntel?.let { v -> it[isCatchIntel] = v }
             }.value
         }
     }
@@ -322,6 +324,8 @@ object FishingIntelDb {
                         threadZone = row[FishingIntelReportsTable.threadZone],
                         canonicalFingerprint = row[FishingIntelReportsTable.canonicalFingerprint],
                         tldr = row[FishingIntelReportsTable.tldr],
+                        isCatchIntel = row[FishingIntelReportsTable.isCatchIntel],
+                        lastActivityAt = row[FishingIntelReportsTable.lastActivityAt]?.toInstant(ZoneOffset.UTC),
                         claims = claims
                     )
                 }

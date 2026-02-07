@@ -69,7 +69,8 @@ data class FishingReport(
     val contentType: String? = null,
     val lastActivityAt: Instant? = null,
     val threadUrl: String? = null,
-    val tldr: String? = null
+    val tldr: String? = null,
+    val isCatchIntel: Boolean? = null
 )
 
 /**
@@ -106,6 +107,8 @@ data class ReportWithClaims(
     val threadZone: String? = null,
     val canonicalFingerprint: String? = null,
     val tldr: String? = null,
+    val isCatchIntel: Boolean? = null,
+    val lastActivityAt: Instant? = null,
     val claims: List<FishingClaim>
 )
 

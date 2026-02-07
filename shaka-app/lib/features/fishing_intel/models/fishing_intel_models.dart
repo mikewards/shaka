@@ -7,6 +7,7 @@ class NarrativeInsight {
   final String threadUrl;
   final String publishedAt;
   final String tldr;
+  final String? threadZone;
 
   const NarrativeInsight({
     required this.species,
@@ -16,6 +17,7 @@ class NarrativeInsight {
     required this.threadUrl,
     required this.publishedAt,
     this.tldr = '',
+    this.threadZone,
   });
 
   factory NarrativeInsight.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class NarrativeInsight {
       threadUrl: json['threadUrl'] ?? '',
       publishedAt: json['publishedAt'] ?? '',
       tldr: json['tldr'] ?? '',
+      threadZone: json['threadZone'],
     );
   }
 }

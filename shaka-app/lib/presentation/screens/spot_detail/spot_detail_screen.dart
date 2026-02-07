@@ -1126,9 +1126,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ? insight.tldr
         : '${insight.species} at ${insight.location}';
     final dateLabel = _formatInsightDate(insight.publishedAt);
-    final showExcerpt = insight.excerpt.isNotEmpty &&
-        insight.excerpt != displayTldr &&
-        (insight.tldr.isEmpty || insight.excerpt.length > displayTldr.length);
+    final showExcerpt = insight.tldr.isEmpty && insight.excerpt.isNotEmpty && insight.excerpt != displayTldr;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1172,28 +1170,19 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 ),
               ],
               const SizedBox(width: 12),
-              TextButton(
-                onPressed: () async {
+              GestureDetector(
+                onTap: () async {
                   final uri = Uri.parse(insight.threadUrl);
                   if (await canLaunchUrl(uri)) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
                   }
                 },
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
                 child: Text(
-                  'Original thread',
-                  style: TextStyle(color: AppColors.coral, fontSize: 13),
+                  'View original thread',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
               ),
             ],
-          ),
-          Text(
-            'May require BD Outdoors login.',
-            style: TextStyle(color: Colors.grey[600], fontSize: 11),
           ),
         ],
       ),
