@@ -33,6 +33,7 @@ object FishingIntelDb {
             )
             val conn = this.connection.connection as java.sql.Connection
             addReportColumnsIfMissing(conn)
+            addSourceColumnsIfMissing(conn)
             logger.info("Fishing intel tables created/verified")
         }
     }
@@ -61,6 +62,15 @@ object FishingIntelDb {
         }
         logger.info("Fishing intel reports columns verified")
     }
+
+    private fun addSourceColumnsIfMissing(conn: Connection) {
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_sources ADD COLUMN IF NOT EXISTS regional_report VARCHAR(50) DEFAULT 'so_cal'")
+            conn.createStatement().execute("UPDATE fishing_intel_sources SET regional_report = 'so_cal' WHERE regional_report IS NULL OR regional_report = ''")
+        } catch (e: Exception) {
+            logger.warn("Fishing intel sources regional_report migration: ${e.message}")
+        }
+    }
     
     /**
      * Seed landings gazetteer with SoCal landings.
@@ -87,14 +97,14 @@ object FishingIntelDb {
     fun seedSources() {
         transaction {
             val sources = listOf(
-                SourceConfig("socal-fish-reports", "SoCalFishReports", "https://www.socalfishreports.com", TrustTier.B, 1.0),
-                SourceConfig("san-diego-fish-reports", "SanDiegoFishReports", "https://www.sandiegofishreports.com", TrustTier.B, 1.0),
-                SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0),
-                SourceConfig("976-tuna-longrange", "976-TUNA Long Range", "https://www.976-tuna.com", TrustTier.B, 1.0),
-                SourceConfig("22nd-street", "22nd Street Landing", "https://www.22ndstreet.com", TrustTier.A, 0.5),
-                SourceConfig("fishermans-landing", "Fisherman's Landing", "https://www.fishermanslanding.com", TrustTier.A, 0.5),
-                SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5),
-                SourceConfig("bd-outdoors", "BD Outdoors Forums", "https://www.bdoutdoors.com/forums/", TrustTier.B, 0.5)
+                SourceConfig("socal-fish-reports", "SoCalFishReports", "https://www.socalfishreports.com", TrustTier.B, 1.0, "so_cal"),
+                SourceConfig("san-diego-fish-reports", "SanDiegoFishReports", "https://www.sandiegofishreports.com", TrustTier.B, 1.0, "so_cal"),
+                SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
+                SourceConfig("976-tuna-longrange", "976-TUNA Long Range", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
+                SourceConfig("22nd-street", "22nd Street Landing", "https://www.22ndstreet.com", TrustTier.A, 0.5, "so_cal"),
+                SourceConfig("fishermans-landing", "Fisherman's Landing", "https://www.fishermanslanding.com", TrustTier.A, 0.5, "so_cal"),
+                SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5, "so_cal"),
+                SourceConfig("bd-outdoors", "BD Outdoors Forums", "https://www.bdoutdoors.com/forums/", TrustTier.B, 0.5, "so_cal")
             )
             
             sources.forEach { source ->
@@ -105,6 +115,7 @@ object FishingIntelDb {
                     it[trustTier] = source.trustTier.name[0]
                     it[rateLimitRps] = source.rateLimitRps.toBigDecimal()
                     it[enabled] = true
+                    it[regionalReport] = source.regionalReport
                 }
             }
             logger.info("Seeded ${sources.size} sources")
@@ -364,6 +375,75 @@ object FishingIntelDb {
                 }
         }
     }
+
+    /**
+     * Get reports for a region (filter by sources.regional_report). No geo/lat/lon.
+     * Used for the Reports tab; when adding other geos, set regional_report per source.
+     */
+    fun getReportsForRegion(regionId: String, hoursBack: Int): List<ReportWithClaims> {
+        return transaction {
+            val cutoff = LocalDateTime.now().minusHours(hoursBack.toLong())
+            val reportIds = FishingIntelReportsTable
+                .innerJoin(FishingIntelSourcesTable)
+                .slice(FishingIntelReportsTable.id)
+                .select {
+                    (FishingIntelReportsTable.sourceId eq FishingIntelSourcesTable.sourceId) and
+                    (FishingIntelSourcesTable.regionalReport eq regionId) and
+                    (FishingIntelReportsTable.publishedAt greaterEq cutoff)
+                }
+                .map { it[FishingIntelReportsTable.id].value }
+                .distinct()
+
+            if (reportIds.isEmpty()) return@transaction emptyList()
+
+            FishingIntelReportsTable
+                .select {
+                    (FishingIntelReportsTable.id inList reportIds) and
+                    (FishingIntelReportsTable.publishedAt greaterEq cutoff)
+                }
+                .orderBy(FishingIntelReportsTable.publishedAt, SortOrder.DESC)
+                .map { row ->
+                    val reportId = row[FishingIntelReportsTable.id].value
+                    val claims = FishingIntelClaimsTable
+                        .select { FishingIntelClaimsTable.reportId eq reportId }
+                        .map { claimRow ->
+                            FishingClaim(
+                                claimType = ClaimType.valueOf(claimRow[FishingIntelClaimsTable.claimType]),
+                                species = claimRow[FishingIntelClaimsTable.species],
+                                countKept = claimRow[FishingIntelClaimsTable.countKept],
+                                countReleased = claimRow[FishingIntelClaimsTable.countReleased],
+                                baitType = claimRow[FishingIntelClaimsTable.baitType],
+                                baitStatus = claimRow[FishingIntelClaimsTable.baitStatus],
+                                tripType = claimRow[FishingIntelClaimsTable.tripType],
+                                anglerCount = claimRow[FishingIntelClaimsTable.anglerCount],
+                                boatName = claimRow[FishingIntelClaimsTable.boatName],
+                                landingName = claimRow[FishingIntelClaimsTable.landingName],
+                                landingCity = claimRow[FishingIntelClaimsTable.landingCity],
+                                notes = claimRow[FishingIntelClaimsTable.notes]
+                            )
+                        }
+
+                    ReportWithClaims(
+                        reportId = reportId,
+                        sourceId = row[FishingIntelReportsTable.sourceId],
+                        url = row[FishingIntelReportsTable.url],
+                        publishedAt = row[FishingIntelReportsTable.publishedAt]?.toInstant(ZoneOffset.UTC),
+                        observedAt = row[FishingIntelReportsTable.observedAt]?.toInstant(ZoneOffset.UTC),
+                        reportType = ReportType.valueOf(row[FishingIntelReportsTable.reportType]),
+                        title = row[FishingIntelReportsTable.title],
+                        rawExcerpt = row[FishingIntelReportsTable.rawExcerpt],
+                        confidence = row[FishingIntelReportsTable.confidence].toDouble(),
+                        threadUrl = row[FishingIntelReportsTable.threadUrl],
+                        threadZone = row[FishingIntelReportsTable.threadZone],
+                        canonicalFingerprint = row[FishingIntelReportsTable.canonicalFingerprint],
+                        tldr = row[FishingIntelReportsTable.tldr],
+                        isCatchIntel = row[FishingIntelReportsTable.isCatchIntel],
+                        lastActivityAt = row[FishingIntelReportsTable.lastActivityAt]?.toInstant(ZoneOffset.UTC),
+                        claims = claims
+                    )
+                }
+        }
+    }
     
     /**
      * Get enabled sources.
@@ -382,7 +462,8 @@ object FishingIntelDb {
                             'B' -> TrustTier.B
                             else -> TrustTier.C
                         },
-                        rateLimitRps = row[FishingIntelSourcesTable.rateLimitRps].toDouble()
+                        rateLimitRps = row[FishingIntelSourcesTable.rateLimitRps].toDouble(),
+                        regionalReport = row[FishingIntelSourcesTable.regionalReport]
                     )
                 }
         }

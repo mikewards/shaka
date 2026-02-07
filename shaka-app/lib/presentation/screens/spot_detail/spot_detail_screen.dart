@@ -6,13 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
-import '../../../features/fishing_intel/models/fishing_intel_models.dart';
-import '../../../features/fishing_intel/services/fishing_intel_service.dart';
 import '../../bloc/search_bloc.dart';
-import '../../widgets/shaka_score_badge.dart';
 import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
-import '../charts/charts_hub_screen.dart';
 
 class SpotDetailScreen extends StatefulWidget {
   final String spotId;
@@ -48,16 +44,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   bool _userSpotLoading = false;
   String? _userSpotError;
 
-  // Fishing intel state
-  final _fishingIntelService = FishingIntelService();
-  FishingIntelResponse? _fishingIntel;
-  bool _fishingIntelLoading = false;
-  String? _fishingIntelError;
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadSpotDetail();
   }
 
@@ -79,9 +69,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             date: widget.date,
           ));
     }
-    
-    // Load fishing intel for this spot
-    _loadFishingIntel();
   }
 
   Future<void> _loadUserSpotDetail() async {
@@ -102,30 +89,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         setState(() {
           _userSpotError = e.toString();
           _userSpotLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _loadFishingIntel() async {
-    setState(() => _fishingIntelLoading = true);
-    try {
-      final tzOffset = DateTime.now().timeZoneOffset.inHours;
-      final response = await _fishingIntelService.getSpotIntel(
-        widget.spotId,
-        tzOffset: tzOffset,
-      );
-      if (mounted) {
-        setState(() {
-          _fishingIntel = response;
-          _fishingIntelLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _fishingIntelError = e.toString();
-          _fishingIntelLoading = false;
         });
       }
     }
@@ -215,7 +178,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _buildCurrentTab(spot),
           _buildForecastTab(spot),
           _buildGuideTab(spot),
-          _buildFishingIntelTab(),
         ],
       ),
     );
@@ -300,7 +262,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           Tab(text: 'Conditions'),
           Tab(text: 'Forecast'),
           Tab(text: 'Regulations'),
-          Tab(text: 'Fishing'),
         ],
       ),
     );
@@ -1009,260 +970,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  /// FISHING TAB - What's HOT right now!
-  Widget _buildFishingIntelTab() {
-    if (_fishingIntelLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: CircularProgressIndicator(color: AppColors.info),
-        ),
-      );
-    }
-    
-    if (_fishingIntelError != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            'Unable to load fishing reports',
-            style: TextStyle(color: Colors.grey[500]),
-          ),
-        ),
-      );
-    }
-    
-    final intel = _fishingIntel;
-    if (intel == null || !intel.hasData) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.phishing, size: 48, color: Colors.grey[700]),
-              const SizedBox(height: 16),
-              Text(
-                'No recent fishing reports near this spot',
-                style: TextStyle(color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // WHERE IT'S FIRING - Narrative insights (black-swan)
-        if (intel.narrativeInsights.isNotEmpty) ...[
-          ...intel.narrativeInsights.map((insight) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildNarrativeInsightCard(insight),
-          )),
-          const SizedBox(height: 20),
-        ],
-        // Light activity when no narrative insights (headline card removed)
-        if (intel.hasData && intel.narrativeInsights.isEmpty) ...[
-          Text(
-            'Light activity — no standout bite.',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14, fontStyle: FontStyle.italic),
-          ),
-          const SizedBox(height: 16),
-        ],
-        // What's being caught — one list, desirability order.
-        if (intel.speciesList.isNotEmpty) ...[
-          Text(
-            'Last 24hr » Catch Numbers',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...intel.speciesList.map((s) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: _buildSpeciesRow(s),
-          )),
-          const SizedBox(height: 16),
-        ],
-        // Attribution
-        Text(
-          '${intel.totalReports} reports from ${intel.sourcesUsed.join(", ")}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 11),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNarrativeInsightCard(NarrativeInsight insight) {
-    final displayTldr = insight.tldr.isNotEmpty
-        ? insight.tldr
-        : '${insight.species} at ${insight.location}';
-    final dateLabel = _formatInsightDate(insight.publishedAt);
-    final showExcerpt = insight.tldr.isEmpty && insight.excerpt.isNotEmpty && insight.excerpt != displayTldr;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (dateLabel.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  dateLabel,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                ),
-              ),
-            ),
-          Text(
-            displayTldr,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 8,
-            overflow: TextOverflow.clip,
-          ),
-          if (showExcerpt) ...[
-            const SizedBox(height: 6),
-            Text(
-              insight.excerpt,
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _formatInsightDate(String publishedAt) {
-    if (publishedAt.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(publishedAt);
-      final now = DateTime.now();
-      final diff = now.difference(dt);
-      if (diff.inDays == 0) return 'Today';
-      if (diff.inDays == 1) return 'Yesterday';
-      if (diff.inDays < 7) return '${diff.inDays} days ago';
-      return '${dt.month}/${dt.day}';
-    } catch (_) {
-      return '';
-    }
-  }
-  
-  /// One species row: name, 24h count, primary label, secondary %. Simple.
-  Widget _buildSpeciesRow(TrendingSpecies s) {
-    final isUp = s.isUp;
-    final isDown = s.isDown;
-    final primaryColor = isUp
-        ? const Color(0xFF22C55E)
-        : isDown
-            ? const Color(0xFFEF4444)
-            : Colors.white.withOpacity(0.5);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.species,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  s.primaryLabel,
-                  style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w500),
-                ),
-                if (s.secondaryLabel.isNotEmpty)
-                  Text(
-                    s.secondaryLabel,
-                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
-                  ),
-              ],
-            ),
-          ),
-          Text(
-            '${s.count24h}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  /// Recent catch card
-  Widget _buildRecentCatchCard(RecentCatch catch_) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.phishing, size: 18, color: Colors.grey[500]),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${catch_.count} ${catch_.species}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  '${catch_.boatName != null ? "${catch_.boatName} @ " : ""}${catch_.landingName}',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Text(
-            catch_.timeDisplay,
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-  
   String _formatFreshness(String isoDate) {
     try {
       final date = DateTime.parse(isoDate);
@@ -1399,8 +1106,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ],
             ],
           ),
-          // Fishing intel tab
-          _buildFishingIntelTab(),
         ],
       ),
     );

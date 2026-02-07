@@ -947,6 +947,27 @@ fun Application.configureRouting() {
             }
             
             /**
+             * Get fishing intel for a region (by sources.regional_report). No geo.
+             * e.g. GET /regions/socal/intel?since=72h&tzOffset=-8
+             */
+            get("/regions/{regionId}/intel") {
+                val regionId = call.parameters["regionId"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "regionId required"))
+                val since = call.parameters["since"] ?: "72h"
+                val tzOffset = call.parameters["tzOffset"]?.toIntOrNull()
+
+                val intel = FishingIntelRoutes.getIntelForRegion(regionId, since, tzOffset)
+                if (intel != null) {
+                    call.respond(intel)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf(
+                        "error" to "No fishing intel available for this region",
+                        "regionId" to regionId
+                    ))
+                }
+            }
+
+            /**
              * Get trending species for SoCal (based on report frequency).
              */
             get("/regions/socal/trending") {

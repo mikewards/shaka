@@ -15,6 +15,7 @@ import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/results/results_screen.dart';
 import 'presentation/screens/spot_detail/spot_detail_screen.dart';
 import 'presentation/screens/charts/charts_hub_screen.dart';
+import 'presentation/screens/reports/reports_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
 import 'presentation/screens/charts/ocean_charts_webview.dart';
 
@@ -72,6 +73,7 @@ class ShakaApp extends StatelessWidget {
 // Navigation keys for preserving state across tab switches
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKeyExplore = GlobalKey<NavigatorState>(debugLabel: 'explore');
+final _shellNavigatorKeyReports = GlobalKey<NavigatorState>(debugLabel: 'reports');
 final _shellNavigatorKeyCharts = GlobalKey<NavigatorState>(debugLabel: 'charts');
 final _shellNavigatorKeyProfile = GlobalKey<NavigatorState>(debugLabel: 'profile');
 
@@ -79,7 +81,7 @@ final _router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/explore',
   routes: [
-    // Main shell with bottom navigation (3 tabs)
+    // Main shell with bottom navigation (4 tabs: Explore, Reports, Charts, Profile)
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainShell(navigationShell: navigationShell);
@@ -92,6 +94,16 @@ final _router = GoRouter(
             GoRoute(
               path: '/explore',
               builder: (context, state) => const ExploreScreen(),
+            ),
+          ],
+        ),
+        // Reports tab (regional fishing reports; SoCal first, more regions later)
+        StatefulShellBranch(
+          navigatorKey: _shellNavigatorKeyReports,
+          routes: [
+            GoRoute(
+              path: '/reports',
+              builder: (context, state) => const ReportsScreen(),
             ),
           ],
         ),

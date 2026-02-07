@@ -16,6 +16,7 @@ object FishingIntelSourcesTable : Table("fishing_intel_sources") {
     val trustTier = char("trust_tier")
     val rateLimitRps = decimal("rate_limit_rps", 3, 1)
     val enabled = bool("enabled").default(true)
+    val regionalReport = varchar("regional_report", 50).default("so_cal")
     val lastSuccessfulFetch = datetime("last_successful_fetch").nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     

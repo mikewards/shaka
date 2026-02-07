@@ -49,7 +49,8 @@ data class SourceConfig(
     val name: String,
     val baseUrl: String,
     val trustTier: TrustTier,
-    val rateLimitRps: Double
+    val rateLimitRps: Double,
+    val regionalReport: String = "so_cal"
 )
 
 /**
