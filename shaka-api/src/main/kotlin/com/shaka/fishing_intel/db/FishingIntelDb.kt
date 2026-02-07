@@ -248,6 +248,38 @@ object FishingIntelDb {
     }
 
     /**
+     * Backfill REGION_FALLBACK geo for every report that has no row in fishing_intel_report_geos.
+     * Ensures all reports (any source) are visible to getReportsNearby. Call at startup or after bulk ingest.
+     */
+    fun backfillAllMissingGeos(defaultLat: Double = 32.7157, defaultLon: Double = -117.1611, radiusM: Int = 150_000): Int {
+        return transaction {
+            val allReportIds = FishingIntelReportsTable
+                .slice(FishingIntelReportsTable.id)
+                .selectAll()
+                .map { it[FishingIntelReportsTable.id].value }
+            val reportIdsWithGeo = FishingIntelReportGeosTable
+                .slice(FishingIntelReportGeosTable.reportId)
+                .selectAll()
+                .map { it[FishingIntelReportGeosTable.reportId] }
+                .toSet()
+            val missing = allReportIds.filter { it !in reportIdsWithGeo }
+            missing.forEach { reportId ->
+                FishingIntelReportGeosTable.insert {
+                    it[FishingIntelReportGeosTable.reportId] = reportId
+                    it[FishingIntelReportGeosTable.latitude] = defaultLat
+                    it[FishingIntelReportGeosTable.longitude] = defaultLon
+                    it[FishingIntelReportGeosTable.geoType] = GeoType.REGION_FALLBACK.name
+                    it[FishingIntelReportGeosTable.radiusM] = radiusM
+                }
+            }
+            if (missing.isNotEmpty()) {
+                logger.info("Backfilled geo for ${missing.size} reports (all sources)")
+            }
+            missing.size
+        }
+    }
+
+    /**
      * Check if a report fingerprint already exists.
      */
     fun fingerprintExists(fingerprint: String): Boolean {

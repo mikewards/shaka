@@ -245,7 +245,7 @@ object FishingIntelPrefetchJob {
                         claims++
                     }
                     
-                    // Add geotag based on landing
+                    // Add geotag based on landing; always save a geo so report is visible to getReportsNearby
                     val landing = landingName?.let { SoCalLandings.findByName(it) }
                     if (landing != null) {
                         FishingIntelDb.saveReportGeo(
@@ -254,6 +254,14 @@ object FishingIntelPrefetchJob {
                             landing.lon,
                             GeoType.LANDING_ANCHOR,
                             landing.radiusKm * 1000
+                        )
+                    } else {
+                        FishingIntelDb.saveReportGeo(
+                            reportId,
+                            32.7157,
+                            -117.1611,
+                            GeoType.REGION_FALLBACK,
+                            150000
                         )
                     }
                 } catch (e: Exception) {
