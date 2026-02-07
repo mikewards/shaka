@@ -921,8 +921,9 @@ fun Application.configureRouting() {
                 val spotId = call.parameters["spotId"]
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
                 val since = call.parameters["since"] ?: "72h"
+                val tzOffset = call.parameters["tzOffset"]?.toIntOrNull()
                 
-                val intel = FishingIntelRoutes.getSpotIntel(spotId, since)
+                val intel = FishingIntelRoutes.getSpotIntel(spotId, since, tzOffset)
                 if (intel != null) {
                     call.respond(intel)
                 } else {

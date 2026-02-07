@@ -110,7 +110,11 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   Future<void> _loadFishingIntel() async {
     setState(() => _fishingIntelLoading = true);
     try {
-      final response = await _fishingIntelService.getSpotIntel(widget.spotId);
+      final tzOffset = DateTime.now().timeZoneOffset.inHours;
+      final response = await _fishingIntelService.getSpotIntel(
+        widget.spotId,
+        tzOffset: tzOffset,
+      );
       if (mounted) {
         setState(() {
           _fishingIntel = response;
@@ -1068,32 +1072,21 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           ),
           const SizedBox(height: 16),
         ],
-        // What's being caught — one list (desirability order), then Recent. Simple.
-        if (intel.speciesList.isNotEmpty || intel.recentCatches.isNotEmpty) ...[
-          _buildSectionHeader('WHAT\'S BEING CAUGHT'),
-          const SizedBox(height: 4),
+        // What's being caught — one list, desirability order.
+        if (intel.speciesList.isNotEmpty) ...[
           Text(
-            'Last 24h vs 6-day average',
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+            'Last 24hr » Catch Numbers',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 12),
-          if (intel.speciesList.isNotEmpty)
-            ...intel.speciesList.map((s) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: _buildSpeciesRow(s),
-            )),
-          if (intel.recentCatches.isNotEmpty) ...[
-            if (intel.speciesList.isNotEmpty) const SizedBox(height: 16),
-            Text(
-              'Recent',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 8),
-            ...intel.recentCatches.map((c) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: _buildRecentCatchCard(c),
-            )),
-          ],
+          ...intel.speciesList.map((s) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _buildSpeciesRow(s),
+          )),
           const SizedBox(height: 16),
         ],
         // Attribution

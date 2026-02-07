@@ -348,6 +348,7 @@ object FishingIntelDb {
                         sourceId = row[FishingIntelReportsTable.sourceId],
                         url = row[FishingIntelReportsTable.url],
                         publishedAt = row[FishingIntelReportsTable.publishedAt]?.toInstant(ZoneOffset.UTC),
+                        observedAt = row[FishingIntelReportsTable.observedAt]?.toInstant(ZoneOffset.UTC),
                         reportType = ReportType.valueOf(row[FishingIntelReportsTable.reportType]),
                         title = row[FishingIntelReportsTable.title],
                         rawExcerpt = row[FishingIntelReportsTable.rawExcerpt],

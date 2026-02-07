@@ -99,6 +99,7 @@ data class ReportWithClaims(
     val sourceId: String,
     val url: String,
     val publishedAt: Instant?,
+    val observedAt: Instant? = null,
     val reportType: ReportType,
     val title: String?,
     val rawExcerpt: String?,

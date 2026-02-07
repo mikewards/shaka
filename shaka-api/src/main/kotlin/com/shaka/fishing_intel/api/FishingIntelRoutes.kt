@@ -14,6 +14,7 @@ import java.time.Instant
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 /**
  * API handlers for Fishing Intel endpoints.
@@ -23,6 +24,12 @@ object FishingIntelRoutes {
     private val logger = LoggerFactory.getLogger(FishingIntelRoutes::class.java)
     
     // Source name lookup
+    // Dock/numeric sources: use observedAt (scrape time) for freshness when within 24h
+    private val DOCK_NUMERIC_SOURCES = setOf(
+        "976-tuna", "socal-fish-reports", "san-diego-fish-reports",
+        "22nd-street", "fishermans-landing", "seaforth"
+    )
+
     private val sourceNames = mapOf(
         "socal-fish-reports" to "SoCal Fish Reports",
         "san-diego-fish-reports" to "San Diego Fish Reports",
@@ -35,9 +42,11 @@ object FishingIntelRoutes {
     
     /**
      * Get fishing intel for a spot - with TRENDS!
+     * @param tzOffset UTC offset in hours (e.g. -8 for PST). When null, derived from spot longitude (SolunarClient pattern).
      */
-    fun getSpotIntel(spotId: String, since: String): SpotIntelResponse? {
-        IntelCache.get(spotId, since)?.let { return it }
+    fun getSpotIntel(spotId: String, since: String, tzOffset: Int? = null): SpotIntelResponse? {
+        val cacheKey = "$since:${tzOffset ?: "auto"}"
+        IntelCache.get(spotId, cacheKey)?.let { return it }
         val spot = SpotDatabase.findSpotById(spotId) ?: return null
 
         // Get reports from last 7 days (no arbitrary cap); BD narrative drives most headlines
@@ -55,10 +64,21 @@ object FishingIntelRoutes {
             group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
         }
 
-        val now = Instant.now()
-        val twentyFourHoursAgo = now.minus(Duration.ofHours(24))
-        val recent24h = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) == true }
-        val previous = dedupedReports.filter { it.publishedAt?.isBefore(twentyFourHoursAgo) == true }
+        // Last 24h cutoff in user's local timezone (reuse SolunarClient pattern: derive from lon when not provided)
+        val offset = tzOffset ?: (spot.coordinates.lon / 15).toInt()
+        val userZone = ZoneOffset.ofHours(offset)
+        val nowInUserZone = ZonedDateTime.now(userZone)
+        val twentyFourHoursAgo = nowInUserZone.minusHours(24).toInstant()
+
+        // For dock/numeric sources: use observedAt (scrape time) when within 24h, else publishedAt
+        fun effectiveTimestamp(r: ReportWithClaims): Instant? {
+            val ts = if (r.sourceId in DOCK_NUMERIC_SOURCES && r.observedAt != null && r.observedAt.isAfter(twentyFourHoursAgo))
+                r.observedAt else r.publishedAt
+            return ts
+        }
+
+        val recent24h = dedupedReports.filter { effectiveTimestamp(it)?.isAfter(twentyFourHoursAgo) == true }
+        val previous = dedupedReports.filter { effectiveTimestamp(it)?.isAfter(twentyFourHoursAgo) != true }
 
         val recentCounts = countSpecies(recent24h)
         val previousCounts = countSpecies(previous)
@@ -152,8 +172,9 @@ object FishingIntelRoutes {
             }
         }
 
+        val now = nowInUserZone.toInstant()
         val recentCatches = recent24h.take(10).flatMap { report ->
-            val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
+            val hoursAgo = Duration.between(effectiveTimestamp(report) ?: report.publishedAt ?: now, now).toHours().toInt()
             report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
                 .filter { !it.species!!.contains("total_fish") && !it.species!!.contains("released.") }
@@ -183,7 +204,7 @@ object FishingIntelRoutes {
             totalReports = dedupedReports.size,
             narrativeInsights = narrativeInsights
         )
-        IntelCache.set(spotId, since, response)
+        IntelCache.set(spotId, cacheKey, response)
         return response
     }
 

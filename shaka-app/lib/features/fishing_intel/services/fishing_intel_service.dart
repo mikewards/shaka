@@ -5,9 +5,12 @@ import '../models/fishing_intel_models.dart';
 class FishingIntelService {
   static const _baseUrl = 'https://shaka-production.up.railway.app';
   
-  Future<FishingIntelResponse> getSpotIntel(String spotId, {String since = '72h'}) async {
+  Future<FishingIntelResponse> getSpotIntel(String spotId, {String since = '72h', int? tzOffset}) async {
+    final params = <String, String>{'since': since};
+    if (tzOffset != null) params['tzOffset'] = tzOffset.toString();
+    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
     final response = await http.get(
-      Uri.parse('$_baseUrl/v1/spots/$spotId/intel?since=$since'),
+      Uri.parse('$_baseUrl/v1/spots/$spotId/intel?$query'),
       headers: {'Content-Type': 'application/json'},
     ).timeout(const Duration(seconds: 15));
     
