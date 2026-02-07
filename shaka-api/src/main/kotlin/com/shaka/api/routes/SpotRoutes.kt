@@ -11,6 +11,8 @@ import com.shaka.fishing_intel.api.IngestPostRequest
 import com.shaka.fishing_intel.api.IngestResponse
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.processing.Deduplicator
+import com.shaka.fishing_intel.processing.GeoResolver
+import com.shaka.fishing_intel.processing.ResolvedGeo
 import com.shaka.fishing_intel.processing.SpeciesNormalizer
 import com.shaka.fishing_intel.models.*
 import com.shaka.service.SpotService
@@ -1010,51 +1012,78 @@ fun Application.configureRouting() {
                 val errors = mutableListOf<String>()
                 var saved = 0
                 var skipped = 0
-                
+                val clearSource = call.request.queryParameters["clearSource"]
+                if (clearSource == "bd-outdoors") {
+                    val deleted = FishingIntelDb.deleteReportsBySource("bd-outdoors")
+                    org.slf4j.LoggerFactory.getLogger("SpotRoutes").info("Cleared bd-outdoors before ingest: deleted $deleted reports")
+                }
                 try {
                     val posts = call.receive<List<IngestPostRequest>>()
                     
                     for ((index, post) in posts.withIndex()) {
                         try {
-                            // Parse date - try ISO format, fallback to now
+                            // Parse date: accept ISO-8601 with offset (e.g. -0800). Never use now().
                             val publishedDate = try {
-                                java.time.Instant.parse(post.date)
+                                java.time.OffsetDateTime.parse(post.date).toInstant()
                             } catch (e: Exception) {
-                                java.time.Instant.now()
+                                // OffsetDateTime may reject -0800 (no colon); try with colon in offset
+                                try {
+                                    val normalized = post.date.replace(Regex("([+-])(\\d{2})(\\d{2})$"), "$1$2:$3")
+                                    java.time.OffsetDateTime.parse(normalized).toInstant()
+                                } catch (e2: Exception) {
+                                    errors.add("Post $index (${post.title.take(30)}): invalid date format")
+                                    skipped++
+                                    continue
+                                }
                             }
                             val localDate = java.time.LocalDateTime.ofInstant(
                                 publishedDate, java.time.ZoneOffset.UTC
                             ).toLocalDate()
                             
-                            // Build fingerprint for deduplication
-                            val fingerprint = Deduplicator.buildNarrativeFingerprint(
-                                post.threadUrl,
-                                post.title,
-                                localDate
-                            )
+                            // Fingerprint: reply = thread+post; else narrative (thread, title, date)
+                            val fingerprint = if (post.postRole == "reply" && !post.postUrl.isNullOrBlank()) {
+                                Deduplicator.buildReplyFingerprint(post.threadUrl, post.postUrl)
+                            } else {
+                                Deduplicator.buildNarrativeFingerprint(post.threadUrl, post.title, localDate)
+                            }
                             
-                            // Skip duplicates
                             if (FishingIntelDb.fingerprintExists(fingerprint)) {
                                 skipped++
                                 continue
                             }
                             
-                            // Create report
+                            val lastActivityInstant = post.lastActivityAt?.let { s ->
+                                try {
+                                    java.time.OffsetDateTime.parse(s).toInstant()
+                                } catch (e: Exception) {
+                                    try {
+                                        val norm = s.replace(Regex("([+-])(\\d{2})(\\d{2})$"), "$1$2:$3")
+                                        java.time.OffsetDateTime.parse(norm).toInstant()
+                                    } catch (e2: Exception) {
+                                        null
+                                    }
+                                }
+                            } ?: publishedDate
+                            val reportUrl = post.postUrl?.take(512) ?: post.threadUrl
+                            val threadUrl = post.threadUrl.split("#").first().trimEnd('/').take(512)
                             val report = FishingReport(
                                 sourceId = "bd-outdoors",
-                                url = post.threadUrl,
+                                url = reportUrl,
                                 publishedAt = publishedDate,
                                 observedAt = java.time.Instant.now(),
                                 reportType = ReportType.NARRATIVE,
                                 title = post.title,
                                 rawExcerpt = post.content.take(500),
                                 fingerprint = fingerprint,
-                                confidence = 0.8
+                                confidence = 0.8,
+                                threadZone = post.threadZone,
+                                contentType = post.contentType,
+                                lastActivityAt = lastActivityInstant,
+                                threadUrl = threadUrl
                             )
                             
                             val reportId = FishingIntelDb.saveReport(report)
                             
-                            // Save claims for each species mentioned
                             for (species in post.speciesMentioned) {
                                 val normalizedSpecies = SpeciesNormalizer.normalize(species)
                                 val claim = FishingClaim(
@@ -1066,13 +1095,14 @@ fun Application.configureRouting() {
                                 FishingIntelDb.saveClaim(reportId, claim)
                             }
                             
-                            // Geotag to San Diego as regional hub (150km radius)
+                            val geo = GeoResolver.resolve("bd-outdoors", post.threadZone, post.locationMentioned)
+                                ?: ResolvedGeo(32.7157, -117.1611, 150_000, GeoType.REGION_FALLBACK)
                             FishingIntelDb.saveReportGeo(
                                 reportId = reportId,
-                                lat = 32.7157,
-                                lon = -117.1611,
-                                geoType = GeoType.REGION_FALLBACK,
-                                radiusM = 150000
+                                lat = geo.lat,
+                                lon = geo.lon,
+                                geoType = geo.geoType,
+                                radiusM = geo.radiusM
                             )
                             
                             saved++

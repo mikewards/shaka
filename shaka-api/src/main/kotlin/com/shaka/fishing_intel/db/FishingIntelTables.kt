@@ -43,6 +43,10 @@ object FishingIntelReportsTable : IntIdTable("fishing_intel_reports", "report_id
     val rawExcerpt = text("raw_excerpt").nullable()
     val canonicalFingerprint = varchar("canonical_fingerprint", 64).nullable()
     val confidence = decimal("confidence", 3, 2).default(java.math.BigDecimal.ONE)
+    val threadZone = varchar("thread_zone", 50).nullable()
+    val contentType = varchar("content_type", 30).nullable()
+    val lastActivityAt = datetime("last_activity_at").nullable()
+    val threadUrl = varchar("thread_url", 512).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
 }
 

@@ -60,6 +60,14 @@ object Deduplicator {
         }
         return sha256(normalized)
     }
+
+    /**
+     * Build fingerprint for a reply post (dedupe by thread + post).
+     */
+    fun buildReplyFingerprint(threadUrl: String, postUrl: String): String {
+        val normalized = normalize(threadUrl) + "|" + normalize(postUrl)
+        return sha256(normalized)
+    }
     
     /**
      * Normalize a string for consistent comparison.

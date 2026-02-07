@@ -64,7 +64,11 @@ data class FishingReport(
     val title: String?,
     val rawExcerpt: String?,
     val fingerprint: String,
-    val confidence: Double = 1.0
+    val confidence: Double = 1.0,
+    val threadZone: String? = null,
+    val contentType: String? = null,
+    val lastActivityAt: Instant? = null,
+    val threadUrl: String? = null
 )
 
 /**

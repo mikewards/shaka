@@ -157,6 +157,7 @@ data class ToggleSourceResponse(
 
 /**
  * Request model for ingesting scraped forum posts from local scraper.
+ * Optional fields (threadZone, postUrl, postRole, etc.) are region-agnostic; same shape for any BD forum.
  */
 @Serializable
 data class IngestPostRequest(
@@ -165,9 +166,16 @@ data class IngestPostRequest(
     val author: String,
     val date: String,  // ISO-8601 format: "2026-02-06T12:00:00Z"
     val content: String,
-    val speciesMentioned: List<String>,
+    val speciesMentioned: List<String> = emptyList(),
     val locationMentioned: String? = null,
-    val forumName: String
+    val forumName: String,
+    // Optional normalized fields (all geos)
+    val threadZone: String? = null,
+    val postUrl: String? = null,
+    val postRole: String? = null,
+    val contentType: String? = null,
+    val replyCount: Int? = null,
+    val lastActivityAt: String? = null
 )
 
 /**

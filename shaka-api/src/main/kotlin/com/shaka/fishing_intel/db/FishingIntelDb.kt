@@ -4,6 +4,7 @@ import com.shaka.fishing_intel.models.*
 import com.shaka.fishing_intel.processing.SoCalLandings
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.sql.Connection
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDateTime
@@ -30,7 +31,42 @@ object FishingIntelDb {
                 FishingIntelLandingsTable,
                 FishingIntelReportGeosTable
             )
+            val conn = this.connection.connection as java.sql.Connection
+            addReportColumnsIfMissing(conn)
             logger.info("Fishing intel tables created/verified")
+        }
+    }
+
+    private fun addReportColumnsIfMissing(conn: Connection) {
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN thread_zone VARCHAR(50)")
+            logger.info("Added column fishing_intel_reports.thread_zone")
+        } catch (e: Exception) {
+            if (!e.message.orEmpty().contains("already exists")) logger.warn("thread_zone column: ${e.message}")
+        }
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN content_type VARCHAR(30)")
+            logger.info("Added column fishing_intel_reports.content_type")
+        } catch (e: Exception) {
+            if (!e.message.orEmpty().contains("already exists")) logger.warn("content_type column: ${e.message}")
+        }
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN last_activity_at TIMESTAMP")
+            logger.info("Added column fishing_intel_reports.last_activity_at")
+        } catch (e: Exception) {
+            if (!e.message.orEmpty().contains("already exists")) logger.warn("last_activity_at column: ${e.message}")
+        }
+        try {
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN thread_url VARCHAR(512)")
+            logger.info("Added column fishing_intel_reports.thread_url")
+        } catch (e: Exception) {
+            if (!e.message.orEmpty().contains("already exists")) logger.warn("thread_url column: ${e.message}")
+        }
+        try {
+            conn.createStatement().execute("CREATE INDEX IF NOT EXISTS fishing_intel_reports_thread_url_idx ON fishing_intel_reports(thread_url)")
+            logger.info("Created index fishing_intel_reports_thread_url_idx")
+        } catch (e: Exception) {
+            logger.warn("thread_url index: ${e.message}")
         }
     }
     
@@ -118,6 +154,10 @@ object FishingIntelDb {
                 it[rawExcerpt] = report.rawExcerpt
                 it[canonicalFingerprint] = report.fingerprint
                 it[confidence] = report.confidence.toBigDecimal()
+                report.threadZone?.let { v -> it[threadZone] = v }
+                report.contentType?.let { v -> it[contentType] = v }
+                report.lastActivityAt?.let { ts -> it[lastActivityAt] = LocalDateTime.ofInstant(ts, ZoneOffset.UTC) }
+                report.threadUrl?.let { v -> it[threadUrl] = v.take(512) }
             }.value
         }
     }
@@ -160,6 +200,20 @@ object FishingIntelDb {
         }
     }
     
+    /**
+     * Delete all reports for a source (e.g. bd-outdoors). Use to clear bad/old data before re-ingest.
+     * Child rows (claims, report_geos) are removed by DB ON DELETE CASCADE.
+     */
+    fun deleteReportsBySource(source: String): Int {
+        return transaction {
+            val conn = this.connection.connection as java.sql.Connection
+            conn.prepareStatement("DELETE FROM fishing_intel_reports WHERE source_id = ?").use { stmt ->
+                stmt.setString(1, source)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
     /**
      * Check if a report fingerprint already exists.
      */

@@ -21,7 +21,8 @@ object FishingIntelRoutes {
         "976-tuna" to "976-TUNA",
         "22nd-street" to "22nd Street Landing",
         "fishermans-landing" to "Fisherman's Landing",
-        "seaforth" to "Seaforth Landing"
+        "seaforth" to "Seaforth Landing",
+        "bd-outdoors" to "BD Outdoors Forums"
     )
     
     // Headlines for hot species

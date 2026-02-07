@@ -2628,6 +2628,10 @@ CREATE TABLE IF NOT EXISTS fishing_intel_reports (
     raw_excerpt TEXT,
     canonical_fingerprint VARCHAR(64),
     confidence DECIMAL(3,2) DEFAULT 1.0,
+    thread_zone VARCHAR(50),
+    content_type VARCHAR(30),
+    last_activity_at TIMESTAMP,
+    thread_url VARCHAR(512),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -2675,6 +2679,7 @@ CREATE TABLE IF NOT EXISTS fishing_intel_report_geos (
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_source_idx ON fishing_intel_reports(source_id);
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_fingerprint_idx ON fishing_intel_reports(canonical_fingerprint);
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_published_idx ON fishing_intel_reports(published_at DESC);
+CREATE INDEX IF NOT EXISTS fishing_intel_reports_thread_url_idx ON fishing_intel_reports(thread_url);
 CREATE INDEX IF NOT EXISTS fishing_intel_claims_report_idx ON fishing_intel_claims(report_id);
 CREATE INDEX IF NOT EXISTS fishing_intel_claims_species_idx ON fishing_intel_claims(species);
 CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_report_idx ON fishing_intel_report_geos(report_id);
