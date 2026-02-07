@@ -44,6 +44,23 @@ object Deduplicator {
     }
     
     /**
+     * Get fingerprint for a report: use existing canonical fingerprint if set,
+     * otherwise compute from landing, boat, trip type, date, anglers, and fish counts.
+     */
+    fun getReportFingerprint(
+        existing: String?,
+        landingName: String?,
+        boatName: String?,
+        tripType: String?,
+        date: LocalDate,
+        anglerCount: Int?,
+        fishCounts: List<FishCount>
+    ): String {
+        if (!existing.isNullOrBlank()) return existing
+        return buildFingerprint(landingName, boatName, tripType, date, anglerCount, fishCounts)
+    }
+    
+    /**
      * Build fingerprint for a narrative report (less structured).
      */
     fun buildNarrativeFingerprint(

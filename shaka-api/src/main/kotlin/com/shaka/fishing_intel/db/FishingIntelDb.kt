@@ -223,6 +223,36 @@ object FishingIntelDb {
     }
 
     /**
+     * Backfill default SoCal geo for any BD Outdoors report that has no row in fishing_intel_report_geos.
+     * Call once (e.g. on startup or migration) so all BD reports are eligible for getReportsNearby.
+     */
+    fun backfillBdOutdoorsGeos(): Int {
+        return transaction {
+            val bdReportIds = FishingIntelReportsTable
+                .slice(FishingIntelReportsTable.id)
+                .select { FishingIntelReportsTable.sourceId eq "bd-outdoors" }
+                .map { it[FishingIntelReportsTable.id].value }
+            val reportIdsWithGeo = FishingIntelReportGeosTable
+                .slice(FishingIntelReportGeosTable.reportId)
+                .selectAll()
+                .map { it[FishingIntelReportGeosTable.reportId] }
+                .toSet()
+            val missing = bdReportIds.filter { it !in reportIdsWithGeo }
+            missing.forEach { reportId ->
+                FishingIntelReportGeosTable.insert {
+                    it[FishingIntelReportGeosTable.reportId] = reportId
+                    it[FishingIntelReportGeosTable.latitude] = 32.7157
+                    it[FishingIntelReportGeosTable.longitude] = -117.1611
+                    it[FishingIntelReportGeosTable.geoType] = GeoType.REGION_FALLBACK.name
+                    it[FishingIntelReportGeosTable.radiusM] = 150000
+                }
+            }
+            logger.info("Backfilled geo for ${missing.size} BD Outdoors reports")
+            missing.size
+        }
+    }
+
+    /**
      * Check if a report fingerprint already exists.
      */
     fun fingerprintExists(fingerprint: String): Boolean {
@@ -265,7 +295,6 @@ object FishingIntelDb {
                     (FishingIntelReportsTable.publishedAt greaterEq cutoff)
                 }
                 .orderBy(FishingIntelReportsTable.publishedAt, SortOrder.DESC)
-                .limit(50)
                 .map { row ->
                     val reportId = row[FishingIntelReportsTable.id].value
                     val claims = FishingIntelClaimsTable
@@ -296,6 +325,9 @@ object FishingIntelDb {
                         title = row[FishingIntelReportsTable.title],
                         rawExcerpt = row[FishingIntelReportsTable.rawExcerpt],
                         confidence = row[FishingIntelReportsTable.confidence].toDouble(),
+                        threadUrl = row[FishingIntelReportsTable.threadUrl],
+                        threadZone = row[FishingIntelReportsTable.threadZone],
+                        canonicalFingerprint = row[FishingIntelReportsTable.canonicalFingerprint],
                         claims = claims
                     )
                 }

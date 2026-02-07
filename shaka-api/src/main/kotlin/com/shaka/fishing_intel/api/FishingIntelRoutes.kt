@@ -1,11 +1,17 @@
 package com.shaka.fishing_intel.api
 
+import com.shaka.data.cache.IntelCache
 import com.shaka.data.client.SpotDatabase
+import com.shaka.fishing_intel.SpeciesTier
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
+import com.shaka.fishing_intel.processing.Deduplicator
+import com.shaka.fishing_intel.processing.SoCalGazetteer
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * API handlers for Fishing Intel endpoints.
@@ -25,73 +31,54 @@ object FishingIntelRoutes {
         "bd-outdoors" to "BD Outdoors Forums"
     )
     
-    // Headlines for hot species
-    private val fireMessages = listOf(
-        "%s ARE FIRING!",
-        "%s ARE ON FIRE!",
-        "%s BITE IS HOT!",
-        "THE %s BITE IS ON!"
-    )
-    
     /**
      * Get fishing intel for a spot - with TRENDS!
      */
     fun getSpotIntel(spotId: String, since: String): SpotIntelResponse? {
+        IntelCache.get(spotId, since)?.let { return it }
         val spot = SpotDatabase.findSpotById(spotId) ?: return null
-        
-        // Get reports from last 72h to calculate trends
-        // Use 150km radius to include offshore long-range reports for all SoCal spots
+
+        // Get reports from last 7 days (no arbitrary cap); BD narrative drives most headlines
         val allReports = FishingIntelDb.getReportsNearby(
             spot.coordinates.lat,
             spot.coordinates.lon,
             radiusKm = 150,
-            hoursBack = 72
+            hoursBack = 168
         )
-        
+
         if (allReports.isEmpty()) return null
-        
+
+        // Dedupe by fingerprint so each logical report counts once
+        val dedupedReports = allReports.groupBy { reportFingerprint(it) }.values.map { group ->
+            group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
+        }
+
         val now = Instant.now()
         val twentyFourHoursAgo = now.minus(Duration.ofHours(24))
-        
-        // Split into recent (24h) and previous (24-72h)
-        val recent24h = allReports.filter { report ->
-            report.publishedAt?.isAfter(twentyFourHoursAgo) == true
-        }
-        val previous = allReports.filter { report ->
-            report.publishedAt?.isBefore(twentyFourHoursAgo) == true
-        }
-        
-        // Count species in each period
+        val recent24h = dedupedReports.filter { it.publishedAt?.isAfter(twentyFourHoursAgo) == true }
+        val previous = dedupedReports.filter { it.publishedAt?.isBefore(twentyFourHoursAgo) == true }
+
         val recentCounts = countSpecies(recent24h)
         val previousCounts = countSpecies(previous)
-        
-        // Calculate trends
+
         val allSpecies = (recentCounts.keys + previousCounts.keys).distinct()
         val trends = allSpecies.mapNotNull { species ->
-            // Skip weird parsed artifacts
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
-            
             val recent = recentCounts[species] ?: SpeciesAgg()
             val prev = previousCounts[species] ?: SpeciesAgg()
-            
             val recentTotal = recent.kept + recent.released
             val prevTotal = prev.kept + prev.released
-            
-            // Need some activity to be relevant
             if (recentTotal == 0 && prevTotal == 0) return@mapNotNull null
-            
             val percentChange = when {
-                prevTotal == 0 && recentTotal > 0 -> 999  // New activity!
+                prevTotal == 0 && recentTotal > 0 -> 999
                 prevTotal == 0 -> 0
                 else -> ((recentTotal - prevTotal) * 100) / prevTotal
             }
-            
             val trend = when {
                 percentChange > 20 -> "UP"
                 percentChange < -20 -> "DOWN"
                 else -> "STABLE"
             }
-            
             TrendingSpeciesResponse(
                 species = formatSpeciesName(species),
                 count24h = recentTotal,
@@ -101,29 +88,43 @@ object FishingIntelRoutes {
                 topLanding = recent.topLanding ?: prev.topLanding
             )
         }.sortedByDescending { it.count24h }
-        
-        // Separate hot (UP) and cold (DOWN)
-        val hotSpecies = trends.filter { it.trend == "UP" && it.count24h > 0 }.take(5)
+
+        val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
+        val hotSpecies = trends
+            .filter { it.trend == "UP" && it.count24h > 0 }
+            .sortedWith(compareByDescending<TrendingSpeciesResponse> { it.species in trophyDisplayNames }.thenByDescending { it.count24h })
+            .take(5)
         val coldSpecies = trends.filter { it.trend == "DOWN" }.take(3)
-        
-        // Build headline from the hottest species
-        val headline = hotSpecies.firstOrNull()?.let { top ->
-            val heatLevel = when {
-                top.percentChange > 200 -> 3  // ON FIRE
-                top.percentChange > 100 -> 2  // HOT
-                else -> 1  // WARM
-            }
-            val message = fireMessages.random().format(top.species.uppercase())
-            HeadlineResponse(
-                species = top.species,
-                message = message,
-                heatLevel = heatLevel,
-                count24h = top.count24h,
-                topLanding = top.topLanding
+
+        val narrativeInsights = buildNarrativeInsights(dedupedReports)
+
+        // BD narrative = where most headlines come from; dock counts = pure stats unless wild anomaly
+        val headline = when {
+            narrativeInsights.isNotEmpty() -> HeadlineResponse(
+                species = narrativeInsights.first().species,
+                message = "${narrativeInsights.first().species} at ${narrativeInsights.first().location}",
+                heatLevel = 1,
+                count24h = 0,
+                topLanding = null
             )
+            else -> {
+                val trophyUp = trends
+                    .filter { it.trend == "UP" && it.count24h > 0 && it.species in trophyDisplayNames }
+                    .sortedByDescending { it.count24h }
+                    .firstOrNull()
+                // Only use dock-based headline for a clear anomaly (huge count or massive % change)
+                if (trophyUp != null && (trophyUp.count24h >= 10 || trophyUp.percentChange > 200)) {
+                    HeadlineResponse(
+                        species = trophyUp.species,
+                        message = "${trophyUp.species} activity at ${trophyUp.topLanding ?: "local waters"}",
+                        heatLevel = if (trophyUp.percentChange > 100) 2 else 1,
+                        count24h = trophyUp.count24h,
+                        topLanding = trophyUp.topLanding
+                    )
+                } else null
+            }
         }
-        
-        // Build recent catches list
+
         val recentCatches = recent24h.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
             report.claims
@@ -140,10 +141,10 @@ object FishingIntelRoutes {
                     )
                 }
         }.take(5)
-        
-        val sourcesUsed = allReports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
-        
-        return SpotIntelResponse(
+
+        val sourcesUsed = dedupedReports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
+
+        val response = SpotIntelResponse(
             spotId = spotId,
             headline = headline,
             hotSpecies = hotSpecies,
@@ -151,8 +152,55 @@ object FishingIntelRoutes {
             recentCatches = recentCatches,
             sourcesUsed = sourcesUsed,
             dataFreshness = Instant.now().toString(),
-            totalReports = allReports.size
+            totalReports = dedupedReports.size,
+            narrativeInsights = narrativeInsights
         )
+        IntelCache.set(spotId, since, response)
+        return response
+    }
+
+    private fun reportFingerprint(report: ReportWithClaims): String {
+        val fishCounts = report.claims
+            .filter { it.claimType == ClaimType.CATCH && it.species != null }
+            .map { FishCount(it.species!!, it.countKept ?: 0, it.countReleased ?: 0) }
+        val firstWithMeta = report.claims.firstOrNull { it.landingName != null || it.boatName != null || it.tripType != null }
+        val landingName = firstWithMeta?.landingName
+        val boatName = firstWithMeta?.boatName ?: report.claims.firstOrNull()?.boatName
+        val tripType = firstWithMeta?.tripType ?: report.claims.firstOrNull()?.tripType
+        val anglerCount = report.claims.firstOrNull()?.anglerCount
+        val date = report.publishedAt?.atZone(ZoneOffset.UTC)?.toLocalDate() ?: LocalDate.now(ZoneOffset.UTC)
+        return Deduplicator.getReportFingerprint(
+            report.canonicalFingerprint,
+            landingName,
+            boatName,
+            tripType,
+            date,
+            anglerCount,
+            fishCounts
+        )
+    }
+
+    private fun buildNarrativeInsights(reports: List<ReportWithClaims>): List<NarrativeInsight> {
+        val bdReports = reports.filter { it.sourceId == "bd-outdoors" }
+        val eligible = bdReports.mapNotNull { report ->
+            val location = report.threadZone?.takeIf { it.isNotBlank() }
+                ?: SoCalGazetteer.findInText(report.rawExcerpt ?: "").firstOrNull()?.name
+                ?: SoCalGazetteer.findInText(report.title ?: "").firstOrNull()?.name
+            if (location.isNullOrBlank()) return@mapNotNull null
+            val trophyClaim = report.claims
+                .filter { it.claimType == ClaimType.CATCH && it.species != null && it.species in SpeciesTier.TROPHY_SPECIES }
+                .firstOrNull()
+            if (trophyClaim == null) return@mapNotNull null
+            NarrativeInsight(
+                species = formatSpeciesName(trophyClaim.species!!),
+                location = location,
+                excerpt = (report.rawExcerpt ?: "").take(200),
+                sourceName = sourceNames[report.sourceId] ?: report.sourceId,
+                threadUrl = report.threadUrl ?: report.url,
+                publishedAt = report.publishedAt?.toString() ?: ""
+            )
+        }
+        return eligible.sortedByDescending { it.publishedAt }.take(3)
     }
     
     /**

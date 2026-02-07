@@ -21,7 +21,8 @@ data class SpotIntelResponse(
     // Meta
     val sourcesUsed: List<String>,
     val dataFreshness: String,
-    val totalReports: Int
+    val totalReports: Int,
+    val narrativeInsights: List<NarrativeInsight> = emptyList()
 )
 
 @Serializable
@@ -51,6 +52,16 @@ data class RecentCatchResponse(
     val landingName: String,
     val hoursAgo: Int,
     val sourceName: String
+)
+
+@Serializable
+data class NarrativeInsight(
+    val species: String,
+    val location: String,
+    val excerpt: String,
+    val sourceName: String,
+    val threadUrl: String,
+    val publishedAt: String
 )
 
 // Legacy response types (keep for backwards compat)

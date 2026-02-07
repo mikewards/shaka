@@ -1,3 +1,33 @@
+/// Narrative insight: "where it's firing" from BD Outdoors etc.
+class NarrativeInsight {
+  final String species;
+  final String location;
+  final String excerpt;
+  final String sourceName;
+  final String threadUrl;
+  final String publishedAt;
+
+  const NarrativeInsight({
+    required this.species,
+    required this.location,
+    required this.excerpt,
+    required this.sourceName,
+    required this.threadUrl,
+    required this.publishedAt,
+  });
+
+  factory NarrativeInsight.fromJson(Map<String, dynamic> json) {
+    return NarrativeInsight(
+      species: json['species'] ?? '',
+      location: json['location'] ?? '',
+      excerpt: json['excerpt'] ?? '',
+      sourceName: json['sourceName'] ?? '',
+      threadUrl: json['threadUrl'] ?? '',
+      publishedAt: json['publishedAt'] ?? '',
+    );
+  }
+}
+
 /// Fishing intel response - focused on what's HOT!
 class FishingIntelResponse {
   final String spotId;
@@ -8,6 +38,7 @@ class FishingIntelResponse {
   final List<String> sourcesUsed;
   final String dataFreshness;
   final int totalReports;
+  final List<NarrativeInsight> narrativeInsights;
 
   const FishingIntelResponse({
     required this.spotId,
@@ -18,6 +49,7 @@ class FishingIntelResponse {
     required this.sourcesUsed,
     required this.dataFreshness,
     required this.totalReports,
+    this.narrativeInsights = const [],
   });
 
   factory FishingIntelResponse.fromJson(Map<String, dynamic> json) {
@@ -38,10 +70,13 @@ class FishingIntelResponse {
       sourcesUsed: (json['sourcesUsed'] as List? ?? []).cast<String>(),
       dataFreshness: json['dataFreshness'] ?? '',
       totalReports: json['totalReports'] ?? 0,
+      narrativeInsights: (json['narrativeInsights'] as List? ?? [])
+          .map((e) => NarrativeInsight.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
   
-  bool get hasData => headline != null || hotSpecies.isNotEmpty || recentCatches.isNotEmpty;
+  bool get hasData => headline != null || hotSpecies.isNotEmpty || recentCatches.isNotEmpty || narrativeInsights.isNotEmpty;
 }
 
 /// The headline - what's the #1 story?

@@ -101,6 +101,9 @@ data class ReportWithClaims(
     val title: String?,
     val rawExcerpt: String?,
     val confidence: Double,
+    val threadUrl: String? = null,
+    val threadZone: String? = null,
+    val canonicalFingerprint: String? = null,
     val claims: List<FishingClaim>
 )
 

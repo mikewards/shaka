@@ -196,6 +196,7 @@ private fun Application.configureScheduledJobs() {
         FishingIntelDb.createTablesIfNotExists()
         FishingIntelDb.seedLandings()
         FishingIntelDb.seedSources()
+        FishingIntelDb.backfillBdOutdoorsGeos()
         logger.info("Fishing intel tables initialized")
     } catch (e: Exception) {
         logger.error("Failed to initialize fishing intel tables: ${e.message}")

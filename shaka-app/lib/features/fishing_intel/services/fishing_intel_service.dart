@@ -25,6 +25,7 @@ class FishingIntelService {
         sourcesUsed: [],
         dataFreshness: DateTime.now().toIso8601String(),
         totalReports: 0,
+        narrativeInsights: [],
       );
     } else {
       throw Exception('Failed to load fishing intel: ${response.statusCode}');

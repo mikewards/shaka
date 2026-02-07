@@ -1052,13 +1052,28 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // HEADLINE - The big story
-        if (intel.headline != null) ...[
+        // WHERE IT'S FIRING - Narrative insights (black-swan)
+        if (intel.narrativeInsights.isNotEmpty) ...[
+          ...intel.narrativeInsights.map((insight) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildNarrativeInsightCard(insight),
+          )),
+          const SizedBox(height: 20),
+        ],
+        // HEADLINE - Only show if real signal (not baseline hype from old API)
+        if (intel.headline != null && _isRealHeadline(intel.headline!)) ...[
           _buildHeadlineCard(intel.headline!),
           const SizedBox(height: 20),
         ],
-        
-        // HOT SPECIES - Trending UP
+        // Light activity when no headline or headline was suppressed (e.g. "Calico Bass Bite is on")
+        if ((intel.headline == null || !_isRealHeadline(intel.headline!)) && intel.hasData) ...[
+          Text(
+            'Light activity — no standout bite.',
+            style: TextStyle(color: Colors.grey[500], fontSize: 14, fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 16),
+        ],
+        // TRENDING UP
         if (intel.hotSpecies.isNotEmpty) ...[
           _buildSectionHeader('TRENDING UP'),
           const SizedBox(height: 10),
@@ -1068,8 +1083,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           )),
           const SizedBox(height: 16),
         ],
-        
-        // COLD SPECIES - Trending DOWN
+        // SLOWING DOWN
         if (intel.coldSpecies.isNotEmpty) ...[
           _buildSectionHeader('SLOWING DOWN'),
           const SizedBox(height: 10),
@@ -1079,10 +1093,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           )),
           const SizedBox(height: 16),
         ],
-        
-        // RECENT CATCHES
+        // RECENT CATCHES (Also reported) - de-emphasized
         if (intel.recentCatches.isNotEmpty) ...[
-          _buildSectionHeader('RECENT CATCHES'),
+          _buildSectionHeader('Also reported'),
           const SizedBox(height: 10),
           ...intel.recentCatches.map((c) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -1090,7 +1103,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           )),
           const SizedBox(height: 16),
         ],
-        
         // Attribution
         Text(
           '${intel.totalReports} reports from ${intel.sourcesUsed.join(", ")}',
@@ -1100,59 +1112,106 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ],
     );
   }
+
+  /// Suppress baseline/hype headlines from old API (e.g. "The Calico Bass Bite is on!").
+  bool _isRealHeadline(Headline headline) {
+    final msg = headline.message.toLowerCase();
+    if (headline.species == 'Calico Bass') return false;
+    if (msg.contains('bite is on') || msg.contains('are firing')) return false;
+    return true;
+  }
+
+  Widget _buildNarrativeInsightCard(NarrativeInsight insight) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${insight.species} at ${insight.location}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (insight.excerpt.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              insight.excerpt,
+              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                insight.sourceName,
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: () async {
+                  final uri = Uri.parse(insight.threadUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Read report',
+                  style: TextStyle(color: AppColors.coral, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
   
-  /// Big headline card when something is FIRING
+  /// Headline card — restrained, no fire emojis (Quiet Luxury tone)
   Widget _buildHeadlineCard(Headline headline) {
-    final fireEmoji = headline.heatLevel >= 3 
-        ? '🔥🔥🔥' 
-        : headline.heatLevel >= 2 
-            ? '🔥🔥' 
-            : '🔥';
-    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF8B0000).withOpacity(0.3),
-            const Color(0xFFFF4500).withOpacity(0.2),
-          ],
-        ),
+        color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFF4500).withOpacity(0.5), width: 2),
+        border: Border.all(color: AppColors.coral.withOpacity(0.4)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            fireEmoji,
-            style: const TextStyle(fontSize: 32),
-          ),
-          const SizedBox(height: 8),
           Text(
             headline.message,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${headline.count24h} caught in last 24h',
-            style: TextStyle(
-              color: Colors.orange[300],
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
             ),
           ),
+          if (headline.count24h > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${headline.count24h} in last 24h',
+              style: TextStyle(color: AppColors.scoreGood, fontSize: 14),
+            ),
+          ],
           if (headline.topLanding != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Hot at ${headline.topLanding}',
+              'At ${headline.topLanding}',
               style: TextStyle(color: Colors.grey[400], fontSize: 13),
             ),
           ],
@@ -1261,7 +1320,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ),
       child: Row(
         children: [
-          const Text('🐟', style: TextStyle(fontSize: 20)),
+          Icon(Icons.phishing, size: 18, color: Colors.grey[500]),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
