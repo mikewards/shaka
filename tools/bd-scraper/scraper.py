@@ -672,8 +672,13 @@ def send_to_api(posts: List[Dict], dry_run: bool = False, clear_bd_first: bool =
             print(f"    [+] Success!")
             print(f"        Saved: {result.get('saved', 0)}")
             print(f"        Skipped: {result.get('skipped', 0)}")
-            if result.get('errors'):
-                print(f"        Errors: {len(result['errors'])}")
+            errs = result.get("errors") or []
+            if errs:
+                print(f"        Errors: {len(errs)}")
+                for i, msg in enumerate(errs[:5], 1):
+                    print(f"        [{i}] {msg}")
+                if len(errs) > 5:
+                    print(f"        ... and {len(errs) - 5} more")
             return True
         else:
             print(f"    [-] API error: {resp.status_code}")

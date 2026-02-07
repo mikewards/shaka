@@ -69,10 +69,10 @@ object FishingIntelDb {
             logger.warn("thread_url index: ${e.message}")
         }
         try {
-            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN tldr TEXT")
-            logger.info("Added column fishing_intel_reports.tldr")
+            conn.createStatement().execute("ALTER TABLE fishing_intel_reports ADD COLUMN IF NOT EXISTS tldr TEXT")
+            logger.info("Added column fishing_intel_reports.tldr (if missing)")
         } catch (e: Exception) {
-            if (!e.message.orEmpty().contains("already exists")) logger.warn("tldr column: ${e.message}")
+            logger.warn("tldr column: ${e.message}")
         }
     }
     
