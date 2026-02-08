@@ -356,6 +356,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (visible.isNotEmpty && _carouselController.hasClients) {
           _carouselController.jumpToPage(0);
         }
+        
+        // Highlight first spot on map
+        _updateSelectedMarker();
       }
       
       debugPrint('🗺️ Viewport: ${visible.length}/${_allSpots.length} spots visible');
@@ -528,6 +531,58 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return '#${color.value.toRadixString(16).substring(2)}';
   }
 
+  /// Highlight the selected spot on the map with a glow ring behind it.
+  Future<void> _updateSelectedMarker() async {
+    if (_mapController == null) return;
+
+    // Remove old highlight
+    try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
+
+    if (_mapController == null) return;
+    if (_selectedSpotIndex == null || _selectedSpotIndex! >= _visibleSpots.length) return;
+
+    final spot = _visibleSpots[_selectedSpotIndex!];
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': [
+        {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
+          },
+          'properties': {},
+        },
+      ],
+    };
+
+    try {
+      await _mapController!.addSource(
+        'selected-spot-source',
+        GeojsonSourceProperties(data: geojson),
+      );
+
+      if (_mapController == null) return;
+
+      await _mapController!.addCircleLayer(
+        'selected-spot-source',
+        'selected-spot-layer',
+        const CircleLayerProperties(
+          circleRadius: 24,
+          circleColor: '#7A9BB8',
+          circleOpacity: 0.25,
+          circleStrokeColor: '#7A9BB8',
+          circleStrokeWidth: 2.5,
+          circleStrokeOpacity: 0.7,
+        ),
+        belowLayerId: 'spots-layer',
+      );
+    } catch (e) {
+      debugPrint('Failed to update selected marker: $e');
+    }
+  }
+
   void _onSpotSelected(int index) {
     if (index == _selectedSpotIndex) return;
     
@@ -535,11 +590,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_isFromMarkerTap) {
       _isFromMarkerTap = false;
       setState(() => _selectedSpotIndex = index);
+      _updateSelectedMarker();
       return;
     }
     
     HapticFeedback.selectionClick();
     setState(() => _selectedSpotIndex = index);
+    _updateSelectedMarker();
     
     // Animate to selected spot (no markers rebuild needed)
     _mapAnimationDebounce?.cancel();
@@ -620,6 +677,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Spot is in carousel - just select it
       _isFromMarkerTap = true;
       setState(() => _selectedSpotIndex = visibleIndex);
+      _updateSelectedMarker();
       
       _carouselController.animateToPage(
         visibleIndex,

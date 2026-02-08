@@ -857,8 +857,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
     
     if (tappedSpot != null) {
+      _highlightSpot(tappedSpot);
       if (tappedSpot.shakaScore == null) {
-        // Spot is still loading -- block entry
+        // Spot is still loading -- block entry but highlight it
         HapticFeedback.lightImpact();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -876,7 +877,59 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
   }
 
+  /// Highlight a selected spot on the map with a glow ring behind it.
+  Future<void> _highlightSpot(UserSpotResponse spot) async {
+    if (_mapController == null) return;
+
+    // Remove old highlight
+    try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
+
+    if (_mapController == null) return;
+
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': [
+        {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [spot.longitude, spot.latitude],
+          },
+          'properties': {},
+        },
+      ],
+    };
+
+    try {
+      await _mapController!.addSource(
+        'selected-spot-source',
+        GeojsonSourceProperties(data: geojson),
+      );
+
+      if (_mapController == null) return;
+
+      await _mapController!.addCircleLayer(
+        'selected-spot-source',
+        'selected-spot-layer',
+        const CircleLayerProperties(
+          circleRadius: 24,
+          circleColor: '#7A9BB8',
+          circleOpacity: 0.25,
+          circleStrokeColor: '#7A9BB8',
+          circleStrokeWidth: 2.5,
+          circleStrokeOpacity: 0.7,
+        ),
+        belowLayerId: 'saved-spots-layer',
+      );
+    } catch (e) {
+      debugPrint('Failed to highlight spot: $e');
+    }
+  }
+
   Future<void> _removeSpotMarkers() async {
+    try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
     try { await _mapController?.removeLayer('saved-spots-labels'); } catch (_) {}
     try { await _mapController?.removeLayer('saved-spots-layer'); } catch (_) {}
     try { await _mapController?.removeSource('saved-spots-source'); } catch (_) {}
