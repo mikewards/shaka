@@ -448,7 +448,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           'id': spot.id,
           'name': spot.name,
           'score': score.toString(),
-          'sortKey': score,
+          'sortKey': -score,
           'color': color,
           'radius': 14,
           'strokeWidth': 2,
@@ -497,7 +497,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       // Check after await
       if (_mapController == null) return;
       
-      // Score labels only when zoomed in (minzoom 12) so overlapping bubbles don't show scores.
+      // Score labels visible from zoom 6; textPadding matches circle radius so
+      // collision zone = visual circle. Higher scores win (sortKey negated above).
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-labels',
@@ -510,9 +511,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
           textHaloWidth: 1.0,
           textAllowOverlap: false,
           textIgnorePlacement: false,
+          textPadding: 14,
           symbolSortKey: ['get', 'sortKey'],
         ),
-        minzoom: 12,
+        minzoom: 6,
       );
       
       debugPrint('🗺️ Rendered ${spots.length} spot markers');

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/services/map_background_service.dart';
 
 /// Location picker with Quiet Luxury styling.
 /// Text-based, no icons - clean and minimal.
@@ -311,6 +312,16 @@ class _DropPinScreenState extends State<_DropPinScreen> {
     if (pos != null) setState(() => _currentCenter = pos.target);
   }
 
+  void _updateCenterFromCamera() {
+    if (_mapController == null) return;
+    final pos = _mapController!.cameraPosition;
+    if (pos != null &&
+        (pos.target.latitude != _currentCenter.latitude ||
+            pos.target.longitude != _currentCenter.longitude)) {
+      setState(() => _currentCenter = pos.target);
+    }
+  }
+
   void _confirm() {
     HapticFeedback.lightImpact();
     widget.onLocationSelected(
@@ -334,18 +345,22 @@ class _DropPinScreenState extends State<_DropPinScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: MapLibreMap(
-              onMapCreated: _onMapCreated,
-              onCameraIdle: _onCameraIdle,
-              trackCameraPosition: true,
-              initialCameraPosition: CameraPosition(
-                target: _currentCenter,
-                zoom: 8,
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerMove: (_) => _updateCenterFromCamera(),
+              child: MapLibreMap(
+                onMapCreated: _onMapCreated,
+                onCameraIdle: _onCameraIdle,
+                trackCameraPosition: true,
+                initialCameraPosition: CameraPosition(
+                  target: _currentCenter,
+                  zoom: 8,
+                ),
+                styleString: MapBackgroundService.cartoVoyagerStyle,
+                compassEnabled: false,
+                attributionButtonMargins: const Point(-100, -100),
+                logoViewMargins: const Point(-100, -100),
               ),
-              styleString: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-              compassEnabled: false,
-              attributionButtonMargins: const Point(-100, -100),
-              logoViewMargins: const Point(-100, -100),
             ),
           ),
           Positioned(

@@ -706,7 +706,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     final features = _savedSpots.map((spot) {
       final score = spot.shakaScore;
       final hasScore = score != null;
-      final sortKey = score ?? -1;
+      final sortKey = hasScore ? -score! : 1;
       final color = hasScore ? _getScoreColorHex(score!) : '#808080';
       return {
         'type': 'Feature',
@@ -759,7 +759,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     
     if (_mapController == null) return;
     
-    // Score labels only when zoomed in (minzoom 12) so overlapping bubbles don't show scores.
+    // Score labels visible from zoom 6; textPadding matches circle radius so
+    // collision zone = visual circle. Higher scores win (sortKey negated above).
     await _mapController!.addSymbolLayer(
       'saved-spots-source',
       'saved-spots-labels',
@@ -772,9 +773,10 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         textHaloWidth: 1.0,
         textAllowOverlap: false,
         textIgnorePlacement: false,
+        textPadding: 14,
         symbolSortKey: ['get', 'sortKey'],
       ),
-      minzoom: 12,
+      minzoom: 6,
     );
   }
   
