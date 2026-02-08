@@ -236,11 +236,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  spot.bestTimeOfDay,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
               ],
             ),
           ),
@@ -1178,12 +1173,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  spot.bestTimeOfDay,
-                  style:
-                      const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
             ),
