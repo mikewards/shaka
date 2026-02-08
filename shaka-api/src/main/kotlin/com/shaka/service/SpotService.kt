@@ -1004,6 +1004,7 @@ class SpotService {
         // Get MPA data from cache
         val cached = SpotDataCache.get(spotId)
         val mpaCache = cached?.mpa?.value
+        val mpaChecked = cached?.mpa != null  // true when mpa_fetched_at is NOT NULL (fetch was attempted)
         
         // Build MPA status from cache
         val mpaStatus = mpaCache?.let {
@@ -1024,7 +1025,8 @@ class SpotService {
         val links = regulatoryLinks?.jsonObject ?: return RegulationInfo(
             regulatoryAgency = "Local Fisheries Authority",
             regulationsUrl = "https://navigatormap.org/",
-            mpaStatus = mpaStatus
+            mpaStatus = mpaStatus,
+            mpaChecked = mpaChecked
         )
         
         // Try to find region-specific info
@@ -1046,7 +1048,8 @@ class SpotService {
                 regulationsUrl = countryLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                 licensingUrl = countryLinks["licensingUrl"]?.jsonPrimitive?.content,
                 note = countryLinks["note"]?.jsonPrimitive?.content,
-                mpaStatus = mpaStatus
+                mpaStatus = mpaStatus,
+                mpaChecked = mpaChecked
             )
         }
         
@@ -1056,7 +1059,8 @@ class SpotService {
                 regulationsUrl = regionLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                 licensingUrl = regionLinks["licensingUrl"]?.jsonPrimitive?.content,
                 note = regionLinks["note"]?.jsonPrimitive?.content,
-                mpaStatus = mpaStatus
+                mpaStatus = mpaStatus,
+                mpaChecked = mpaChecked
             )
         }
         
@@ -1072,7 +1076,8 @@ class SpotService {
                     regulationsUrl = sectionObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                     licensingUrl = sectionObj["licensingUrl"]?.jsonPrimitive?.content,
                     note = sectionObj["note"]?.jsonPrimitive?.content,
-                    mpaStatus = mpaStatus
+                    mpaStatus = mpaStatus,
+                    mpaChecked = mpaChecked
                 )
             }
             
@@ -1087,7 +1092,8 @@ class SpotService {
                         regulationsUrl = subObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                         licensingUrl = subObj["licensingUrl"]?.jsonPrimitive?.content,
                         note = subObj["note"]?.jsonPrimitive?.content,
-                        mpaStatus = mpaStatus
+                        mpaStatus = mpaStatus,
+                        mpaChecked = mpaChecked
                     )
                 }
             }
@@ -1098,7 +1104,8 @@ class SpotService {
         return RegulationInfo(
             regulatoryAgency = defaultLinks?.get("message")?.jsonPrimitive?.content ?: "Local Fisheries Authority",
             regulationsUrl = defaultLinks?.get("url")?.jsonPrimitive?.content ?: "https://navigatormap.org/",
-            mpaStatus = mpaStatus
+            mpaStatus = mpaStatus,
+            mpaChecked = mpaChecked
         )
     }
     
@@ -1476,7 +1483,8 @@ class SpotService {
             regulations = RegulationInfo(
                 regulatoryAgency = "Local Fisheries Authority",
                 regulationsUrl = "https://navigatormap.org/",
-                mpaStatus = mpaStatus
+                mpaStatus = mpaStatus,
+                mpaChecked = cached?.mpa != null
             )
         )
     }

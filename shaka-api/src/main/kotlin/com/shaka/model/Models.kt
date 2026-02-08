@@ -81,7 +81,8 @@ data class RegulationInfo(
     val regulationsUrl: String,             // Link to official regulations page
     val licensingUrl: String? = null,       // Link to licensing page (if separate)
     val note: String? = null,               // e.g., "Spearfishing prohibited"
-    val mpaStatus: MPAStatus? = null        // From ProtectedSeas API
+    val mpaStatus: MPAStatus? = null,       // From ProtectedSeas API
+    val mpaChecked: Boolean = false         // true when mpa_fetched_at is NOT NULL in cache (MPA check was attempted)
 )
 
 @Serializable

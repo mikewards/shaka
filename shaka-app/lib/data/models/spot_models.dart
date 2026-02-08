@@ -410,6 +410,7 @@ class RegulationInfo {
   final String? licensingUrl;
   final String? note;
   final MPAStatus? mpaStatus;
+  final bool mpaChecked; // true when MPA fetch was attempted (mpa_fetched_at is NOT NULL)
 
   const RegulationInfo({
     required this.regulatoryAgency,
@@ -417,6 +418,7 @@ class RegulationInfo {
     this.licensingUrl,
     this.note,
     this.mpaStatus,
+    this.mpaChecked = false,
   });
 
   factory RegulationInfo.fromJson(Map<String, dynamic> json) {
@@ -428,6 +430,7 @@ class RegulationInfo {
       mpaStatus: json['mpaStatus'] != null
           ? MPAStatus.fromJson(json['mpaStatus'])
           : null,
+      mpaChecked: json['mpaChecked'] as bool? ?? false,
     );
   }
 }

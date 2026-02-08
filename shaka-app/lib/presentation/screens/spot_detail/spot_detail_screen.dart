@@ -83,6 +83,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _userSpotDetail = response.spot;
           _userSpotLoading = false;
         });
+        // If MPA hasn't been checked yet, poll in background until it is
+        if (response.spot.regulations?.mpaChecked == false) {
+          _pollForMPA();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -90,6 +94,29 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _userSpotError = e.toString();
           _userSpotLoading = false;
         });
+      }
+    }
+  }
+
+  /// Re-fetch spot detail in background until MPA data arrives.
+  /// Same pattern as _fetchMissingScores() on the GIBS map for shaka scores.
+  Future<void> _pollForMPA() async {
+    while (mounted) {
+      await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return;
+      try {
+        final response = await _apiClient.getUserSpotDetail(
+          spotId: widget.spotId,
+          date: widget.date,
+        );
+        if (response.spot.regulations?.mpaChecked == true) {
+          if (mounted) {
+            setState(() => _userSpotDetail = response.spot);
+          }
+          return; // MPA data arrived, stop polling
+        }
+      } catch (_) {
+        // Ignore errors, will retry on next poll
       }
     }
   }
@@ -716,11 +743,16 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     // Determine MPA status color and text based on isInsideMPA
     Color statusColor;
     String statusText;
-    IconData statusIcon;
+    IconData? statusIcon;
     String? detailText;
     
-    if (mpa == null || mpa.spearfishingStatus == 0) {
-      // No MPA or spearfishing allowed
+    if (mpa == null && !regulations.mpaChecked) {
+      // MPA check hasn't run yet -- show loading state (not the false "No Restrictions")
+      statusColor = Colors.grey;
+      statusText = 'Checking MPA restrictions...';
+      statusIcon = null; // will render a spinner instead
+    } else if (mpa == null || mpa.spearfishingStatus == 0) {
+      // MPA was checked, no restrictions found (safe to show green)
       statusColor = AppColors.success;
       statusText = 'No MPA restrictions nearby';
       statusIcon = Icons.check_circle;
@@ -768,7 +800,17 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             children: [
               Row(
                 children: [
-                  Icon(statusIcon, color: statusColor, size: 20),
+                  if (statusIcon != null)
+                    Icon(statusIcon, color: statusColor, size: 20)
+                  else
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: statusColor,
+                      ),
+                    ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
