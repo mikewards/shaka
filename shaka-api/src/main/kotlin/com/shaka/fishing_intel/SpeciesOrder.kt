@@ -35,6 +35,7 @@ object SpeciesOrder {
         "spotted_bay_bass",
         "cabezon",
         "skipjack",
+        "mackerel",
         "squid"
     )
 

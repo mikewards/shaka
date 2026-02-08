@@ -21,6 +21,7 @@ object SpeciesNormalizer {
         // Bass variants
         "calico bass" to "calico_bass",
         "calico" to "calico_bass",
+        "calicos" to "calico_bass",
         "kelp bass" to "calico_bass",
         "sand bass" to "sand_bass",
         "spotted bay bass" to "spotted_bay_bass",
@@ -38,6 +39,7 @@ object SpeciesNormalizer {
         // Other pelagics
         "yellowtail" to "yellowtail",
         "yellowtail amberjack" to "yellowtail",
+        "yellowtail released" to "yellowtail",
         "dorado" to "dorado",
         "mahi mahi" to "dorado",
         "mahi" to "dorado",
@@ -48,6 +50,7 @@ object SpeciesNormalizer {
         // Bottom fish
         "halibut" to "halibut",
         "california halibut" to "halibut",
+        "halibut released" to "halibut",
         "lingcod" to "lingcod",
         "ling cod" to "lingcod",
         "ling" to "lingcod",
@@ -59,11 +62,17 @@ object SpeciesNormalizer {
         "whitefish" to "whitefish",
         "white fish" to "whitefish",
         "white seabass" to "white_seabass",
+        "white sea bass" to "white_seabass",
         "seabass" to "white_seabass",
         "sea bass" to "white_seabass",
         
+        // Mackerel variants
+        "mackerel" to "mackerel",
+        "pacific mackerel" to "mackerel",
+        
         // Other
         "lobster" to "lobster",
+        "spiny lobster" to "lobster",
         "squid" to "squid",
         "perch" to "perch",
         "sargo" to "sargo",

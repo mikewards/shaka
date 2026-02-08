@@ -37,6 +37,7 @@ object SpeciesTier {
         "squid",
         "spotted_bay_bass",
         "cabezon",
-        "skipjack"
+        "skipjack",
+        "mackerel"
     )
 }

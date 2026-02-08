@@ -76,6 +76,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     final regionLabel =
         _regions.firstWhere((r) => r.id == _selectedRegion).label;
+    final intel = _intelByRegion[_selectedRegion];
+    final freshness = intel?.dataFreshness;
 
     return Scaffold(
       backgroundColor: _bgColor,
@@ -93,7 +95,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       body: Column(
         children: [
-          _buildRegionChips(),
+          _buildRegionChips(freshness: freshness),
           Expanded(
             child: _buildRegionContent(_selectedRegion, regionLabel),
           ),
@@ -104,50 +106,82 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ─── Region Chips ───────────────────────────────────────────────────
 
-  Widget _buildRegionChips() {
+  Widget _buildRegionChips({String? freshness}) {
+    final freshnessLabel = freshness != null ? _formatFreshness(freshness) : '';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _regions.map((r) {
-            final isSelected = r.id == _selectedRegion;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  if (!isSelected) {
-                    HapticFeedback.lightImpact();
-                    setState(() => _selectedRegion = r.id);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _regions.map((r) {
+                  final isSelected = r.id == _selectedRegion;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        if (!isSelected) {
+                          HapticFeedback.lightImpact();
+                          setState(() => _selectedRegion = r.id);
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.info.withOpacity(0.15)
+                              : _cardColor,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? AppColors.info : _borderColor,
+                          ),
+                        ),
+                        child: Text(
+                          r.label,
+                          style: TextStyle(
+                            color: isSelected ? AppColors.info : Colors.white70,
+                            fontSize: 13,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          if (freshnessLabel.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.info.withOpacity(0.15)
-                        : _cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? AppColors.info : _borderColor,
-                    ),
-                  ),
-                  child: Text(
-                    r.label,
-                    style: TextStyle(
-                      color: isSelected ? AppColors.info : Colors.white70,
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w400,
-                    ),
+                    color: AppColors.info,
+                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
-              ),
-            );
-          }).toList(),
-        ),
+                const SizedBox(width: 6),
+                Text(
+                  freshnessLabel,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -200,11 +234,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
-        // ── Freshness banner ──
-        if (intel.dataFreshness.isNotEmpty) ...[
-          _buildFreshnessBanner(intel.dataFreshness),
-          const SizedBox(height: 16),
-        ],
         // ── Headline hero card (only for HOT / ON FIRE, not generic trending) ──
         if (intel.headline != null && intel.headline!.heatLevel >= 2) ...[
           _buildHeadlineCard(intel.headline!),
@@ -424,6 +453,53 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ─── Insights ───────────────────────────────────────────────────────
 
+  /// Pick an icon based on insight content keywords.
+  static IconData _insightIcon(String insight, int index) {
+    final lower = insight.toLowerCase();
+    if (lower.contains('bait') || lower.contains('sardine') || lower.contains('anchov')) {
+      return Icons.set_meal_outlined;
+    }
+    if (lower.contains('wind') || lower.contains('weather') || lower.contains('swell') || lower.contains('storm')) {
+      return Icons.air;
+    }
+    if (lower.contains('hot') || lower.contains('fire') || lower.contains('firing') || lower.contains('heat')) {
+      return Icons.local_fire_department_outlined;
+    }
+    if (lower.contains('island') || lower.contains('harbor') || lower.contains('landing') ||
+        lower.contains('catalina') || lower.contains('clemente') || lower.contains('coast')) {
+      return Icons.place_outlined;
+    }
+    if (lower.contains('temp') || lower.contains('degree') || lower.contains('warm') || lower.contains('cold')) {
+      return Icons.thermostat_outlined;
+    }
+    // Cycle through defaults for visual variety
+    const defaults = [Icons.phishing, Icons.waves, Icons.explore_outlined];
+    return defaults[index % defaults.length];
+  }
+
+  /// Pick an icon tint color based on insight content keywords.
+  static Color _insightIconColor(String insight, int index) {
+    final lower = insight.toLowerCase();
+    if (lower.contains('bait') || lower.contains('sardine') || lower.contains('anchov')) {
+      return const Color(0xFFC9A66B); // amber
+    }
+    if (lower.contains('wind') || lower.contains('weather') || lower.contains('swell') || lower.contains('storm')) {
+      return const Color(0xFF7A9BB8); // blue-gray
+    }
+    if (lower.contains('hot') || lower.contains('fire') || lower.contains('firing') || lower.contains('heat')) {
+      return const Color(0xFFCB8B7A); // coral
+    }
+    if (lower.contains('island') || lower.contains('harbor') || lower.contains('landing') ||
+        lower.contains('catalina') || lower.contains('clemente') || lower.contains('coast')) {
+      return const Color(0xFF8FA98B); // sage green
+    }
+    if (lower.contains('temp') || lower.contains('degree') || lower.contains('warm') || lower.contains('cold')) {
+      return const Color(0xFF7A9BB8); // blue-gray
+    }
+    const defaults = [Color(0xFF7A9BB8), Color(0xFF6B8E7D), Color(0xFFC9A66B)];
+    return defaults[index % defaults.length];
+  }
+
   /// Structured insight rows inside a card with dividers and icon accents.
   Widget _buildInsightsCard(List<String> keyInsights) {
     return Container(
@@ -437,6 +513,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           final index = entry.key;
           final insight = entry.value;
           final isLast = index == keyInsights.length - 1;
+          final icon = _insightIcon(insight, index);
+          final iconColor = _insightIconColor(insight, index);
 
           return Column(
             children: [
@@ -444,22 +522,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Icon accent container
                     Container(
                       width: 24,
                       height: 24,
-                      margin: const EdgeInsets.only(top: 1),
                       decoration: BoxDecoration(
-                        color: AppColors.info.withOpacity(0.15),
+                        color: iconColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Icon(
-                          Icons.water_drop_outlined,
+                          icon,
                           size: 13,
-                          color: AppColors.info,
+                          color: iconColor,
                         ),
                       ),
                     ),
@@ -614,18 +691,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              Text(
-                'VS 5-DAY AVG',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.45),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(width: 8),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -642,6 +709,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Text(
+                'VS TRAILING 5-DAYS',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.45),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.5,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -649,7 +726,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 12),
           _buildFlyoutStatRow('Last 2 days', '${s.count24h}'),
           const SizedBox(height: 8),
-          _buildFlyoutStatRow('Trailing 5-day avg', '${s.countPrevious}'),
+          _buildFlyoutStatRow('Trailing 5-days', '${s.countPrevious}'),
         ],
       ),
     );
@@ -733,7 +810,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 8),
           // Row 3: methodology note
           Text(
-            '2-day catch counts vs 5-day trailing average',
+            '2-day catch counts vs trailing 5-days',
             style: TextStyle(
               color: Colors.white.withOpacity(0.25),
               fontSize: 11,
