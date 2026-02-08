@@ -1,3 +1,4 @@
+import 'dart:async' show Timer;
 import 'dart:math' show Point, sqrt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -99,6 +100,10 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   final ShakaApiClient _apiClient = ShakaApiClient();
   List<UserSpotResponse> _savedSpots = [];
   bool _showSpotsOnMap = true;  // Default to ON
+  
+  // Pulse animation for loading spots (no score yet)
+  Timer? _spotPulseTimer;
+  bool _pulseExpanded = false;
   
   // Tap detection for spot markers
   Offset? _pointerDownPosition;
@@ -252,6 +257,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
   @override
   void dispose() {
+    _spotPulseTimer?.cancel();
     MapHomeService.mapHomeChanged.removeListener(_onMapHomeChanged);
     _mapController = null;
     super.dispose();
@@ -642,8 +648,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     final spotsNeedingScores = _savedSpots.where((s) => s.shakaScore == null).toList();
     if (spotsNeedingScores.isEmpty) {
       debugPrint('📍 GIBS: All spots have scores');
+      _stopPulseTimer();
       return;
     }
+    
+    // Start pulse animation for loading spots
+    if (_showSpotsOnMap) _startPulseTimer();
     
     debugPrint('📍 GIBS: Fetching scores for ${spotsNeedingScores.length} spots...');
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -680,6 +690,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       debugPrint('📍 GIBS: Updated ${spotsNeedingScores.length} spot scores, refreshing markers');
       setState(() {});  // Trigger rebuild
       await _updateSpotMarkers();
+    }
+    
+    // Stop pulse if all spots now have scores
+    if (_savedSpots.every((s) => s.shakaScore != null)) {
+      _stopPulseTimer();
     }
   }
   
@@ -842,6 +857,20 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
     
     if (tappedSpot != null) {
+      if (tappedSpot.shakaScore == null) {
+        // Spot is still loading -- block entry
+        HapticFeedback.lightImpact();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Still getting intel on this spot...'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
       HapticFeedback.selectionClick();
       _navigateToSpotDetail(tappedSpot);
     }
@@ -851,6 +880,84 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     try { await _mapController?.removeLayer('saved-spots-labels'); } catch (_) {}
     try { await _mapController?.removeLayer('saved-spots-layer'); } catch (_) {}
     try { await _mapController?.removeSource('saved-spots-source'); } catch (_) {}
+    await _removePulseRing();
+  }
+
+  /// Start pulsing animation for spots still loading (no score yet).
+  void _startPulseTimer() {
+    if (_spotPulseTimer != null) return; // Already running
+    _pulseExpanded = false;
+    _spotPulseTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
+      _pulseExpanded = !_pulseExpanded;
+      _updatePulseRing();
+    });
+    _updatePulseRing(); // Show immediately
+  }
+
+  void _stopPulseTimer() {
+    _spotPulseTimer?.cancel();
+    _spotPulseTimer = null;
+    _removePulseRing();
+  }
+
+  Future<void> _removePulseRing() async {
+    try { await _mapController?.removeLayer('saved-spots-pulse-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('saved-spots-pulse-source'); } catch (_) {}
+  }
+
+  /// Update the pulse ring behind loading spots (breathing circle effect).
+  Future<void> _updatePulseRing() async {
+    if (_mapController == null) return;
+
+    final loadingSpots = _savedSpots.where((s) => s.shakaScore == null).toList();
+    if (loadingSpots.isEmpty) {
+      _stopPulseTimer();
+      return;
+    }
+
+    await _removePulseRing();
+    if (_mapController == null) return;
+
+    final radius = _pulseExpanded ? 24.0 : 16.0;
+    final opacity = _pulseExpanded ? 0.15 : 0.35;
+
+    final features = loadingSpots.map((spot) => {
+      'type': 'Feature',
+      'geometry': {
+        'type': 'Point',
+        'coordinates': [spot.longitude, spot.latitude],
+      },
+      'properties': {
+        'radius': radius,
+        'opacity': opacity,
+      },
+    }).toList();
+
+    try {
+      await _mapController!.addSource(
+        'saved-spots-pulse-source',
+        GeojsonSourceProperties(data: {
+          'type': 'FeatureCollection',
+          'features': features,
+        }),
+      );
+
+      if (_mapController == null) return;
+
+      await _mapController!.addCircleLayer(
+        'saved-spots-pulse-source',
+        'saved-spots-pulse-layer',
+        CircleLayerProperties(
+          circleRadius: ['get', 'radius'],
+          circleColor: '#4FC3F7', // Light blue pulse
+          circleOpacity: ['get', 'opacity'],
+          circleStrokeWidth: 0,
+        ),
+        belowLayerId: 'saved-spots-layer',
+      );
+    } catch (e) {
+      debugPrint('📍 GIBS: Pulse ring update failed: $e');
+    }
   }
 
   void _showSavedSpotsSheet() {
@@ -956,9 +1063,11 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                               itemCount: _savedSpots.length,
                               itemBuilder: (context, index) {
                                 final spot = _savedSpots[index];
+                                final isLoading = spot.shakaScore == null;
                                 return _SavedSpotCard(
                                   spot: spot,
-                                  onTap: () {
+                                  isLoading: isLoading,
+                                  onTap: isLoading ? null : () {
                                     Navigator.pop(context);
                                     _navigateToSpotDetail(spot);
                                   },
@@ -2187,13 +2296,15 @@ class _InfoRow extends StatelessWidget {
 /// Card for saved spot in bottom sheet
 class _SavedSpotCard extends StatelessWidget {
   final UserSpotResponse spot;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback onDelete;
+  final bool isLoading;
 
   const _SavedSpotCard({
     required this.spot,
     required this.onTap,
     required this.onDelete,
+    this.isLoading = false,
   });
 
   @override
@@ -2205,74 +2316,88 @@ class _SavedSpotCard extends StatelessWidget {
     
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2A2A2A),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            // Score badge (replaces location icon)
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: scoreColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
+      child: Opacity(
+        opacity: isLoading ? 0.7 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              // Score badge or loading spinner
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scoreColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
+                ),
+                child: Center(
+                  child: hasScore
+                      ? Text(
+                          '${spot.shakaScore}',
+                          style: TextStyle(
+                            color: scoreColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF4FC3F7),
+                              ),
+                            )
+                          : Icon(
+                              Icons.location_on,
+                              color: scoreColor,
+                              size: 20,
+                            ),
+                ),
               ),
-              child: Center(
-                child: hasScore
-                    ? Text(
-                        '${spot.shakaScore}',
-                        style: TextStyle(
-                          color: scoreColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : Icon(
-                        Icons.location_on,
-                        color: scoreColor,
-                        size: 20,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      spot.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    spot.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                      fontFamily: 'monospace',
+                    const SizedBox(height: 2),
+                    Text(
+                      isLoading
+                          ? 'Getting intel on this spot...'
+                          : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
+                      style: TextStyle(
+                        color: isLoading ? const Color(0xFF4FC3F7) : Colors.white54,
+                        fontSize: 12,
+                        fontFamily: isLoading ? null : 'monospace',
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline, color: Colors.white38),
-              iconSize: 20,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
         ),
       ),
     );
