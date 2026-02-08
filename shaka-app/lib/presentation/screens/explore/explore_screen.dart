@@ -346,18 +346,32 @@ class _ExploreScreenState extends State<ExploreScreen> {
       visible.sort((a, b) => (b.shakaScore ?? 0).compareTo(a.shakaScore ?? 0));
       
       if (mounted) {
+        // Preserve current selection if the spot is still in the new viewport
+        String? selectedId;
+        if (_selectedSpotIndex != null && _selectedSpotIndex! < _visibleSpots.length) {
+          selectedId = _visibleSpots[_selectedSpotIndex!].id;
+        }
+
+        int newIndex = 0;
+        if (selectedId != null && visible.isNotEmpty) {
+          final idx = visible.indexWhere((s) => s.id == selectedId);
+          if (idx >= 0) newIndex = idx;
+        }
+
         setState(() {
           _visibleSpots = visible;
-          // Reset selection when viewport changes
-          _selectedSpotIndex = visible.isNotEmpty ? 0 : null;
+          _selectedSpotIndex = visible.isNotEmpty ? newIndex : null;
         });
-        
-        // Jump carousel to first spot
+
+        // Sync carousel to match selection (no-op if already there)
         if (visible.isNotEmpty && _carouselController.hasClients) {
-          _carouselController.jumpToPage(0);
+          final currentPage = _carouselController.page?.round() ?? -1;
+          if (currentPage != newIndex) {
+            _carouselController.jumpToPage(newIndex);
+          }
         }
-        
-        // Highlight first spot on map
+
+        // Highlight selected spot on map
         _updateSelectedMarker();
       }
       
