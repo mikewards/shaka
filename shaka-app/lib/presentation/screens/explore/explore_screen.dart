@@ -53,6 +53,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   
   bool _isLoading = true;
   bool _isMapReady = false;
+  /// True only after spots are loaded, markers added, and carousel updated; used for loading overlay only.
+  bool _mapFullyReady = false;
   String? _error;
   int? _selectedSpotIndex;
   bool _showSearch = false;
@@ -193,6 +195,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Clear map controller (map will be rebuilt)
     _mapController = null;
     _isMapReady = false;
+    _mapFullyReady = false;
     
     // Increment style version to cancel any in-progress async operations
     _styleVersion++;
@@ -251,9 +254,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Update visible spots for carousel
     await _updateVisibleSpots();
     
+    // Loading overlay hides only after spots + markers + carousel are ready
+    if (mounted) setState(() => _mapFullyReady = true);
     debugPrint('_onStyleLoaded: Complete for ${_bgService.current}');
   }
-  
+
   /// Add raster overlays based on current background
   Future<void> _addOverlays() async {
     if (_mapController == null) return;
@@ -717,8 +722,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: _buildBackgroundButton(),
                     ),
                     
-                    // Loading overlay - show until initial center resolved, then until map ready
-                    if (!_initialCenterReady || _isLoading || !_isMapReady)
+                    // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
+                    if (!_initialCenterReady || _isLoading || !_mapFullyReady)
                       Positioned.fill(
                         child: Container(
                           color: const Color(0xFF0D0D0D),
@@ -733,11 +738,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               
-              // Carousel section (35%)
+              // Carousel section (35%) — keep "Loading spots..." until _mapFullyReady (same as map overlay)
               Expanded(
                 child: Container(
                   color: const Color(0xFF0D0D0D),
-                  child: (_isLoading || (_allSpots.isEmpty && _visibleSpots.isEmpty))
+                  child: !_mapFullyReady
                       ? const Center(
                           child: Text(
                             'Loading spots...',
