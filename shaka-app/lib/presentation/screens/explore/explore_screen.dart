@@ -41,7 +41,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Actual default center (set in initState from Map Home, IP geolocation, or fallback)
   LatLng _defaultCenter = _fallbackCenter;
   double _initialZoom = _defaultZoom;
-  
+
+  /// When false, we have not yet resolved initial center (getMapHome); map is not built so we avoid cold-start animateCamera crash.
+  bool _initialCenterReady = false;
+
   // NEW: All spots loaded once (for map markers - always visible)
   List<SpotMapMarker> _allSpots = [];
   
@@ -86,11 +89,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
   }
 
-  /// When user sets Map Home from Profile, animate to new center.
+  /// When user sets Map Home from Profile, animate to new center (map is already up and ready).
   void _onMapHomeChanged() {
     if (!mounted) return;
     MapHomeService().getMapHome().then((home) {
-      if (home != null && _mapController != null && mounted) {
+      if (home != null && _mapController != null && mounted && _isMapReady) {
         _defaultCenter = LatLng(home.lat, home.lon);
         _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(LatLng(home.lat, home.lon), _mapHomeZoom),
@@ -99,7 +102,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
     });
   }
-  
+
+  /// Resolve initial center (Map Home, IP, or fallback) then set _initialCenterReady so the map is built once with correct initialCameraPosition (avoids cold-start animateCamera crash).
   Future<void> _initDefaultCenter() async {
     final mapHome = await MapHomeService().getMapHome();
     if (mapHome != null) {
@@ -120,23 +124,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
     }
     if (mounted) {
-      setState(() {});
-      // If map was already created with fallback, animate to Map Home
-      final home = mapHome;
-      if (home != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_mapController != null && mounted) {
-            _mapController!.animateCamera(
-              CameraUpdate.newLatLngZoom(
-                LatLng(home.lat, home.lon),
-                _mapHomeZoom,
-              ),
-            );
-          }
-        });
-      }
+      setState(() => _initialCenterReady = true);
     }
-    // Show first-launch Map Home prompt if not set (after first frame)
     if (mapHome == null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
@@ -219,7 +208,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void _onMapCreated(MaplibreMapController controller) {
     _mapController = controller;
   }
-  
+
   void _onStyleLoaded() async {
     // Capture current style version to detect if user changed styles during async ops
     final currentVersion = _styleVersion;
@@ -249,7 +238,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     // NOW set map ready - opaque overlay will hide, revealing loaded map
     if (mounted) setState(() => _isMapReady = true);
-    
+
     // Wait for raster layers to be registered before adding circle annotations
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -674,50 +663,45 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 height: mapHeight,
                 child: Stack(
                   children: [
-                    // MapLibre Map with Listener for tap detection
-                    // Using Listener at pointer level to detect taps without blocking map gestures
-                    Listener(
-                      behavior: HitTestBehavior.translucent,
-                      onPointerDown: (event) {
-                        _pointerDownPosition = event.localPosition;
-                        _pointerDownTime = DateTime.now();
-                      },
-                      onPointerUp: (event) {
-                        // Only handle quick taps (not pan gestures)
-                        final downPos = _pointerDownPosition;
-                        final downTime = _pointerDownTime;
-                        _pointerDownPosition = null;
-                        _pointerDownTime = null;
-                        
-                        if (downPos == null || downTime == null) return;
-                        
-                        // Check if it was a tap (short duration, small movement)
-                        final duration = DateTime.now().difference(downTime);
-                        final distance = (event.localPosition - downPos).distance;
-                        
-                        if (duration.inMilliseconds < 300 && distance < 20) {
-                          debugPrint('TAP DETECTED at ${event.localPosition}');
-                          _handleMapTap(event.localPosition);
-                        }
-                      },
-                      child: MaplibreMap(
-                        key: ValueKey('map_$_mapKey'),
-                        onMapCreated: _onMapCreated,
-                        onStyleLoadedCallback: _onStyleLoaded,
-                        onCameraIdle: _onCameraIdle,
-                        initialCameraPosition: _lastCameraPosition ?? CameraPosition(
-                          target: _defaultCenter,
-                          zoom: _initialZoom,
+                    // Build map only after initial center is resolved (avoids cold-start animateCamera crash)
+                    if (_initialCenterReady)
+                      Listener(
+                        behavior: HitTestBehavior.translucent,
+                        onPointerDown: (event) {
+                          _pointerDownPosition = event.localPosition;
+                          _pointerDownTime = DateTime.now();
+                        },
+                        onPointerUp: (event) {
+                          final downPos = _pointerDownPosition;
+                          final downTime = _pointerDownTime;
+                          _pointerDownPosition = null;
+                          _pointerDownTime = null;
+                          if (downPos == null || downTime == null) return;
+                          final duration = DateTime.now().difference(downTime);
+                          final distance = (event.localPosition - downPos).distance;
+                          if (duration.inMilliseconds < 300 && distance < 20) {
+                            debugPrint('TAP DETECTED at ${event.localPosition}');
+                            _handleMapTap(event.localPosition);
+                          }
+                        },
+                        child: MaplibreMap(
+                          key: ValueKey('map_$_mapKey'),
+                          onMapCreated: _onMapCreated,
+                          onStyleLoadedCallback: _onStyleLoaded,
+                          onCameraIdle: _onCameraIdle,
+                          initialCameraPosition: _lastCameraPosition ?? CameraPosition(
+                            target: _defaultCenter,
+                            zoom: _initialZoom,
+                          ),
+                          styleString: _bgService.getStyleUrl(_bgService.current),
+                          minMaxZoomPreference: const MinMaxZoomPreference(3, 18),
+                          trackCameraPosition: true,
+                          compassEnabled: false,
+                          attributionButtonMargins: const Point(-100, -100),
+                          logoViewMargins: const Point(-100, -100),
                         ),
-                        styleString: _bgService.getStyleUrl(_bgService.current),
-                        minMaxZoomPreference: const MinMaxZoomPreference(3, 18),
-                        trackCameraPosition: true,
-                        compassEnabled: false,
-                        attributionButtonMargins: const Point(-100, -100),
-                        logoViewMargins: const Point(-100, -100),
                       ),
-                    ),
-                    
+
                     // Search bar overlay
                     Positioned(
                       top: topPadding + 12,
@@ -733,8 +717,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: _buildBackgroundButton(),
                     ),
                     
-                    // Loading overlay - opaque dark background hides map until ready
-                    if (_isLoading || !_isMapReady)
+                    // Loading overlay - show until initial center resolved, then until map ready
+                    if (!_initialCenterReady || _isLoading || !_isMapReady)
                       Positioned.fill(
                         child: Container(
                           color: const Color(0xFF0D0D0D),
@@ -753,7 +737,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Expanded(
                 child: Container(
                   color: const Color(0xFF0D0D0D),
-                  child: _isLoading
+                  child: (_isLoading || (_allSpots.isEmpty && _visibleSpots.isEmpty))
                       ? const Center(
                           child: Text(
                             'Loading spots...',
@@ -782,7 +766,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           : _visibleSpots.isEmpty
                               ? const Center(
                                   child: Text(
-                                    'No spots found',
+                                    'No spots in view — pan or zoom the map',
                                     style: TextStyle(color: Colors.white54),
                                   ),
                                 )

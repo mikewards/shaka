@@ -222,19 +222,25 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
           const SizedBox(height: 12),
           ...keyInsights.map(
-            (line) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                line,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.35,
+            (line) {
+              // Format "Headline, detail" as "Headline\n        • detail" to avoid wrapping
+              final displayText = line.contains(',')
+                  ? '${line.substring(0, line.indexOf(',')).trim()}\n        • ${line.substring(line.indexOf(',') + 1).trim()}'
+                  : line;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  displayText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    height: 1.35,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
