@@ -200,6 +200,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
+        // ── Freshness banner ──
+        if (intel.dataFreshness.isNotEmpty) ...[
+          _buildFreshnessBanner(intel.dataFreshness),
+          const SizedBox(height: 16),
+        ],
         // ── Headline hero card (only for HOT / ON FIRE, not generic trending) ──
         if (intel.headline != null && intel.headline!.heatLevel >= 2) ...[
           _buildHeadlineCard(intel.headline!),
@@ -216,7 +221,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (intel.speciesList.isNotEmpty) ...[
           _buildSectionHeader(
             'CATCH NUMBERS',
-            trailing: _buildBadge('LAST 48HR'),
+            trailing: _buildBadge('LAST 2 DAYS'),
           ),
           const SizedBox(height: 10),
           ...intel.speciesList.asMap().entries.map((entry) {
@@ -232,6 +237,34 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 20),
           _buildSourcesFooter(intel),
         ],
+      ],
+    );
+  }
+
+  // ─── Freshness Banner ──────────────────────────────────────────────
+
+  Widget _buildFreshnessBanner(String raw) {
+    final label = _formatFreshness(raw);
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: AppColors.info,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.6),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -497,9 +530,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Species name: up to 75% of tile width
+                // Trend indicator: fixed-width, vertically aligned across all rows
+                SizedBox(
+                  width: 28,
+                  child: Center(
+                    child: _TrendArrow(
+                      isUp: isUp,
+                      isDown: isDown,
+                      percentChange: s.percentChange,
+                      color: trendColor,
+                      showPercentInFlyoutOnly: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Species name: fills middle space
                 Expanded(
-                  flex: 3,
                   child: Text(
                     s.species,
                     style: const TextStyle(
@@ -511,53 +557,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     maxLines: 1,
                   ),
                 ),
-                // Caret pinned at 75%, count + chevron right-aligned
-                Expanded(
-                  flex: 1,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 28,
-                        child: Center(
-                          child: _TrendArrow(
-                            isUp: isUp,
-                            isDown: isDown,
-                            percentChange: s.percentChange,
-                            color: trendColor,
-                            showPercentInFlyoutOnly: true,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${s.count24h}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                            const SizedBox(width: 2),
-                            Icon(
-                              isExpanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
-                              color: Colors.white38,
-                              size: 20,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                const SizedBox(width: 8),
+                // Count + chevron: right-aligned, never truncated
+                Text(
+                  '${s.count24h}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white38,
+                  size: 20,
                 ),
               ],
             ),
@@ -633,7 +647,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 12),
           Container(height: 1, color: _borderColor),
           const SizedBox(height: 12),
-          _buildFlyoutStatRow('Last 48 hours', '${s.count24h}'),
+          _buildFlyoutStatRow('Last 2 days', '${s.count24h}'),
           const SizedBox(height: 8),
           _buildFlyoutStatRow('Trailing 5-day avg', '${s.countPrevious}'),
         ],
@@ -683,27 +697,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: report count left, freshness right
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${intel.totalReports} reports',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              if (intel.dataFreshness.isNotEmpty)
-                Text(
-                  _formatFreshness(intel.dataFreshness),
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.35),
-                    fontSize: 12,
-                  ),
-                ),
-            ],
+          // Row 1: report count
+          Text(
+            '${intel.totalReports} reports analyzed',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 10),
           // Row 2: source chips
@@ -732,7 +733,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 8),
           // Row 3: methodology note
           Text(
-            '48hr catch counts vs 5-day trailing average',
+            '2-day catch counts vs 5-day trailing average',
             style: TextStyle(
               color: Colors.white.withOpacity(0.25),
               fontSize: 11,
