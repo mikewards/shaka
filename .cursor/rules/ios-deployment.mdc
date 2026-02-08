@@ -1,11 +1,13 @@
 ---
-description: Critical iOS deployment rules for Shaka Flutter app - prevents hangs on physical iPhone
+description: Critical iOS deployment rules for Shaka Flutter app - prevents hangs on physical iPhone. For full step-by-step deploy (iOS + Android), see docs/MOBILE_DEPLOYMENT.md
 globs: 
   - shaka-app/lib/main.dart
   - shaka-app/ios/**/*
 ---
 
 # iOS Deployment Rules for Shaka
+
+**Full runbook (iOS + Android, pre-check, commands):** `docs/MOBILE_DEPLOYMENT.md`. Use it when the user says "deploy to our phone" or "deploy to iPhone/Android".
 
 These rules address critical iOS 26.x deployment issues discovered during physical device testing.
 

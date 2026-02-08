@@ -15,6 +15,8 @@ Shaka is a spearfishing spot finder app - a Flutter mobile app + Kotlin backend 
 - Mobile: Flutter/Dart (`shaka-app/`)
 - Database: PostgreSQL + PostGIS (not yet connected)
 
+**Git:** All commits must show as **wardmic4** on GitHub. This repo has `user.name=wardmic4` and `user.email=zmikewardz@gmail.com` set locally; do not use "cursoragent" or any other author when making commits.
+
 ## Directory Structure
 
 ```
@@ -187,25 +189,20 @@ cd shaka-api && ./gradlew run
 - `ResultsScreen` - List view + map view with spot cards
 - `SpotDetailScreen` - Full spot info, conditions, forecast, gear, risks
 
-## iOS Deployment (CRITICAL)
+## Deploy to Phone (iOS / Android)
 
-See `.cursor/rules/ios-deployment.mdc` for detailed rules. Key points:
+**When the user says "deploy to our phone", "deploy to iPhone", "deploy to Android", or "deploy so we can test" — follow the full guide:**
 
-1. **NEVER use async/await before runApp()** - causes hangs on physical iPhone (iOS 26.x)
-2. **LaunchScreen must have dark background** - RGB (0.051, 0.051, 0.051)
-3. **Always test on physical device** - Simulator may pass when device fails
-4. **Use release mode** - `flutter build ios --release && flutter install -d iPhone`
+**→ [docs/MOBILE_DEPLOYMENT.md](../docs/MOBILE_DEPLOYMENT.md)**
 
-**Correct main() pattern:**
-```dart
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ShakaApp());
-  Future.microtask(() {
-    // Post-startup initialization here
-  });
-}
-```
+That doc includes:
+- Pre-deployment verification (e.g. `main.dart` must not use `async`/`await` before `runApp()`)
+- Step-by-step iOS: `flutter clean` → `flutter build ios --release` → `flutter install -d iPhone` (never `flutter run` on physical iPhone)
+- Step-by-step Android: `flutter build apk --release` → `adb install -r ...` or `flutter install -d <device-id>`
+- Quick reference one-liners and post-deploy verification
+- What NOT to do (no `flutter run` on iOS device, no `async` on `main()`, etc.)
+
+**iOS-specific rules** (launch hangs, dark launch screen): see `.cursor/rules/ios-deployment.mdc`.
 
 ## Commit Strategy
 
