@@ -11,7 +11,6 @@ import '../../../data/models/spot_models.dart';
 import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
-import '../../widgets/search_overlay.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/set_map_home_dialog.dart';
 import '../../widgets/save_spot_sheet.dart';
@@ -61,7 +60,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _mapFullyReady = false;
   String? _error;
   int? _selectedSpotIndex;
-  bool _showSearch = false;
   
   // Debounce timer for map animations
   Timer? _mapAnimationDebounce;
@@ -1222,15 +1220,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
 
-                    // Search bar overlay (hidden in pin mode)
-                    if (!_isPinMode)
-                      Positioned(
-                        top: topPadding + 12,
-                        left: 16,
-                        right: 16,
-                        child: _buildSearchBar(),
-                      ),
-                    
                     // GPS Coordinates Display (centered at top when in pin mode)
                     if (_isPinMode && _currentCenter != null)
                       Positioned(
@@ -1361,66 +1350,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ],
           ),
 
-          // Search overlay
-          if (_showSearch)
-            SearchOverlay(
-              onSpotSelected: (spot) {
-                setState(() => _showSearch = false);
-                _navigateToSpot(spot);
-              },
-              onRegionSelected: (region) {
-                setState(() => _showSearch = false);
-                _navigateToRegion(region);
-              },
-              onClose: () => setState(() => _showSearch = false),
-            ),
         ],
-      ),
-    );
-  }
-
-  void _navigateToSpot(SpotSearchResult spot) {
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    context.push('/spot/${spot.id}', extra: {'date': today});
-  }
-
-  void _navigateToRegion(RegionInfo region) {
-    // Zoom out more for regions to show all spots (zoom 6 for large regions)
-    // No API reload needed - all spots already loaded, _onCameraIdle will filter
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(
-        LatLng(region.centerLat, region.centerLon),
-        6.0,
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => _showSearch = true);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.search, color: Colors.white54, size: 20),
-            const SizedBox(width: 12),
-            Text(
-              'Search spots...',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 15,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1518,53 +1448,61 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  /// Pin mode cancel/mark spot buttons
+  /// Pin mode cancel/mark spot buttons — dark opaque backgrounds for visibility on any map style
   Widget _buildPinModeActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: _exitPinMode,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: const Center(
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.white70, fontSize: 15),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D0D0D).withOpacity(0.9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _exitPinMode,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
                 ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: GestureDetector(
-            onTap: _confirmPinLocation,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Center(
-                child: Text(
-                  'Mark Spot',
-                  style: TextStyle(
-                    color: Color(0xFF1A1A1A),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                child: const Center(
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70, fontSize: 15),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: _confirmPinLocation,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE65100),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Mark Spot',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
