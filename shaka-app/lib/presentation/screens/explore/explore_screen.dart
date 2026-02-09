@@ -614,7 +614,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'user-spots-pulse-layer',
         CircleLayerProperties(
           circleRadius: ['get', 'radius'],
-          circleColor: '#FF4081',
+          circleColor: '#E65100',
           circleOpacity: ['get', 'opacity'],
           circleStrokeWidth: 0,
         ),
@@ -881,7 +881,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           'color': color,
           'radius': isUser ? 15 : 14,
           'strokeWidth': isUser ? 2.5 : 2,
-          'strokeColor': isUser ? '#FF4081' : '#FFFFFF',
+          'strokeColor': isUser ? '#E65100' : '#FFFFFF',
           'textSize': 11,
           'isUserSpot': isUser,
         },
@@ -1673,7 +1673,7 @@ class _SpotMarkerCard extends StatelessWidget {
           color: const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: spot.isUserSpot ? const Color(0xFFFF4081).withOpacity(0.4) : Colors.white12,
+            color: spot.isUserSpot ? const Color(0xFFE65100).withOpacity(0.4) : Colors.white12,
           ),
         ),
         child: Row(
@@ -1706,7 +1706,7 @@ class _SpotMarkerCard extends StatelessWidget {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFFFF4081),
+                              color: Color(0xFFE65100),
                             ),
                           )
                         : Icon(
@@ -1742,7 +1742,7 @@ class _SpotMarkerCard extends StatelessWidget {
                       if (spot.isUserSpot)
                         const Padding(
                           padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.bookmark, color: Color(0xFFFF4081), size: 16),
+                          child: Icon(Icons.bookmark, color: Color(0xFFE65100), size: 16),
                         ),
                     ],
                   ),
@@ -1751,7 +1751,7 @@ class _SpotMarkerCard extends StatelessWidget {
                     Text(
                       'Getting intel on this spot...',
                       style: TextStyle(
-                        color: const Color(0xFFFF4081),
+                        color: const Color(0xFFE65100),
                         fontSize: 12,
                       ),
                     )
@@ -1908,7 +1908,7 @@ class _SavedSpotCard extends StatelessWidget {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFFFF4081),
+                                color: Color(0xFFE65100),
                               ),
                             )
                           : Icon(
@@ -1937,7 +1937,7 @@ class _SavedSpotCard extends StatelessWidget {
                           ? 'Getting intel on this spot...'
                           : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                       style: TextStyle(
-                        color: isLoading ? const Color(0xFFFF4081) : Colors.white54,
+                        color: isLoading ? const Color(0xFFE65100) : Colors.white54,
                         fontSize: 12,
                         fontFamily: isLoading ? null : 'monospace',
                       ),
