@@ -830,6 +830,8 @@ fun Application.configureRouting() {
                         // Calculate score from cached data (fast, no API calls)
                         val cacheId = userSpotRepository.getCacheId(spot.id.toString())
                         val score = spotService.getUserSpotScore(cacheId)
+                        // Get cached condition data for display (same pattern as /spots/all)
+                        val cached = SpotDataCache.get(cacheId)
                         
                         UserSpotResponse(
                             id = spot.id.toString(),
@@ -839,7 +841,16 @@ fun Application.configureRouting() {
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
                             isUserSpot = true,
-                            shakaScore = score  // null if no cached data
+                            shakaScore = score,  // null if no cached data
+                            swell = cached?.swell?.value?.let { 
+                                "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
+                            },
+                            wind = cached?.wind?.value?.let { 
+                                "${it.speedKnots.toInt()} kts ${it.direction}" 
+                            },
+                            waterTemp = cached?.sst?.value?.let { sst ->
+                                "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
+                            }
                         )
                     },
                     count = spots.size,

@@ -121,7 +121,7 @@ class _SavedSpotsScreenState extends State<SavedSpotsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Save spots from the Satellite Imagery map',
+              'Save spots from the Explore or Satellite Imagery map',
               style: TextStyle(
                   color: Colors.white.withOpacity(0.4), fontSize: 13),
             ),

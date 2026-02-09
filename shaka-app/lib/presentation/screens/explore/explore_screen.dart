@@ -14,6 +14,7 @@ import '../../../data/services/map_home_service.dart';
 import '../../widgets/search_overlay.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/set_map_home_dialog.dart';
+import '../../widgets/save_spot_sheet.dart';
 
 /// Full-screen explore map for discovering dive spots.
 /// Surfline-style: Map 70% top, horizontal spot carousel 30% bottom.
@@ -45,7 +46,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   /// When false, we have not yet resolved initial center (getMapHome); map is not built so we avoid cold-start animateCamera crash.
   bool _initialCenterReady = false;
 
-  // NEW: All spots loaded once (for map markers - always visible)
+  // Combined spots: curated + user saved spots (rebuilt when either changes)
   List<SpotMapMarker> _allSpots = [];
   
   // NEW: Spots filtered to current viewport (for carousel)
@@ -81,6 +82,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Track pointer for tap detection (to distinguish taps from pans)
   Offset? _pointerDownPosition;
   DateTime? _pointerDownTime;
+  
+  // Saved spots state
+  List<SpotMapMarker> _curatedSpots = [];  // From /spots/all
+  List<UserSpotResponse> _userSpots = [];  // From /user-spots
+  bool _showSpotsOnMap = true;  // Toggle user spots visibility
+  
+  // Pin mode state
+  bool _isPinMode = false;
+  LatLng? _currentCenter;
+  
+  // Pulse animation for loading user spots (no score yet)
+  Timer? _spotPulseTimer;
+  bool _pulseExpanded = false;
 
   @override
   void initState() {
@@ -89,6 +103,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     MapHomeService.mapHomeChanged.addListener(_onMapHomeChanged);
     _initDefaultCenter();
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
+    _loadSavedSpots();
   }
 
   /// When user sets Map Home from Profile, animate to new center (map is already up and ready).
@@ -172,6 +187,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void dispose() {
     _mapAnimationDebounce?.cancel();
     _viewportFilterDebounce?.cancel();
+    _spotPulseTimer?.cancel();
     _carouselController.dispose();
     _bgService.removeListener(_onBackgroundChanged);
     MapHomeService.mapHomeChanged.removeListener(_onMapHomeChanged);
@@ -222,8 +238,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Try to animate to IP location (just centering, no reload)
     _tryAnimateToIpLocation();
     
-    // Load ALL spots once (if not already loaded)
-    if (_allSpots.isEmpty) {
+    // Load curated spots once (if not already loaded)
+    if (_curatedSpots.isEmpty) {
       await _loadAllSpots();
     }
     
@@ -399,7 +415,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (mounted && currentVersion == _loadVersion) {
         debugPrint('✅ Loaded ${response.count} spots globally (v$currentVersion)');
         setState(() {
-          _allSpots = response.spots;
+          _curatedSpots = response.spots;
+          _rebuildCombinedSpots();
           _isLoading = false;
         });
         
@@ -427,6 +444,393 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
   
+  // ===========================================
+  // SAVED SPOTS + PIN MODE
+  // ===========================================
+
+  /// Rebuild the combined spots list (curated + user saved spots)
+  void _rebuildCombinedSpots() {
+    _allSpots = [
+      ..._curatedSpots,
+      if (_showSpotsOnMap) ..._userSpots.map((s) => s.toSpotMapMarker()),
+    ];
+  }
+
+  /// Load user's saved spots from API
+  Future<void> _loadSavedSpots() async {
+    debugPrint('📍 Explore: Loading saved spots...');
+    try {
+      final response = await _apiClient.getUserSpots();
+      debugPrint('📍 Explore: Got ${response.spots.length} user spots');
+      if (mounted) {
+        setState(() {
+          _userSpots = response.spots;
+          _rebuildCombinedSpots();
+        });
+        // Update markers if map is ready
+        if (_isMapReady) {
+          await _updateMarkers();
+          await _updateVisibleSpots();
+        }
+        // Fetch scores for spots that don't have them
+        _fetchMissingScores();
+      }
+    } catch (e) {
+      debugPrint('📍 Explore: FAILED to load saved spots: $e');
+    }
+  }
+
+  /// Fetch shaka scores for user spots that don't have them
+  Future<void> _fetchMissingScores() async {
+    final spotsNeedingScores = _userSpots.where((s) => s.shakaScore == null).toList();
+    if (spotsNeedingScores.isEmpty) {
+      debugPrint('📍 Explore: All user spots have scores');
+      _stopPulseTimer();
+      return;
+    }
+
+    // Start pulse animation for loading spots
+    if (_showSpotsOnMap) _startPulseTimer();
+
+    debugPrint('📍 Explore: Fetching scores for ${spotsNeedingScores.length} spots...');
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    bool anyUpdated = false;
+
+    final futures = <Future>[];
+    for (final spot in spotsNeedingScores) {
+      futures.add(_fetchSpotScore(spot.id, today).then((score) {
+        if (score != null) {
+          final index = _userSpots.indexWhere((s) => s.id == spot.id);
+          if (index != -1) {
+            _userSpots[index] = UserSpotResponse(
+              id: spot.id,
+              name: spot.name,
+              coordinates: spot.coordinates,
+              region: spot.region,
+              country: spot.country,
+              createdAt: spot.createdAt,
+              isUserSpot: spot.isUserSpot,
+              shakaScore: score,
+              swell: spot.swell,
+              wind: spot.wind,
+              waterTemp: spot.waterTemp,
+            );
+            anyUpdated = true;
+          }
+        }
+      }));
+    }
+
+    await Future.wait(futures);
+
+    if (anyUpdated && mounted && _showSpotsOnMap) {
+      debugPrint('📍 Explore: Updated spot scores, refreshing markers');
+      setState(() => _rebuildCombinedSpots());
+      await _updateMarkers();
+      await _updateVisibleSpots();
+    }
+
+    if (_userSpots.every((s) => s.shakaScore != null)) {
+      _stopPulseTimer();
+    }
+  }
+
+  Future<int?> _fetchSpotScore(String spotId, String date) async {
+    try {
+      final detail = await _apiClient.getUserSpotDetail(spotId: spotId, date: date);
+      return detail.spot.score.overall;
+    } catch (e) {
+      debugPrint('📍 Explore: Failed to fetch score for $spotId: $e');
+      return null;
+    }
+  }
+
+  // Pulse timer for loading user spots
+  void _startPulseTimer() {
+    if (_spotPulseTimer != null) return;
+    _pulseExpanded = false;
+    _spotPulseTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
+      _pulseExpanded = !_pulseExpanded;
+      _updatePulseRing();
+    });
+    _updatePulseRing();
+  }
+
+  void _stopPulseTimer() {
+    _spotPulseTimer?.cancel();
+    _spotPulseTimer = null;
+    _removePulseRing();
+  }
+
+  Future<void> _removePulseRing() async {
+    try { await _mapController?.removeLayer('user-spots-pulse-layer'); } catch (_) {}
+    try { await _mapController?.removeSource('user-spots-pulse-source'); } catch (_) {}
+  }
+
+  Future<void> _updatePulseRing() async {
+    if (_mapController == null) return;
+
+    final loadingSpots = _userSpots.where((s) => s.shakaScore == null).toList();
+    if (loadingSpots.isEmpty) {
+      _stopPulseTimer();
+      return;
+    }
+
+    await _removePulseRing();
+    if (_mapController == null) return;
+
+    final radius = _pulseExpanded ? 24.0 : 16.0;
+    final opacity = _pulseExpanded ? 0.15 : 0.35;
+
+    final features = loadingSpots.map((spot) => {
+      'type': 'Feature',
+      'geometry': {
+        'type': 'Point',
+        'coordinates': [spot.longitude, spot.latitude],
+      },
+      'properties': {
+        'radius': radius,
+        'opacity': opacity,
+      },
+    }).toList();
+
+    try {
+      await _mapController!.addSource(
+        'user-spots-pulse-source',
+        GeojsonSourceProperties(data: {
+          'type': 'FeatureCollection',
+          'features': features,
+        }),
+      );
+
+      if (_mapController == null) return;
+
+      await _mapController!.addCircleLayer(
+        'user-spots-pulse-source',
+        'user-spots-pulse-layer',
+        CircleLayerProperties(
+          circleRadius: ['get', 'radius'],
+          circleColor: '#4FC3F7',
+          circleOpacity: ['get', 'opacity'],
+          circleStrokeWidth: 0,
+        ),
+        belowLayerId: 'spots-layer',
+      );
+    } catch (e) {
+      debugPrint('📍 Explore: Pulse ring update failed: $e');
+    }
+  }
+
+  // Pin mode methods
+  void _enterPinMode() {
+    final center = _mapController?.cameraPosition?.target;
+    setState(() {
+      _isPinMode = true;
+      _currentCenter = center;
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  void _exitPinMode() {
+    setState(() {
+      _isPinMode = false;
+      _currentCenter = null;
+    });
+  }
+
+  Future<void> _confirmPinLocation() async {
+    if (_currentCenter == null) return;
+
+    final saved = await SaveSpotSheet.show(
+      context: context,
+      latitude: _currentCenter!.latitude,
+      longitude: _currentCenter!.longitude,
+    );
+
+    if (saved && mounted) {
+      _exitPinMode();
+      await _loadSavedSpots();
+    }
+  }
+
+  void _onCameraMove() {
+    if (_isPinMode && _mapController != null) {
+      final position = _mapController!.cameraPosition;
+      if (position != null) {
+        setState(() {
+          _currentCenter = position.target;
+        });
+      }
+    }
+  }
+
+  // Saved spots sheet (reuses same UX as Gibs)
+  void _showSavedSpotsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Column(
+                  children: [
+                    // Handle
+                    Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // Header with toggle
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Saved Spots',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              setModalState(() {
+                                _showSpotsOnMap = !_showSpotsOnMap;
+                              });
+                              setState(() {
+                                _rebuildCombinedSpots();
+                              });
+                              _updateMarkers();
+                              _updateVisibleSpots();
+                            },
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
+                                  color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white38,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Show on map',
+                                  style: TextStyle(
+                                    color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white54,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Spot list
+                    Expanded(
+                      child: _userSpots.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.bookmark_border, color: Colors.white24, size: 48),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No saved spots yet',
+                                    style: TextStyle(color: Colors.white54),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Tap the + button to save a location',
+                                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _userSpots.length,
+                              itemBuilder: (context, index) {
+                                final spot = _userSpots[index];
+                                final isLoading = spot.shakaScore == null;
+                                return _SavedSpotCard(
+                                  spot: spot,
+                                  isLoading: isLoading,
+                                  onTap: isLoading ? null : () {
+                                    Navigator.pop(context);
+                                    _navigateToUserSpotDetail(spot);
+                                  },
+                                  onDelete: () async {
+                                    await _deleteSpot(spot, setModalState);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _navigateToUserSpotDetail(UserSpotResponse spot) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    context.push('/spot/${spot.id}', extra: {
+      'date': today,
+      'isUserSpot': true,
+    });
+  }
+
+  Future<void> _deleteSpot(UserSpotResponse spot, StateSetter setModalState) async {
+    try {
+      await _apiClient.deleteUserSpot(spot.id);
+      setModalState(() {
+        _userSpots.removeWhere((s) => s.id == spot.id);
+      });
+      setState(() => _rebuildCombinedSpots());
+      await _updateMarkers();
+      await _updateVisibleSpots();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted "${spot.name}"'),
+            backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to delete spot'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
   /// Shows ALL spots (not filtered) - markers persist during pan/zoom
   Future<void> _updateMarkers() async {
@@ -456,21 +860,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     // Build GeoJSON features for ALL spots. sortKey = score so when labels overlap,
     // only the highest-score (top) spot's number is shown.
+    // User spots get a cyan border to visually distinguish from curated spots.
     final features = spots.map((spot) {
       final score = spot.shakaScore ?? 0;
       final color = _getScoreColorHex(score);
+      final isUser = spot.isUserSpot;
       return {
         'type': 'Feature',
         'properties': {
           'id': spot.id,
           'name': spot.name,
-          'score': score.toString(),
+          'score': (spot.shakaScore != null) ? score.toString() : '',
           'sortKey': -score,
           'color': color,
-          'radius': 14,
-          'strokeWidth': 2,
-          'strokeColor': '#FFFFFF',
+          'radius': isUser ? 15 : 14,
+          'strokeWidth': isUser ? 2.5 : 2,
+          'strokeColor': isUser ? '#4FC3F7' : '#FFFFFF',
           'textSize': 11,
+          'isUserSpot': isUser,
         },
         'geometry': {
           'type': 'Point',
@@ -712,10 +1119,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   /// Open spot detail page - works with either SpotMapMarker or SpotSummary
   void _openSpotDetail(SpotMapMarker spot) {
+    // Block navigation for user spots still loading scores
+    if (spot.isUserSpot && spot.shakaScore == null) {
+      HapticFeedback.lightImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Still getting intel on this spot...'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     context.push('/spot/${spot.id}', extra: {
       'date': today,
-      // Don't pass spot summary - let detail page fetch it fresh
+      if (spot.isUserSpot) 'isUserSpot': true,
     });
   }
   
@@ -729,7 +1148,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     
-    final mapHeight = screenHeight * 0.70;  // Increased from 0.65
+    // Pin mode: full-screen map. Normal: 70% map / 30% carousel
+    final mapHeight = _isPinMode ? screenHeight : screenHeight * 0.70;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
@@ -737,7 +1157,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           Column(
             children: [
-              // Map section (65%)
+              // Map section (full-screen in pin mode, 70% otherwise)
               SizedBox(
                 height: mapHeight,
                 child: Stack(
@@ -759,15 +1179,30 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           final duration = DateTime.now().difference(downTime);
                           final distance = (event.localPosition - downPos).distance;
                           if (duration.inMilliseconds < 300 && distance < 20) {
-                            debugPrint('TAP DETECTED at ${event.localPosition}');
-                            _handleMapTap(event.localPosition);
+                            if (!_isPinMode) {
+                              debugPrint('TAP DETECTED at ${event.localPosition}');
+                              _handleMapTap(event.localPosition);
+                            }
+                          }
+                        },
+                        onPointerMove: (event) {
+                          if (_isPinMode && _mapController != null) {
+                            final pos = _mapController!.cameraPosition;
+                            if (pos != null && (_currentCenter == null || 
+                                pos.target.latitude != _currentCenter!.latitude ||
+                                pos.target.longitude != _currentCenter!.longitude)) {
+                              setState(() => _currentCenter = pos.target);
+                            }
                           }
                         },
                         child: MaplibreMap(
                           key: ValueKey('map_$_mapKey'),
                           onMapCreated: _onMapCreated,
                           onStyleLoadedCallback: _onStyleLoaded,
-                          onCameraIdle: _onCameraIdle,
+                          onCameraIdle: () {
+                            _onCameraIdle();
+                            _onCameraMove();
+                          },
                           initialCameraPosition: _lastCameraPosition ?? CameraPosition(
                             target: _defaultCenter,
                             zoom: _initialZoom,
@@ -781,20 +1216,84 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
 
-                    // Search bar overlay
-                    Positioned(
-                      top: topPadding + 12,
-                      left: 16,
-                      right: 16,
-                      child: _buildSearchBar(),
-                    ),
+                    // Search bar overlay (hidden in pin mode)
+                    if (!_isPinMode)
+                      Positioned(
+                        top: topPadding + 12,
+                        left: 16,
+                        right: 16,
+                        child: _buildSearchBar(),
+                      ),
                     
-                    // Background picker button (left-aligned)
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      child: _buildBackgroundButton(),
-                    ),
+                    // GPS Coordinates Display (centered at top when in pin mode)
+                    if (_isPinMode && _currentCenter != null)
+                      Positioned(
+                        top: topPadding + 8,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontFamily: 'monospace',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Reticle Crosshairs (center when in pin mode)
+                    if (_isPinMode)
+                      const Center(
+                        child: SizedBox(
+                          width: 120,
+                          height: 120,
+                          child: CustomPaint(painter: _ReticlePainter()),
+                        ),
+                      ),
+                    
+                    // Background picker button (left-aligned, hidden in pin mode)
+                    if (!_isPinMode)
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        child: _buildBackgroundButton(),
+                      ),
+
+                    // Right floating buttons: Saved Spots + Pin (hidden in pin mode)
+                    if (!_isPinMode)
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: _buildRightFloatingButtons(),
+                      ),
+                    
+                    // Pin mode action buttons (bottom of map)
+                    if (_isPinMode)
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: bottomPadding + 16,
+                        child: _buildPinModeActions(),
+                      ),
                     
                     // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
                     if (!_initialCenterReady || _isLoading || !_mapFullyReady)
@@ -812,46 +1311,47 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
               
-              // Carousel section (35%) — keep "Loading spots..." until _mapFullyReady (same as map overlay)
-              Expanded(
-                child: Container(
-                  color: const Color(0xFF0D0D0D),
-                  child: !_mapFullyReady
-                      ? const Center(
-                          child: Text(
-                            'Loading spots...',
-                            style: TextStyle(color: Colors.white54),
-                          ),
-                        )
-                      : _error != null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.error_outline, color: Colors.white38, size: 32),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Failed to load spots',
-                                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextButton(
-                                    onPressed: _loadAllSpots,
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _visibleSpots.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'No spots in view — pan or zoom the map',
-                                    style: TextStyle(color: Colors.white54),
-                                  ),
-                                )
-                              : _buildSpotCarousel(),
+              // Carousel section (hidden in pin mode)
+              if (!_isPinMode)
+                Expanded(
+                  child: Container(
+                    color: const Color(0xFF0D0D0D),
+                    child: !_mapFullyReady
+                        ? const Center(
+                            child: Text(
+                              'Loading spots...',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          )
+                        : _error != null
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.error_outline, color: Colors.white38, size: 32),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Failed to load spots',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextButton(
+                                      onPressed: _loadAllSpots,
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _visibleSpots.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                      'No spots in view — pan or zoom the map',
+                                      style: TextStyle(color: Colors.white54),
+                                    ),
+                                  )
+                                : _buildSpotCarousel(),
+                  ),
                 ),
-              ),
             ],
           ),
 
@@ -936,6 +1436,129 @@ class _ExploreScreenState extends State<ExploreScreen> {
           size: 22,
         ),
       ),
+    );
+  }
+
+  /// Right floating buttons: Saved Spots (top) + Pin/Add spot (bottom)
+  Widget _buildRightFloatingButtons() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Saved spots button
+        _buildFloatingButton(
+          icon: Icons.bookmark_outline,
+          onTap: _showSavedSpotsSheet,
+          badgeCount: _userSpots.length,
+        ),
+        const SizedBox(height: 8),
+        // Pin/Add spot button
+        _buildFloatingButton(
+          icon: Icons.add_location_alt,
+          onTap: _enterPinMode,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloatingButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(icon, color: Colors.white70, size: 22),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: AppColors.info,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeCount > 9 ? '9+' : '$badgeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Pin mode cancel/mark spot buttons
+  Widget _buildPinModeActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: _exitPinMode,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Center(
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GestureDetector(
+            onTap: _confirmPinLocation,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: Text(
+                  'Mark Spot',
+                  style: TextStyle(
+                    color: Color(0xFF1A1A1A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1033,152 +1656,353 @@ class _SpotMarkerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final score = spot.shakaScore ?? 0;
+    final isLoading = spot.isUserSpot && spot.shakaScore == null;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        children: [
-          // Score badge
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _getScoreColor(score).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _getScoreColor(score),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: spot.shakaScore != null
-                  ? Text(
-                      '$score',
-                      style: TextStyle(
-                        color: _getScoreColor(score),
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : Icon(
-                      Icons.hourglass_empty,
-                      color: _getScoreColor(score),
-                      size: 22,
-                    ),
-            ),
+    return Opacity(
+      opacity: isLoading ? 0.7 : 1.0,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: spot.isUserSpot ? const Color(0xFF4FC3F7).withOpacity(0.4) : Colors.white12,
           ),
-          const SizedBox(width: 12),
-          
-          // Spot info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  spot.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        ),
+        child: Row(
+          children: [
+            // Score badge or loading spinner
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _getScoreColor(score).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _getScoreColor(score),
+                  width: 2,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _getScoreColor(score).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        spot.shakaScore != null ? _getScoreLabel(score) : 'Loading...',
+              ),
+              child: Center(
+                child: spot.shakaScore != null
+                    ? Text(
+                        '$score',
                         style: TextStyle(
                           color: _getScoreColor(score),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF4FC3F7),
+                            ),
+                          )
+                        : Icon(
+                            Icons.hourglass_empty,
+                            color: _getScoreColor(score),
+                            size: 22,
+                          ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            
+            // Spot info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          spot.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        spot.region,
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
+                      // Saved spot indicator
+                      if (spot.isUserSpot)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: Icon(Icons.bookmark, color: Color(0xFF4FC3F7), size: 16),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (isLoading)
+                    Text(
+                      'Getting intel on this spot...',
+                      style: TextStyle(
+                        color: const Color(0xFF4FC3F7),
+                        fontSize: 12,
+                      ),
+                    )
+                  else ...[
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getScoreColor(score).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            spot.shakaScore != null ? _getScoreLabel(score) : 'Loading...',
+                            style: TextStyle(
+                              color: _getScoreColor(score),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            spot.region,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Condition row (swell + wind) with bordered chips
+                    if (spot.swell != null || spot.wind != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            if (spot.swell != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white24),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.waves, size: 11, color: Colors.white54),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      spot.swell!,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            if (spot.wind != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white24),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.air, size: 11, color: Colors.white54),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      spot.wind!,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            
+            // Chevron hint
+            const Icon(Icons.chevron_right, color: Colors.white38, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card for saved spot in bottom sheet (same as Gibs _SavedSpotCard)
+class _SavedSpotCard extends StatelessWidget {
+  final UserSpotResponse spot;
+  final VoidCallback? onTap;
+  final VoidCallback onDelete;
+  final bool isLoading;
+
+  const _SavedSpotCard({
+    required this.spot,
+    required this.onTap,
+    required this.onDelete,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasScore = spot.shakaScore != null;
+    final scoreColor = hasScore 
+        ? AppColors.getScoreColor(spot.shakaScore!) 
+        : Colors.grey;
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: isLoading ? 0.7 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              // Score badge or loading spinner
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scoreColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
+                ),
+                child: Center(
+                  child: hasScore
+                      ? Text(
+                          '${spot.shakaScore}',
+                          style: TextStyle(
+                            color: scoreColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF4FC3F7),
+                              ),
+                            )
+                          : Icon(
+                              Icons.location_on,
+                              color: scoreColor,
+                              size: 20,
+                            ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      spot.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isLoading
+                          ? 'Getting intel on this spot...'
+                          : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
+                      style: TextStyle(
+                        color: isLoading ? const Color(0xFF4FC3F7) : Colors.white54,
+                        fontSize: 12,
+                        fontFamily: isLoading ? null : 'monospace',
                       ),
                     ),
                   ],
                 ),
-                // Condition row (swell + wind) with bordered chips
-                if (spot.swell != null || spot.wind != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      children: [
-                        if (spot.swell != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white24),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.waves, size: 11, color: Colors.white54),
-                                const SizedBox(width: 4),
-                                Text(
-                                  spot.swell!,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        if (spot.wind != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white24),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.air, size: 11, color: Colors.white54),
-                                const SizedBox(width: 4),
-                                Text(
-                                  spot.wind!,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
           ),
-          
-          // Chevron hint
-          const Icon(Icons.chevron_right, color: Colors.white38, size: 24),
-        ],
+        ),
       ),
     );
   }
+}
+
+/// Rifle scope style reticle for pin mode (same as Gibs)
+class _ReticlePainter extends CustomPainter {
+  const _ReticlePainter();
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    
+    final gap = 12.0;
+    final lineLength = radius - gap - 4;
+    
+    final outlinePaint = Paint()
+      ..color = Colors.white.withOpacity(0.4)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    
+    final linePaint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    
+    for (final paint in [outlinePaint, linePaint]) {
+      canvas.drawLine(
+        Offset(center.dx, center.dy - gap),
+        Offset(center.dx, center.dy - gap - lineLength),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(center.dx, center.dy + gap),
+        Offset(center.dx, center.dy + gap + lineLength),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(center.dx - gap, center.dy),
+        Offset(center.dx - gap - lineLength, center.dy),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(center.dx + gap, center.dy),
+        Offset(center.dx + gap + lineLength, center.dy),
+        paint,
+      );
+    }
+    
+    final dotPaint = Paint()..color = Colors.red;
+    canvas.drawCircle(center, 3, dotPaint);
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

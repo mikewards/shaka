@@ -381,7 +381,10 @@ data class UserSpotResponse(
     val country: String,
     val createdAt: String,
     val isUserSpot: Boolean = true,  // Always true, used by frontend to show "Saved" badge
-    val shakaScore: Int? = null  // Latest score from cache (null if not yet calculated)
+    val shakaScore: Int? = null,  // Latest score from cache (null if not yet calculated)
+    val swell: String? = null,     // e.g. "3ft @ 12s NW" (from cache)
+    val wind: String? = null,      // e.g. "8 kts NE" (from cache)
+    val waterTemp: String? = null   // e.g. "24°C / 75°F" (from cache)
 )
 
 @Serializable

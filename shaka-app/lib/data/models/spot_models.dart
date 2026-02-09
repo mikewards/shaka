@@ -893,6 +893,9 @@ class UserSpotResponse {
   final DateTime createdAt;
   final bool isUserSpot;
   final int? shakaScore;  // Latest Shaka Score (if available from API)
+  final String? swell;      // e.g. "3ft @ 12s NW" (from cache)
+  final String? wind;       // e.g. "8 kts NE" (from cache)
+  final String? waterTemp;  // e.g. "24°C / 75°F" (from cache)
 
   UserSpotResponse({
     required this.id,
@@ -903,6 +906,9 @@ class UserSpotResponse {
     required this.createdAt,
     this.isUserSpot = true,
     this.shakaScore,
+    this.swell,
+    this.wind,
+    this.waterTemp,
   });
 
   // Convenience getters
@@ -919,6 +925,24 @@ class UserSpotResponse {
       createdAt: DateTime.parse(json['createdAt'] as String),
       isUserSpot: json['isUserSpot'] as bool? ?? true,
       shakaScore: json['shakaScore'] as int?,
+      swell: json['swell'] as String?,
+      wind: json['wind'] as String?,
+      waterTemp: json['waterTemp'] as String?,
+    );
+  }
+
+  /// Convert to SpotMapMarker for use in Explore map carousel + markers
+  SpotMapMarker toSpotMapMarker() {
+    return SpotMapMarker(
+      id: id,
+      name: name,
+      coordinates: coordinates,
+      region: region,
+      shakaScore: shakaScore,
+      swell: swell,
+      wind: wind,
+      waterTemp: waterTemp,
+      isUserSpot: true,
     );
   }
 }
@@ -982,6 +1006,7 @@ class SpotMapMarker {
   final String? swell;      // "3ft @ 12s NW"
   final String? wind;       // "8 kts NE"
   final String? waterTemp;  // "24°C / 75°F"
+  final bool isUserSpot;    // true for user-saved spots (visual distinction on map)
 
   const SpotMapMarker({
     required this.id,
@@ -992,6 +1017,7 @@ class SpotMapMarker {
     this.swell,
     this.wind,
     this.waterTemp,
+    this.isUserSpot = false,
   });
 
   factory SpotMapMarker.fromJson(Map<String, dynamic> json) {

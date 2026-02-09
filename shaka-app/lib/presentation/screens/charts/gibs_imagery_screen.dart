@@ -676,6 +676,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
               createdAt: spot.createdAt,
               isUserSpot: spot.isUserSpot,
               shakaScore: score,
+              swell: spot.swell,
+              wind: spot.wind,
+              waterTemp: spot.waterTemp,
             );
             anyUpdated = true;
           }
