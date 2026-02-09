@@ -1281,15 +1281,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         child: _buildRightFloatingButtons(),
                       ),
                     
-                    // Pin mode action buttons (bottom of map)
-                    if (_isPinMode)
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        bottom: bottomPadding + 16,
-                        child: _buildPinModeActions(),
-                      ),
-                    
                     // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
                     if (!_initialCenterReady || _isLoading || !_mapFullyReady)
                       Positioned.fill(
@@ -1347,6 +1338,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 : _buildSpotCarousel(),
                   ),
                 ),
+
+              // Pin mode: docked bottom bar replacing nav bar
+              if (_isPinMode)
+                _buildPinModeActions(),
             ],
           ),
 
@@ -1448,60 +1443,69 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  /// Pin mode cancel/mark spot buttons — dark opaque backgrounds for visibility on any map style
+  /// Pin mode bottom bar — docked at bottom edge, replacing the navigation bar
   Widget _buildPinModeActions() {
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D0D0D).withOpacity(0.9),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: _exitPinMode,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2A2A2A),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.white70, fontSize: 15),
-                  ),
-                ),
-              ),
-            ),
+        color: const Color(0xFF0D0D0D),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: _confirmPinLocation,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE65100),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Mark Spot',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _exitPinMode,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _confirmPinLocation,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'Mark Spot',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
