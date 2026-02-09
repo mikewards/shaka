@@ -13,8 +13,10 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Client for NOAA CO-OPS (Center for Operational Oceanographic Products and Services).
@@ -151,15 +153,19 @@ class NOAATidesClient {
      */
     suspend fun getTidePredictions(stationId: String, date: String): TideData {
         try {
-            // Format date for API (YYYYMMDD)
-            val dateFormatted = date.replace("-", "")
+            // Fetch today + tomorrow so there are always future predictions,
+            // even when queried late in the evening after the last tide of the day.
+            val startDate = LocalDate.parse(date)
+            val endDate = startDate.plusDays(1)
+            val beginFormatted = startDate.format(DateTimeFormatter.BASIC_ISO_DATE)
+            val endFormatted = endDate.format(DateTimeFormatter.BASIC_ISO_DATE)
             
-            // Get high/low tide predictions for the day
+            // Get high/low tide predictions for today and tomorrow
             val url = buildString {
                 append(COOPS_URL)
                 append("?station=$stationId")
-                append("&begin_date=$dateFormatted")
-                append("&end_date=$dateFormatted")
+                append("&begin_date=$beginFormatted")
+                append("&end_date=$endFormatted")
                 append("&product=predictions")
                 append("&datum=MLLW")  // Mean Lower Low Water
                 append("&time_zone=lst_ldt")  // Local time with DST
@@ -171,7 +177,9 @@ class NOAATidesClient {
             logger.debug("Fetching tides: $url")
             val response: String = client.get(url).bodyAsText()
             
-            return parseTidePredictions(response, date)
+            // Derive station timezone from its longitude for correct time comparison
+            val stationLon = STATION_COORDINATES[stationId]?.second
+            return parseTidePredictions(response, date, stationLon)
         } catch (e: Exception) {
             logger.warn("Tide prediction fetch failed for station $stationId: ${e.message}")
             throw e
@@ -180,9 +188,21 @@ class NOAATidesClient {
 
     /**
      * Parse tide predictions from NOAA CO-OPS JSON response.
+     * 
+     * @param stationLon Station longitude, used to derive the station's timezone offset.
+     *   NOAA returns times in station-local time (lst_ldt), so we need the station's timezone
+     *   to correctly compare against "now" and convert to epoch millis.
      */
-    private fun parseTidePredictions(jsonResponse: String, date: String): TideData {
+    private fun parseTidePredictions(jsonResponse: String, date: String, stationLon: Double?): TideData {
         try {
+            // Derive the station's timezone offset from its longitude.
+            // This is accurate to within ~30 min for all US coastal locations.
+            val stationOffset = if (stationLon != null) {
+                ZoneOffset.ofHours((stationLon / 15).roundToInt())
+            } else {
+                java.time.ZoneId.systemDefault().rules.getOffset(java.time.Instant.now())
+            }
+
             // Parse the predictions array
             val predictionsRegex = """"predictions"\s*:\s*\[(.*?)\]""".toRegex(RegexOption.DOT_MATCHES_ALL)
             val predictionsMatch = predictionsRegex.find(jsonResponse)
@@ -201,7 +221,8 @@ class NOAATidesClient {
                 var currentHeight = 0.0
                 var tideState = "unknown"
                 
-                val now = LocalDateTime.now()
+                // Use the station's timezone so the comparison matches the NOAA lst_ldt times
+                val now = LocalDateTime.now(stationOffset)
                 val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
                 
                 for (pred in predictions) {
@@ -235,16 +256,14 @@ class NOAATidesClient {
                     }
                 }
                 
-                // Convert LocalDateTime to epoch millis for serialization
-                val zoneId = java.time.ZoneId.systemDefault()
-                
+                // Convert LocalDateTime to epoch millis using the station's timezone offset
                 return TideData(
                     currentHeight = currentHeight,
                     nextHighTide = nextHighTide.ifEmpty { "N/A" },
                     nextLowTide = nextLowTide.ifEmpty { "N/A" },
                     tideState = tideState,
-                    nextHighTideTime = nextHighTideTime?.atZone(zoneId)?.toInstant()?.toEpochMilli(),
-                    nextLowTideTime = nextLowTideTime?.atZone(zoneId)?.toInstant()?.toEpochMilli()
+                    nextHighTideTime = nextHighTideTime?.atZone(stationOffset)?.toInstant()?.toEpochMilli(),
+                    nextLowTideTime = nextLowTideTime?.atZone(stationOffset)?.toInstant()?.toEpochMilli()
                 )
             }
             

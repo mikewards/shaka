@@ -204,7 +204,9 @@ class SpotService {
                     currentHeight = cached.tide.value.currentHeight,
                     nextHighTide = cached.tide.value.nextHighTide,
                     nextLowTide = cached.tide.value.nextLowTide,
-                    tideState = cached.tide.value.state
+                    tideState = cached.tide.value.state,
+                    nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                    nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
                 )
             } else {
                 fallbackTide ?: TideData(
@@ -360,7 +362,9 @@ class SpotService {
                 currentHeight = cached.tide.value.currentHeight,
                 nextHighTide = cached.tide.value.nextHighTide,
                 nextLowTide = cached.tide.value.nextLowTide,
-                tideState = cached.tide.value.state
+                tideState = cached.tide.value.state,
+                nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
             )
         } else {
             // Cache miss - fetch live (only during startup)
@@ -1315,7 +1319,9 @@ class SpotService {
                 currentHeight = cached.tide.value.currentHeight,
                 nextHighTide = cached.tide.value.nextHighTide,
                 nextLowTide = cached.tide.value.nextLowTide,
-                tideState = cached.tide.value.state
+                tideState = cached.tide.value.state,
+                nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
             )
         } else {
             // Cache miss - fetch live
@@ -1652,7 +1658,9 @@ class SpotService {
                         state = tideData.tideState,
                         nextHighTide = tideData.nextHighTide,
                         nextLowTide = tideData.nextLowTide,
-                        currentHeight = tideData.currentHeight
+                        currentHeight = tideData.currentHeight,
+                        nextHighTideTime = tideData.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
+                        nextLowTideTime = tideData.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
                     ),
                     fetchedAt = now
                 )

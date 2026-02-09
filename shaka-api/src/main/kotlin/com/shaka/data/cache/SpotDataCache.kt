@@ -539,6 +539,8 @@ object SpotDataCache {
                     tide_next_time = NULL,
                     tide_next_high = NULL,
                     tide_next_low = NULL,
+                    tide_next_high_time = NULL,
+                    tide_next_low_time = NULL,
                     tide_fetched_at = NULL
             """.trimIndent()).executeUpdate()
             conn.close()
@@ -759,6 +761,8 @@ object SpotDataCache {
                 val tideColumns = """
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_high VARCHAR(50);
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_low VARCHAR(50);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_high_time TIMESTAMP;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS tide_next_low_time TIMESTAMP;
                 """.trimIndent()
                 
                 conn.createStatement().use { stmt ->
@@ -912,8 +916,9 @@ object SpotDataCache {
                         solunar_moon_phase, solunar_illumination, solunar_major_start1, solunar_major_end1,
                         solunar_major_start2, solunar_major_end2, solunar_minor_start1, solunar_minor_end1,
                         solunar_minor_start2, solunar_minor_end2, solunar_day_rating, solunar_fetched_at,
+                        tide_next_high_time, tide_next_low_time,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -981,6 +986,8 @@ object SpotDataCache {
                         solunar_minor_end2 = COALESCE(EXCLUDED.solunar_minor_end2, spot_cache.solunar_minor_end2),
                         solunar_day_rating = COALESCE(EXCLUDED.solunar_day_rating, spot_cache.solunar_day_rating),
                         solunar_fetched_at = COALESCE(EXCLUDED.solunar_fetched_at, spot_cache.solunar_fetched_at),
+                        tide_next_high_time = COALESCE(EXCLUDED.tide_next_high_time, spot_cache.tide_next_high_time),
+                        tide_next_low_time = COALESCE(EXCLUDED.tide_next_low_time, spot_cache.tide_next_low_time),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -1085,6 +1092,10 @@ object SpotDataCache {
                     stmt.setObject(66, solunar?.dayRating)
                     stmt.setTimestamp(67, data.solunar?.fetchedAt?.let { Timestamp.from(it) })
                     
+                    // Tide next high/low timestamps (separate columns for round-trip persistence)
+                    stmt.setTimestamp(68, data.tide?.value?.nextHighTideTime?.let { Timestamp.from(it) })
+                    stmt.setTimestamp(69, data.tide?.value?.nextLowTideTime?.let { Timestamp.from(it) })
+                    
                     stmt.executeUpdate()
                 }
             }
@@ -1127,6 +1138,8 @@ object SpotDataCache {
                         val tideHeightWasNull = rs.wasNull()
                         val tideNextHigh = rs.getString("tide_next_high")
                         val tideNextLow = rs.getString("tide_next_low")
+                        val tideNextHighTime = rs.getTimestamp("tide_next_high_time")
+                        val tideNextLowTime = rs.getTimestamp("tide_next_low_time")
                         val tideFetchedAt = rs.getTimestamp("tide_fetched_at")
                         if (tideState != null && tideFetchedAt != null) {
                             spotData = spotData.copy(
@@ -1135,7 +1148,9 @@ object SpotDataCache {
                                         state = tideState,
                                         nextHighTide = tideNextHigh ?: "Check local source",
                                         nextLowTide = tideNextLow ?: "Check local source",
-                                        currentHeight = if (tideHeightWasNull) 0.0 else tideHeight
+                                        currentHeight = if (tideHeightWasNull) 0.0 else tideHeight,
+                                        nextHighTideTime = tideNextHighTime?.toInstant(),
+                                        nextLowTideTime = tideNextLowTime?.toInstant()
                                     ),
                                     fetchedAt = tideFetchedAt.toInstant()
                                 )
