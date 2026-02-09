@@ -561,6 +561,52 @@ object SpotDataCache {
     }
     
     /**
+     * Clear all weather/swell data from cache and database.
+     * Used to force a full refetch after code changes.
+     */
+    fun clearAllWeather(): Int {
+        var cleared = 0
+        cache.forEach { (spotId, data) ->
+            if (data.swell != null || data.wind != null) {
+                cache[spotId] = data.copy(swell = null, wind = null)
+                cleared++
+            }
+        }
+        
+        // Also clear from database
+        try {
+            val conn = java.sql.DriverManager.getConnection(
+                System.getenv("DATABASE_URL") ?: "",
+                System.getenv("PGUSER") ?: "",
+                System.getenv("PGPASSWORD") ?: ""
+            )
+            conn.prepareStatement("""
+                UPDATE spot_cache SET 
+                    swell_height_ft = NULL,
+                    swell_period_sec = NULL,
+                    swell_direction = NULL,
+                    wind_speed_kts = NULL,
+                    wind_direction = NULL,
+                    weather_fetched_at = NULL
+            """.trimIndent()).executeUpdate()
+            conn.close()
+            logger.info("Cleared weather/swell data from database")
+        } catch (e: Exception) {
+            logger.warn("Could not clear weather from database: ${e.message}")
+        }
+        
+        logger.info("Cleared weather/swell data from $cleared cached spots")
+        return cleared
+    }
+    
+    /**
+     * Get all spots without weather/swell data.
+     */
+    fun getSpotsWithoutWeather(): List<String> {
+        return cache.filter { it.value.swell == null }.keys.toList()
+    }
+    
+    /**
      * Get chlorophyll statistics.
      */
     fun getChlorophyllStats(): Map<String, Any> {

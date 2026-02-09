@@ -473,6 +473,70 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Clear all weather/swell data (to force refetch after code changes)
+            post("/admin/weather/clear") {
+                val cleared = com.shaka.data.cache.SpotDataCache.clearAllWeather()
+                call.respondText(
+                    """{"status":"ok","cleared":$cleared}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
+            // Trigger weather/swell fetch for all spots without weather data
+            post("/admin/weather/refetch") {
+                val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutWeather()
+                val total = spotsToFetch.size
+                
+                val openMeteo = com.shaka.data.client.OpenMeteoClient()
+                val today = java.time.LocalDate.now().toString()
+                
+                kotlinx.coroutines.GlobalScope.launch {
+                    var success = 0
+                    var failed = 0
+                    for (spotId in spotsToFetch) {
+                        try {
+                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
+                            val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, today)
+                            val weather = openMeteo.getWeather(spot.coordinates.lat, spot.coordinates.lon, today)
+                            val now = java.time.Instant.now()
+                            
+                            com.shaka.data.cache.SpotDataCache.updateSwell(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(
+                                    value = com.shaka.data.cache.SpotDataCache.SwellInfo(
+                                        heightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.swellHeight),
+                                        periodSec = ocean.swellPeriod,
+                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
+                                        swellHeightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.swellHeight)
+                                    ),
+                                    fetchedAt = now
+                                )
+                            )
+                            com.shaka.data.cache.SpotDataCache.updateWind(
+                                spotId,
+                                com.shaka.data.cache.SpotDataCache.CachedValue(
+                                    value = com.shaka.data.cache.SpotDataCache.WindInfo(
+                                        speedKnots = com.shaka.data.cache.SpotDataCache.kmhToKnots(weather.windSpeed),
+                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
+                                    ),
+                                    fetchedAt = now
+                                )
+                            )
+                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
+                            success++
+                        } catch (e: Exception) {
+                            failed++
+                        }
+                    }
+                    org.slf4j.LoggerFactory.getLogger("WeatherRefetch").info("Weather refetch complete: $success success, $failed failed")
+                }
+                
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"Weather/swell fetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+            
             // Get MPA cache stats
             get("/admin/mpa/stats") {
                 val withMPA = com.shaka.data.cache.SpotDataCache.getAllSpotIds().count { spotId ->
