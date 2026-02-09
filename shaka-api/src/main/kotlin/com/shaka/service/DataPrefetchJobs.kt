@@ -177,7 +177,7 @@ class DataPrefetchJobs(
                                     value = SpotDataCache.SwellInfo(
                                         heightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
                                         periodSec = ocean.wavePeriod,
-                                        direction = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                                        direction = SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
                                         swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
                                     ),
                                     fetchedAt = now,
