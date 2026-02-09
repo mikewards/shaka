@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../screens/explore/explore_screen.dart';
 
 /// Main shell with bottom navigation for the app.
 /// Contains tabs for Home, Explore, Charts, and Profile.
@@ -15,9 +16,13 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: ExploreScreen.pinModeActive,
+      builder: (context, isPinMode, _) {
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: Container(
+      // Hide bottom nav during Explore pin mode (map goes full-screen)
+      bottomNavigationBar: isPinMode ? null : Container(
         decoration: BoxDecoration(
           color: const Color(0xFF0D0D0D),
           boxShadow: [
@@ -67,6 +72,8 @@ class MainShell extends StatelessWidget {
         ),
         ),
       ),
+    );
+      },
     );
   }
 
