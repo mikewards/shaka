@@ -8,6 +8,8 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -67,7 +69,7 @@ class NOAATidesClient {
         // Cached station list -- loaded once from NOAA Metadata API, persists for app lifetime.
         @Volatile
         private var cachedStations: List<StationInfo>? = null
-        private val stationLoadLock = Any()
+        private val stationLoadMutex = Mutex()
         
         // Hardcoded fallback stations (used only if Metadata API is unreachable)
         private val FALLBACK_STATIONS = listOf(
@@ -101,11 +103,11 @@ class NOAATidesClient {
     private suspend fun getStations(): List<StationInfo> {
         cachedStations?.let { return it }
         
-        return synchronized(stationLoadLock) {
+        stationLoadMutex.withLock {
             // Double-check after acquiring lock
             cachedStations?.let { return it }
             
-            try {
+            return try {
                 val stations = fetchStationsFromMetadataApi()
                 cachedStations = stations
                 logger.info("Loaded ${stations.size} NOAA tide prediction stations from Metadata API")
