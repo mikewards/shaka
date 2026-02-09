@@ -12,6 +12,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -127,28 +131,31 @@ class NOAATidesClient {
     private suspend fun fetchStationsFromMetadataApi(): List<StationInfo> {
         val response: String = client.get(METADATA_URL).bodyAsText()
         
-        // Parse the station list from JSON using regex (lightweight, no full JSON tree)
+        val json = Json { ignoreUnknownKeys = true; isLenient = true }
+        val root = json.parseToJsonElement(response).jsonObject
+        val stationsArray = root["stations"]?.jsonArray
+            ?: throw Exception("No 'stations' array in NOAA Metadata API response")
+        
         val stations = mutableListOf<StationInfo>()
         
-        // Match each station object in the array
-        val stationRegex = """\{\s*"state"\s*:.*?"id"\s*:\s*"([^"]+)".*?"name"\s*:\s*"([^"]+)".*?"lat"\s*:\s*([-\d.]+).*?"lng"\s*:\s*([-\d.]+).*?\}""".toRegex(RegexOption.DOT_MATCHES_ALL)
-        // Also need to extract timezonecorr from each station block
-        val blockRegex = """\{[^{}]*"id"\s*:\s*"([^"]+)"[^{}]*\}""".toRegex(RegexOption.DOT_MATCHES_ALL)
-        
-        for (blockMatch in blockRegex.findAll(response)) {
-            val block = blockMatch.value
-            
-            val id = Regex(""""id"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1) ?: continue
-            val name = Regex(""""name"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1) ?: continue
-            val lat = Regex(""""lat"\s*:\s*([-\d.eE+]+)""").find(block)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-            val lon = Regex(""""lng"\s*:\s*([-\d.eE+]+)""").find(block)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-            val tzCorr = Regex(""""timezonecorr"\s*:\s*([-\d]+)""").find(block)?.groupValues?.get(1)?.toIntOrNull() ?: continue
-            
-            stations.add(StationInfo(id, name, lat, lon, tzCorr))
+        for (element in stationsArray) {
+            try {
+                val obj = element.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: continue
+                val name = obj["name"]?.jsonPrimitive?.content ?: continue
+                val lat = obj["lat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: continue
+                val lon = obj["lng"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: continue
+                val tzCorr = obj["timezonecorr"]?.jsonPrimitive?.content?.toIntOrNull() ?: continue
+                
+                stations.add(StationInfo(id, name, lat, lon, tzCorr))
+            } catch (e: Exception) {
+                // Skip malformed station entries
+                logger.debug("Skipping malformed station entry: ${e.message}")
+            }
         }
         
         if (stations.isEmpty()) {
-            throw Exception("Parsed 0 stations from NOAA Metadata API response (${response.length} chars)")
+            throw Exception("Parsed 0 stations from NOAA Metadata API response (${response.length} chars, ${stationsArray.size} entries)")
         }
         
         return stations
