@@ -234,11 +234,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
-        // ── Headline hero card (only for HOT / ON FIRE, not generic trending) ──
-        if (intel.headline != null && intel.headline!.heatLevel >= 2) ...[
-          _buildHeadlineCard(intel.headline!),
-          const SizedBox(height: 24),
-        ],
         // ── Insights ──
         if (intel.keyInsights.isNotEmpty) ...[
           _buildSectionHeader('INSIGHTS'),
@@ -336,116 +331,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           fontSize: 10,
           fontWeight: FontWeight.w500,
           letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-
-  // ─── Headline Hero Card ─────────────────────────────────────────────
-
-  Widget _buildHeadlineCard(Headline headline) {
-    // Heat-level color: 1=warm (info), 2=hot (warning), 3=on fire (red)
-    final heatColor = headline.heatLevel >= 3
-        ? const Color(0xFFEF4444)
-        : headline.heatLevel == 2
-            ? AppColors.warning
-            : AppColors.info;
-    final heatLabel = headline.heatLevel >= 3
-        ? 'ON FIRE'
-        : headline.heatLevel == 2
-            ? 'HOT'
-            : 'TRENDING';
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _borderColor),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Left accent bar — stretches to full card height
-            Container(width: 3, color: heatColor),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Heat badge pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: heatColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        heatLabel,
-                        style: TextStyle(
-                          color: heatColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Main message
-                    Text(
-                      headline.message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Bottom row: count badge + top landing
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _borderColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${headline.count24h} caught',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        if (headline.topLanding != null &&
-                            headline.topLanding!.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              headline.topLanding!,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.4),
-                                fontSize: 12,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -1152,8 +1152,138 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     
-    // Pin mode: full-screen map. Normal: 70% map / 30% carousel
-    final mapHeight = _isPinMode ? screenHeight : screenHeight * 0.70;
+    final mapHeight = screenHeight * 0.70;
+
+    // Map stack children (shared between pin mode and normal mode)
+    final mapChildren = <Widget>[
+      // Build map only after initial center is resolved (avoids cold-start animateCamera crash)
+      if (_initialCenterReady)
+        Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            _pointerDownPosition = event.localPosition;
+            _pointerDownTime = DateTime.now();
+          },
+          onPointerUp: (event) {
+            final downPos = _pointerDownPosition;
+            final downTime = _pointerDownTime;
+            _pointerDownPosition = null;
+            _pointerDownTime = null;
+            if (downPos == null || downTime == null) return;
+            final duration = DateTime.now().difference(downTime);
+            final distance = (event.localPosition - downPos).distance;
+            if (duration.inMilliseconds < 300 && distance < 20) {
+              if (!_isPinMode) {
+                debugPrint('TAP DETECTED at ${event.localPosition}');
+                _handleMapTap(event.localPosition);
+              }
+            }
+          },
+          onPointerMove: (event) {
+            if (_isPinMode && _mapController != null) {
+              final pos = _mapController!.cameraPosition;
+              if (pos != null && (_currentCenter == null || 
+                  pos.target.latitude != _currentCenter!.latitude ||
+                  pos.target.longitude != _currentCenter!.longitude)) {
+                setState(() => _currentCenter = pos.target);
+              }
+            }
+          },
+          child: MaplibreMap(
+            key: ValueKey('map_$_mapKey'),
+            onMapCreated: _onMapCreated,
+            onStyleLoadedCallback: _onStyleLoaded,
+            onCameraIdle: () {
+              _onCameraIdle();
+              _onCameraMove();
+            },
+            initialCameraPosition: _lastCameraPosition ?? CameraPosition(
+              target: _defaultCenter,
+              zoom: _initialZoom,
+            ),
+            styleString: _bgService.getStyleUrl(_bgService.current),
+            minMaxZoomPreference: const MinMaxZoomPreference(3, 18),
+            trackCameraPosition: true,
+            compassEnabled: false,
+            attributionButtonMargins: const Point(-100, -100),
+            logoViewMargins: const Point(-100, -100),
+          ),
+        ),
+
+      // GPS Coordinates Display (centered at top when in pin mode)
+      if (_isPinMode && _currentCenter != null)
+        Positioned(
+          top: topPadding + 8,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+      // Reticle Crosshairs (center when in pin mode)
+      if (_isPinMode)
+        const Center(
+          child: SizedBox(
+            width: 120,
+            height: 120,
+            child: CustomPaint(painter: _ReticlePainter()),
+          ),
+        ),
+      
+      // Background picker button (left-aligned, hidden in pin mode)
+      if (!_isPinMode)
+        Positioned(
+          bottom: 16,
+          left: 16,
+          child: _buildBackgroundButton(),
+        ),
+
+      // Right floating buttons: Saved Spots + Pin (hidden in pin mode)
+      if (!_isPinMode)
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: _buildRightFloatingButtons(),
+        ),
+      
+      // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
+      if (!_initialCenterReady || _isLoading || !_mapFullyReady)
+        Positioned.fill(
+          child: Container(
+            color: const Color(0xFF0D0D0D),
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.info,
+              ),
+            ),
+          ),
+        ),
+    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
@@ -1161,141 +1291,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           Column(
             children: [
-              // Map section (full-screen in pin mode, 70% otherwise)
-              SizedBox(
-                height: mapHeight,
-                child: Stack(
-                  children: [
-                    // Build map only after initial center is resolved (avoids cold-start animateCamera crash)
-                    if (_initialCenterReady)
-                      Listener(
-                        behavior: HitTestBehavior.translucent,
-                        onPointerDown: (event) {
-                          _pointerDownPosition = event.localPosition;
-                          _pointerDownTime = DateTime.now();
-                        },
-                        onPointerUp: (event) {
-                          final downPos = _pointerDownPosition;
-                          final downTime = _pointerDownTime;
-                          _pointerDownPosition = null;
-                          _pointerDownTime = null;
-                          if (downPos == null || downTime == null) return;
-                          final duration = DateTime.now().difference(downTime);
-                          final distance = (event.localPosition - downPos).distance;
-                          if (duration.inMilliseconds < 300 && distance < 20) {
-                            if (!_isPinMode) {
-                              debugPrint('TAP DETECTED at ${event.localPosition}');
-                              _handleMapTap(event.localPosition);
-                            }
-                          }
-                        },
-                        onPointerMove: (event) {
-                          if (_isPinMode && _mapController != null) {
-                            final pos = _mapController!.cameraPosition;
-                            if (pos != null && (_currentCenter == null || 
-                                pos.target.latitude != _currentCenter!.latitude ||
-                                pos.target.longitude != _currentCenter!.longitude)) {
-                              setState(() => _currentCenter = pos.target);
-                            }
-                          }
-                        },
-                        child: MaplibreMap(
-                          key: ValueKey('map_$_mapKey'),
-                          onMapCreated: _onMapCreated,
-                          onStyleLoadedCallback: _onStyleLoaded,
-                          onCameraIdle: () {
-                            _onCameraIdle();
-                            _onCameraMove();
-                          },
-                          initialCameraPosition: _lastCameraPosition ?? CameraPosition(
-                            target: _defaultCenter,
-                            zoom: _initialZoom,
-                          ),
-                          styleString: _bgService.getStyleUrl(_bgService.current),
-                          minMaxZoomPreference: const MinMaxZoomPreference(3, 18),
-                          trackCameraPosition: true,
-                          compassEnabled: false,
-                          attributionButtonMargins: const Point(-100, -100),
-                          logoViewMargins: const Point(-100, -100),
-                        ),
-                      ),
-
-                    // GPS Coordinates Display (centered at top when in pin mode)
-                    if (_isPinMode && _currentCenter != null)
-                      Positioned(
-                        top: topPadding + 8,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: Container(
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontFamily: 'monospace',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Reticle Crosshairs (center when in pin mode)
-                    if (_isPinMode)
-                      const Center(
-                        child: SizedBox(
-                          width: 120,
-                          height: 120,
-                          child: CustomPaint(painter: _ReticlePainter()),
-                        ),
-                      ),
-                    
-                    // Background picker button (left-aligned, hidden in pin mode)
-                    if (!_isPinMode)
-                      Positioned(
-                        bottom: 16,
-                        left: 16,
-                        child: _buildBackgroundButton(),
-                      ),
-
-                    // Right floating buttons: Saved Spots + Pin (hidden in pin mode)
-                    if (!_isPinMode)
-                      Positioned(
-                        bottom: 16,
-                        right: 16,
-                        child: _buildRightFloatingButtons(),
-                      ),
-                    
-                    // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
-                    if (!_initialCenterReady || _isLoading || !_mapFullyReady)
-                      Positioned.fill(
-                        child: Container(
-                          color: const Color(0xFF0D0D0D),
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.info,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              // Map section: Expanded in pin mode (fills space above bottom bar), fixed 70% otherwise
+              if (_isPinMode)
+                Expanded(child: Stack(children: mapChildren))
+              else
+                SizedBox(height: mapHeight, child: Stack(children: mapChildren)),
               
               // Carousel section (hidden in pin mode)
               if (!_isPinMode)
@@ -1457,6 +1457,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(

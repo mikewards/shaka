@@ -139,35 +139,6 @@ object FishingIntelRoutes {
 
         val narrativeInsights = buildNarrativeInsights(dedupedReports)
 
-        // BD narrative = where most headlines come from; dock counts = pure stats unless wild anomaly
-        val headline = when {
-            narrativeInsights.isNotEmpty() -> HeadlineResponse(
-                species = narrativeInsights.first().species,
-                message = if (narrativeInsights.first().location.isNotBlank())
-                    "${narrativeInsights.first().species} at ${narrativeInsights.first().location}"
-                else narrativeInsights.first().species,
-                heatLevel = 1,
-                count24h = 0,
-                topLanding = null
-            )
-            else -> {
-                val trophyUp = trendsWithMeta.map { it.second }
-                    .filter { it.trend == "UP" && it.count24h > 0 && it.species in trophyDisplayNames }
-                    .sortedByDescending { it.count24h }
-                    .firstOrNull()
-                // Only use dock-based headline for a clear anomaly (huge count or massive % change)
-                if (trophyUp != null && (trophyUp.count24h >= 10 || trophyUp.percentChange > 200)) {
-                    HeadlineResponse(
-                        species = trophyUp.species,
-                        message = "${trophyUp.species} activity at ${trophyUp.topLanding ?: "local waters"}",
-                        heatLevel = if (trophyUp.percentChange > 100) 2 else 1,
-                        count24h = trophyUp.count24h,
-                        topLanding = trophyUp.topLanding
-                    )
-                } else null
-            }
-        }
-
         val now = nowInUserZone.toInstant()
         val recentCatches = recent48h.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
@@ -191,7 +162,7 @@ object FishingIntelRoutes {
 
         val response = SpotIntelResponse(
             spotId = spotId,
-            headline = headline,
+            headline = null,
             hotSpecies = hotSpecies,
             coldSpecies = coldSpecies,
             speciesWithTrends = speciesWithTrends,
@@ -298,33 +269,6 @@ object FishingIntelRoutes {
 
         val narrativeInsights = buildNarrativeInsights(dedupedReports)
 
-        val headline = when {
-            narrativeInsights.isNotEmpty() -> HeadlineResponse(
-                species = narrativeInsights.first().species,
-                message = if (narrativeInsights.first().location.isNotBlank())
-                    "${narrativeInsights.first().species} at ${narrativeInsights.first().location}"
-                else narrativeInsights.first().species,
-                heatLevel = 1,
-                count24h = 0,
-                topLanding = null
-            )
-            else -> {
-                val trophyUp = trendsWithMeta.map { it.second }
-                    .filter { it.trend == "UP" && it.count24h > 0 && it.species in trophyDisplayNames }
-                    .sortedByDescending { it.count24h }
-                    .firstOrNull()
-                if (trophyUp != null && (trophyUp.count24h >= 10 || trophyUp.percentChange > 200)) {
-                    HeadlineResponse(
-                        species = trophyUp.species,
-                        message = "${trophyUp.species} activity at ${trophyUp.topLanding ?: "local waters"}",
-                        heatLevel = if (trophyUp.percentChange > 100) 2 else 1,
-                        count24h = trophyUp.count24h,
-                        topLanding = trophyUp.topLanding
-                    )
-                } else null
-            }
-        }
-
         val now = nowInUserZone.toInstant()
         val recentCatches = recent48h.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
@@ -374,7 +318,7 @@ object FishingIntelRoutes {
 
         val response = SpotIntelResponse(
             spotId = normalizedRegionId,
-            headline = headline,
+            headline = null,
             hotSpecies = hotSpecies,
             coldSpecies = coldSpecies,
             speciesWithTrends = speciesWithTrends,
