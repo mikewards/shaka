@@ -34,11 +34,18 @@ object DateParser {
     }
     
     fun parse976TunaCounts(dateStr: String): LocalDate? {
+        // Extract "DayOfWeek Month Day Year" from strings like "Monday February 9th 2026 Totals".
+        // Old code used LocalDate.parse on the full string which ALWAYS failed on trailing " Totals",
+        // silently falling back to LocalDate.now() and mis-dating every report.
+        val match = Regex(
+            """(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\w+)\s+(\d+)(?:st|nd|rd|th)?\s+(\d{4})""",
+            RegexOption.IGNORE_CASE
+        ).find(dateStr) ?: return null
         return try {
-            // Remove ordinal suffixes for parsing
-            val cleaned = dateStr
-                .replace(Regex("(\\d+)(st|nd|rd|th)"), "$1")
-            LocalDate.parse(cleaned, DateTimeFormatter.ofPattern("EEEE MMMM d yyyy", Locale.US))
+            val month = parseMonthName(match.groupValues[1])
+            val day = match.groupValues[2].toInt()
+            val year = match.groupValues[3].toInt()
+            LocalDate.of(year, month, day)
         } catch (e: Exception) {
             null
         }

@@ -101,8 +101,14 @@ object FishingIntelDb {
 
     /**
      * Seed initial data sources.
+     * On first run after deploy: wipes all stale intel data so the fixed scraper
+     * repopulates from scratch with correct dates and no duplicates.
+     * TODO: remove deleteAllIntelData() call after verifying clean data in production.
      */
     fun seedSources() {
+        // Wipe all stale data — clean slate for the fixed scraper logic
+        deleteAllIntelData()
+
         transaction {
             val sources = listOf(
                 SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
@@ -219,6 +225,63 @@ object FishingIntelDb {
         }
     }
     
+    /**
+     * Wipe ALL fishing intel data. Clean slate.
+     * Deletes claims, report_geos, reports, raw_pages, and region_insights.
+     * Sources table is preserved (just the config, not data).
+     */
+    fun deleteAllIntelData() {
+        transaction {
+            val conn = this.connection.connection as java.sql.Connection
+            val tables = listOf(
+                "fishing_intel_claims",
+                "fishing_intel_report_geos",
+                "fishing_intel_reports",
+                "fishing_intel_raw_pages",
+                "fishing_intel_region_insights"
+            )
+            for (table in tables) {
+                try {
+                    val count = conn.createStatement().executeUpdate("DELETE FROM $table")
+                    logger.info("Wiped $count rows from $table")
+                } catch (e: Exception) {
+                    logger.warn("Failed to wipe $table: ${e.message}")
+                }
+            }
+            logger.info("All fishing intel data wiped — clean slate")
+        }
+    }
+
+    /**
+     * Delete DOCK_TOTAL reports for a specific source and published_at date.
+     * Used by the scraper for replace-on-scrape: delete old report, then insert fresh one.
+     * Deletes child rows (claims, report_geos) first.
+     */
+    fun deleteReportsForSourceAndDate(sourceId: String, publishedAt: LocalDateTime, reportType: String = "DOCK_TOTAL") {
+        transaction {
+            val conn = this.connection.connection as java.sql.Connection
+            // Find matching report IDs
+            val reportIds = FishingIntelReportsTable
+                .slice(FishingIntelReportsTable.id)
+                .select {
+                    (FishingIntelReportsTable.sourceId eq sourceId) and
+                    (FishingIntelReportsTable.publishedAt eq publishedAt) and
+                    (FishingIntelReportsTable.reportType eq reportType)
+                }
+                .map { it[FishingIntelReportsTable.id].value }
+
+            if (reportIds.isEmpty()) return@transaction
+
+            // Delete child rows then reports
+            for (id in reportIds) {
+                conn.prepareStatement("DELETE FROM fishing_intel_claims WHERE report_id = ?").use { it.setInt(1, id); it.executeUpdate() }
+                conn.prepareStatement("DELETE FROM fishing_intel_report_geos WHERE report_id = ?").use { it.setInt(1, id); it.executeUpdate() }
+                conn.prepareStatement("DELETE FROM fishing_intel_reports WHERE report_id = ?").use { it.setInt(1, id); it.executeUpdate() }
+            }
+            logger.debug("Replaced ${reportIds.size} $reportType report(s) for $sourceId @ $publishedAt")
+        }
+    }
+
     /**
      * Delete all reports for a source (e.g. bd-outdoors). Use to clear bad/old data before re-ingest.
      * Deletes child rows (claims, report_geos) first so it works even without ON DELETE CASCADE.

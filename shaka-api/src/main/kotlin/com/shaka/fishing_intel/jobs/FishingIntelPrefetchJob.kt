@@ -13,6 +13,8 @@ import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -144,6 +146,8 @@ object FishingIntelPrefetchJob {
      * - Daily totals section with "Caught : X rockfish, Y bass, ..."
      * - Individual landing sections with boat counts
      */
+    private val PACIFIC = ZoneId.of("America/Los_Angeles")
+
     private fun parse976TunaMain(doc: Document, url: String): Pair<Int, Int> {
         var reports = 0
         var claims = 0
@@ -157,8 +161,8 @@ object FishingIntelPrefetchJob {
                 val headerText = header.text()
                 if (!headerText.contains("Totals", ignoreCase = true)) continue
                 
-                // Parse date from header
-                val date = DateParser.parse976TunaCounts(headerText) ?: LocalDate.now()
+                // Parse date from header — fallback uses Pacific time (976-TUNA is a SoCal site)
+                val date = DateParser.parse976TunaCounts(headerText) ?: LocalDate.now(PACIFIC)
                 
                 // Find the "Caught :" line - look in siblings and next elements
                 var currentElement: Element? = header.nextElementSibling()
@@ -191,16 +195,22 @@ object FishingIntelPrefetchJob {
                 val fishCounts = CountsParser.parse(countsText)
                 if (fishCounts.isEmpty()) continue
                 
+                // published_at = midnight Pacific time for this date, stored as UTC
+                val publishedInstant = date.atStartOfDay(PACIFIC).toInstant()
+                val publishedLdt = LocalDateTime.ofInstant(publishedInstant, ZoneOffset.UTC)
+
+                // Replace-on-scrape: delete any existing DOCK_TOTAL for this source+date,
+                // then insert the fresh one. This ensures exactly ONE report per date.
+                FishingIntelDb.deleteReportsForSourceAndDate("976-tuna", publishedLdt)
+                
                 val fingerprint = Deduplicator.buildFingerprint(
                     "976-TUNA", "Daily Totals", "Daily", date, null, fishCounts
                 )
                 
-                if (FishingIntelDb.fingerprintExists(fingerprint)) continue
-                
                 val report = FishingReport(
                     sourceId = "976-tuna",
                     url = url,
-                    publishedAt = date.atStartOfDay().toInstant(ZoneOffset.UTC),
+                    publishedAt = publishedInstant,
                     observedAt = Instant.now(),
                     reportType = ReportType.DOCK_TOTAL,
                     title = "976-TUNA Daily Totals - $date",
@@ -226,6 +236,8 @@ object FishingIntelPrefetchJob {
                 
                 // Geotag to San Diego/SoCal region center
                 FishingIntelDb.saveReportGeo(reportId, 32.7157, -117.1611, GeoType.REGION_FALLBACK, 100000)
+                
+                logger.info("976-TUNA daily total for $date: ${fishCounts.sumOf { it.kept + it.released }} fish across ${fishCounts.size} species")
                 
             } catch (e: Exception) {
                 logger.debug("Error parsing 976-TUNA date section: ${e.message}")
