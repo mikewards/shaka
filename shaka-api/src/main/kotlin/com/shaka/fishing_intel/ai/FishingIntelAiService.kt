@@ -164,16 +164,16 @@ object FishingIntelAiService {
         val tldrsText = narrativeTldrs.take(5).joinToString("\n") { it.take(200) }.take(800)
         val systemPrompt = """You are a fishing report writer in the style of Ernest Hemingway's The Old Man and the Sea: short sentences, plain words, no fluff. Be specific and concrete — name species, numbers, and conditions. Never write vague or ambiguous lines like "good times on the water" or "fishing is good." Your tone is uplifting and hopeful: the sea gives, the fisherman endures. Every insight must be punchy and actionable.
 Output ONLY a JSON array of 3 to 5 strings. Each string is one key insight, maximum 2 lines (about 15–20 words). No numbering, no markdown, no explanation. Be specific: e.g. "Yellowtail counts are up. The fleet put 40 on the deck yesterday." or "Calm seas through Thursday. Go early."
-IMPORTANT: Always say "2 days" or "last 2 days", NEVER "48 hours" or "48h". Always say "5-day" for the trailing average, never "5 day" or "five day"."""
+IMPORTANT: Always say "3 days" or "last 3 days", NEVER "48 hours" or "48h". Always say "prior 3 days" for the comparison window."""
         val userPrompt = """Region: $regionLabel. Total reports: $totalReports.
 
-Species catch trends (last 2 days vs 5-day trailing):
+Species catch trends (last 3 days vs prior 3 days):
 $speciesSummary
 
 Recent report TL;DRs:
 $tldrsText
 
-Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 lines. Hemingway: simple, direct, uplifting. Be specific — name fish, numbers, or conditions. No vague or generic lines. Say "2 days" not "48 hours"."""
+Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 lines. Hemingway: simple, direct, uplifting. Be specific — name fish, numbers, or conditions. No vague or generic lines. Say "3 days" not "48 hours"."""
 
         val messagesJson = """[{"role":"system","content":${Json.encodeToString(serializer<String>(), systemPrompt)}},{"role":"user","content":${Json.encodeToString(serializer<String>(), userPrompt)}}]"""
         val requestBody = """{"model":"${apiModel()}","messages":$messagesJson,"temperature":0.4}"""

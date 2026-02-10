@@ -245,7 +245,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (intel.speciesList.isNotEmpty) ...[
           _buildSectionHeader(
             'CATCH NUMBERS',
-            trailing: _buildBadge('LAST 2 DAYS'),
+            trailing: _buildBadge('LAST 3 DAYS'),
           ),
           const SizedBox(height: 10),
           ...intel.speciesList.asMap().entries.map((entry) {
@@ -316,7 +316,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  /// Small muted pill badge (e.g. "LAST 48HR").
+  /// Small muted pill badge (e.g. "LAST 3 DAYS").
   Widget _buildBadge(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -547,7 +547,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  /// Flyout below selected species row: trend vs 5-day avg + counts.
+  /// Flyout below selected species row: trend vs prior 3 days + counts.
   Widget _buildSpeciesFlyout(TrendingSpecies s) {
     final isUp = s.isUp;
     final isDown = s.isDown;
@@ -596,7 +596,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'VS TRAILING 5-DAYS',
+                'VS PRIOR 3 DAYS',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.45),
                   fontSize: 10,
@@ -609,9 +609,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 12),
           Container(height: 1, color: _borderColor),
           const SizedBox(height: 12),
-          _buildFlyoutStatRow('Last 2 days', '${s.count24h}'),
+          _buildFlyoutStatRow('Last 3 days', '${s.count24h}'),
           const SizedBox(height: 8),
-          _buildFlyoutStatRow('Trailing 5-days', '${s.countPrevious}'),
+          _buildFlyoutStatRow('Prior 3 days', '${s.countPrevious}'),
         ],
       ),
     );
@@ -695,7 +695,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 8),
           // Row 3: methodology note
           Text(
-            '2-day catch counts vs trailing 5-days',
+            '3-day catch counts vs prior 3 days',
             style: TextStyle(
               color: Colors.white.withOpacity(0.25),
               fontSize: 11,

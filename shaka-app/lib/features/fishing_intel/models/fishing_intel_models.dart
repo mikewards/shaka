@@ -34,7 +34,7 @@ class NarrativeInsight {
   }
 }
 
-/// Fishing intel response - one list, desirability order, last 48h vs 5-day baseline (×2/5).
+/// Fishing intel response - one list, desirability order, last 3 days vs prior 3 days.
 class FishingIntelResponse {
   final String spotId;
   final Headline? headline;
@@ -126,10 +126,10 @@ class Headline {
   }
 }
 
-/// Species with trend info (last 48h vs 5-day baseline ×2/5).
+/// Species with trend info (last 3 days vs prior 3 days, excludes today).
 class TrendingSpecies {
   final String species;
-  /// Catches in last 48h (field name count24h kept for API compat).
+  /// Catches in recent 3 days (field name count24h kept for API compat).
   final int count24h;
   final int countPrevious;
   final String trend; // "UP", "DOWN", "STABLE"
@@ -172,7 +172,7 @@ class TrendingSpecies {
     if (percentChange > 500) return '';
     final p = percentChange;
     final sign = p > 0 ? '+' : '';
-    return '$sign$p% vs trailing 5-days';
+    return '$sign$p% vs prior 3 days';
   }
 
   bool get isUp => trend == 'UP';

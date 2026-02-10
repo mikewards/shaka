@@ -55,29 +55,34 @@ object FishingIntelRoutes {
         // For other types, keep all (each is a distinct event).
         val dedupedReports = dedupeByLatest(allReports)
 
-        // Last 48h and baseline (5 days prior: today-2 through today-7) in user's local timezone
+        // Compare two equal 3-day windows starting from YESTERDAY (excludes incomplete today).
+        // Recent  = yesterday, 2 days ago, 3 days ago  (today-1 through today-3)
+        // Baseline = 4 days ago, 5 days ago, 6 days ago (today-4 through today-6)
         val offset = tzOffset ?: (spot.coordinates.lon / 15).toInt()
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
-        val fortyEightHoursAgo = nowInUserZone.minusHours(48).toInstant()
-        val baselineStart = nowInUserZone.minusHours(168).toInstant() // 7 days ago
+        val startOfToday = nowInUserZone.toLocalDate().atStartOfDay(userZone).toInstant()
+        val recentStart = startOfToday.minus(Duration.ofDays(3))   // start of 3 days ago
+        val baselineStart = startOfToday.minus(Duration.ofDays(6)) // start of 6 days ago
 
-        // Recent 48h = reports published in last 48h (publishedAt only)
-        val recent48h = dedupedReports.filter { it.publishedAt?.isAfter(fortyEightHoursAgo) == true }
-        // Baseline = 5 days prior to last 48h: [now-7d, now-48h)
-        val baseline = dedupedReports.filter { r ->
+        // Recent 3 days = [today-3, today) — excludes today
+        val recent3d = dedupedReports.filter { r ->
             val t = r.publishedAt ?: return@filter false
-            !t.isBefore(baselineStart) && t.isBefore(fortyEightHoursAgo)
+            !t.isBefore(recentStart) && t.isBefore(startOfToday)
+        }
+        // Baseline 3 days = [today-6, today-3)
+        val baseline3d = dedupedReports.filter { r ->
+            val t = r.publishedAt ?: return@filter false
+            !t.isBefore(baselineStart) && t.isBefore(recentStart)
         }
 
-        val recentCounts = countSpecies(recent48h)
-        val baselineCounts = countSpecies(baseline)
+        val recentCounts = countSpecies(recent3d)
+        val baselineCounts = countSpecies(baseline3d)
 
         val allSpecies = (recentCounts.keys + baselineCounts.keys).distinct()
         val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
 
-        // Trend = last 48h vs (5-day baseline total × 2/5) = equivalent 48h rate from baseline
-        val baselineMultiplier = 2.0 / 5.0
+        // Trend = recent 3 days vs baseline 3 days (same-size windows, no multiplier needed)
         val trendsWithMeta = allSpecies.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
             val recent = recentCounts[species] ?: SpeciesAgg()
@@ -85,12 +90,10 @@ object FishingIntelRoutes {
             val recentTotal = recent.kept + recent.released
             val baseTotal = base.kept + base.released
             if (recentTotal == 0 && baseTotal == 0) return@mapNotNull null
-            val baselineEquivalent48h = if (baseTotal == 0) 0.0 else baseTotal * baselineMultiplier
             val percentChange = when {
                 baseTotal == 0 && recentTotal > 0 -> 999
                 baseTotal == 0 -> 0
-                baselineEquivalent48h == 0.0 -> 0
-                else -> ((recentTotal - baselineEquivalent48h) * 100 / baselineEquivalent48h).toInt()
+                else -> ((recentTotal - baseTotal) * 100.0 / baseTotal).toInt()
             }
             val trend = when {
                 percentChange > 20 -> "UP"
@@ -112,13 +115,12 @@ object FishingIntelRoutes {
                     trend = trend,
                     percentChange = percentChange,
                     topLanding = recent.topLanding ?: base.topLanding,
-                    trendLabel = trendLabel,
-                    avgPerDayPrevious = if (baselineEquivalent48h > 0) baselineEquivalent48h else null
+                    trendLabel = trendLabel
                 )
             )
         }
 
-        // Single list sorted by desirability (most to least), then by 48h count. No cap — show all species.
+        // Single list sorted by desirability (most to least), then by recent count. No cap — show all species.
         val speciesWithTrends = trendsWithMeta
             .sortedWith(
                 compareBy<Pair<String, TrendingSpeciesResponse>> { SpeciesOrder.sortKey(it.first) }
@@ -135,7 +137,7 @@ object FishingIntelRoutes {
         val narrativeInsights = buildNarrativeInsights(dedupedReports)
 
         val now = nowInUserZone.toInstant()
-        val recentCatches = recent48h.take(10).flatMap { report ->
+        val recentCatches = recent3d.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
             report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
@@ -193,24 +195,33 @@ object FishingIntelRoutes {
         // For other types (BD narratives, long-range), keep all (each is a distinct event).
         val dedupedReports = dedupeByLatest(allReports)
 
+        // Compare two equal 3-day windows starting from YESTERDAY (excludes incomplete today).
+        // Recent  = yesterday, 2 days ago, 3 days ago  (today-1 through today-3)
+        // Baseline = 4 days ago, 5 days ago, 6 days ago (today-4 through today-6)
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
-        val fortyEightHoursAgo = nowInUserZone.minusHours(48).toInstant()
-        val baselineStart = nowInUserZone.minusHours(168).toInstant()
+        val startOfToday = nowInUserZone.toLocalDate().atStartOfDay(userZone).toInstant()
+        val recentStart = startOfToday.minus(Duration.ofDays(3))   // start of 3 days ago
+        val baselineStart = startOfToday.minus(Duration.ofDays(6)) // start of 6 days ago
 
-        val recent48h = dedupedReports.filter { it.publishedAt?.isAfter(fortyEightHoursAgo) == true }
-        val baseline = dedupedReports.filter { r ->
+        // Recent 3 days = [today-3, today) — excludes today
+        val recent3d = dedupedReports.filter { r ->
             val t = r.publishedAt ?: return@filter false
-            !t.isBefore(baselineStart) && t.isBefore(fortyEightHoursAgo)
+            !t.isBefore(recentStart) && t.isBefore(startOfToday)
+        }
+        // Baseline 3 days = [today-6, today-3)
+        val baseline3d = dedupedReports.filter { r ->
+            val t = r.publishedAt ?: return@filter false
+            !t.isBefore(baselineStart) && t.isBefore(recentStart)
         }
 
-        val recentCounts = countSpecies(recent48h)
-        val baselineCounts = countSpecies(baseline)
+        val recentCounts = countSpecies(recent3d)
+        val baselineCounts = countSpecies(baseline3d)
 
         val allSpecies = (recentCounts.keys + baselineCounts.keys).distinct()
         val trophyDisplayNames = SpeciesTier.TROPHY_SPECIES.map { formatSpeciesName(it) }.toSet()
 
-        val baselineMultiplier = 2.0 / 5.0
+        // Trend = recent 3 days vs baseline 3 days (same-size windows, no multiplier needed)
         val trendsWithMeta = allSpecies.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
             val recent = recentCounts[species] ?: SpeciesAgg()
@@ -218,12 +229,10 @@ object FishingIntelRoutes {
             val recentTotal = recent.kept + recent.released
             val baseTotal = base.kept + base.released
             if (recentTotal == 0 && baseTotal == 0) return@mapNotNull null
-            val baselineEquivalent48h = if (baseTotal == 0) 0.0 else baseTotal * baselineMultiplier
             val percentChange = when {
                 baseTotal == 0 && recentTotal > 0 -> 999
                 baseTotal == 0 -> 0
-                baselineEquivalent48h == 0.0 -> 0
-                else -> ((recentTotal - baselineEquivalent48h) * 100 / baselineEquivalent48h).toInt()
+                else -> ((recentTotal - baseTotal) * 100.0 / baseTotal).toInt()
             }
             val trend = when {
                 percentChange > 20 -> "UP"
@@ -245,8 +254,7 @@ object FishingIntelRoutes {
                     trend = trend,
                     percentChange = percentChange,
                     topLanding = recent.topLanding ?: base.topLanding,
-                    trendLabel = trendLabel,
-                    avgPerDayPrevious = if (baselineEquivalent48h > 0) baselineEquivalent48h else null
+                    trendLabel = trendLabel
                 )
             )
         }
@@ -266,7 +274,7 @@ object FishingIntelRoutes {
         val narrativeInsights = buildNarrativeInsights(dedupedReports)
 
         val now = nowInUserZone.toInstant()
-        val recentCatches = recent48h.take(10).flatMap { report ->
+        val recentCatches = recent3d.take(10).flatMap { report ->
             val hoursAgo = Duration.between(report.publishedAt ?: now, now).toHours().toInt()
             report.claims
                 .filter { it.claimType == ClaimType.CATCH && it.species != null }
@@ -287,7 +295,7 @@ object FishingIntelRoutes {
         val sourcesUsed = dedupedReports.map { it.sourceId }.distinct().mapNotNull { sourceNames[it] }
 
         val speciesSummary = speciesWithTrends.take(12).joinToString("\n") { s ->
-            "${s.species}: ${s.count24h} (last 48h), ${s.countPrevious} (5-day baseline), ${s.trend} ${s.percentChange}%"
+            "${s.species}: ${s.count24h} (last 3 days), ${s.countPrevious} (prior 3 days), ${s.trend} ${s.percentChange}%"
         }
         val tldrs = narrativeInsights.map { it.tldr }.filter { it.isNotBlank() }
         val regionLabel = if (normalizedRegionId == "so_cal") "SoCal" else normalizedRegionId

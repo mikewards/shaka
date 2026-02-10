@@ -13,7 +13,7 @@ data class SpotIntelResponse(
     val headline: HeadlineResponse?,
     @Deprecated("Use speciesWithTrends") val hotSpecies: List<TrendingSpeciesResponse> = emptyList(),
     @Deprecated("Use speciesWithTrends") val coldSpecies: List<TrendingSpeciesResponse> = emptyList(),
-    /** Single list sorted by desirability (most to least). Last 48h vs 5-day baseline (×2/5) equivalent. */
+    /** Single list sorted by desirability (most to least). Last 3 days vs prior 3 days (equal windows, excludes today). */
     val speciesWithTrends: List<TrendingSpeciesResponse> = emptyList(),
     val recentCatches: List<RecentCatchResponse>,
     val sourcesUsed: List<String>,
@@ -36,13 +36,12 @@ data class HeadlineResponse(
 @Serializable
 data class TrendingSpeciesResponse(
     val species: String,
-    val count24h: Int,              // catches in last 48h (field name kept for API compat)
-    val countPrevious: Int,         // total in baseline 5 days (today-2 to today-7)
+    val count24h: Int,              // catches in recent 3 days (field name kept for API compat)
+    val countPrevious: Int,         // total in prior 3 days (today-4 through today-6)
     val trend: String,              // "UP", "DOWN", "STABLE"
-    val percentChange: Int,         // vs (5-day total × 2/5) equivalent 48h
+    val percentChange: Int,         // recent 3 days vs prior 3 days (equal windows)
     val topLanding: String?,
-    val trendLabel: String? = null,  // "Above average", "Below average", "Average", "New!"
-    val avgPerDayPrevious: Double? = null
+    val trendLabel: String? = null   // "Above average", "Below average", "Average", "New!"
 )
 
 @Serializable
