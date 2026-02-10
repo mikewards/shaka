@@ -738,9 +738,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           'score': hasScore ? score.toString() : '',
           'sortKey': sortKey,
           'color': color,
-          'radius': 14,
-          'strokeWidth': 2,
-          'strokeColor': '#FFFFFF',
+          'radius': 15,
+          'strokeWidth': 2.5,
+          'strokeColor': '#7A9BB8',
           'textSize': 11,
         },
       };
@@ -789,9 +789,8 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
         textHaloColor: '#000000',
         textHaloWidth: 1.0,
-        textAllowOverlap: false,
-        textIgnorePlacement: false,
-        textPadding: 14,
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
         symbolSortKey: ['get', 'sortKey'],
       ),
       minzoom: 6,
@@ -1075,14 +1074,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                               children: [
                                 Icon(
                                   _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
-                                  color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white38,
+                                  color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white38,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Show on map',
                                   style: TextStyle(
-                                    color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white54,
+                                    color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white54,
                                     fontSize: 13,
                                   ),
                                 ),

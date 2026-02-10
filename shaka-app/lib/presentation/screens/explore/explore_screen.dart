@@ -612,7 +612,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'user-spots-pulse-layer',
         CircleLayerProperties(
           circleRadius: ['get', 'radius'],
-          circleColor: '#E65100',
+          circleColor: '#7A9BB8',
           circleOpacity: ['get', 'opacity'],
           circleStrokeWidth: 0,
         ),
@@ -727,14 +727,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               children: [
                                 Icon(
                                   _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
-                                  color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white38,
+                                  color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white38,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Show on map',
                                   style: TextStyle(
-                                    color: _showSpotsOnMap ? const Color(0xFF6B8E7D) : Colors.white54,
+                                    color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white54,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -878,8 +878,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           'sortKey': -score,
           'color': color,
           'radius': isUser ? 15 : 14,
-          'strokeWidth': isUser ? 2.5 : 2,
-          'strokeColor': isUser ? '#E65100' : '#FFFFFF',
+          'strokeWidth': isUser ? 2.5 : 0,
+          'strokeColor': isUser ? '#7A9BB8' : '#00000000',
           'textSize': 11,
           'isUserSpot': isUser,
         },
@@ -937,9 +937,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
           textHaloColor: '#000000',
           textHaloWidth: 1.0,
-          textAllowOverlap: false,
-          textIgnorePlacement: false,
-          textPadding: 14,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
         ),
         minzoom: 6,
@@ -995,9 +994,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'selected-spot-layer',
         const CircleLayerProperties(
           circleRadius: 24,
-          circleColor: '#7A9BB8',
+          circleColor: '#E65100',
           circleOpacity: 0.25,
-          circleStrokeColor: '#7A9BB8',
+          circleStrokeColor: '#E65100',
           circleStrokeWidth: 2.5,
           circleStrokeOpacity: 0.7,
         ),
@@ -1488,7 +1487,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE65100),
+                      color: const Color(0xFF7A9BB8),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Center(
@@ -1616,7 +1615,7 @@ class _SpotMarkerCard extends StatelessWidget {
           color: const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: spot.isUserSpot ? const Color(0xFFE65100).withOpacity(0.4) : Colors.white12,
+            color: Colors.white12,
           ),
         ),
         child: Row(
@@ -1649,7 +1648,7 @@ class _SpotMarkerCard extends StatelessWidget {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFFE65100),
+                              color: Color(0xFF7A9BB8),
                             ),
                           )
                         : Icon(
@@ -1685,7 +1684,7 @@ class _SpotMarkerCard extends StatelessWidget {
                       if (spot.isUserSpot)
                         const Padding(
                           padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.bookmark, color: Color(0xFFE65100), size: 16),
+                          child: Icon(Icons.bookmark, color: Color(0xFF7A9BB8), size: 16),
                         ),
                     ],
                   ),
@@ -1694,7 +1693,7 @@ class _SpotMarkerCard extends StatelessWidget {
                     Text(
                       'Getting intel on this spot...',
                       style: TextStyle(
-                        color: const Color(0xFFE65100),
+                        color: const Color(0xFF7A9BB8),
                         fontSize: 12,
                       ),
                     )
@@ -1851,7 +1850,7 @@ class _SavedSpotCard extends StatelessWidget {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFFE65100),
+                                color: Color(0xFF7A9BB8),
                               ),
                             )
                           : Icon(
@@ -1880,7 +1879,7 @@ class _SavedSpotCard extends StatelessWidget {
                           ? 'Getting intel on this spot...'
                           : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                       style: TextStyle(
-                        color: isLoading ? const Color(0xFFE65100) : Colors.white54,
+                        color: isLoading ? const Color(0xFF7A9BB8) : Colors.white54,
                         fontSize: 12,
                         fontFamily: isLoading ? null : 'monospace',
                       ),
