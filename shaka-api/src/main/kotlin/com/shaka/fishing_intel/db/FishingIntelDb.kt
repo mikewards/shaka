@@ -100,15 +100,10 @@ object FishingIntelDb {
     private val ACTIVE_SOURCES = setOf("976-tuna", "976-tuna-longrange", "bd-outdoors")
 
     /**
-     * Seed initial data sources.
-     * On first run after deploy: wipes all stale intel data so the fixed scraper
-     * repopulates from scratch with correct dates and no duplicates.
-     * TODO: remove deleteAllIntelData() call after verifying clean data in production.
+     * Seed initial data sources (upsert — safe to call on every startup).
+     * Data is NOT wiped; the replace-on-scrape logic in the scraper handles freshness.
      */
     fun seedSources() {
-        // Wipe all stale data — clean slate for the fixed scraper logic
-        deleteAllIntelData()
-
         transaction {
             val sources = listOf(
                 SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
