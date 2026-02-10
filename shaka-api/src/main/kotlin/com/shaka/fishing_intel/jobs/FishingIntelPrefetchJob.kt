@@ -107,22 +107,31 @@ object FishingIntelPrefetchJob {
     // =============================================================================
     
     /**
-     * Scrape 976-TUNA main page for daily totals (region-wide) and long-range posts.
+     * Scrape 976-TUNA daily totals for the last 7 days (date-specific URLs) and long-range posts.
+     * Each date has its own URL: https://976-tuna.com/counts?m=MM&d=DD&y=YYYY
+     * This ensures we always have a full 7-day window of finalized daily totals,
+     * regardless of what the default page shows.
      */
     private suspend fun scrape976Tuna(): Pair<Int, Int> {
-        logger.info("Scraping 976-TUNA...")
+        logger.info("Scraping 976-TUNA (last 7 days + long-range)...")
         var reports = 0
         var claims = 0
         
-        // Scrape counts page which has current daily totals (local boats)
-        val mainUrl = "https://www.976-tuna.com/counts"
-        val mainDoc = fetchWithRetry(mainUrl, RateLimiters.tuna976)
-        
-        if (mainDoc != null) {
-            FishingIntelDb.saveRawPage("976-tuna", mainUrl, mainDoc.html(), 200, null, null)
-            val (r, c) = parse976TunaMain(mainDoc, mainUrl)
-            reports += r
-            claims += c
+        // Fetch the last 7 days of daily totals via date-specific URLs
+        val today = LocalDate.now(PACIFIC)
+        for (daysBack in 0..6) {
+            val date = today.minusDays(daysBack.toLong())
+            val url = "https://www.976-tuna.com/counts?m=${date.monthValue}&d=${date.dayOfMonth}&y=${date.year}"
+            
+            try {
+                val doc = fetchWithRetry(url, RateLimiters.tuna976) ?: continue
+                FishingIntelDb.saveRawPage("976-tuna", url, doc.html(), 200, null, null)
+                val (r, c) = parse976TunaMain(doc, url)
+                reports += r
+                claims += c
+            } catch (e: Exception) {
+                logger.warn("Failed to scrape 976-TUNA for $date: ${e.message}")
+            }
         }
         
         // Scrape long-range posts for offshore action (tuna, wahoo, yellowtail)
