@@ -27,12 +27,8 @@ object FishingIntelRoutes {
     private val logger = LoggerFactory.getLogger(FishingIntelRoutes::class.java)
     
     private val sourceNames = mapOf(
-        "socal-fish-reports" to "SoCal Fish Reports",
-        "san-diego-fish-reports" to "San Diego Fish Reports",
         "976-tuna" to "976-TUNA",
-        "22nd-street" to "22nd Street Landing",
-        "fishermans-landing" to "Fisherman's Landing",
-        "seaforth" to "Seaforth Landing",
+        "976-tuna-longrange" to "976-TUNA Long Range",
         "bd-outdoors" to "BD Outdoors Forums"
     )
     
@@ -55,10 +51,9 @@ object FishingIntelRoutes {
 
         if (allReports.isEmpty()) return null
 
-        // Dedupe by fingerprint so each logical report counts once
-        val dedupedReports = allReports.groupBy { reportFingerprint(it) }.values.map { group ->
-            group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
-        }
+        // Dedupe: for DOCK_TOTAL reports, keep only the LATEST per (sourceId, date).
+        // For other types, keep all (each is a distinct event).
+        val dedupedReports = dedupeByLatest(allReports)
 
         // Last 48h and baseline (5 days prior: today-2 through today-7) in user's local timezone
         val offset = tzOffset ?: (spot.coordinates.lon / 15).toInt()
@@ -193,9 +188,10 @@ object FishingIntelRoutes {
         val allReports = FishingIntelDb.getReportsForRegion(normalizedRegionId, hoursBack = 168)
         if (allReports.isEmpty()) return null
 
-        val dedupedReports = allReports.groupBy { reportFingerprint(it) }.values.map { group ->
-            group.minByOrNull { it.publishedAt ?: Instant.MAX } ?: group.first()
-        }
+        // Dedupe: for DOCK_TOTAL reports (976-tuna daily totals), keep only the LATEST
+        // report per (sourceId, date) since each scrape supersedes the previous one.
+        // For other types (BD narratives, long-range), keep all (each is a distinct event).
+        val dedupedReports = dedupeByLatest(allReports)
 
         val userZone = ZoneOffset.ofHours(offset)
         val nowInUserZone = ZonedDateTime.now(userZone)
@@ -345,27 +341,6 @@ object FishingIntelRoutes {
             else -> "night" to now.toLocalDate().minusDays(1) // 00–02:59 = previous day's night
         }
         return "${date}_$slotName"
-    }
-
-    private fun reportFingerprint(report: ReportWithClaims): String {
-        val fishCounts = report.claims
-            .filter { it.claimType == ClaimType.CATCH && it.species != null }
-            .map { FishCount(it.species!!, it.countKept ?: 0, it.countReleased ?: 0) }
-        val firstWithMeta = report.claims.firstOrNull { it.landingName != null || it.boatName != null || it.tripType != null }
-        val landingName = firstWithMeta?.landingName
-        val boatName = firstWithMeta?.boatName ?: report.claims.firstOrNull()?.boatName
-        val tripType = firstWithMeta?.tripType ?: report.claims.firstOrNull()?.tripType
-        val anglerCount = report.claims.firstOrNull()?.anglerCount
-        val date = report.publishedAt?.atZone(ZoneOffset.UTC)?.toLocalDate() ?: LocalDate.now(ZoneOffset.UTC)
-        return Deduplicator.getReportFingerprint(
-            report.canonicalFingerprint,
-            landingName,
-            boatName,
-            tripType,
-            date,
-            anglerCount,
-            fishCounts
-        )
     }
 
     private fun buildNarrativeInsights(reports: List<ReportWithClaims>): List<NarrativeInsight> {
@@ -518,6 +493,26 @@ object FishingIntelRoutes {
     }
     
     // --- Helpers ---
+
+    /**
+     * Dedupe reports so rolling daily totals don't stack.
+     * DOCK_TOTAL reports (976-tuna daily totals): keep only the LATEST per (sourceId, date).
+     *   Each scraper run produces a fresh total; older scrapes for the same date are superseded.
+     * All other types (NARRATIVE, FISH_COUNT): keep all — each represents a distinct event.
+     */
+    private fun dedupeByLatest(reports: List<ReportWithClaims>): List<ReportWithClaims> {
+        val (dockTotals, others) = reports.partition { it.reportType == ReportType.DOCK_TOTAL }
+
+        // For dock totals, group by (sourceId, publishedAt date) and keep the one with highest reportId (= most recent insert)
+        val latestDockTotals = dockTotals.groupBy { report ->
+            val date = report.publishedAt?.atZone(ZoneOffset.UTC)?.toLocalDate() ?: LocalDate.now(ZoneOffset.UTC)
+            "${report.sourceId}|$date"
+        }.values.map { group ->
+            group.maxByOrNull { it.reportId } ?: group.first()
+        }
+
+        return latestDockTotals + others
+    }
     
     private fun countSpecies(reports: List<ReportWithClaims>): Map<String, SpeciesAgg> {
         val counts = mutableMapOf<String, SpeciesAgg>()

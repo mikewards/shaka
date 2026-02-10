@@ -93,18 +93,20 @@ object FishingIntelDb {
     }
     
     /**
+     * Active sources: only 976-tuna (daily totals), 976-tuna-longrange, and bd-outdoors.
+     * All per-boat aggregator sources (socal-fish-reports, san-diego-fish-reports,
+     * 22nd-street, fishermans-landing, seaforth) are disabled to prevent double-counting.
+     */
+    private val ACTIVE_SOURCES = setOf("976-tuna", "976-tuna-longrange", "bd-outdoors")
+
+    /**
      * Seed initial data sources.
      */
     fun seedSources() {
         transaction {
             val sources = listOf(
-                SourceConfig("socal-fish-reports", "SoCalFishReports", "https://www.socalfishreports.com", TrustTier.B, 1.0, "so_cal"),
-                SourceConfig("san-diego-fish-reports", "SanDiegoFishReports", "https://www.sandiegofishreports.com", TrustTier.B, 1.0, "so_cal"),
                 SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
                 SourceConfig("976-tuna-longrange", "976-TUNA Long Range", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
-                SourceConfig("22nd-street", "22nd Street Landing", "https://www.22ndstreet.com", TrustTier.A, 0.5, "so_cal"),
-                SourceConfig("fishermans-landing", "Fisherman's Landing", "https://www.fishermanslanding.com", TrustTier.A, 0.5, "so_cal"),
-                SourceConfig("seaforth", "Seaforth Sportfishing", "https://www.seaforthlanding.com", TrustTier.A, 0.5, "so_cal"),
                 SourceConfig("bd-outdoors", "BD Outdoors Forums", "https://www.bdoutdoors.com/forums/", TrustTier.B, 0.5, "so_cal")
             )
             
@@ -119,7 +121,17 @@ object FishingIntelDb {
                     it[regionalReport] = source.regionalReport
                 }
             }
-            logger.info("Seeded ${sources.size} sources")
+            logger.info("Seeded ${sources.size} active sources")
+
+            // Disable retired sources so their existing data is excluded from queries
+            val disabled = FishingIntelSourcesTable.update(
+                where = { FishingIntelSourcesTable.sourceId notInList ACTIVE_SOURCES }
+            ) {
+                it[enabled] = false
+            }
+            if (disabled > 0) {
+                logger.info("Disabled $disabled retired sources")
+            }
         }
     }
     
@@ -327,11 +339,17 @@ object FishingIntelDb {
             
             if (reportIds.isEmpty()) return@transaction emptyList()
             
-            // Get full reports with claims
+            // Get full reports with claims (only from enabled/active sources)
+            val enabledSourceIds = FishingIntelSourcesTable
+                .slice(FishingIntelSourcesTable.sourceId)
+                .select { FishingIntelSourcesTable.enabled eq true }
+                .map { it[FishingIntelSourcesTable.sourceId] }
+
             FishingIntelReportsTable
                 .select { 
                     (FishingIntelReportsTable.id inList reportIds) and
-                    (FishingIntelReportsTable.publishedAt greaterEq cutoff)
+                    (FishingIntelReportsTable.publishedAt greaterEq cutoff) and
+                    (FishingIntelReportsTable.sourceId inList enabledSourceIds)
                 }
                 .orderBy(FishingIntelReportsTable.publishedAt, SortOrder.DESC)
                 .map { row ->
@@ -390,6 +408,7 @@ object FishingIntelDb {
                 .select {
                     (FishingIntelReportsTable.sourceId eq FishingIntelSourcesTable.sourceId) and
                     (FishingIntelSourcesTable.regionalReport eq regionId) and
+                    (FishingIntelSourcesTable.enabled eq true) and
                     (FishingIntelReportsTable.publishedAt greaterEq cutoff)
                 }
                 .map { it[FishingIntelReportsTable.id].value }
