@@ -955,18 +955,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return '#${color.value.toRadixString(16).substring(2)}';
   }
 
-  /// Highlight the selected spot on the map with a glow ring behind it.
+  /// Highlight the selected spot and elevate it above all other markers.
+  /// Renders three layers on top: glow ring, spot circle, score label.
   Future<void> _updateSelectedMarker() async {
     if (_mapController == null) return;
 
-    // Remove old highlight
-    try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
+    // Remove old layers (order matters: labels, circle, ring, then source)
+    for (final id in ['selected-spot-label', 'selected-spot-circle', 'selected-spot-ring']) {
+      try { await _mapController?.removeLayer(id); } catch (_) {}
+    }
     try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
 
     if (_mapController == null) return;
     if (_selectedSpotIndex == null || _selectedSpotIndex! >= _visibleSpots.length) return;
 
     final spot = _visibleSpots[_selectedSpotIndex!];
+    final score = spot.shakaScore ?? 0;
+    final color = _getScoreColorHex(score);
+    final isUser = spot.isUserSpot;
+
     final geojson = {
       'type': 'FeatureCollection',
       'features': [
@@ -976,7 +983,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'type': 'Point',
             'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
           },
-          'properties': {},
+          'properties': {
+            'score': (spot.shakaScore != null) ? score.toString() : '',
+            'color': color,
+            'radius': isUser ? 15 : 14,
+            'strokeWidth': isUser ? 2.5 : 0,
+            'strokeColor': isUser ? '#7A9BB8' : '#00000000',
+          },
         },
       ],
     };
@@ -989,18 +1002,52 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       if (_mapController == null) return;
 
+      // 1. Glow ring (bottom of the three elevated layers)
       await _mapController!.addCircleLayer(
         'selected-spot-source',
-        'selected-spot-layer',
+        'selected-spot-ring',
         const CircleLayerProperties(
-          circleRadius: 24,
-          circleColor: '#E65100',
+          circleRadius: 20,
+          circleColor: '#B87A7A',
           circleOpacity: 0.25,
-          circleStrokeColor: '#E65100',
-          circleStrokeWidth: 2.5,
-          circleStrokeOpacity: 0.7,
+          circleStrokeColor: '#B87A7A',
+          circleStrokeWidth: 2.0,
+          circleStrokeOpacity: 0.8,
         ),
-        belowLayerId: 'spots-layer',
+      );
+
+      if (_mapController == null) return;
+
+      // 2. Spot circle (same style as in spots-layer, but rendered on top)
+      await _mapController!.addCircleLayer(
+        'selected-spot-source',
+        'selected-spot-circle',
+        const CircleLayerProperties(
+          circleRadius: ['get', 'radius'],
+          circleColor: ['get', 'color'],
+          circleStrokeColor: ['get', 'strokeColor'],
+          circleStrokeWidth: ['get', 'strokeWidth'],
+          circleOpacity: 1.0,
+          circleStrokeOpacity: 1.0,
+        ),
+      );
+
+      if (_mapController == null) return;
+
+      // 3. Score label (on top of everything)
+      await _mapController!.addSymbolLayer(
+        'selected-spot-source',
+        'selected-spot-label',
+        const SymbolLayerProperties(
+          textField: ['get', 'score'],
+          textSize: 11,
+          textColor: '#FFFFFF',
+          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          textHaloColor: '#000000',
+          textHaloWidth: 1.0,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+        ),
       );
     } catch (e) {
       debugPrint('Failed to update selected marker: $e');
