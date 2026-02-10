@@ -496,19 +496,27 @@ object FishingIntelRoutes {
 
     /**
      * Dedupe reports so rolling daily totals don't stack.
-     * DOCK_TOTAL reports (976-tuna daily totals): keep only the LATEST per (sourceId, date).
-     *   Each scraper run produces a fresh total; older scrapes for the same date are superseded.
+     * DOCK_TOTAL reports (976-tuna daily totals): keep only ONE per (sourceId, date).
+     *   Pick the report with the highest total fish count — this is the region-wide daily
+     *   total, not a per-landing subset. Old per-landing DOCK_TOTAL reports may still exist
+     *   in the DB with higher reportIds; using total catch count ensures we always pick
+     *   the comprehensive daily total over a landing subset.
      * All other types (NARRATIVE, FISH_COUNT): keep all — each represents a distinct event.
      */
     private fun dedupeByLatest(reports: List<ReportWithClaims>): List<ReportWithClaims> {
         val (dockTotals, others) = reports.partition { it.reportType == ReportType.DOCK_TOTAL }
 
-        // For dock totals, group by (sourceId, publishedAt date) and keep the one with highest reportId (= most recent insert)
+        // For dock totals, group by (sourceId, publishedAt date) and keep the report
+        // with the highest total catch count (= the comprehensive daily total, not a subset)
         val latestDockTotals = dockTotals.groupBy { report ->
             val date = report.publishedAt?.atZone(ZoneOffset.UTC)?.toLocalDate() ?: LocalDate.now(ZoneOffset.UTC)
             "${report.sourceId}|$date"
         }.values.map { group ->
-            group.maxByOrNull { it.reportId } ?: group.first()
+            group.maxByOrNull { report ->
+                report.claims
+                    .filter { it.claimType == ClaimType.CATCH }
+                    .sumOf { (it.countKept ?: 0) + (it.countReleased ?: 0) }
+            } ?: group.first()
         }
 
         return latestDockTotals + others
