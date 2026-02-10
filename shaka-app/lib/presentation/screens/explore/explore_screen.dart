@@ -96,6 +96,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Pulse animation for loading user spots (no score yet)
   Timer? _spotPulseTimer;
   bool _pulseExpanded = false;
+  
+  // Suppress onPageChanged during programmatic carousel animations
+  bool _isProgrammaticScroll = false;
 
   @override
   void initState() {
@@ -1008,11 +1011,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'selected-spot-ring',
         const CircleLayerProperties(
           circleRadius: 20,
-          circleColor: '#B87A7A',
-          circleOpacity: 0.25,
-          circleStrokeColor: '#B87A7A',
-          circleStrokeWidth: 2.0,
-          circleStrokeOpacity: 0.8,
+          circleColor: '#8A8A8A',
+          circleOpacity: 0.2,
+          circleStrokeColor: '#8A8A8A',
+          circleStrokeWidth: 2.5,
+          circleStrokeOpacity: 0.5,
         ),
       );
 
@@ -1056,6 +1059,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   void _onSpotSelected(int index) {
     if (index == _selectedSpotIndex) return;
+    
+    // Ignore intermediate pages fired during programmatic carousel animation
+    if (_isProgrammaticScroll) return;
     
     // Check marker tap flag BEFORE haptic to avoid double-buzz
     if (_isFromMarkerTap) {
@@ -1150,11 +1156,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
       setState(() => _selectedSpotIndex = visibleIndex);
       _updateSelectedMarker();
       
+      // Suppress onPageChanged during programmatic scroll to avoid cycling highlight
+      _isProgrammaticScroll = true;
       _carouselController.animateToPage(
         visibleIndex,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-      );
+      ).then((_) {
+        _isProgrammaticScroll = false;
+      });
     } else {
       // Spot is not in current viewport - animate to it
       // After animation, _onCameraIdle will update _visibleSpots and it will appear

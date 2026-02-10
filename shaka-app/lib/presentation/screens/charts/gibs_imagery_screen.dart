@@ -915,14 +915,13 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         'selected-spot-source',
         'selected-spot-layer',
         const CircleLayerProperties(
-          circleRadius: 24,
-          circleColor: '#7A9BB8',
-          circleOpacity: 0.25,
-          circleStrokeColor: '#7A9BB8',
+          circleRadius: 20,
+          circleColor: '#8A8A8A',
+          circleOpacity: 0.2,
+          circleStrokeColor: '#8A8A8A',
           circleStrokeWidth: 2.5,
-          circleStrokeOpacity: 0.7,
+          circleStrokeOpacity: 0.5,
         ),
-        belowLayerId: 'saved-spots-layer',
       );
     } catch (e) {
       debugPrint('Failed to highlight spot: $e');
