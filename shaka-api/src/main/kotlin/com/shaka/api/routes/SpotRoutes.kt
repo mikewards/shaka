@@ -3,6 +3,7 @@ package com.shaka.api.routes
 import com.shaka.data.cache.OceanDataCache
 import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CopernicusClient
+import com.shaka.data.client.LandWaterClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
@@ -46,6 +47,7 @@ fun Application.configureRouting() {
     val copernicusClient = CopernicusClient()
     val healthService = HealthService()
     val userSpotRepository = UserSpotRepository()
+    val landWaterClient = LandWaterClient()
 
     routing {
         route("/v1") {
@@ -748,6 +750,20 @@ fun Application.configureRouting() {
                         HttpStatusCode.BadRequest,
                         mapOf("error" to "Longitude must be between -180 and 180")
                     )
+                }
+                
+                // Land/water check — block spots on land
+                val isWater = landWaterClient.isWater(request.latitude, request.longitude)
+                if (isWater == false) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        mapOf("error" to "That location is on land. Move the pin into the water to save a spot.")
+                    )
+                }
+                // If isWater == null the classifier is unavailable — allow creation (log only)
+                if (isWater == null) {
+                    org.slf4j.LoggerFactory.getLogger("SpotRoutes")
+                        .warn("Land/water check unavailable for user spot at (${request.latitude}, ${request.longitude}) — allowing creation")
                 }
                 
                 // Check limit

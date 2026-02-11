@@ -96,17 +96,22 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
     } catch (e) {
       debugPrint('📍 SaveSpot: FAILED! Error: $e');
       HapticFeedback.heavyImpact();
-      String errorMsg = 'Failed to save spot. Please try again.';
-      
-      final errorStr = e.toString();
-      if (errorStr.contains('404') || errorStr.contains('Unable to connect')) {
-        errorMsg = 'Saved spots feature coming soon! Backend update required.';
-      } else if (errorStr.contains('Duplicate') || errorStr.contains('409')) {
-        errorMsg = 'You already have a spot at this location.';
-      } else if (errorStr.contains('limit') || errorStr.contains('100')) {
-        errorMsg = 'Spot limit reached (100 max). Delete some spots first.';
+
+      // Extract the human-readable message the backend sent.
+      // _handleError formats it as "Error <code>: <message>".
+      final errorStr = e.toString().replaceFirst('Exception: ', '');
+      String errorMsg;
+
+      final match = RegExp(r'^Error (\d+): (.+)$').firstMatch(errorStr);
+      if (match != null) {
+        // We have a structured backend response — show its message directly
+        errorMsg = match.group(2)!;
+      } else if (errorStr.contains('timed out') || errorStr.contains('Unable to connect')) {
+        errorMsg = 'Unable to reach the server. Check your connection and try again.';
+      } else {
+        errorMsg = 'Failed to save spot. Please try again.';
       }
-      
+
       setState(() {
         _isLoading = false;
         _errorMessage = errorMsg;

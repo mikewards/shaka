@@ -202,7 +202,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Haleiwa Harbor Reef', 'Near harbor entrance. Good for papio and ulua.', 21.5966, -158.1056, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Puaena Point', 'Local spot near harbor. Respect regulars.', 21.5980, -158.1014, 'Oahu', 'USA', 'shore', 6, 6);
+VALUES ('Puaena Point', 'Local spot near harbor. Respect regulars.', 21.598, -158.10916, 'Oahu', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Chun''s Reef', 'Named for waterman Chun. Good structure for reef fish.', 21.6208, -158.0900, 'Oahu', 'USA', 'shore', 8, 8);
@@ -214,7 +214,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Papailoa Beach', 'Less crowded North Shore spot with good reef.', 21.6108, -158.1000, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kawela Bay', 'Protected bay with calm water. Good for beginners.', 21.6858, -157.9950, 'Oahu', 'USA', 'shore', 6, 6);
+VALUES ('Kawela Bay', 'Protected bay with calm water. Good for beginners.', 21.701076, -158.011442, 'Oahu', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Electric Beach (Kahe Point)', 'SHORE ENTRY - Power plant warm water outflow attracts marine life. Easy beach entry, reef structure begins 20m offshore. Dolphins, turtles common.', 21.3525, -158.1346, 'Oahu', 'USA', 'shore', 15, 15);
@@ -241,7 +241,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Pokai Bay', 'Protected bay, good for beginners.', 21.4350, -158.1960, 'Oahu', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kaena Point (South)', 'Remote area, excellent when accessible.', 21.5700, -158.2710, 'Oahu', 'USA', 'shore', 10, 10);
+VALUES ('Kaena Point (South)', 'Remote area, excellent when accessible.', 21.566806, -158.267565, 'Oahu', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Waianae Boat Harbor', 'Harbor reef and outside break.', 21.4450, -158.1900, 'Oahu', 'USA', 'boat', 15, 15);
@@ -283,10 +283,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Waimanalo Bay', 'Long beach with offshore reef.', 21.3350, -157.6940, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Bellows Beach', 'Military beach, open weekends. Clear water.', 21.3550, -157.7090, 'Oahu', 'USA', 'shore', 8, 8);
+VALUES ('Bellows Beach', 'Military beach, open weekends. Clear water.', 21.355, -157.703184, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Lanikai Beach', 'Pristine beach with Mokulua Islands offshore.', 21.3900, -157.7140, 'Oahu', 'USA', 'shore', 10, 10);
+VALUES ('Lanikai Beach', 'Pristine beach with Mokulua Islands offshore.', 21.395417, -157.714, 'Oahu', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kailua Bay', 'Popular bay with good reef structure.', 21.4000, -157.7290, 'Oahu', 'USA', 'shore', 8, 8);
@@ -307,16 +307,16 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Chinaman''s Hat (Mokoli''i)', 'Iconic island with surrounding reef.', 21.5050, -157.8400, 'Oahu', 'USA', 'boat', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kahana Bay', 'Protected bay with calm water.', 21.5550, -157.8740, 'Oahu', 'USA', 'shore', 8, 8);
+VALUES ('Kahana Bay', 'Protected bay with calm water.', 21.560417, -157.874, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Punaluu', 'Small beach with reef structure.', 21.5700, -157.8840, 'Oahu', 'USA', 'shore', 8, 8);
+VALUES ('Punaluu', 'Small beach with reef structure.', 21.58441, -157.884, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hauula Beach', 'Local area with reef.', 21.6050, -157.9140, 'Oahu', 'USA', 'shore', 8, 8);
+VALUES ('Hauula Beach', 'Local area with reef.', 21.612646, -157.905776, 'Oahu', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Laie Point', 'Rocky point with current and fish.', 21.6450, -157.9190, 'Oahu', 'USA', 'shore', 10, 10);
+VALUES ('Laie Point', 'Rocky point with current and fish.', 21.645, -157.91414, 'Oahu', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Malaekahana Bay', 'State park with reef and small island.', 21.6650, -157.9340, 'Oahu', 'USA', 'shore', 8, 8);
@@ -325,25 +325,25 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Goat Island (Moku''auia)', 'Small island accessible at low tide.', 21.6700, -157.9290, 'Oahu', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kahuku Point', 'Remote point, difficult access.', 21.7100, -157.9740, 'Oahu', 'USA', 'shore', 12, 12);
+VALUES ('Kahuku Point', 'Remote point, difficult access.', 21.714518, -157.974, 'Oahu', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Two Step (Honaunau)', 'SHORE ENTRY - Iconic two-step lava entry into deep water. Wall dive starts immediately at shoreline, drops to 60ft+. Prime mu, kumu, uhu territory.', 19.4250, -155.9110, 'Bigisland', 'USA', 'shore', 60, 60);
+VALUES ('Two Step (Honaunau)', 'SHORE ENTRY - Iconic two-step lava entry into deep water. Wall dive starts immediately at shoreline, drops to 60ft+. Prime mu, kumu, uhu territory.', 19.42117, -155.915061, 'Bigisland', 'USA', 'shore', 60, 60);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kealakekua Bay', 'Captain Cook monument. Marine preserve - check boundaries.', 19.4800, -155.9300, 'Bigisland', 'USA', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Puako', 'Long reef with multiple access points.', 19.9650, -155.8460, 'Bigisland', 'USA', 'shore', 12, 12);
+VALUES ('Puako', 'Long reef with multiple access points.', 19.975813, -155.846, 'Bigisland', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Keahole Point', 'Near airport with NELHA pipes. Deep water close.', 19.7300, -156.0610, 'Bigisland', 'USA', 'shore', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Honokohau Harbor', 'Harbor reef and outside structure.', 19.6700, -156.0260, 'Bigisland', 'USA', 'shore', 12, 12);
+VALUES ('Honokohau Harbor', 'Harbor reef and outside structure.', 19.67, -156.033663, 'Bigisland', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kaloko Fish Pond', 'Historic fish pond with adjacent reef.', 19.6800, -156.0310, 'Bigisland', 'USA', 'shore', 8, 8);
+VALUES ('Kaloko Fish Pond', 'Historic fish pond with adjacent reef.', 19.67617, -156.035068, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Pine Trees', 'Local surf spot with reef.', 19.7200, -156.0560, 'Bigisland', 'USA', 'shore', 10, 10);
@@ -352,7 +352,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Wawaloli Beach', 'OTEC Beach with deep water pipe.', 19.7150, -156.0510, 'Bigisland', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kua Bay (Manini''owali)', 'White sand beach with clear water.', 19.8000, -156.0160, 'Bigisland', 'USA', 'shore', 10, 10);
+VALUES ('Kua Bay (Manini''owali)', 'White sand beach with clear water.', 19.807216, -156.016, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kikaua Point', 'Point with good current and fish.', 19.8100, -156.0110, 'Bigisland', 'USA', 'shore', 12, 12);
@@ -361,34 +361,34 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Mahaiula Beach', 'Remote Kohala coast beach.', 19.8350, -155.9910, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Makalawena Beach', 'Remote hike-in beach with pristine water.', 19.8250, -155.9860, 'Bigisland', 'USA', 'shore', 10, 10);
+VALUES ('Makalawena Beach', 'Remote hike-in beach with pristine water.', 19.83941, -155.986, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kiholo Bay', 'Large bay with good reef.', 19.8550, -155.9260, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('A-Bay (Anaehoomalu)', 'Waikoloa resort beach with protected bay.', 19.9150, -155.8760, 'Bigisland', 'USA', 'shore', 8, 8);
+VALUES ('A-Bay (Anaehoomalu)', 'Waikoloa resort beach with protected bay.', 19.914999, -155.891327, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Beach 69 (Waialea)', 'Popular beach with offshore reef.', 19.9550, -155.8310, 'Bigisland', 'USA', 'shore', 10, 10);
+VALUES ('Beach 69 (Waialea)', 'Popular beach with offshore reef.', 19.973455, -155.850638, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hapuna Beach', 'Large white sand beach, some reef on sides.', 19.9850, -155.8260, 'Bigisland', 'USA', 'shore', 8, 8);
+VALUES ('Hapuna Beach', 'Large white sand beach, some reef on sides.', 19.977354, -155.834135, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Spencer Beach', 'Protected beach near harbor.', 20.0250, -155.8210, 'Bigisland', 'USA', 'shore', 6, 6);
+VALUES ('Spencer Beach', 'Protected beach near harbor.', 20.019898, -155.82643, 'Bigisland', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kawaihae Harbor', 'Working harbor with fish aggregation.', 20.0350, -155.8300, 'Bigisland', 'USA', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Mahukona', 'Old sugar port with excellent diving.', 20.1800, -155.9010, 'Bigisland', 'USA', 'shore', 15, 15);
+VALUES ('Mahukona', 'Old sugar port with excellent diving.', 20.175482, -155.901, 'Bigisland', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Lapakahi', 'Historic park with marine preserve.', 20.1750, -155.8910, 'Bigisland', 'USA', 'shore', 10, 10);
+VALUES ('Lapakahi', 'Historic park with marine preserve.', 20.174999, -155.906352, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Keokea Beach', 'Remote north Kohala beach.', 20.2100, -155.8710, 'Bigisland', 'USA', 'shore', 8, 8);
+VALUES ('Keokea Beach', 'Remote north Kohala beach.', 20.209995, -155.913189, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Richardson Beach', 'Black sand with clear water.', 19.7350, -155.0190, 'Bigisland', 'USA', 'shore', 8, 8);
@@ -397,13 +397,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Carlsmith Beach', 'Protected area with brackish pools.', 19.7400, -155.0090, 'Bigisland', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Honolii Beach', 'Surf spot with adjacent reef.', 19.7650, -155.0890, 'Bigisland', 'USA', 'shore', 8, 8);
+VALUES ('Honolii Beach', 'Surf spot with adjacent reef.', 19.768194, -155.085606, 'Bigisland', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kolekole Beach', 'Dramatic gulch with river mouth.', 19.8750, -155.1190, 'Bigisland', 'USA', 'shore', 6, 6);
+VALUES ('Kolekole Beach', 'Dramatic gulch with river mouth.', 19.88941, -155.119, 'Bigisland', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Laupahoehoe Point', 'Historic point with reef.', 19.9850, -155.2340, 'Bigisland', 'USA', 'shore', 10, 10);
+VALUES ('Laupahoehoe Point', 'Historic point with reef.', 19.990417, -155.234, 'Bigisland', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('South Point (Ka Lae)', 'Southernmost point in USA. Strong currents, big fish.', 18.9142, -155.6850, 'Bigisland', 'USA', 'shore', 20, 20);
@@ -454,13 +454,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Kapalua Bay', 'Protected bay with good snorkeling.', 21.0000, -156.6660, 'Maui', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Napili Bay', 'Calm bay with reef.', 20.9900, -156.6610, 'Maui', 'USA', 'shore', 8, 8);
+VALUES ('Napili Bay', 'Calm bay with reef.', 20.989999, -156.676434, 'Maui', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Black Rock (Puu Kekaa)', 'Famous cliff jump spot with reef.', 20.9250, -156.6960, 'Maui', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Olowalu', 'Mile marker 14 with extensive reef.', 20.8100, -156.6210, 'Maui', 'USA', 'shore', 10, 10);
+VALUES ('Olowalu', 'Mile marker 14 with extensive reef.', 20.805482, -156.621, 'Maui', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Ukumehame', 'Less crowded reef system.', 20.7950, -156.5910, 'Maui', 'USA', 'shore', 10, 10);
@@ -472,7 +472,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Five Caves (Five Graves)', 'Dramatic underwater caves. Advanced only.', 20.6692, -156.4450, 'Maui', 'USA', 'shore', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ahihi-Kinau Reserve', 'Marine preserve - special regulations.', 20.6242, -156.4350, 'Maui', 'USA', 'shore', 15, 15);
+VALUES ('Ahihi-Kinau Reserve', 'Marine preserve - special regulations.', 20.616554, -156.443169, 'Maui', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('La Perouse Bay', 'Remote lava field with good diving.', 20.5942, -156.4200, 'Maui', 'USA', 'shore', 12, 12);
@@ -493,7 +493,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Baldwin Beach', 'Long beach near Paia.', 20.9158, -156.3850, 'Maui', 'USA', 'shore', 6, 6);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hana Bay', 'Remote east Maui with good diving.', 20.7550, -155.9840, 'Maui', 'USA', 'shore', 10, 10);
+VALUES ('Hana Bay', 'Remote east Maui with good diving.', 20.759518, -155.984, 'Maui', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Hamoa Beach', 'Beautiful beach past Hana.', 20.7150, -155.9840, 'Maui', 'USA', 'shore', 8, 8);
@@ -595,7 +595,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Great Blue Hole (Andros)', 'Second deepest blue hole in Bahamas.', 24.4450, -77.9000, 'Andros', 'Andros', 'boat', 40, 40);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('North Andros Barrier Reef', 'Shallower section, excellent hogfish.', 25.0500, -78.0000, 'Andros', 'Andros', 'boat', 15, 15);
+VALUES ('North Andros Barrier Reef', 'Shallower section, excellent hogfish.', 25.049997, -77.971189, 'Andros', 'Andros', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Stafford Creek Wall', 'Less crowded section with big grouper.', 24.7833, -77.8333, 'Andros', 'Andros', 'boat', 35, 35);
@@ -604,7 +604,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Captain Bill''s Blue Hole', 'Famous inland blue hole.', 24.1617, -77.7500, 'Andros', 'Andros', 'shore', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ocean Hole (North Andros)', 'Deep ocean blue hole near Nicholl''s Town.', 25.1333, -78.0333, 'Andros', 'Andros', 'boat', 50, 50);
+VALUES ('Ocean Hole (North Andros)', 'Deep ocean blue hole near Nicholl''s Town.', 25.161292, -78.00237, 'Andros', 'Andros', 'boat', 50, 50);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Mangrove Cay Reef', 'Central Andros, less pressure.', 24.4000, -77.7833, 'Andros', 'Andros', 'boat', 25, 25);
@@ -676,7 +676,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Governor''s Harbour Reef', 'Central Eleuthera access.', 25.2000, -76.2500, 'Eleuthera', 'Eleuthera', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Rock Sound Blue Hole', 'Massive inland blue hole.', 24.8833, -76.2000, 'Eleuthera', 'Eleuthera', 'shore', 80, 80);
+VALUES ('Rock Sound Blue Hole', 'Massive inland blue hole.', 24.8833, -76.188081, 'Eleuthera', 'Eleuthera', 'shore', 80, 80);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Cape Eleuthera', 'Southern tip with wall.', 24.7667, -76.3333, 'Eleuthera', 'Eleuthera', 'boat', 30, 30);
@@ -703,7 +703,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Hawk''s Nest Reef', 'Resort area southern Cat Island.', 24.0833, -75.5167, 'Cat', 'Cat', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Fernandez Bay', 'Beautiful bay with reef.', 24.1500, -75.4750, 'Cat', 'Cat', 'boat', 15, 15);
+VALUES ('Fernandez Bay', 'Beautiful bay with reef.', 24.119402, -75.475, 'Cat', 'Cat', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Cape Santa Maria Reef', 'Northern Long Island pristine reef.', 23.6833, -75.2833, 'Long', 'Long', 'boat', 25, 25);
@@ -712,10 +712,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Dean''s Blue Hole', 'World''s second deepest at 663ft. Freediving mecca.', 23.1083, -74.9917, 'Long', 'Long', 'shore', 200, 200);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Clarence Town Wall', '8 miles of wall from Flying Fish Marina.', 23.1000, -74.9833, 'Long', 'Long', 'boat', 35, 35);
+VALUES ('Clarence Town Wall', '8 miles of wall from Flying Fish Marina.', 23.110813, -74.9833, 'Long', 'Long', 'boat', 35, 35);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Stella Maris Reef', 'Central Long Island with shark dives.', 23.5667, -75.2667, 'Long', 'Long', 'boat', 25, 25);
+VALUES ('Stella Maris Reef', 'Central Long Island with shark dives.', 23.576889, -75.277818, 'Long', 'Long', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Salt Pond Reef', 'Good reef near main settlement.', 23.3000, -75.0500, 'Long', 'Long', 'boat', 20, 20);
@@ -727,7 +727,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Grand Canyon (Rum Cay)', '60ft coral wall nearly to surface.', 23.6550, -74.8333, 'Rum', 'Rum', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Dynamite Wall', 'Deep tunnels with staghorn coral.', 23.6667, -74.8500, 'Rum', 'Rum', 'boat', 35, 35);
+VALUES ('Dynamite Wall', 'Deep tunnels with staghorn coral.', 23.645095, -74.85, 'Rum', 'Rum', 'boat', 35, 35);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Pinder Reef', 'Predictable sharks and rays.', 23.7000, -74.8833, 'Rum', 'Rum', 'boat', 30, 30);
@@ -751,7 +751,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Frascate Wreck', '1902 steamship on reef.', 24.0333, -74.5500, 'Salvador', 'Salvador', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Telephone Pole', 'Steep wall with coral pillars.', 24.0650, -74.5200, 'Salvador', 'Salvador', 'boat', 30, 30);
+VALUES ('Telephone Pole', 'Steep wall with coral pillars.', 24.068194, -74.516501, 'Salvador', 'Salvador', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Devil''s Claw', 'Dramatic reef formation.', 24.0750, -74.4900, 'Salvador', 'Salvador', 'boat', 25, 25);
@@ -766,10 +766,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Conception Creek Drift', 'Mangrove creek drift dive.', 23.8400, -75.1400, 'Conception', 'Conception', 'boat', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Crooked Island Wall', 'Untouched reef with 200 residents.', 22.7500, -74.2333, 'Crooked', 'Crooked', 'boat', 30, 30);
+VALUES ('Crooked Island Wall', 'Untouched reef with 200 residents.', 22.78435, -74.196038, 'Crooked', 'Crooked', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('French Wells', 'Shallow reef with large undercuts.', 22.7167, -74.2000, 'Crooked', 'Crooked', 'boat', 20, 20);
+VALUES ('French Wells', 'Shallow reef with large undercuts.', 22.677109, -74.2, 'Crooked', 'Crooked', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Acklins Atoll Rim', '140-mile atoll with vast flats.', 22.5000, -74.0000, 'Acklins', 'Acklins', 'boat', 25, 25);
@@ -799,7 +799,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Hoffman''s Cay Blue Hole', 'Large blue hole with cave system.', 25.6500, -77.7550, 'Berry', 'Berry', 'boat', 35, 35);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('North Bimini Reef', 'Gulf Stream waters, 50 miles from Miami.', 25.7500, -79.2500, 'Bimini', 'Bimini', 'boat', 20, 20);
+VALUES ('North Bimini Reef', 'Gulf Stream waters, 50 miles from Miami.', 25.75, -79.237995, 'Bimini', 'Bimini', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Bimini Road', 'Mysterious underwater rock formation.', 25.7667, -79.2833, 'Bimini', 'Bimini', 'boat', 8, 8);
@@ -823,7 +823,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Fowl Cay', 'Protected reef near Marsh Harbour.', 26.5833, -77.0667, 'Abaco', 'Abaco', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Pelican Cays Land & Sea Park', 'National park with buffer zones.', 26.3667, -77.0333, 'Abaco', 'Abaco', 'boat', 20, 20);
+VALUES ('Pelican Cays Land & Sea Park', 'National park with buffer zones.', 26.35651, -77.021928, 'Abaco', 'Abaco', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Grand Cay', 'Remote northern tip, monster grouper.', 27.2167, -78.3167, 'Abaco', 'Abaco', 'boat', 25, 25);
@@ -874,13 +874,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Athol Island - South', 'South coast. Nassau harbor.', 25.0850, -77.2833, 'Nassau', 'Nassau', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Athol Island - East', 'East coast. Open Atlantic.', 25.1000, -77.2683, 'Nassau', 'Nassau', 'boat', 15, 15);
+VALUES ('Athol Island - East', 'East coast. Open Atlantic.', 25.104518, -77.2683, 'Nassau', 'Nassau', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Athol Island - West', 'West coast. Facing Nassau.', 25.1000, -77.2983, 'Nassau', 'Nassau', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('UNEXSO Reef (Freeport)', 'Underwater Explorers Society.', 26.5167, -78.6500, 'Grand', 'Grand', 'boat', 20, 20);
+VALUES ('UNEXSO Reef (Freeport)', 'Underwater Explorers Society.', 26.50651, -78.638614, 'Grand', 'Grand', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('West End Wall', 'Western tip of Grand Bahama.', 26.6833, -79.0000, 'Grand', 'Grand', 'boat', 30, 30);
@@ -895,7 +895,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Sweeting''s Cay', 'Eastern Grand Bahama.', 26.5833, -77.8333, 'Grand', 'Grand', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Shark Alley', 'Known shark encounter site.', 26.5500, -78.7000, 'Grand', 'Grand', 'boat', 25, 25);
+VALUES ('Shark Alley', 'Known shark encounter site.', 26.576101, -78.7, 'Grand', 'Grand', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Tetamanu Pass (South)', '200m wide, wall of sharks.', -16.6872, -145.2511, 'Fakarava', 'Fakarava', 'boat', 18, 18);
@@ -940,10 +940,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Vaiare', 'Near ferry docks with lemon sharks.', -17.5167, -149.7667, 'Moorea', 'Moorea', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Taotoi', 'Beginner site with morays and sharks.', -17.5000, -149.8000, 'Moorea', 'Moorea', 'boat', 15, 15);
+VALUES ('Taotoi', 'Beginner site with morays and sharks.', -17.499999, -149.822653, 'Moorea', 'Moorea', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Stingray World', 'Shallow lagoon with friendly rays.', -17.5200, -149.8300, 'Moorea', 'Moorea', 'boat', 5, 5);
+VALUES ('Stingray World', 'Shallow lagoon with friendly rays.', -17.480409, -149.83, 'Moorea', 'Moorea', 'boat', 5, 5);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Bora Bora South Lagoon', 'Shallow lagoon hunting.', -16.5333, -151.7333, 'Bora', 'Bora', 'boat', 10, 10);
@@ -982,7 +982,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Papeete Pass', 'Channel with current.', -17.5200, -149.5500, 'Tahiti', 'French Polynesia', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Teahupoo Outer Reef', 'Famous surf spot, deep water.', -17.8500, -149.2500, 'Tahiti', 'French Polynesia', 'boat', 30, 30);
+VALUES ('Teahupoo Outer Reef', 'Famous surf spot, deep water.', -17.86441, -149.25, 'Tahiti', 'French Polynesia', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Tavolara - North', 'North coast. Marine protected area.', 40.9133, 9.7100, 'Sardinia', 'Sardinia', 'boat', 25, 25);
@@ -997,7 +997,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Tavolara - West', 'West coast. Facing Sardinia.', 40.8983, 9.6750, 'Sardinia', 'Sardinia', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('La Maddalena Archipelago', 'National park with stunning water.', 41.2333, 9.4167, 'Sardinia', 'Sardinia', 'boat', 20, 20);
+VALUES ('La Maddalena Archipelago', 'National park with stunning water.', 41.211695, 9.4167, 'Sardinia', 'Sardinia', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Capo Caccia', 'Dramatic cliffs near Alghero.', 40.5600, 8.1600, 'Sardinia', 'Sardinia', 'boat', 30, 30);
@@ -1006,10 +1006,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Neptune''s Grotto Area', 'Caves and walls.', 40.5650, 8.1550, 'Sardinia', 'Sardinia', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Costa Smeralda', 'Luxury coast with good diving.', 41.0833, 9.5167, 'Sardinia', 'Sardinia', 'boat', 20, 20);
+VALUES ('Costa Smeralda', 'Luxury coast with good diving.', 41.068021, 9.536963, 'Sardinia', 'Sardinia', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Carloforte (San Pietro)', 'Island off southwest coast.', 39.1500, 8.3000, 'Sardinia', 'Sardinia', 'boat', 25, 25);
+VALUES ('Carloforte (San Pietro)', 'Island off southwest coast.', 39.160189, 8.313141, 'Sardinia', 'Sardinia', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Villasimius MPA', 'Marine protected area, check zones.', 39.1283, 9.5333, 'Sardinia', 'Sardinia', 'boat', 20, 20);
@@ -1039,13 +1039,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Taormina Coast', 'Below ancient theater.', 37.8450, 15.2833, 'Sicily', 'Sicily', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Capo Passero', 'Southernmost Sicily.', 36.6833, 15.1333, 'Sicily', 'Sicily', 'boat', 25, 25);
+VALUES ('Capo Passero', 'Southernmost Sicily.', 36.678198, 15.139662, 'Sicily', 'Sicily', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Portofino MPA', 'Famous protected area.', 44.3000, 9.2117, 'Italy', 'Italy', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Elba Island - North', 'North coast. Tuscan archipelago.', 42.8117, 10.2667, 'Italy', 'Italy', 'boat', 20, 20);
+VALUES ('Elba Island - North', 'North coast. Tuscan archipelago.', 42.817117, 10.2667, 'Italy', 'Italy', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Elba Island - South', 'South coast. Calmer waters.', 42.7317, 10.2667, 'Italy', 'Italy', 'boat', 20, 20);
@@ -1096,7 +1096,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Villefranche-sur-Mer', 'Deep bay near Nice.', 43.7000, 7.3167, 'France', 'France', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Cap d''Antibes', 'Rocky coast with good diving.', 43.5500, 7.1333, 'France', 'France', 'boat', 20, 20);
+VALUES ('Cap d''Antibes', 'Rocky coast with good diving.', 43.549999, 7.148219, 'France', 'France', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Medes Islands', 'Famous marine reserve.', 42.0500, 3.2167, 'Spain', 'Spain', 'boat', 25, 25);
@@ -1105,7 +1105,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Tossa de Mar', 'Castle and underwater caves.', 41.7117, 2.9333, 'Spain', 'Spain', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Cap de Creus (Cadaques)', 'Easternmost point of Iberian peninsula.', 42.3167, 3.2833, 'Spain', 'Spain', 'boat', 25, 25);
+VALUES ('Cap de Creus (Cadaques)', 'Easternmost point of Iberian peninsula.', 42.338305, 3.2833, 'Spain', 'Spain', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Dragonera - North', 'North coast. Protected island.', 39.6033, 2.3167, 'Spain', 'Spain', 'boat', 25, 25);
@@ -1120,16 +1120,16 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Dragonera - West', 'West coast. Open Mediterranean.', 39.5883, 2.3017, 'Spain', 'Spain', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Cabrera Archipelago', 'National park south of Mallorca.', 39.1500, 2.9500, 'Spain', 'Spain', 'boat', 30, 30);
+VALUES ('Cabrera Archipelago', 'National park south of Mallorca.', 39.15, 2.944175, 'Spain', 'Spain', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('North Menorca Coast', 'Remote coves and reefs.', 40.0500, 3.9500, 'Spain', 'Spain', 'boat', 20, 20);
+VALUES ('North Menorca Coast', 'Remote coves and reefs.', 40.06441, 3.95, 'Spain', 'Spain', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Es Vedra (Ibiza)', 'Mystical rock with good diving.', 38.8717, 1.2000, 'Spain', 'Spain', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Formentera', 'Crystal clear water.', 38.7000, 1.4500, 'Spain', 'Spain', 'boat', 20, 20);
+VALUES ('Formentera', 'Crystal clear water.', 38.678395, 1.45, 'Spain', 'Spain', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Papagayo (Lanzarote)', 'Volcanic beaches with reef.', 28.8500, -13.8000, 'Spain', 'Spain', 'shore', 15, 15);
@@ -1144,7 +1144,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Abades (Tenerife)', 'Leper colony with reef.', 28.1333, -16.4333, 'Spain', 'Spain', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('El Hierro', 'Pristine volcanic island.', 27.7500, -18.0000, 'Spain', 'Spain', 'shore', 20, 20);
+VALUES ('El Hierro', 'Pristine volcanic island.', 27.777992, -18.031642, 'Spain', 'Spain', 'shore', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Chania Coast (Crete)', 'Northwest Crete.', 35.5217, 24.0167, 'Greece', 'Greece', 'boat', 20, 20);
@@ -1153,28 +1153,28 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Antikythera', 'Remote island between Crete and Peloponnese.', 35.8450, 23.3000, 'Greece', 'Greece', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Gavdos', 'Southernmost point of Europe.', 34.8333, 24.0833, 'Greece', 'Greece', 'boat', 25, 25);
+VALUES ('Gavdos', 'Southernmost point of Europe.', 34.816192, 24.0833, 'Greece', 'Greece', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Mykonos', 'Party island with diving.', 37.4500, 25.3500, 'Greece', 'Greece', 'boat', 20, 20);
+VALUES ('Mykonos', 'Party island with diving.', 37.449997, 25.322786, 'Greece', 'Greece', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Santorini Caldera', 'Volcanic caldera diving.', 36.4000, 25.4283, 'Greece', 'Greece', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Rhodes', 'Knights of St John island.', 36.4333, 28.2167, 'Greece', 'Greece', 'boat', 20, 20);
+VALUES ('Rhodes', 'Knights of St John island.', 36.433298, 28.195436, 'Greece', 'Greece', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Zakynthos (Navagio)', 'Near famous shipwreck beach.', 37.8550, 20.6250, 'Greece', 'Greece', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Alonissos Marine Park', 'First Greek marine park.', 39.1500, 23.8500, 'Greece', 'Greece', 'boat', 25, 25);
+VALUES ('Alonissos Marine Park', 'First Greek marine park.', 39.160813, 23.85, 'Greece', 'Greece', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kornati National Park', '140 islands, pristine water.', 43.8000, 15.3000, 'Croatia', 'Croatia', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Vis Island (Blue Cave)', 'Famous blue cave area.', 43.0500, 16.1833, 'Croatia', 'Croatia', 'boat', 20, 20);
+VALUES ('Vis Island (Blue Cave)', 'Famous blue cave area.', 43.062096, 16.199858, 'Croatia', 'Croatia', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Hvar Island - North', 'North coast. Lavender island.', 43.2317, 16.6500, 'Croatia', 'Croatia', 'boat', 20, 20);
@@ -1300,7 +1300,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Monterey Breakwater', 'Protected dive area.', 36.6167, -121.8917, 'Cali', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Point Lobos Reserve', 'Some zones restricted.', 36.5167, -121.9333, 'Cali', 'USA', 'shore', 15, 15);
+VALUES ('Point Lobos Reserve', 'Some zones restricted.', 36.524345, -121.942814, 'Cali', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Jade Cove (Big Sur)', 'Remote jade hunting spot.', 35.9050, -121.4700, 'Cali', 'USA', 'shore', 12, 12);
@@ -1372,7 +1372,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Espiritu Santo - West', 'West coast. Facing La Paz.', 24.4833, -110.3983, 'Mexico', 'Mexico', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Isla Cerralvo', 'Remote island with pristine conditions.', 24.1667, -109.8500, 'Mexico', 'Mexico', 'boat', 30, 30);
+VALUES ('Isla Cerralvo', 'Remote island with pristine conditions.', 24.140599, -109.85, 'Mexico', 'Mexico', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('El Bajo Seamount', 'Hammerheads and big pelagics.', 24.5833, -110.2833, 'Mexico', 'Mexico', 'boat', 20, 20);
@@ -1402,7 +1402,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('The Passage', 'Narrow channel with tidal flow.', -0.4333, 130.5500, 'Raja', 'Raja', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Misool', 'Remote southern area.', -1.8833, 129.9833, 'Raja', 'Raja', 'boat', 30, 30);
+VALUES ('Misool', 'Remote southern area.', -1.744783, 129.9833, 'Raja', 'Raja', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Cairns Outer Reef', 'Great Barrier Reef day trips.', -16.7500, 146.0000, 'Aus', 'Aus', 'boat', 20, 20);
@@ -1414,7 +1414,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Coral Bay (Ningaloo)', 'Whale sharks March-July.', -23.1500, 113.7667, 'Aus', 'Aus', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Exmouth (Ningaloo)', 'Navy Pier legendary dive.', -21.9333, 114.1333, 'Aus', 'Aus', 'boat', 20, 20);
+VALUES ('Exmouth (Ningaloo)', 'Navy Pier legendary dive.', -21.9333, 114.144957, 'Aus', 'Aus', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Montague Island - North', 'North coast. Huge kingfish.', -36.2350, 150.2333, 'Aus', 'Aus', 'boat', 25, 25);
@@ -1567,7 +1567,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Bay of Islands', 'Multiple dive spots.', -35.2500, 174.1000, 'Nz', 'New Zealand', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Fiordland', 'Unique black coral.', -45.4167, 167.1500, 'Nz', 'New Zealand', 'boat', 25, 25);
+VALUES ('Fiordland', 'Unique black coral.', -45.435153, 167.123698, 'Nz', 'New Zealand', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Great Blue Hole', 'Famous sinkhole.', 17.3158, -87.5350, 'Belize', 'Belize', 'boat', 40, 40);
@@ -1630,7 +1630,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Kee Beach', 'End of road, pristine reef.', 22.2228, -159.5864, 'Kauai', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Lydgate Beach', 'Protected pools plus outside reef.', 22.0417, -159.3425, 'Kauai', 'USA', 'shore', 8, 8);
+VALUES ('Lydgate Beach', 'Protected pools plus outside reef.', 22.041699, -159.326954, 'Kauai', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Salt Pond Beach', 'West side with good visibility.', 21.9000, -159.6083, 'Kauai', 'USA', 'shore', 10, 10);
@@ -1672,37 +1672,37 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Na Pali Coast', 'Remote coast, summer only.', 22.1833, -159.6333, 'Kauai', 'USA', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Princeville Reefs', 'North shore reef system.', 22.2167, -159.4667, 'Kauai', 'USA', 'shore', 12, 12);
+VALUES ('Princeville Reefs', 'North shore reef system.', 22.23111, -159.4667, 'Kauai', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kipu Kai', 'Private beach, boat access.', 21.9000, -159.4167, 'Kauai', 'USA', 'boat', 15, 15);
+VALUES ('Kipu Kai', 'Private beach, boat access.', 21.88981, -159.405719, 'Kauai', 'USA', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Nawiliwili Harbor Reef', 'Harbor entrance reef.', 21.9550, -159.3500, 'Kauai', 'USA', 'boat', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Anahola Bay', 'East side bay with reef.', 22.1417, -159.3083, 'Kauai', 'USA', 'shore', 8, 8);
+VALUES ('Anahola Bay', 'East side bay with reef.', 22.149346, -159.300045, 'Kauai', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Moloaa Bay', 'Quiet east side bay.', 22.1833, -159.3333, 'Kauai', 'USA', 'shore', 10, 10);
+VALUES ('Moloaa Bay', 'Quiet east side bay.', 22.195397, -159.320235, 'Kauai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kaunakakai Wharf', 'Historic wharf with fish aggregation.', 21.0833, -157.0167, 'Molokai', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Papohaku Beach', 'Longest white sand beach in Hawaii.', 21.1667, -157.2500, 'Molokai', 'USA', 'shore', 10, 10);
+VALUES ('Papohaku Beach', 'Longest white sand beach in Hawaii.', 21.176889, -157.260927, 'Molokai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kawakiu Bay', 'West end with clear water.', 21.1833, -157.2667, 'Molokai', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kepuhi Bay', 'Resort area with reef.', 21.1750, -157.2417, 'Molokai', 'USA', 'shore', 10, 10);
+VALUES ('Kepuhi Bay', 'Resort area with reef.', 21.174999, -157.260047, 'Molokai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Murphy Beach', 'East side with calm water.', 21.0783, -156.7833, 'Molokai', 'USA', 'shore', 8, 8);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Halawa Bay', 'Remote east end with valley.', 21.1500, -156.7333, 'Molokai', 'USA', 'shore', 12, 12);
+VALUES ('Halawa Bay', 'Remote east end with valley.', 21.16441, -156.7333, 'Molokai', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('South Shore Reef', 'Extensive fringing reef.', 21.0667, -157.0000, 'Molokai', 'USA', 'shore', 8, 8);
@@ -1714,19 +1714,19 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Penguin Bank', 'Offshore bank with big fish.', 20.8333, -157.2500, 'Molokai', 'USA', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kalaupapa Peninsula', 'Historic leper colony, permit required.', 21.1917, -156.9667, 'Molokai', 'USA', 'boat', 15, 15);
+VALUES ('Kalaupapa Peninsula', 'Historic leper colony, permit required.', 21.203797, -156.953724, 'Molokai', 'USA', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Hulopoe Bay Marine Preserve', 'Marine preserve, limited take.', 20.7333, -156.9167, 'Lanai', 'USA', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Shark Fin Rock', 'Iconic rock formation with reef.', 20.7500, -156.9333, 'Lanai', 'USA', 'boat', 20, 20);
+VALUES ('Shark Fin Rock', 'Iconic rock formation with reef.', 20.734722, -156.916965, 'Lanai', 'USA', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Manele Bay', 'Harbor with surrounding reef.', 20.7417, -156.8867, 'Lanai', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Shipwreck Beach', 'North shore with wrecks.', 20.9000, -156.9167, 'Lanai', 'USA', 'shore', 10, 10);
+VALUES ('Shipwreck Beach', 'North shore with wrecks.', 20.926101, -156.9167, 'Lanai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Cathedrals', 'Famous lava tube diving.', 20.7250, -156.9250, 'Lanai', 'USA', 'boat', 20, 20);
@@ -1744,10 +1744,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Kaumalapau Harbor', 'Pineapple shipping harbor.', 20.7833, -156.9967, 'Lanai', 'USA', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Polihua Beach', 'Remote north beach.', 20.9167, -156.9833, 'Lanai', 'USA', 'shore', 10, 10);
+VALUES ('Polihua Beach', 'Remote north beach.', 20.933808, -156.9833, 'Lanai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Lopa Beach', 'East side with reef.', 20.8333, -156.8667, 'Lanai', 'USA', 'shore', 10, 10);
+VALUES ('Lopa Beach', 'East side with reef.', 20.86765, -156.829934, 'Lanai', 'USA', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Palm Beach Inlet', 'Strong currents, big fish.', 26.7700, -80.0333, 'Fl', 'Fl', 'boat', 20, 20);
@@ -1816,7 +1816,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Tarpon Springs Reef', 'Sponge diving heritage area.', 28.1500, -82.8500, 'Fl', 'Fl', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Steinhatchee Reef', 'Big Bend natural reef.', 29.6833, -83.3667, 'Fl', 'Fl', 'boat', 15, 15);
+VALUES ('Steinhatchee Reef', 'Big Bend natural reef.', 29.642578, -83.413544, 'Fl', 'Fl', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Cedar Key Reef', 'Natural reef complex.', 29.1333, -83.1333, 'Fl', 'Fl', 'boat', 12, 12);
@@ -1873,13 +1873,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Arraial do Cabo', 'Brazilian Caribbean, coldest water.', -22.9717, -42.0167, 'Brazil', 'Brazil', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ilha Grande', 'Large island near Rio.', -23.1500, -44.2333, 'Brazil', 'Brazil', 'boat', 18, 18);
+VALUES ('Ilha Grande', 'Large island near Rio.', -23.115641, -44.195947, 'Brazil', 'Brazil', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Laje de Santos', 'Offshore island marine park.', -24.3167, -46.1833, 'Brazil', 'Brazil', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ilhabela', 'Island near São Paulo.', -23.7833, -45.3500, 'Brazil', 'Brazil', 'boat', 18, 18);
+VALUES ('Ilhabela', 'Island near São Paulo.', -23.783299, -45.365747, 'Brazil', 'Brazil', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Buzios', 'Resort peninsula.', -22.7500, -41.8883, 'Brazil', 'Brazil', 'boat', 12, 12);
@@ -1897,22 +1897,22 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Tambau Reef', 'Urban reef João Pessoa.', -7.1167, -34.8167, 'Brazil', 'Brazil', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Natal Reefs', 'Rio Grande do Norte.', -5.7833, -35.2000, 'Brazil', 'Brazil', 'boat', 15, 15);
+VALUES ('Natal Reefs', 'Rio Grande do Norte.', -5.77311, -35.189759, 'Brazil', 'Brazil', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Atol das Rocas', 'Only atoll in South Atlantic.', -3.8667, -33.8167, 'Brazil', 'Brazil', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ilha da Trindade', 'Remote volcanic island.', -20.5167, -29.3167, 'Brazil', 'Brazil', 'boat', 30, 30);
+VALUES ('Ilha da Trindade', 'Remote volcanic island.', -20.521802, -29.322148, 'Brazil', 'Brazil', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Salvador Reefs', 'Bahia coast reefs.', -13.0000, -38.5167, 'Brazil', 'Brazil', 'boat', 15, 15);
+VALUES ('Salvador Reefs', 'Bahia coast reefs.', -13.01441, -38.5167, 'Brazil', 'Brazil', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Praia do Forte', 'Sea turtle area.', -12.5833, -37.9833, 'Brazil', 'Brazil', 'shore', 10, 10);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Morro de São Paulo', 'Island village.', -13.3833, -38.9167, 'Brazil', 'Brazil', 'boat', 12, 12);
+VALUES ('Morro de São Paulo', 'Island village.', -13.375654, -38.908841, 'Brazil', 'Brazil', 'boat', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Florianópolis', 'Southern island city.', -27.5833, -48.5500, 'Brazil', 'Brazil', 'boat', 15, 15);
@@ -1921,10 +1921,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Kerama Islands', 'National park with pristine water.', 26.1833, 127.3167, 'Japan', 'Japan', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Miyako Islands', 'Three islands with clear water.', 24.8000, 125.3000, 'Japan', 'Japan', 'boat', 30, 30);
+VALUES ('Miyako Islands', 'Three islands with clear water.', 24.821634, 125.276162, 'Japan', 'Japan', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Ishigaki - North', 'North coast. Manta ray capital.', 24.3483, 124.1450, 'Japan', 'Japan', 'boat', 25, 25);
+VALUES ('Ishigaki - North', 'North coast. Manta ray capital.', 24.343782, 124.145, 'Japan', 'Japan', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Ishigaki - South', 'South coast. Kabira Bay.', 24.3183, 124.1450, 'Japan', 'Japan', 'boat', 25, 25);
@@ -1957,10 +1957,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Yonaguni - East', 'East coast. Open ocean.', 24.4500, 123.0350, 'Japan', 'Japan', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Yonaguni - West', 'West coast. Taiwan strait.', 24.4500, 122.9350, 'Japan', 'Japan', 'boat', 30, 30);
+VALUES ('Yonaguni - West', 'West coast. Taiwan strait.', 24.453194, 122.931491, 'Japan', 'Japan', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Chichijima (Ogasawara)', 'UNESCO World Heritage.', 27.0833, 142.2167, 'Japan', 'Japan', 'boat', 30, 30);
+VALUES ('Chichijima (Ogasawara)', 'UNESCO World Heritage.', 27.083299, 142.228845, 'Japan', 'Japan', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Hahajima (Ogasawara)', 'Mother island with virgin waters.', 26.6500, 142.1450, 'Japan', 'Japan', 'boat', 30, 30);
@@ -1969,13 +1969,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Izu Oshima', 'Volcanic island near Tokyo.', 34.7500, 139.3500, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hachijojima', 'Subtropical island.', 33.1000, 139.7833, 'Japan', 'Japan', 'boat', 25, 25);
+VALUES ('Hachijojima', 'Subtropical island.', 33.092354, 139.774174, 'Japan', 'Japan', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Mikurajima', 'Dolphin swimming island.', 33.8667, 139.6000, 'Japan', 'Japan', 'boat', 20, 20);
+VALUES ('Mikurajima', 'Dolphin swimming island.', 33.849592, 139.6, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Izu Peninsula', 'Popular diving area.', 34.9000, 138.9500, 'Japan', 'Japan', 'shore', 15, 15);
+VALUES ('Izu Peninsula', 'Popular diving area.', 34.801996, 139.069282, 'Japan', 'Japan', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Kushimoto', 'Southernmost Honshu, coral reef.', 33.4667, 135.7883, 'Japan', 'Japan', 'boat', 18, 18);
@@ -1984,16 +1984,16 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Amami Oshima', 'Between Okinawa and Kyushu.', 28.3833, 129.4950, 'Japan', 'Japan', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Yakushima', 'Ancient cedar island.', 30.3500, 130.5000, 'Japan', 'Japan', 'boat', 20, 20);
+VALUES ('Yakushima', 'Ancient cedar island.', 30.416128, 130.423293, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Tanegashima', 'Rocket launch island.', 30.4833, 130.9667, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Tokunoshima', 'Amami group island.', 27.7833, 129.0000, 'Japan', 'Japan', 'boat', 22, 22);
+VALUES ('Tokunoshima', 'Amami group island.', 27.795397, 129.013675, 'Japan', 'Japan', 'boat', 22, 22);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Okinoerabujima', 'Cave diving paradise.', 27.3833, 128.5500, 'Japan', 'Japan', 'boat', 20, 20);
+VALUES ('Okinoerabujima', 'Cave diving paradise.', 27.404905, 128.55, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Yoronjima', 'Clear water paradise.', 27.0283, 128.4167, 'Japan', 'Japan', 'shore', 15, 15);
@@ -2008,7 +2008,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Zamami - South', 'South coast. Whale watching.', 26.2183, 127.3000, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Zamami - East', 'East coast. Facing Okinawa.', 26.2333, 127.3250, 'Japan', 'Japan', 'boat', 20, 20);
+VALUES ('Zamami - East', 'East coast. Facing Okinawa.', 26.22947, 127.32927, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Zamami - West', 'West coast. Open sea.', 26.2333, 127.2750, 'Japan', 'Japan', 'boat', 20, 20);
@@ -2026,16 +2026,16 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Tokashiki - West', 'West coast. Open Pacific.', 26.1833, 127.3317, 'Japan', 'Japan', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Aka and Geruma Islands', 'Kerama group.', 26.2000, 127.2833, 'Japan', 'Japan', 'boat', 18, 18);
+VALUES ('Aka and Geruma Islands', 'Kerama group.', 26.207646, 127.291822, 'Japan', 'Japan', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Tulamben (USAT Liberty)', 'Famous WWII wreck.', -8.2700, 115.5917, 'Indo', 'Indo', 'shore', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Amed', 'Fishing village with reef.', -8.3500, 115.6333, 'Indo', 'Indo', 'shore', 18, 18);
+VALUES ('Amed', 'Fishing village with reef.', -8.331543, 115.651953, 'Indo', 'Indo', 'shore', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Nusa Penida', 'Manta rays and mola mola.', -8.7333, 115.5333, 'Indo', 'Indo', 'boat', 25, 25);
+VALUES ('Nusa Penida', 'Manta rays and mola mola.', -8.774011, 115.492104, 'Indo', 'Indo', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Menjangan - North', 'North coast. NW Bali marine park.', -8.0850, 114.5000, 'Indo', 'Indo', 'boat', 20, 20);
@@ -2050,10 +2050,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Menjangan - West', 'West coast. Anchor wreck.', -8.1000, 114.4250, 'Indo', 'Indo', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Batu Bolong (Komodo)', 'Current-swept pinnacle.', -8.5333, 119.4833, 'Indo', 'Indo', 'boat', 25, 25);
+VALUES ('Batu Bolong (Komodo)', 'Current-swept pinnacle.', -8.475722, 119.4833, 'Indo', 'Indo', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Manta Point (Komodo)', 'Manta cleaning station.', -8.6833, 119.4167, 'Indo', 'Indo', 'boat', 15, 15);
+VALUES ('Manta Point (Komodo)', 'Manta cleaning station.', -8.6833, 119.402123, 'Indo', 'Indo', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Castle Rock (Komodo)', 'Submerged seamount.', -8.4667, 119.5167, 'Indo', 'Indo', 'boat', 25, 25);
@@ -2068,7 +2068,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Lembeh Strait', 'Muck diving capital.', 1.4617, 125.2333, 'Indo', 'Indo', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Togian Islands', 'Remote central Sulawesi.', -0.4167, 121.9333, 'Indo', 'Indo', 'boat', 20, 20);
+VALUES ('Togian Islands', 'Remote central Sulawesi.', -0.433808, 121.9333, 'Indo', 'Indo', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Wakatobi', 'Premium dive resort area.', -5.4833, 123.9000, 'Indo', 'Indo', 'boat', 25, 25);
@@ -2077,13 +2077,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Banda Islands', 'Nutmeg islands with hammerheads.', -4.5333, 129.9000, 'Indo', 'Indo', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Alor', 'Remote eastern Indonesia.', -8.2667, 124.5333, 'Indo', 'Indo', 'boat', 25, 25);
+VALUES ('Alor', 'Remote eastern Indonesia.', -8.236102, 124.5333, 'Indo', 'Indo', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Flores (Maumere)', 'Eastern Flores diving.', -8.6117, 122.2167, 'Indo', 'Indo', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Gili Islands', 'Three islands off Lombok.', -8.3500, 116.0333, 'Indo', 'Indo', 'boat', 18, 18);
+VALUES ('Gili Islands', 'Three islands off Lombok.', -8.357646, 116.025572, 'Indo', 'Indo', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Pulau Weh (Sabang)', 'Tip of Sumatra.', 5.8833, 95.3167, 'Indo', 'Indo', 'boat', 25, 25);
@@ -2095,10 +2095,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Wayag (Raja Ampat)', 'Iconic karst landscape.', 0.2000, 130.0500, 'Indo', 'Indo', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Cenderawasih Bay', 'Whale shark fishermen.', -2.8333, 134.5833, 'Indo', 'Indo', 'boat', 15, 15);
+VALUES ('Cenderawasih Bay', 'Whale shark fishermen.', -2.833298, 134.507643, 'Indo', 'Indo', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Anilao', 'Macro diving capital.', 13.7667, 120.9333, 'Phil', 'Phil', 'boat', 18, 18);
+VALUES ('Anilao', 'Macro diving capital.', 13.7667, 120.918464, 'Phil', 'Phil', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Verde Island - North', 'North side. Center of marine biodiversity.', 13.5817, 121.0667, 'Phil', 'Phil', 'boat', 25, 25);
@@ -2119,7 +2119,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Dauin (Dumaguete)', 'Muck diving and whale sharks.', 9.1833, 123.2667, 'Phil', 'Phil', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Moalboal', 'Sardine run and reef.', 9.9500, 123.3833, 'Phil', 'Phil', 'shore', 18, 18);
+VALUES ('Moalboal', 'Sardine run and reef.', 9.957646, 123.391063, 'Phil', 'Phil', 'shore', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Oslob', 'Whale shark interaction.', 9.4667, 123.4000, 'Phil', 'Phil', 'boat', 10, 10);
@@ -2134,16 +2134,16 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Siargao', 'Surf and dive island.', 9.8550, 126.1000, 'Phil', 'Phil', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Camiguin', 'Island born of fire.', 9.1833, 124.7333, 'Phil', 'Phil', 'boat', 20, 20);
+VALUES ('Camiguin', 'Island born of fire.', 9.217653, 124.768104, 'Phil', 'Phil', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Siquijor', 'Mystical island.', 9.2000, 123.5833, 'Phil', 'Phil', 'boat', 18, 18);
+VALUES ('Siquijor', 'Mystical island.', 9.234353, 123.548495, 'Phil', 'Phil', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('El Nido', 'Palawan limestone karsts.', 11.1883, 119.3833, 'Phil', 'Phil', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hundred Islands', 'National park.', 16.2000, 119.9167, 'Phil', 'Phil', 'boat', 15, 15);
+VALUES ('Hundred Islands', 'National park.', 16.21441, 119.9167, 'Phil', 'Phil', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Romblon', 'Marble island.', 12.5833, 122.2667, 'Phil', 'Phil', 'boat', 18, 18);
@@ -2179,7 +2179,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Rottnest - South', 'South coast. More exposed.', -32.0250, 115.5000, 'Aus', 'Aus', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Rottnest - East', 'East coast. Facing Perth.', -32.0000, 115.5350, 'Aus', 'Aus', 'boat', 20, 20);
+VALUES ('Rottnest - East', 'East coast. Facing Perth.', -32.003194, 115.538767, 'Aus', 'Aus', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Rottnest - West', 'West coast. Open Indian Ocean.', -32.0000, 115.4850, 'Aus', 'Aus', 'boat', 20, 20);
@@ -2191,7 +2191,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Rowley Shoals', 'Remote WA atolls.', -17.3333, 119.3333, 'Aus', 'Aus', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Gove Peninsula', 'Remote NT diving.', -12.2000, 136.7833, 'Aus', 'Aus', 'boat', 20, 20);
+VALUES ('Gove Peninsula', 'Remote NT diving.', -12.181543, 136.802182, 'Aus', 'Aus', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('SS Yongala', 'Australia''s best wreck.', -19.3000, 147.6167, 'Aus', 'Aus', 'boat', 28, 28);
@@ -2245,7 +2245,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Leigh Marine Reserve', 'First NZ marine reserve.', -36.2667, 174.8000, 'Nz', 'New Zealand', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Hahei Marine Reserve', 'Cathedral Cove area.', -36.8500, 175.8000, 'Nz', 'New Zealand', 'shore', 12, 12);
+VALUES ('Hahei Marine Reserve', 'Cathedral Cove area.', -36.837902, 175.815115, 'Nz', 'New Zealand', 'shore', 12, 12);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('White Island - North', 'North side. Active volcano.', -37.5017, 177.1833, 'Nz', 'New Zealand', 'boat', 25, 25);
@@ -2263,13 +2263,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Wellington South Coast', 'Wellington diving.', -41.3500, 174.8000, 'Nz', 'New Zealand', 'shore', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Kaikoura', 'Whale watching and diving.', -42.4167, 173.6833, 'Nz', 'New Zealand', 'boat', 20, 20);
+VALUES ('Kaikoura', 'Whale watching and diving.', -42.409054, 173.693655, 'Nz', 'New Zealand', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Marlborough Sounds', 'Sheltered diving.', -41.1500, 174.0000, 'Nz', 'New Zealand', 'boat', 18, 18);
+VALUES ('Marlborough Sounds', 'Sheltered diving.', -41.171632, 174.028743, 'Nz', 'New Zealand', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Milford Sound', 'Black coral and fiords.', -44.6333, 167.8500, 'Nz', 'New Zealand', 'boat', 25, 25);
+VALUES ('Milford Sound', 'Black coral and fiords.', -44.618021, 167.871462, 'Nz', 'New Zealand', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Doubtful Sound', 'Remote fiord diving.', -45.3000, 166.9667, 'Nz', 'New Zealand', 'boat', 30, 30);
@@ -2290,13 +2290,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Chatham Islands', 'Remote Pacific outpost.', -43.9500, -176.5500, 'Nz', 'New Zealand', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Tofo Beach', 'Whale shark and manta capital.', -23.8500, 35.5333, 'Moz', 'Moz', 'boat', 20, 20);
+VALUES ('Tofo Beach', 'Whale shark and manta capital.', -23.83981, 35.54444, 'Moz', 'Moz', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Barra Beach', 'Near Tofo with reef.', -23.7833, 35.5000, 'Moz', 'Moz', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Bazaruto Archipelago', 'Dugong habitat.', -21.6667, 35.4667, 'Moz', 'Moz', 'boat', 25, 25);
+VALUES ('Bazaruto Archipelago', 'Dugong habitat.', -21.666698, 35.494786, 'Moz', 'Moz', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Inhambane Coast', 'Historic Portuguese town.', -23.8667, 35.3783, 'Moz', 'Moz', 'boat', 18, 18);
@@ -2305,7 +2305,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Ponta do Ouro', 'SA border with dolphins.', -26.8333, 32.8883, 'Moz', 'Moz', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Pemba (Quirimbas)', 'Northern Mozambique.', -12.9667, 40.5167, 'Moz', 'Moz', 'boat', 25, 25);
+VALUES ('Pemba (Quirimbas)', 'Northern Mozambique.', -12.95229, 40.5167, 'Moz', 'Moz', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Ibo Island - North', 'North coast. Historic fortress.', -12.3150, 40.6000, 'Moz', 'Moz', 'boat', 20, 20);
@@ -2320,7 +2320,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Ibo Island - West', 'West coast. Channel side.', -12.3500, 40.5850, 'Moz', 'Moz', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Mafia Island - North', 'North coast. Whale shark park.', -7.9017, 39.7833, 'Tanzania', 'Tanzania', 'boat', 20, 20);
+VALUES ('Mafia Island - North', 'North coast. Whale shark park.', -7.909346, 39.791019, 'Tanzania', 'Tanzania', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Mafia Island - South', 'South coast. Chole Bay.', -7.9317, 39.7833, 'Tanzania', 'Tanzania', 'boat', 20, 20);
@@ -2344,13 +2344,13 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Pemba Island - East', 'East coast. Misali Island.', -5.0333, 39.8450, 'Tanzania', 'Tanzania', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Pemba Island - West', 'West coast. Shimba Hills.', -5.0333, 39.6850, 'Tanzania', 'Tanzania', 'boat', 30, 30);
+VALUES ('Pemba Island - West', 'West coast. Shimba Hills.', -5.026084, 39.685, 'Tanzania', 'Tanzania', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Watamu Marine Park', 'Kenya''s premier diving.', -3.3500, 40.0167, 'Kenya', 'Kenya', 'boat', 18, 18);
+VALUES ('Watamu Marine Park', 'Kenya''s premier diving.', -3.360813, 40.0167, 'Kenya', 'Kenya', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Malindi', 'Historic Swahili coast.', -3.2167, 40.1167, 'Kenya', 'Kenya', 'boat', 15, 15);
+VALUES ('Malindi', 'Historic Swahili coast.', -3.20651, 40.126905, 'Kenya', 'Kenya', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Diani Beach', 'South coast diving.', -4.3167, 39.5833, 'Kenya', 'Kenya', 'boat', 18, 18);
@@ -2368,7 +2368,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Mahe - West', 'West coast. Sunset side, calmer.', -4.6833, 55.4383, 'Seychelles', 'Seychelles', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Praslin', 'Vallee de Mai island.', -4.3333, 55.7500, 'Seychelles', 'Seychelles', 'boat', 25, 25);
+VALUES ('Praslin', 'Vallee de Mai island.', -4.3333, 55.764451, 'Seychelles', 'Seychelles', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Aldabra Atoll', 'UNESCO World Heritage.', -9.4167, 46.3333, 'Seychelles', 'Seychelles', 'boat', 30, 30);
@@ -2383,7 +2383,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Saint-Leu', 'West coast diving.', -21.1667, 55.2833, 'Reunion', 'Reunion', 'boat', 25, 25);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Saint-Gilles', 'Lagoon and outer reef.', -21.0667, 55.2333, 'Reunion', 'Reunion', 'boat', 20, 20);
+VALUES ('Saint-Gilles', 'Lagoon and outer reef.', -21.066699, 55.214967, 'Reunion', 'Reunion', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Coki Beach (St. Thomas)', 'Popular snorkel spot.', 18.3500, -64.8667, 'Usvi', 'Usvi', 'shore', 12, 12);
@@ -2422,7 +2422,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Montego Bay Marine Park', 'Protected area.', 18.4833, -77.9333, 'Jamaica', 'Jamaica', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Negril', 'West coast diving.', 18.2667, -78.3500, 'Jamaica', 'Jamaica', 'boat', 15, 15);
+VALUES ('Negril', 'West coast diving.', 18.283808, -78.35, 'Jamaica', 'Jamaica', 'boat', 15, 15);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Mushroom Forest (Curacao)', 'Unique coral formations.', 12.3667, -69.1550, 'Curacao', 'Curacao', 'shore', 18, 18);
@@ -2443,10 +2443,10 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Catalina Island (DR)', 'Day trip diving.', 18.3667, -68.9667, 'Dominican', 'Dominican', 'boat', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Bayahibe', 'Dive resort town.', 18.3667, -68.8333, 'Dominican', 'Dominican', 'boat', 18, 18);
+VALUES ('Bayahibe', 'Dive resort town.', 18.3667, -68.844693, 'Dominican', 'Dominican', 'boat', 18, 18);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Anse Chastanet (St. Lucia)', 'Piton area diving.', 13.8667, -61.0667, 'St', 'St', 'shore', 20, 20);
+VALUES ('Anse Chastanet (St. Lucia)', 'Piton area diving.', 13.85229, -61.0667, 'St', 'St', 'shore', 20, 20);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Bianca C Wreck (Grenada)', 'Titanic of Caribbean.', 12.0333, -61.7550, 'Grenada', 'Grenada', 'boat', 40, 40);
@@ -2479,7 +2479,7 @@ INSERT INTO spots (name, description, latitude, longitude, region, country, acce
 VALUES ('Galapagos Santa Cruz - East', 'East side. Seymour Channel.', -0.7500, -90.2850, 'Galapagos', 'Ecuador', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
-VALUES ('Galapagos Santa Cruz - West', 'West side. Open ocean.', -0.7500, -90.3150, 'Galapagos', 'Ecuador', 'boat', 30, 30);
+VALUES ('Galapagos Santa Cruz - West', 'West side. Open ocean.', -0.744898, -90.309897, 'Galapagos', 'Ecuador', 'boat', 30, 30);
 
 INSERT INTO spots (name, description, latitude, longitude, region, country, access_type, depth_min_m, depth_max_m)
 VALUES ('Guadalupe Island - North', 'North side. Great white shark cage diving.', 29.1350, -118.2833, 'Guadalupe', 'Guadalupe', 'boat', 20, 20);

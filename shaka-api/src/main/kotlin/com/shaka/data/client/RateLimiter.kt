@@ -238,6 +238,16 @@ object RateLimiters {
         requestsPerSecond = 1.0,
         burstSize = 3
     )
+
+    /**
+     * Land/water classification service (is-on-water).
+     * Light usage, but keep it fast and respectful.
+     */
+    val landWater = RateLimiter(
+        name = "land-water",
+        requestsPerSecond = 10.0,
+        burstSize = 20
+    )
     
     /**
      * Get stats for all rate limiters.
@@ -251,7 +261,8 @@ object RateLimiters {
         "solunar" to solunar.getStats(),
         "socalFishReports" to socalFishReports.getStats(),
         "sanDiegoFishReports" to sanDiegoFishReports.getStats(),
-        "tuna976" to tuna976.getStats()
+        "tuna976" to tuna976.getStats(),
+        "landWater" to landWater.getStats()
     )
     
     /**

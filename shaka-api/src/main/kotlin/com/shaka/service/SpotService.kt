@@ -5,6 +5,7 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.GIBSClient
+import com.shaka.data.client.LandWaterClient
 import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.ProtectedSeasClient
@@ -45,6 +46,7 @@ class SpotService {
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val protectedSeasClient = ProtectedSeasClient()
+    private val landWaterClient = LandWaterClient()
     private val spotDb = SpotDatabase
     // Note: GlobalFishingWatchClient and SolunarClient are used by DataPrefetchJobs
     // SpotService reads the cached data from SpotDataCache
@@ -310,6 +312,16 @@ class SpotService {
         val lat = spot.coordinates.lat
         val lon = spot.coordinates.lon
         val region = inferRegionFromSpotId(spotId)
+
+        // ── Defensive land guardrail ────────────────────────────────
+        // If this spot is on land (e.g. legacy coordinates not yet moved),
+        // return the detail with clearly-N/A marine data instead of
+        // believable but incorrect fallback values.
+        val isWater = landWaterClient.isWater(lat, lon)
+        if (isWater == false) {
+            logger.warn("Land spot detected: ${spot.name} ($lat,$lon) — returning N/A marine data")
+            return@coroutineScope buildLandSpotDetail(spot, date, region)
+        }
         
         // Check prefetched cache first (instant!)
         val cached = SpotDataCache.get(spotId)
@@ -560,6 +572,65 @@ class SpotService {
             vessels = vesselActivity,
             solunar = solunarData,
             waterContext = waterContext
+        )
+    }
+
+    /**
+     * Build a SpotDetail with clearly-N/A marine data for spots whose
+     * coordinates are on land.  Keeps basic info (name, description, fish,
+     * access) intact so the user can still see what the spot is, but all
+     * marine-specific fields are labelled "N/A – location on land".
+     */
+    private fun buildLandSpotDetail(
+        spot: SpotDatabase.SpotRecord,
+        date: String,
+        region: String,
+    ): SpotDetail {
+        val naLabel = "N/A – location on land"
+        return SpotDetail(
+            id = spot.id,
+            name = spot.name,
+            description = spot.description,
+            coordinates = spot.coordinates,
+            score = ShakaScore(
+                overall = 0,
+                confidence = 0,
+                breakdown = ScoreBreakdown(visibility = 0, weather = 0, swell = 0, fishActivity = 0, accessibility = 0)
+            ),
+            access = AccessInfo(
+                directions = spot.directions,
+                parkingInfo = spot.parking,
+                permitRequired = false
+            ),
+            conditions = SpotConditions(
+                visibility = naLabel,
+                waterTemp = naLabel,
+                swell = naLabel,
+                wind = naLabel,
+                tideState = naLabel,
+                dataUpdatedMinutesAgo = null,
+                satelliteDataDate = null
+            ),
+            forecast = emptyList(),
+            expectedFish = spot.commonFish.map { fish ->
+                FishInfo(name = fish, likelihood = "Unknown", seasonalNotes = "")
+            },
+            gearRecommendations = emptyList(),
+            risks = listOf(
+                RiskInfo(
+                    risk = "This spot's coordinates are on land — marine data is unavailable.",
+                    severity = "info",
+                    mitigation = "The spot may need to be relocated into the water."
+                )
+            ),
+            communityReports = emptyList(),
+            bestTimeOfDay = "N/A",
+            imageUrl = spot.imageUrl,
+            satelliteReadings = null,
+            regulations = getRegulationInfo(spot.id, inferSpecificRegionFromSpotId(spot.id), inferCountryFromSpotId(spot.id)),
+            vessels = null,
+            solunar = null,
+            waterContext = null
         )
     }
 
