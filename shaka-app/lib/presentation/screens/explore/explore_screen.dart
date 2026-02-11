@@ -1218,8 +1218,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Keep the map widget mounted across pin mode toggles.
     // Using different parent widgets (SizedBox vs Expanded) can cause a remount
     // and MapLibre will fall back to initialCameraPosition (zooming out).
-    final mapFlex = _isPinMode ? 1 : 7;
-    const carouselFlex = 3;
+    final mapFlex = _isPinMode ? 1 : 3;
+    const carouselFlex = 1;
 
     // Map stack children (shared between pin mode and normal mode)
     final mapChildren = <Widget>[

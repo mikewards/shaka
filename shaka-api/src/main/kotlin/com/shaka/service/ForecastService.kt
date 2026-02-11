@@ -1,7 +1,6 @@
 package com.shaka.service
 
 import com.shaka.data.cache.SpotDataCache
-import com.shaka.data.client.LandWaterClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
@@ -21,7 +20,6 @@ class ForecastService {
 
     private val logger = LoggerFactory.getLogger(ForecastService::class.java)
     private val openMeteo = OpenMeteoClient()
-    private val landWaterClient = LandWaterClient()
     private val spotDb = SpotDatabase
 
     /**
@@ -30,15 +28,6 @@ class ForecastService {
      */
     suspend fun getForecast(spotId: String, days: Int): List<DayForecast> {
         val spot = spotDb.findSpotById(spotId) ?: return emptyList()
-        val lat = spot.coordinates.lat
-        val lon = spot.coordinates.lon
-
-        // Defensive land guardrail — no forecast for land coordinates
-        if (landWaterClient.isWater(lat, lon) == false) {
-            logger.warn("Skipping forecast for land spot: ${spot.name} ($lat,$lon)")
-            return emptyList()
-        }
-
         val cached = SpotDataCache.get(spotId)
         val forecasts = mutableListOf<DayForecast>()
         val today = LocalDate.now()
@@ -192,12 +181,6 @@ class ForecastService {
      * @return List of day forecasts
      */
     suspend fun getForecastForLocation(lat: Double, lon: Double, days: Int): List<DayForecast> {
-        // Defensive land guardrail — no forecast for land coordinates
-        if (landWaterClient.isWater(lat, lon) == false) {
-            logger.warn("Skipping forecast for land location ($lat,$lon)")
-            return emptyList()
-        }
-
         val forecasts = mutableListOf<DayForecast>()
         val today = LocalDate.now()
         
