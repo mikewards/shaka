@@ -133,7 +133,7 @@ class _ConditionSummary extends StatelessWidget {
           Expanded(
             child: _MiniCondition(
               label: 'Wind',
-              value: conditions.wind,
+              value: _extractWind(conditions.wind),
             ),
           ),
         ],
@@ -144,19 +144,25 @@ class _ConditionSummary extends StatelessWidget {
   String _extractValue(String vis) {
     // Extract just the meters value: "45m (exceptional)" -> "45m"
     final match = RegExp(r'(\d+m)').firstMatch(vis);
-    return match?.group(1) ?? vis;
+    return match?.group(1) ?? 'N/A';
   }
 
   String _extractTemp(String temp) {
     // Extract Fahrenheit: "24°C / 75°F" -> "75°F"
     final match = RegExp(r'(\d+°F)').firstMatch(temp);
-    return match?.group(1) ?? temp;
+    return match?.group(1) ?? 'N/A';
   }
 
   String _extractSwell(String swell) {
     // Extract just the feet: "0-1ft @ 12s" -> "0-1ft"
     final match = RegExp(r'([\d-]+ft)').firstMatch(swell);
-    return match?.group(1) ?? swell;
+    return match?.group(1) ?? 'N/A';
+  }
+
+  String _extractWind(String wind) {
+    // Extract just the knots: "12 kts NW" -> "12 kts"
+    final match = RegExp(r'(\d+\s*kts|\d+\s*knots)').firstMatch(wind);
+    return match?.group(1) ?? 'N/A';
   }
 }
 
