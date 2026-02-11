@@ -640,9 +640,9 @@ class _ReportsScreenState extends State<ReportsScreen>
     final isUp = s.isUp;
     final isDown = s.isDown;
     final trendColor = isUp
-        ? const Color(0xFF22C55E)
+        ? AppColors.success
         : isDown
-            ? const Color(0xFFEF4444)
+            ? AppColors.error
             : Colors.white54;
     final isExpanded = _expandedSpeciesByRegion[regionId] == s.species;
     final isPinned = prefs.pinnedSpecies.contains(s.species);
@@ -802,7 +802,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
           SlidableAction(
             onPressed: (_) => _hideSpecies(regionId, s.species),
-            backgroundColor: const Color(0xFF3A1A1A),
+            backgroundColor: AppColors.error,
             foregroundColor: Colors.white,
             icon: Icons.visibility_off_outlined,
             label: 'Hide',
@@ -895,9 +895,9 @@ class _ReportsScreenState extends State<ReportsScreen>
     final isUp = s.isUp;
     final isDown = s.isDown;
     final trendColor = isUp
-        ? const Color(0xFF22C55E)
+        ? AppColors.success
         : isDown
-            ? const Color(0xFFEF4444)
+            ? AppColors.error
             : Colors.white54;
     String changeText;
     if (s.percentChange > 500) {
@@ -924,7 +924,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: trendColor.withOpacity(0.15),
+                  color: trendColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
