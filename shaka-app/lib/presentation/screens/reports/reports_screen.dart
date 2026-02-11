@@ -321,7 +321,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 if (speciesList.isNotEmpty) ...[
                   _buildSectionHeader(
                     'CATCH NUMBERS',
-                    trailing: _buildBadge('LAST 3 DAYS'),
+                    trailing: _buildBadge('RECENT 3 DAYS'),
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -942,7 +942,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                'VS PRIOR 3 DAYS',
+                'VS PREVIOUS 3 DAYS',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.45),
                   fontSize: 10,
@@ -955,9 +955,9 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(height: 12),
           Container(height: 1, color: _borderColor),
           const SizedBox(height: 12),
-          _buildFlyoutStatRow('Last 3 days', '${s.count24h}'),
+          _buildFlyoutStatRow('Recent 3 days', '${s.count24h}'),
           const SizedBox(height: 8),
-          _buildFlyoutStatRow('Prior 3 days', '${s.countPrevious}'),
+          _buildFlyoutStatRow('Previous 3 days', '${s.countPrevious}'),
         ],
       ),
     );
@@ -1039,7 +1039,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(height: 8),
           // Row 3: methodology note
           Text(
-            '3-day catch counts vs prior 3 days',
+            'Recent 3 days vs previous 3 days (excludes today)',
             style: TextStyle(
               color: Colors.white.withOpacity(0.25),
               fontSize: 11,
