@@ -771,7 +771,12 @@ class _ReportsScreenState extends State<ReportsScreen>
               child: isExpanded
                   ? Padding(
                       key: ValueKey('flyout_${s.species}'),
-                      padding: const EdgeInsets.fromLTRB(0, 8, 0, 10),
+                      padding: const EdgeInsets.fromLTRB(
+                        _speciesRowHPad,
+                        8,
+                        _speciesRowHPad,
+                        10,
+                      ),
                       child: _buildSpeciesFlyout(s),
                     )
                   : const SizedBox.shrink(key: ValueKey('flyout_none')),
@@ -907,7 +912,6 @@ class _ReportsScreenState extends State<ReportsScreen>
       changeText = '$sign${s.percentChange}%';
     }
     return Container(
-      margin: const EdgeInsets.only(left: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _bgColor,
