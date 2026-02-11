@@ -40,6 +40,7 @@ class FishingIntelResponse {
   final Headline? headline;
   final List<TrendingSpecies> hotSpecies;
   final List<TrendingSpecies> coldSpecies;
+
   /// Single list sorted by desirability (most to least). Prefer over hot/cold.
   final List<TrendingSpecies> speciesWithTrends;
   final List<RecentCatch> recentCatches;
@@ -47,6 +48,7 @@ class FishingIntelResponse {
   final String dataFreshness;
   final int totalReports;
   final List<NarrativeInsight> narrativeInsights;
+
   /// Key insights for fishermen (Groq-generated, Hemingway-style, max 2 lines each).
   final List<String> keyInsights;
 
@@ -65,18 +67,26 @@ class FishingIntelResponse {
   });
 
   factory FishingIntelResponse.fromJson(Map<String, dynamic> json) {
-    final hot = (json['hotSpecies'] as List? ?? []).map((e) => TrendingSpecies.fromJson(e)).toList();
-    final cold = (json['coldSpecies'] as List? ?? []).map((e) => TrendingSpecies.fromJson(e)).toList();
+    final hot = (json['hotSpecies'] as List? ?? [])
+        .map((e) => TrendingSpecies.fromJson(e))
+        .toList();
+    final cold = (json['coldSpecies'] as List? ?? [])
+        .map((e) => TrendingSpecies.fromJson(e))
+        .toList();
     final speciesWithTrends = (json['speciesWithTrends'] as List? ?? [])
         .map((e) => TrendingSpecies.fromJson(e))
         .toList();
     return FishingIntelResponse(
       spotId: json['spotId'] ?? '',
-      headline: json['headline'] != null ? Headline.fromJson(json['headline']) : null,
+      headline:
+          json['headline'] != null ? Headline.fromJson(json['headline']) : null,
       hotSpecies: hot,
       coldSpecies: cold,
-      speciesWithTrends: speciesWithTrends.isNotEmpty ? speciesWithTrends : [...hot, ...cold],
-      recentCatches: (json['recentCatches'] as List? ?? []).map((e) => RecentCatch.fromJson(e)).toList(),
+      speciesWithTrends:
+          speciesWithTrends.isNotEmpty ? speciesWithTrends : [...hot, ...cold],
+      recentCatches: (json['recentCatches'] as List? ?? [])
+          .map((e) => RecentCatch.fromJson(e))
+          .toList(),
       sourcesUsed: (json['sourcesUsed'] as List? ?? []).cast<String>(),
       dataFreshness: json['dataFreshness'] ?? '',
       totalReports: json['totalReports'] ?? 0,
@@ -88,8 +98,9 @@ class FishingIntelResponse {
   }
 
   /// Species list to show: backend list if present, else hot + cold for old API.
-  List<TrendingSpecies> get speciesList =>
-      speciesWithTrends.isNotEmpty ? speciesWithTrends : [...hotSpecies, ...coldSpecies];
+  List<TrendingSpecies> get speciesList => speciesWithTrends.isNotEmpty
+      ? speciesWithTrends
+      : [...hotSpecies, ...coldSpecies];
 
   bool get hasData =>
       headline != null ||
@@ -129,12 +140,14 @@ class Headline {
 /// Species with trend info (last 3 days vs prior 3 days, excludes today).
 class TrendingSpecies {
   final String species;
+
   /// Catches in recent 3 days (field name count24h kept for API compat).
   final int count24h;
   final int countPrevious;
   final String trend; // "UP", "DOWN", "STABLE"
   final int percentChange;
   final String? topLanding;
+
   /// "Above average", "Below average", "Average", "New!"
   final String? trendLabel;
 
@@ -207,7 +220,7 @@ class RecentCatch {
       sourceName: json['sourceName'] ?? '',
     );
   }
-  
+
   String get timeDisplay {
     if (hoursAgo == 0) return 'Just now';
     if (hoursAgo == 1) return '1 hour ago';
@@ -286,6 +299,26 @@ class SpeciesSummary {
       reportCount: json['reportCount'] ?? 0,
     );
   }
+}
+
+extension IntelHighlightDisplay on IntelHighlight {
+  String get speciesDisplay => species;
+
+  String get countDisplay {
+    final kept = countKept ?? 0;
+    final released = countReleased ?? 0;
+    final total = kept + released;
+    if (total == 0) return 'No catch count available';
+    if (kept > 0 && released > 0) {
+      return '$total total ($kept kept, $released released)';
+    }
+    if (kept > 0) return '$kept kept';
+    return '$released released';
+  }
+}
+
+extension SpeciesSummaryDisplay on SpeciesSummary {
+  String get speciesDisplay => species;
 }
 
 class BaitStatus {

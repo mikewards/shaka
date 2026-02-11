@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/repositories/reports_preferences_repository.dart';
 import '../../../features/fishing_intel/models/fishing_intel_models.dart';
 import '../../../features/fishing_intel/services/fishing_intel_service.dart';
+import '../../widgets/reports/manage_fish_sheet.dart';
 
 /// Regional fishing reports with horizontal-scroll region chips.
 /// SoCal is the first of many regions; add more to [_regions] as the backend supports them.
@@ -14,10 +17,18 @@ class ReportsScreen extends StatefulWidget {
   State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _ReportsScreenState extends State<ReportsScreen> {
+class _ReportsScreenState extends State<ReportsScreen>
+    with TickerProviderStateMixin {
   static const _bgColor = Color(0xFF0D0D0D);
   static const _cardColor = Color(0xFF1A1A1A);
   static const _borderColor = Color(0xFF2A2A2A);
+  static const _groupRadius = 12.0;
+  static const _speciesRowHPad = 14.0;
+  static const _speciesRowVPad = 12.0;
+  static const _trendColumnWidth = 28.0;
+  static const _trendToNameGap = 4.0;
+  static const _separatorIndent =
+      _speciesRowHPad + _trendColumnWidth + _trendToNameGap + 10.0;
 
   /// Region list: SoCal first; add more here as backend supports them.
   static const _regions = [
@@ -30,16 +41,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   String _selectedRegion = _regions.first.id;
   final _service = FishingIntelService();
+  final _prefsRepo = ReportsPreferencesRepository();
   final Map<String, FishingIntelResponse?> _intelByRegion = {};
   final Map<String, bool> _loading = {};
   final Map<String, String?> _error = {};
   final Map<String, String?> _expandedSpeciesByRegion = {};
+  final Map<String, ReportsPreferences> _prefsByRegion = {};
 
   @override
   void initState() {
     super.initState();
     for (final r in _regions) {
+      _loadPrefs(r.id);
       _loadRegion(r.id);
+    }
+  }
+
+  Future<void> _loadPrefs(String regionId) async {
+    try {
+      final prefs = await _prefsRepo.load(regionId);
+      if (mounted) {
+        setState(() {
+          _prefsByRegion[regionId] = prefs;
+        });
+      }
+    } catch (_) {
+      // No-op: preferences are non-critical; default empty.
     }
   }
 
@@ -78,6 +105,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _regions.firstWhere((r) => r.id == _selectedRegion).label;
     final intel = _intelByRegion[_selectedRegion];
     final freshness = intel?.dataFreshness;
+    final canManageFish = (intel?.speciesList.isNotEmpty ?? false);
 
     return Scaffold(
       backgroundColor: _bgColor,
@@ -92,6 +120,49 @@ class _ReportsScreenState extends State<ReportsScreen> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: !canManageFish
+                ? null
+                : () async {
+                    HapticFeedback.selectionClick();
+                    final regionId = _selectedRegion;
+                    final currentIntel = _intelByRegion[regionId];
+                    if (currentIntel == null ||
+                        currentIntel.speciesList.isEmpty) {
+                      return;
+                    }
+                    final allSpecies =
+                        currentIntel.speciesList.map((e) => e.species).toList();
+                    final initialPrefs =
+                        _prefsByRegion[regionId] ?? ReportsPreferences.empty;
+
+                    final updated = await ManageFishSheet.show(
+                      context: context,
+                      regionId: regionId,
+                      allSpecies: allSpecies,
+                      prefsRepo: _prefsRepo,
+                      initialPrefs: initialPrefs,
+                    );
+                    if (!mounted || updated == null) return;
+                    setState(() {
+                      _prefsByRegion[regionId] = updated;
+                      // If the expanded species was hidden, collapse it.
+                      final expanded = _expandedSpeciesByRegion[regionId];
+                      if (expanded != null &&
+                          updated.hiddenSpecies.contains(expanded)) {
+                        _expandedSpeciesByRegion[regionId] = null;
+                      }
+                    });
+                  },
+            icon: Icon(
+              Icons.tune,
+              color: canManageFish ? Colors.white70 : Colors.white24,
+            ),
+            tooltip: 'Manage fish',
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: Column(
         children: [
@@ -129,8 +200,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? AppColors.info.withOpacity(0.15)
@@ -231,38 +302,110 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-      children: [
-        // ── Insights ──
-        if (intel.keyInsights.isNotEmpty) ...[
-          _buildSectionHeader('INSIGHTS'),
-          const SizedBox(height: 10),
-          _buildInsightsCard(intel.keyInsights),
-          const SizedBox(height: 24),
-        ],
-        // ── Catch numbers ──
-        if (intel.speciesList.isNotEmpty) ...[
-          _buildSectionHeader(
-            'CATCH NUMBERS',
-            trailing: _buildBadge('LAST 3 DAYS'),
+    final prefs = _prefsByRegion[regionId] ?? ReportsPreferences.empty;
+    final speciesList = _applyPrefsToSpeciesList(intel.speciesList, prefs);
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(
+              [
+                if (intel.keyInsights.isNotEmpty) ...[
+                  _buildSectionHeader('INSIGHTS'),
+                  const SizedBox(height: 10),
+                  _buildInsightsCard(intel.keyInsights),
+                  const SizedBox(height: 24),
+                ],
+                if (speciesList.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'CATCH NUMBERS',
+                    trailing: _buildBadge('LAST 3 DAYS'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          ...intel.speciesList.asMap().entries.map((entry) {
-            final index = entry.key;
-            final s = entry.value;
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index < intel.speciesList.length - 1 ? 6 : 0,
+        ),
+        if (speciesList.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final s = speciesList[index];
+                  final isFirst = index == 0;
+                  final isLast = index == speciesList.length - 1;
+                  return RepaintBoundary(
+                    child: _buildSpeciesRow(
+                      s,
+                      regionId,
+                      intel,
+                      prefs: prefs,
+                      isFirst: isFirst,
+                      isLast: isLast,
+                    ),
+                  );
+                },
+                childCount: speciesList.length,
               ),
-              child: _buildSpeciesRow(s, regionId, intel),
-            );
-          }),
-          const SizedBox(height: 20),
-          _buildSourcesFooter(intel),
-        ],
+            ),
+          ),
+        if (speciesList.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            sliver: SliverToBoxAdapter(
+              child: _buildSourcesFooter(intel),
+            ),
+          ),
       ],
     );
+  }
+
+  List<TrendingSpecies> _applyPrefsToSpeciesList(
+    List<TrendingSpecies> raw,
+    ReportsPreferences prefs,
+  ) {
+    if (raw.isEmpty) return raw;
+
+    final hidden = prefs.hiddenSpecies;
+    final pinned = prefs.pinnedSpecies;
+    final visible = raw.where((s) => !hidden.contains(s.species)).toList();
+
+    if (visible.isEmpty) return visible;
+
+    final originalIndex = <String, int>{};
+    for (var i = 0; i < raw.length; i++) {
+      originalIndex[raw[i].species] = i;
+    }
+
+    final baseOrder = prefs.manualOrder.isNotEmpty
+        ? prefs.manualOrder
+        : raw.map((s) => s.species).toList();
+    final orderIndex = <String, int>{};
+    for (var i = 0; i < baseOrder.length; i++) {
+      orderIndex[baseOrder[i]] = i;
+    }
+
+    visible.sort((a, b) {
+      final aPinned = pinned.contains(a.species);
+      final bPinned = pinned.contains(b.species);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+
+      final aOrder = orderIndex[a.species];
+      final bOrder = orderIndex[b.species];
+      if (aOrder != null && bOrder != null) return aOrder.compareTo(bOrder);
+      if (aOrder != null) return -1;
+      if (bOrder != null) return 1;
+
+      final aOrig = originalIndex[a.species] ?? 0;
+      final bOrig = originalIndex[b.species] ?? 0;
+      return aOrig.compareTo(bOrig);
+    });
+
+    return visible;
   }
 
   // ─── Freshness Banner ──────────────────────────────────────────────
@@ -341,20 +484,35 @@ class _ReportsScreenState extends State<ReportsScreen> {
   /// Pick an icon based on insight content keywords.
   static IconData _insightIcon(String insight, int index) {
     final lower = insight.toLowerCase();
-    if (lower.contains('bait') || lower.contains('sardine') || lower.contains('anchov')) {
+    if (lower.contains('bait') ||
+        lower.contains('sardine') ||
+        lower.contains('anchov')) {
       return Icons.set_meal_outlined;
     }
-    if (lower.contains('wind') || lower.contains('weather') || lower.contains('swell') || lower.contains('storm')) {
+    if (lower.contains('wind') ||
+        lower.contains('weather') ||
+        lower.contains('swell') ||
+        lower.contains('storm')) {
       return Icons.air;
     }
-    if (lower.contains('hot') || lower.contains('fire') || lower.contains('firing') || lower.contains('heat')) {
+    if (lower.contains('hot') ||
+        lower.contains('fire') ||
+        lower.contains('firing') ||
+        lower.contains('heat')) {
       return Icons.local_fire_department_outlined;
     }
-    if (lower.contains('island') || lower.contains('harbor') || lower.contains('landing') ||
-        lower.contains('catalina') || lower.contains('clemente') || lower.contains('coast')) {
+    if (lower.contains('island') ||
+        lower.contains('harbor') ||
+        lower.contains('landing') ||
+        lower.contains('catalina') ||
+        lower.contains('clemente') ||
+        lower.contains('coast')) {
       return Icons.place_outlined;
     }
-    if (lower.contains('temp') || lower.contains('degree') || lower.contains('warm') || lower.contains('cold')) {
+    if (lower.contains('temp') ||
+        lower.contains('degree') ||
+        lower.contains('warm') ||
+        lower.contains('cold')) {
       return Icons.thermostat_outlined;
     }
     // Cycle through defaults for visual variety
@@ -365,20 +523,35 @@ class _ReportsScreenState extends State<ReportsScreen> {
   /// Pick an icon tint color based on insight content keywords.
   static Color _insightIconColor(String insight, int index) {
     final lower = insight.toLowerCase();
-    if (lower.contains('bait') || lower.contains('sardine') || lower.contains('anchov')) {
+    if (lower.contains('bait') ||
+        lower.contains('sardine') ||
+        lower.contains('anchov')) {
       return const Color(0xFFC9A66B); // amber
     }
-    if (lower.contains('wind') || lower.contains('weather') || lower.contains('swell') || lower.contains('storm')) {
+    if (lower.contains('wind') ||
+        lower.contains('weather') ||
+        lower.contains('swell') ||
+        lower.contains('storm')) {
       return const Color(0xFF7A9BB8); // blue-gray
     }
-    if (lower.contains('hot') || lower.contains('fire') || lower.contains('firing') || lower.contains('heat')) {
+    if (lower.contains('hot') ||
+        lower.contains('fire') ||
+        lower.contains('firing') ||
+        lower.contains('heat')) {
       return const Color(0xFFCB8B7A); // coral
     }
-    if (lower.contains('island') || lower.contains('harbor') || lower.contains('landing') ||
-        lower.contains('catalina') || lower.contains('clemente') || lower.contains('coast')) {
+    if (lower.contains('island') ||
+        lower.contains('harbor') ||
+        lower.contains('landing') ||
+        lower.contains('catalina') ||
+        lower.contains('clemente') ||
+        lower.contains('coast')) {
       return const Color(0xFF8FA98B); // sage green
     }
-    if (lower.contains('temp') || lower.contains('degree') || lower.contains('warm') || lower.contains('cold')) {
+    if (lower.contains('temp') ||
+        lower.contains('degree') ||
+        lower.contains('warm') ||
+        lower.contains('cold')) {
       return const Color(0xFF7A9BB8); // blue-gray
     }
     const defaults = [Color(0xFF7A9BB8), Color(0xFF6B8E7D), Color(0xFFC9A66B)];
@@ -459,8 +632,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildSpeciesRow(
     TrendingSpecies s,
     String regionId,
-    FishingIntelResponse intel,
-  ) {
+    FishingIntelResponse intel, {
+    required ReportsPreferences prefs,
+    required bool isFirst,
+    required bool isLast,
+  }) {
     final isUp = s.isUp;
     final isDown = s.isDown;
     final trendColor = isUp
@@ -469,81 +645,248 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ? const Color(0xFFEF4444)
             : Colors.white54;
     final isExpanded = _expandedSpeciesByRegion[regionId] == s.species;
+    final isPinned = prefs.pinnedSpecies.contains(s.species);
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final expandDuration =
+        disableAnimations ? Duration.zero : const Duration(milliseconds: 220);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _expandedSpeciesByRegion[regionId] =
-                  isExpanded ? null : s.species;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _cardColor,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _borderColor),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Trend indicator: fixed-width, vertically aligned across all rows
-                SizedBox(
-                  width: 28,
-                  child: Center(
-                    child: _TrendArrow(
-                      isUp: isUp,
-                      isDown: isDown,
-                      percentChange: s.percentChange,
-                      color: trendColor,
-                      showPercentInFlyoutOnly: true,
+    final borderRadius = BorderRadius.vertical(
+      top: isFirst ? const Radius.circular(_groupRadius) : Radius.zero,
+      bottom: isLast ? const Radius.circular(_groupRadius) : Radius.zero,
+    );
+
+    final cell = Container(
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: borderRadius,
+        border: Border(
+          left: const BorderSide(color: _borderColor),
+          right: const BorderSide(color: _borderColor),
+          top:
+              isFirst ? const BorderSide(color: _borderColor) : BorderSide.none,
+          bottom:
+              isLast ? const BorderSide(color: _borderColor) : BorderSide.none,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _expandedSpeciesByRegion[regionId] =
+                      isExpanded ? null : s.species;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _speciesRowHPad,
+                  vertical: _speciesRowVPad,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Trend indicator: fixed-width, vertically aligned across all rows
+                    SizedBox(
+                      width: _trendColumnWidth,
+                      child: Center(
+                        child: _TrendArrow(
+                          isUp: isUp,
+                          isDown: isDown,
+                          percentChange: s.percentChange,
+                          color: trendColor,
+                          showPercentInFlyoutOnly: true,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Species name: fills middle space
-                Expanded(
-                  child: Text(
-                    s.species,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(width: _trendToNameGap),
+                    // Species name: fills middle space
+                    Expanded(
+                      child: Text(
+                        s.species,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
+                    const SizedBox(width: 8),
+                    // Count: right-aligned, never truncated
+                    Text(
+                      '${s.count24h}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (isPinned) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.push_pin,
+                        size: 14,
+                        color: AppColors.info.withOpacity(0.9),
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: const Icon(
+                        Icons.expand_more,
+                        color: Colors.white38,
+                        size: 20,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                // Count + chevron: right-aligned, never truncated
-                Text(
-                  '${s.count24h}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.white38,
-                  size: 20,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-        if (isExpanded) ...[
-          const SizedBox(height: 6),
-          _buildSpeciesFlyout(s),
+          AnimatedSize(
+            duration: expandDuration,
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: expandDuration,
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                final fade = FadeTransition(opacity: animation, child: child);
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, -0.02),
+                  end: Offset.zero,
+                ).animate(animation);
+                return SlideTransition(position: slide, child: fade);
+              },
+              child: isExpanded
+                  ? Padding(
+                      key: ValueKey('flyout_${s.species}'),
+                      padding: const EdgeInsets.fromLTRB(0, 8, 0, 10),
+                      child: _buildSpeciesFlyout(s),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('flyout_none')),
+            ),
+          ),
+          if (!isLast)
+            Container(
+              height: 1,
+              margin: const EdgeInsets.only(left: _separatorIndent),
+              color: _borderColor,
+            ),
         ],
-      ],
+      ),
+    );
+
+    return Slidable(
+      key: ValueKey('species_${regionId}_${s.species}'),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.52,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _togglePinned(regionId, s.species),
+            backgroundColor: const Color(0xFF2A2A2A),
+            foregroundColor: Colors.white,
+            icon: isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+            label: isPinned ? 'Unpin' : 'Pin',
+          ),
+          SlidableAction(
+            onPressed: (_) => _hideSpecies(regionId, s.species),
+            backgroundColor: const Color(0xFF3A1A1A),
+            foregroundColor: Colors.white,
+            icon: Icons.visibility_off_outlined,
+            label: 'Hide',
+          ),
+        ],
+      ),
+      child: cell,
+    );
+  }
+
+  Future<void> _togglePinned(String regionId, String species) async {
+    final current = _prefsByRegion[regionId] ?? ReportsPreferences.empty;
+    final pinned = {...current.pinnedSpecies};
+    final wasPinned = pinned.contains(species);
+    if (wasPinned) {
+      pinned.remove(species);
+    } else {
+      pinned.add(species);
+    }
+
+    final updated = current.copyWith(pinnedSpecies: pinned);
+    setState(() => _prefsByRegion[regionId] = updated);
+    await _prefsRepo.savePinnedSpecies(regionId, pinned);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(wasPinned ? 'Unpinned $species' : 'Pinned $species'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            final revertedPinned = {...pinned};
+            if (wasPinned) {
+              revertedPinned.add(species);
+            } else {
+              revertedPinned.remove(species);
+            }
+            final reverted = current.copyWith(pinnedSpecies: revertedPinned);
+            if (!mounted) return;
+            setState(() => _prefsByRegion[regionId] = reverted);
+            await _prefsRepo.savePinnedSpecies(regionId, revertedPinned);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _hideSpecies(String regionId, String species) async {
+    final current = _prefsByRegion[regionId] ?? ReportsPreferences.empty;
+    final hidden = {...current.hiddenSpecies}..add(species);
+    final pinned = {...current.pinnedSpecies}..remove(species);
+
+    final updated =
+        current.copyWith(hiddenSpecies: hidden, pinnedSpecies: pinned);
+    setState(() {
+      _prefsByRegion[regionId] = updated;
+      if (_expandedSpeciesByRegion[regionId] == species) {
+        _expandedSpeciesByRegion[regionId] = null;
+      }
+    });
+
+    await _prefsRepo.saveHiddenSpecies(regionId, hidden);
+    await _prefsRepo.savePinnedSpecies(regionId, pinned);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Hid $species'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            final revertedHidden = {...hidden}..remove(species);
+            final revertedPinned = {...current.pinnedSpecies};
+            final reverted = current.copyWith(
+                hiddenSpecies: revertedHidden, pinnedSpecies: revertedPinned);
+            if (!mounted) return;
+            setState(() => _prefsByRegion[regionId] = reverted);
+            await _prefsRepo.saveHiddenSpecies(regionId, revertedHidden);
+            await _prefsRepo.savePinnedSpecies(regionId, revertedPinned);
+          },
+        ),
+      ),
     );
   }
 
@@ -579,8 +922,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: trendColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(6),
@@ -645,9 +987,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   /// Structured sources footer: report count, source chips, methodology line.
   Widget _buildSourcesFooter(FishingIntelResponse intel) {
-    final sources = intel.sourcesUsed.isNotEmpty
-        ? intel.sourcesUsed
-        : ['Regional reports'];
+    final sources =
+        intel.sourcesUsed.isNotEmpty ? intel.sourcesUsed : ['Regional reports'];
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -675,8 +1016,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             runSpacing: 6,
             children: sources.map((source) {
               return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: _borderColor,
                   borderRadius: BorderRadius.circular(6),
