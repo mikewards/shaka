@@ -629,6 +629,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Pin mode methods
   void _enterPinMode() {
     final center = _mapController?.cameraPosition?.target;
+    // Preserve current camera so leaving pin mode doesn't "reset" view.
+    if (_mapController != null) {
+      _lastCameraPosition = _mapController!.cameraPosition;
+    }
     setState(() {
       _isPinMode = true;
       _currentCenter = center;
@@ -638,6 +642,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _exitPinMode() {
+    // Preserve current camera so layout changes don't force a zoom-out.
+    if (_mapController != null) {
+      _lastCameraPosition = _mapController!.cameraPosition;
+    }
     setState(() {
       _isPinMode = false;
       _currentCenter = null;
@@ -1207,8 +1215,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final screenHeight = MediaQuery.of(context).size.height;
     final topPadding = MediaQuery.of(context).padding.top;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    
-    final mapHeight = screenHeight * 0.70;
+    // Keep the map widget mounted across pin mode toggles.
+    // Using different parent widgets (SizedBox vs Expanded) can cause a remount
+    // and MapLibre will fall back to initialCameraPosition (zooming out).
+    final mapFlex = _isPinMode ? 1 : 7;
+    const carouselFlex = 3;
 
     // Map stack children (shared between pin mode and normal mode)
     final mapChildren = <Widget>[
@@ -1347,15 +1358,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           Column(
             children: [
-              // Map section: Expanded in pin mode (fills space above bottom bar), fixed 70% otherwise
-              if (_isPinMode)
-                Expanded(child: Stack(children: mapChildren))
-              else
-                SizedBox(height: mapHeight, child: Stack(children: mapChildren)),
+              // Map section: keep the same widget shape so MapLibre isn't remounted.
+              Expanded(
+                flex: mapFlex,
+                child: Stack(children: mapChildren),
+              ),
               
               // Carousel section (hidden in pin mode)
               if (!_isPinMode)
                 Expanded(
+                  flex: carouselFlex,
                   child: Container(
                     color: const Color(0xFF0D0D0D),
                     child: !_mapFullyReady
