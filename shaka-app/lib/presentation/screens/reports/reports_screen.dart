@@ -736,17 +736,6 @@ class _ReportsScreenState extends State<ReportsScreen>
                         color: AppColors.info.withOpacity(0.9),
                       ),
                     ],
-                    const SizedBox(width: 6),
-                    AnimatedRotation(
-                      turns: isExpanded ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      child: const Icon(
-                        Icons.expand_more,
-                        color: Colors.white38,
-                        size: 20,
-                      ),
-                    ),
                   ],
                 ),
               ),

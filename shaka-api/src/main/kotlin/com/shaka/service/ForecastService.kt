@@ -104,8 +104,8 @@ class ForecastService {
                 val endDate = today.plusDays((days - 1).toLong())
                 
                 // Batch weather fetch
-                val weatherData = openMeteo.getWeatherRange(lat, lon, startDate.toString(), endDate.toString())
-                val oceanData = openMeteo.getMarineDataRange(lat, lon, startDate.toString(), endDate.toString())
+                val weatherData = openMeteo.getWeatherRange(spot.coordinates.lat, spot.coordinates.lon, startDate.toString(), endDate.toString())
+                val oceanData = openMeteo.getMarineDataRange(spot.coordinates.lat, spot.coordinates.lon, startDate.toString(), endDate.toString())
                 
                 for (i in startDay until days) {
                     val date = today.plusDays(i.toLong())
