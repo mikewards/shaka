@@ -1100,14 +1100,14 @@ class SpotService {
     private fun getVisibilityLabel(chlorophyll: Double?, cachedChlorophyll: Double?): String {
         val chl = chlorophyll ?: cachedChlorophyll ?: return "No satellite data"
         return when {
-            chl < 0.1  -> "Crystal clear (${String.format("%.2f", chl)} mg/m³)"
-            chl < 0.3  -> "Clear (${String.format("%.2f", chl)} mg/m³)"
-            chl < 0.5  -> "Average (${String.format("%.2f", chl)} mg/m³)"
-            chl < 1.0  -> "Below average (${String.format("%.2f", chl)} mg/m³)"
-            chl < 3.0  -> "Murky (${String.format("%.2f", chl)} mg/m³)"
-            chl < 5.0  -> "Can't see your fins (${String.format("%.2f", chl)} mg/m³)"
-            chl < 10.0 -> "Stay home (${String.format("%.2f", chl)} mg/m³)"
-            else       -> "Algae bloom (${String.format("%.2f", chl)} mg/m³)"
+            chl < 0.1  -> "Crystal clear"
+            chl < 0.3  -> "Clear"
+            chl < 0.5  -> "Average"
+            chl < 1.0  -> "Below average"
+            chl < 3.0  -> "Murky"
+            chl < 5.0  -> "Can't see your fins"
+            chl < 10.0 -> "Stay home"
+            else       -> "Algae bloom"
         }
     }
 
