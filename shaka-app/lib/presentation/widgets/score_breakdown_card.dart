@@ -38,7 +38,7 @@ const _scoreExplanations = {
     },
   ),
   'weather': _ScoreExplanation(
-    title: 'Weather Score',
+    title: 'Wind Score',
     weight: '28%',
     description: 'Wind speed affects surface conditions, comfort, and safety getting in and out of the water.',
     factors: [
@@ -149,7 +149,7 @@ class ScoreBreakdownCard extends StatelessWidget {
             explanationKey: 'visibility',
           ),
           _ScoreRow(
-            label: 'Weather',
+            label: 'Wind',
             score: breakdown.weather,
             weight: '28%',
             explanationKey: 'weather',

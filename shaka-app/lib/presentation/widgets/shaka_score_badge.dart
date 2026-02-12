@@ -168,7 +168,7 @@ class ShakaScoreBadge extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildFactorRow(context, 'Visibility', '35%', 'Chlorophyll concentration (satellite data)'),
-            _buildFactorRow(context, 'Weather', '28%', 'Wind speed (km/h)'),
+            _buildFactorRow(context, 'Wind', '28%', 'Wind speed (knots)'),
             _buildFactorRow(context, 'Swell', '22%', 'Wave height (meters)'),
             _buildFactorRow(context, 'Solunar', '15%', 'Moon transit & feeding periods'),
             const SizedBox(height: 16),

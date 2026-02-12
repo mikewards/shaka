@@ -580,7 +580,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       child: Column(
         children: [
           _buildScoreRow('Visibility', breakdown.visibility),
-          _buildScoreRow('Weather', breakdown.weather),
+          _buildScoreRow('Wind', breakdown.weather),
           _buildScoreRow('Swell', breakdown.swell),
           _buildScoreRow('Solunar', breakdown.solunar, isLast: true),
         ],
