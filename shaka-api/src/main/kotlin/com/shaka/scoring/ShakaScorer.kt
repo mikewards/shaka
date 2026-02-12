@@ -64,19 +64,24 @@ object ShakaScorer {
 
     /**
      * Calculate weather score based on wind speed in km/h.
+     * 
+     * Reference (knots → km/h):
+     *   5 kts =  9 km/h    Glass
+     *  10 kts = 18 km/h    Light breeze
+     *  15 kts = 28 km/h    Moderate, fine for most divers
+     *  20 kts = 37 km/h    Choppy, Small Craft Advisory territory
+     *  25 kts = 46 km/h    Rough, marginal
+     *  25+ kts              Stay home
      */
     fun scoreWeather(windSpeedKmh: Double): Int {
-        var score = 100
-
-        score -= when {
-            windSpeedKmh <= 5 -> 0
-            windSpeedKmh <= 10 -> 10
-            windSpeedKmh <= 15 -> 25
-            windSpeedKmh <= 20 -> 40
-            else -> 60
+        return when {
+            windSpeedKmh <= 9  -> 100  // 0-5 kts: glass
+            windSpeedKmh <= 18 -> 85   // 5-10 kts: light breeze
+            windSpeedKmh <= 28 -> 65   // 10-15 kts: moderate
+            windSpeedKmh <= 37 -> 45   // 15-20 kts: choppy
+            windSpeedKmh <= 46 -> 25   // 20-25 kts: rough
+            else               -> 10   // 25+ kts: dangerous
         }
-
-        return score.coerceIn(0, 100)
     }
 
     /**
