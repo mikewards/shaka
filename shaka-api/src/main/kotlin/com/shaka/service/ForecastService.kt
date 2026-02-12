@@ -35,8 +35,8 @@ class ForecastService {
         // Get cached chlorophyll for all forecast days (doesn't change much day-to-day)
         val cachedChlorophyll = cached?.chlorophyll?.value
         val visibilityStr = cachedChlorophyll?.let { chl ->
-            "${chl} mg/m³ (${getChlorophyllCategory(chl)})"
-        } ?: "No data"
+            "${getChlorophyllCategory(chl)} (${String.format("%.2f", chl)} mg/m³)"
+        } ?: "No satellite data"
         
         // Day 0: Use fully cached data (instant!)
         if (cached != null && cached.swell != null && cached.wind != null) {

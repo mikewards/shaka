@@ -254,11 +254,7 @@ class SpotService {
                 shakaScore = score.overall,
                 confidence = score.confidence,
                 conditions = SpotConditions(
-                    visibility = cached?.visibility?.let { 
-                        "${it.value.toInt()}m (${waterQuality.visibilityCategory})" 
-                    } ?: waterQuality.visibility?.let { 
-                        "${it.toInt()}m (${waterQuality.visibilityCategory})" 
-                    } ?: "Updating...",
+                    visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
                     waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = cached?.swell?.let { 
                         "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
@@ -504,11 +500,7 @@ class SpotService {
                 permitRequired = false
             ),
             conditions = SpotConditions(
-                visibility = cached?.visibility?.let { 
-                    "${it.value.toInt()}m (${waterQuality.visibilityCategory})" 
-                } ?: waterQuality.visibility?.let { 
-                    "${it.toInt()}m (${waterQuality.visibilityCategory})" 
-                } ?: "Data unavailable",
+                visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
@@ -676,8 +668,7 @@ class SpotService {
                     shakaScore = score.overall,
                     confidence = score.confidence,
                     conditions = SpotConditions(
-                        visibility = waterQuality.visibility?.let { "${it.toInt()}m (${waterQuality.visibilityCategory})" }
-                            ?: "Data unavailable",
+                        visibility = getVisibilityLabel(waterQuality?.chlorophyllA, null),
                         waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${weather.windSpeed.toInt()} knots",
@@ -1102,6 +1093,24 @@ class SpotService {
         }
     }
 
+    /**
+     * Get visibility display string from chlorophyll concentration.
+     * Uses the same thresholds as the scorer so the label matches the score.
+     */
+    private fun getVisibilityLabel(chlorophyll: Double?, cachedChlorophyll: Double?): String {
+        val chl = chlorophyll ?: cachedChlorophyll ?: return "No satellite data"
+        return when {
+            chl < 0.1  -> "Crystal clear (${String.format("%.2f", chl)} mg/m³)"
+            chl < 0.3  -> "Clear (${String.format("%.2f", chl)} mg/m³)"
+            chl < 0.5  -> "Average (${String.format("%.2f", chl)} mg/m³)"
+            chl < 1.0  -> "Below average (${String.format("%.2f", chl)} mg/m³)"
+            chl < 3.0  -> "Murky (${String.format("%.2f", chl)} mg/m³)"
+            chl < 5.0  -> "Can't see your fins (${String.format("%.2f", chl)} mg/m³)"
+            chl < 10.0 -> "Stay home (${String.format("%.2f", chl)} mg/m³)"
+            else       -> "Algae bloom (${String.format("%.2f", chl)} mg/m³)"
+        }
+    }
+
     private fun generateGearRecs(waterTempC: Double, depthM: Int): List<String> {
         val recs = mutableListOf<String>()
 
@@ -1425,11 +1434,7 @@ class SpotService {
                 permitRequired = false
             ),
             conditions = SpotConditions(
-                visibility = cached?.visibility?.let { 
-                    "${it.value.toInt()}m (${waterQuality.visibilityCategory})" 
-                } ?: waterQuality.visibility?.let { 
-                    "${it.toInt()}m (${waterQuality.visibilityCategory})" 
-                } ?: "Data unavailable",
+                visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
                 waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
