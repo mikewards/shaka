@@ -1584,7 +1584,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           child: Row(
             children: [
               Text(
