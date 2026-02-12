@@ -1618,9 +1618,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
               return AnimatedScale(
                 scale: isSelected ? 1.0 : 0.95,
                 duration: const Duration(milliseconds: 200),
-                child: GestureDetector(
-                  onTap: () => _openSpotDetail(spot),
-                  child: _SpotMarkerCard(spot: spot),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () => _openSpotDetail(spot),
+                    child: _SpotMarkerCard(spot: spot),
+                  ),
                 ),
               );
             },
@@ -1678,8 +1680,8 @@ class _SpotMarkerCard extends StatelessWidget {
     return Opacity(
       opacity: isLoading ? 0.7 : 1.0,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
           color: const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(14),
