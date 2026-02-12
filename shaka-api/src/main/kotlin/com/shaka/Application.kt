@@ -187,6 +187,22 @@ private fun Application.configureScheduledJobs() {
         }
     }
     
+    // EVERY 12 HOURS: Solunar + vessel data refresh (runs 2x/day)
+    // Solunar feeding windows shift through the day, so twice-daily keeps data fresh.
+    // Startup prefetchAll() handles the initial run; this handles recurring refreshes.
+    backgroundScope.launch {
+        delay(300_000)  // Initial 5 minute delay (startup prefetchAll already runs it)
+        while (true) {
+            delay(43_200_000)  // 12 hours = 43,200,000 ms
+            try {
+                logger.info("Running scheduled SOLUNAR + VESSEL prefetch")
+                prefetchJobs.prefetchFishingIntel()
+            } catch (e: Exception) {
+                logger.error("Scheduled solunar prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
     // ==================== FISHING INTEL (ISOLATED) ====================
     // Scrapes SoCal fishing reports every 2 hours
     // Fully isolated - can be disabled without affecting other features

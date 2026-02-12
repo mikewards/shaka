@@ -45,7 +45,7 @@ class DataPrefetchJobs(
         const val SATELLITE_STALE_HOURS = 12 // Refetch if older than 12h
         const val MPA_STALE_HOURS = 168     // Weekly (168 hours) - MPA boundaries rarely change
         const val VESSEL_STALE_HOURS = 24   // Daily - GFW updates daily
-        const val SOLUNAR_STALE_HOURS = 24  // Daily - solunar is date-based
+        const val SOLUNAR_STALE_HOURS = 12  // Twice daily - solunar feeding windows shift through the day
     }
     
     // ==================== HOURLY: Tide Prefetch ====================
@@ -748,6 +748,35 @@ class DataPrefetchJobs(
                     gotData = true
                 } catch (e: Exception) {
                     logger.debug("User spot MPA fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // Solunar (moon phase + feeding periods)
+                try {
+                    val solunarData = solunarClient.getSolunarData(lat, lon, LocalDate.now())
+                    if (solunarData != null) {
+                        SpotDataCache.updateSolunar(
+                            cacheId,
+                            SpotDataCache.CachedValue(
+                                value = SpotDataCache.SolunarInfo(
+                                    moonPhase = solunarData.moonPhase,
+                                    illumination = solunarData.illumination,
+                                    majorStart1 = solunarData.majorPeriods.getOrNull(0)?.start,
+                                    majorEnd1 = solunarData.majorPeriods.getOrNull(0)?.end,
+                                    majorStart2 = solunarData.majorPeriods.getOrNull(1)?.start,
+                                    majorEnd2 = solunarData.majorPeriods.getOrNull(1)?.end,
+                                    minorStart1 = solunarData.minorPeriods.getOrNull(0)?.start,
+                                    minorEnd1 = solunarData.minorPeriods.getOrNull(0)?.end,
+                                    minorStart2 = solunarData.minorPeriods.getOrNull(1)?.start,
+                                    minorEnd2 = solunarData.minorPeriods.getOrNull(1)?.end,
+                                    dayRating = solunarData.dayRating
+                                ),
+                                fetchedAt = now
+                            )
+                        )
+                        gotData = true
+                    }
+                } catch (e: Exception) {
+                    logger.debug("User spot solunar fetch failed for ${spot.name}: ${e.message}")
                 }
                 
                 if (gotData) {
