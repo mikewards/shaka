@@ -654,7 +654,7 @@ class SpotService {
                 // Fetch water quality
                 val waterQuality = copernicus.getWaterQuality(lat, lon, date)
                 
-                // Get cached solunar data for fish activity score
+                // Get cached solunar data for solunar score
                 val cachedSolunar = SpotDataCache.get(spotId)?.solunar?.value
                 
                 // Calculate score

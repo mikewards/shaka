@@ -15,7 +15,7 @@ import java.time.temporal.ChronoUnit
  *   windSpeedKmh    → Weather score   (28%)
  *   waveHeightM     → Swell score     (22%)
  *   chlorophyllMgM3 → Visibility score (35%)  — satellite chlorophyll-a concentration
- *   solunarDayRating → Fish Activity   (15%)  — from api.solunar.org, with moon phase fallback
+ *   solunarDayRating → Solunar score   (15%)  — from api.solunar.org (0-5 scale), with moon phase fallback
  */
 object ShakaScorer {
 
@@ -97,20 +97,30 @@ object ShakaScorer {
     }
 
     /**
-     * Calculate fish activity score.
+     * Calculate solunar score from the API's day rating.
      * 
-     * Uses the Solunar API's day rating (0-100) when available — this is a
-     * professional composite that factors in moon transit, altitude, and
-     * feeding period quality. Falls back to named moon phase, then to a
-     * neutral default.
+     * The api.solunar.org dayRating is on a 0-5 scale:
+     *   0 = Poor, 1 = Below average, 2 = Average,
+     *   3 = Good, 4 = Very good, 5 = Excellent
      * 
-     * @param solunarDayRating  0-100 from api.solunar.org (null if not cached)
+     * We map this to our 0-100 scorer scale.
+     * Falls back to named moon phase, then to a neutral default.
+     * 
+     * @param solunarDayRating  0-5 from api.solunar.org (null if not cached)
      * @param moonPhase         Named phase string: "new_moon", "full_moon", etc. (null if not cached)
      */
-    fun scoreFishActivity(solunarDayRating: Int?, moonPhase: String?): Int {
-        // Best: use the Solunar API's own day rating directly
+    fun scoreSolunar(solunarDayRating: Int?, moonPhase: String?): Int {
+        // Best: map the Solunar API's 0-5 day rating to our 0-100 scale
         if (solunarDayRating != null) {
-            return solunarDayRating.coerceIn(0, 100)
+            return when (solunarDayRating) {
+                0 -> 30     // Poor
+                1 -> 40     // Below average
+                2 -> 55     // Average
+                3 -> 65     // Good
+                4 -> 80     // Very good
+                5 -> 90     // Excellent
+                else -> 55  // Unknown value, treat as average
+            }
         }
 
         // Fallback: use named moon phase from cache
@@ -136,14 +146,14 @@ object ShakaScorer {
      * - Visibility: 35% (most important for spearfishing)
      * - Weather: 28% (wind speed — affects surface conditions and comfort)
      * - Swell: 22% (wave height — affects underwater vis and entry safety)
-     * - Fish Activity: 15% (moon phase)
+     * - Solunar: 15% (moon transit, feeding periods, day rating)
      */
     fun calculateOverall(breakdown: ScoreBreakdown): Int {
         val weightedSum = 
             breakdown.visibility * 0.35 +
             breakdown.weather * 0.28 +
             breakdown.swell * 0.22 +
-            breakdown.fishActivity * 0.15
+            breakdown.solunar * 0.15
         
         return weightedSum.toInt()
     }
@@ -170,7 +180,7 @@ object ShakaScorer {
             visibility = scoreVisibility(chlorophyllMgM3),
             weather = scoreWeather(windSpeedKmh),
             swell = scoreSwell(waveHeightM),
-            fishActivity = scoreFishActivity(solunarDayRating, moonPhase)
+            solunar = scoreSolunar(solunarDayRating, moonPhase)
         )
 
         return ShakaScore(

@@ -582,7 +582,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _buildScoreRow('Visibility', breakdown.visibility),
           _buildScoreRow('Weather', breakdown.weather),
           _buildScoreRow('Swell', breakdown.swell),
-          _buildScoreRow('Fish Activity', breakdown.fishActivity, isLast: true),
+          _buildScoreRow('Solunar', breakdown.solunar, isLast: true),
         ],
       ),
     );
