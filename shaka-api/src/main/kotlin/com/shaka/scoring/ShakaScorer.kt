@@ -149,15 +149,15 @@ object ShakaScorer {
      * 
      * Weights (total 100%):
      * - Visibility: 35% (most important for spearfishing)
-     * - Weather: 28% (wind speed — affects surface conditions and comfort)
-     * - Swell: 22% (wave height — affects underwater vis and entry safety)
+     * - Swell: 28% (wave height — affects underwater conditions and entry safety)
+     * - Wind: 22% (wind speed — affects surface conditions and comfort)
      * - Solunar: 15% (moon transit, feeding periods, day rating)
      */
     fun calculateOverall(breakdown: ScoreBreakdown): Int {
         val weightedSum = 
             breakdown.visibility * 0.35 +
-            breakdown.weather * 0.28 +
-            breakdown.swell * 0.22 +
+            breakdown.weather * 0.22 +
+            breakdown.swell * 0.28 +
             breakdown.solunar * 0.15
         
         return weightedSum.toInt()

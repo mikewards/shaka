@@ -39,7 +39,7 @@ const _scoreExplanations = {
   ),
   'weather': _ScoreExplanation(
     title: 'Wind Score',
-    weight: '28%',
+    weight: '22%',
     description: 'Wind speed affects surface conditions, comfort, and safety getting in and out of the water.',
     factors: [
       'Wind speed in km/h (from Open-Meteo forecast)',
@@ -54,7 +54,7 @@ const _scoreExplanations = {
   ),
   'swell': _ScoreExplanation(
     title: 'Swell Score',
-    weight: '22%',
+    weight: '28%',
     description: 'Wave height affects underwater conditions, surge, and entry/exit safety.',
     factors: [
       'Wave height in meters (from Open-Meteo marine forecast)',
@@ -151,13 +151,13 @@ class ScoreBreakdownCard extends StatelessWidget {
           _ScoreRow(
             label: 'Wind',
             score: breakdown.weather,
-            weight: '28%',
+            weight: '22%',
             explanationKey: 'weather',
           ),
           _ScoreRow(
             label: 'Swell',
             score: breakdown.swell,
-            weight: '22%',
+            weight: '28%',
             explanationKey: 'swell',
           ),
           _ScoreRow(
