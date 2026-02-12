@@ -20,7 +20,7 @@ const _conditionSources = {
   'visibility': _ConditionSource(
     source: 'Copernicus Marine (Satellite)',
     updateFrequency: 'Daily',
-    description: 'Secchi disk depth measured by ocean color satellites. This is actual underwater visibility, not an estimate.',
+    description: 'Chlorophyll-a concentration measured by ocean color satellites. Lower chlorophyll means clearer water.',
   ),
   'water': _ConditionSource(
     source: 'Open-Meteo Marine API',
