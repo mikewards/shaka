@@ -47,14 +47,12 @@ class ScoreBreakdown {
   final int weather;
   final int swell;
   final int fishActivity;
-  final int accessibility;
 
   const ScoreBreakdown({
     required this.visibility,
     required this.weather,
     required this.swell,
     required this.fishActivity,
-    required this.accessibility,
   });
 
   factory ScoreBreakdown.fromJson(Map<String, dynamic> json) {
@@ -63,7 +61,6 @@ class ScoreBreakdown {
       weather: json['weather'] ?? 0,
       swell: json['swell'] ?? 0,
       fishActivity: json['fishActivity'] ?? 0,
-      accessibility: json['accessibility'] ?? 0,
     );
   }
 }

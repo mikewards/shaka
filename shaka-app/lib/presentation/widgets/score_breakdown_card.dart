@@ -23,13 +23,10 @@ class _ScoreExplanation {
 const _scoreExplanations = {
   'visibility': _ScoreExplanation(
     title: 'Visibility Score',
-    weight: '25%',
-    description: 'Water clarity is the most important factor for spearfishing. This score estimates how far you can see underwater.',
+    weight: '35%',
+    description: 'Water clarity is the most important factor for spearfishing. Based on satellite-measured underwater visibility.',
     factors: [
-      'Chlorophyll-a concentration (algae levels)',
-      'Sea surface temperature',
-      'Recent weather conditions',
-      'Satellite imagery analysis',
+      'Underwater visibility in meters (from Copernicus satellite)',
     ],
     thresholds: {
       '100': '25m+ visibility (crystal clear)',
@@ -41,31 +38,25 @@ const _scoreExplanations = {
   ),
   'weather': _ScoreExplanation(
     title: 'Weather Score',
-    weight: '20%',
-    description: 'Surface conditions affect your comfort and safety getting in and out of the water.',
+    weight: '28%',
+    description: 'Wind speed affects surface conditions, comfort, and safety getting in and out of the water.',
     factors: [
-      'Wind speed and direction',
-      'Precipitation (rain)',
-      'Cloud cover',
-      'Air temperature',
+      'Wind speed in km/h (from Open-Meteo forecast)',
     ],
     thresholds: {
-      '100': 'Calm winds (<5 knots), no rain',
-      '80-99': 'Light winds (5-10 knots)',
-      '60-79': 'Moderate winds (10-15 knots)',
-      '40-59': 'Strong winds (15-20 knots)',
-      '0-39': 'Challenging conditions',
+      '100': 'Calm winds (<5 km/h)',
+      '80-99': 'Light winds (5-10 km/h)',
+      '60-79': 'Moderate winds (10-15 km/h)',
+      '40-59': 'Strong winds (15-20 km/h)',
+      '0-39': 'Very strong winds (20+ km/h)',
     },
   ),
   'swell': _ScoreExplanation(
     title: 'Swell Score',
-    weight: '15%',
-    description: 'Wave height and period affect underwater visibility and entry/exit safety.',
+    weight: '22%',
+    description: 'Wave height affects underwater visibility, surge, and entry/exit safety.',
     factors: [
-      'Wave height (feet)',
-      'Wave period (seconds)',
-      'Swell direction',
-      'Wind waves vs ground swell',
+      'Wave height in meters (from Open-Meteo marine forecast)',
     ],
     thresholds: {
       '100': 'Flat (0-1 ft)',
@@ -78,12 +69,10 @@ const _scoreExplanations = {
   'fishActivity': _ScoreExplanation(
     title: 'Fish Activity Score',
     weight: '15%',
-    description: 'Predicts how active fish will be based on natural cycles and recent reports.',
+    description: 'Uses the Solunar API day rating, which factors in moon transit, altitude, and feeding period quality. Professional fishermen have used solunar tables for decades.',
     factors: [
-      'Moon phase (new/full moon = best)',
-      'Seasonal patterns',
-      'Recent community sightings',
-      'Water temperature trends',
+      'Solunar day rating (0-100 from api.solunar.org)',
+      'Moon phase fallback when API data unavailable',
     ],
     thresholds: {
       '100': 'Peak activity expected',
@@ -91,42 +80,6 @@ const _scoreExplanations = {
       '60-79': 'Good activity',
       '40-59': 'Moderate activity',
       '0-39': 'Lower activity expected',
-    },
-  ),
-  'safety': _ScoreExplanation(
-    title: 'Safety Score',
-    weight: '15%',
-    description: 'Assesses potential hazards and risks at the dive site.',
-    factors: [
-      'Current strength',
-      'Known hazards (rocks, boats)',
-      'Shark activity level',
-      'Emergency access',
-    ],
-    thresholds: {
-      '100': 'Minimal risks',
-      '80-99': 'Low risk',
-      '60-79': 'Moderate caution advised',
-      '40-59': 'Higher risk - experience needed',
-      '0-39': 'Significant hazards present',
-    },
-  ),
-  'accessibility': _ScoreExplanation(
-    title: 'Accessibility Score',
-    weight: '10%',
-    description: 'How easy it is to access and dive the spot.',
-    factors: [
-      'Shore vs boat access',
-      'Parking availability',
-      'Permits required',
-      'Entry difficulty',
-    ],
-    thresholds: {
-      '100': 'Easy shore access, parking available',
-      '80-99': 'Good access',
-      '60-79': 'Moderate difficulty or boat required',
-      '40-59': 'Challenging access or permit needed',
-      '0-39': 'Difficult access',
     },
   ),
 };
@@ -190,19 +143,19 @@ class ScoreBreakdownCard extends StatelessWidget {
           _ScoreRow(
             label: 'Visibility',
             score: breakdown.visibility,
-            weight: '25%',
+            weight: '35%',
             explanationKey: 'visibility',
           ),
           _ScoreRow(
             label: 'Weather',
             score: breakdown.weather,
-            weight: '20%',
+            weight: '28%',
             explanationKey: 'weather',
           ),
           _ScoreRow(
             label: 'Swell',
             score: breakdown.swell,
-            weight: '15%',
+            weight: '22%',
             explanationKey: 'swell',
           ),
           _ScoreRow(
@@ -210,12 +163,6 @@ class ScoreBreakdownCard extends StatelessWidget {
             score: breakdown.fishActivity,
             weight: '15%',
             explanationKey: 'fishActivity',
-          ),
-          _ScoreRow(
-            label: 'Accessibility',
-            score: breakdown.accessibility,
-            weight: '10%',
-            explanationKey: 'accessibility',
             isLast: true,
           ),
         ],

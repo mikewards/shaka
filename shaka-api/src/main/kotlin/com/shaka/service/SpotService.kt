@@ -137,15 +137,6 @@ class SpotService {
             logger.debug("Using prefetched cache for search at ($lat, $lon)")
         }
 
-        // Get community sightings count for the region
-        val regionReports = try {
-            val region = inferRegionFromCoords(lat, lon)
-            community.getReportsForRegion(region, 10)
-        } catch (e: Exception) {
-            emptyList()
-        }
-        val recentSightingsCount = regionReports.size.coerceAtLeast(1)
-
         // Score each spot using prefetched data or fallbacks
         val scoredSpots = nearbySpots.map { spot ->
             // Get prefetched data for this spot (instant lookup!)
@@ -217,18 +208,15 @@ class SpotService {
             
             val score = ShakaScorer.generateScore(
                 targetDate = date,
-                weather = weather,
-                ocean = ocean,
-                waterQuality = waterQuality,
-                moonPhase = getMoonPhase(date),
-                seasonalMultiplier = getSeasonalMultiplier(spot.id, date),
-                recentSightings = recentSightingsCount,
-                hasParking = true,
-                permitRequired = false
+                windSpeedKmh = weather.windSpeed,
+                waveHeightM = ocean.waveHeight,
+                visibilityM = waterQuality?.visibility,
+                solunarDayRating = cached?.solunar?.value?.dayRating,
+                moonPhase = cached?.solunar?.value?.moonPhase
             )
 
             // Use real SST - prefer cached satellite data
-            val actualSST = cached?.sst?.value ?: waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+            val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
             
             // Data freshness from cache
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -286,7 +274,7 @@ class SpotService {
                 expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(actualSST, spot.depth),
                 risks = generateRisks(weather, ocean),
-                bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
+                bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
                 satelliteReadings = gibsReadings
             )
         }.sortedByDescending { it.shakaScore }
@@ -464,17 +452,14 @@ class SpotService {
 
         val score = ShakaScorer.generateScore(
             targetDate = date,
-            weather = weather,
-            ocean = ocean,
-            waterQuality = waterQuality,
-            moonPhase = getMoonPhase(date),
-            seasonalMultiplier = getSeasonalMultiplier(spotId, date),
-            recentSightings = communityReports.size.coerceAtLeast(1),
-            hasParking = true,
-            permitRequired = false
+            windSpeedKmh = weather.windSpeed,
+            waveHeightM = ocean.waveHeight,
+            visibilityM = waterQuality?.visibility,
+            solunarDayRating = cached?.solunar?.value?.dayRating,
+            moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST = cached?.sst?.value ?: waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -552,7 +537,7 @@ class SpotService {
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
             communityReports = communityReports,
-            bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
+            bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,
             regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId)),
@@ -671,20 +656,20 @@ class SpotService {
                 // Fetch water quality
                 val waterQuality = copernicus.getWaterQuality(lat, lon, date)
                 
+                // Get cached solunar data for fish activity score
+                val cachedSolunar = SpotDataCache.get(spotId)?.solunar?.value
+                
                 // Calculate score
                 val score = ShakaScorer.generateScore(
                     targetDate = date,
-                    weather = weather,
-                    ocean = ocean,
-                    waterQuality = waterQuality,
-                    moonPhase = getMoonPhase(date),
-                    seasonalMultiplier = getSeasonalMultiplier(spotId, date),
-                    recentSightings = 1,
-                    hasParking = true,
-                    permitRequired = false
+                    windSpeedKmh = weather.windSpeed,
+                    waveHeightM = ocean.waveHeight,
+                    visibilityM = waterQuality?.visibility,
+                    solunarDayRating = cachedSolunar?.dayRating,
+                    moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val actualSST = waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+                val actualSST = waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
                 
                 SpotSummary(
                     id = spot.id,
@@ -703,7 +688,7 @@ class SpotService {
                     expectedFish = spot.commonFish,
                     gearRecommendations = emptyList(),
                     risks = emptyList(),
-                    bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date))
+                    bestTimeOfDay = getBestTimeOfDay(SpotDataCache.get(spotId)?.solunar?.value?.moonPhase)
                 )
             } catch (e: Exception) {
                 logger.warn("Failed to fetch data for spot $spotId: ${e.message}")
@@ -759,11 +744,6 @@ class SpotService {
         return inferSpecificRegionFromSpotId(spotId)
     }
 
-    private fun getMoonPhase(date: String): Double {
-        // Simplified moon phase calculation (0 = new, 0.5 = full)
-        val dayOfYear = java.time.LocalDate.parse(date).dayOfYear
-        return ((dayOfYear % 29) / 29.0)
-    }
 
     private fun getSeasonalMultiplier(spotId: String, date: String): Double {
         val month = java.time.LocalDate.parse(date).monthValue
@@ -1116,17 +1096,10 @@ class SpotService {
     /**
      * Determine best time of day based on moon phase.
      */
-    private fun getBestTimeOfDay(moonPhase: Double): String {
-        // Moon phase affects fish activity
-        val moonActivity = when {
-            moonPhase < 0.1 || moonPhase > 0.9 -> "high" // New moon
-            moonPhase in 0.4..0.6 -> "moderate" // Full moon - fish feed at night
-            else -> "normal"
-        }
-        
-        return when (moonActivity) {
-            "high" -> "First light (5:30am-8am) or dusk"
-            "moderate" -> "Early morning or late afternoon"
+    private fun getBestTimeOfDay(moonPhase: String?): String {
+        return when (moonPhase) {
+            "new_moon" -> "First light (5:30am-8am) or dusk"
+            "full_moon" -> "Early morning or late afternoon"
             else -> "6am-10am"
         }
     }
@@ -1389,17 +1362,14 @@ class SpotService {
 
         val score = ShakaScorer.generateScore(
             targetDate = date,
-            weather = weather,
-            ocean = ocean,
-            waterQuality = waterQuality,
-            moonPhase = getMoonPhase(date),
-            seasonalMultiplier = 1.0, // User spots don't have seasonal data
-            recentSightings = 1,
-            hasParking = true,
-            permitRequired = false
+            windSpeedKmh = weather.windSpeed,
+            waveHeightM = ocean.waveHeight,
+            visibilityM = waterQuality?.visibility,
+            solunarDayRating = cached?.solunar?.value?.dayRating,
+            moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST = cached?.sst?.value ?: waterQuality.seaSurfaceTemp ?: ocean.waterTemperature
+        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -1483,7 +1453,7 @@ class SpotService {
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
             communityReports = emptyList(), // No community data for user spots
-            bestTimeOfDay = getBestTimeOfDay(getMoonPhase(date)),
+            bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
             imageUrl = null,
             satelliteReadings = gibsReadings,
             regulations = RegulationInfo(
@@ -1505,51 +1475,25 @@ class SpotService {
         // Need at least tide data to calculate a meaningful score
         if (cached.tide == null) return null
         
-        val weather = if (cached.wind != null) {
-            WeatherData(
-                temperature = 25.0,
-                windSpeed = cached.wind.value.speedKnots / 0.539957,
-                windDirection = 0,
-                precipitation = 0.0,
-                cloudCover = 50,
-                visibility = 10000.0
-            )
-        } else {
-            WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-        }
+        // Extract only the 3 values the scorer actually uses
+        val windSpeedKmh = if (cached.wind != null) {
+            cached.wind.value.speedKnots / 0.539957
+        } else 10.0
         
-        val ocean = if (cached.swell != null) {
-            OceanData(
-                waveHeight = cached.swell.value.heightFt / 3.28084,
-                wavePeriod = cached.swell.value.periodSec,
-                waveDirection = 0,
-                waterTemperature = cached.sst?.value ?: 24.0,
-                swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
-                swellDirection = 0
-            )
-        } else {
-            OceanData(1.0, 8.0, 0, cached.sst?.value ?: 24.0, 1.0, 0)
-        }
+        val waveHeightM = if (cached.swell != null) {
+            cached.swell.value.heightFt / 3.28084
+        } else 1.0
         
-        val waterQuality = WaterQuality(
-            chlorophyllA = cached.chlorophyll?.value,
-            turbidity = null,
-            visibility = cached.visibility?.value,
-            seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
-            dataSource = "Cached"
-        )
+        val visibilityM = cached.visibility?.value
         
         val today = LocalDate.now().toString()
         val score = ShakaScorer.generateScore(
             targetDate = today,
-            weather = weather,
-            ocean = ocean,
-            waterQuality = waterQuality,
-            moonPhase = getMoonPhase(today),
-            seasonalMultiplier = getSeasonalMultiplier(cacheId, today),
-            recentSightings = 1,
-            hasParking = true,
-            permitRequired = false
+            windSpeedKmh = windSpeedKmh,
+            waveHeightM = waveHeightM,
+            visibilityM = visibilityM,
+            solunarDayRating = cached.solunar?.value?.dayRating,
+            moonPhase = cached.solunar?.value?.moonPhase
         )
         
         return score.overall

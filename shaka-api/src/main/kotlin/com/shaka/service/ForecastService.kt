@@ -41,44 +41,18 @@ class ForecastService {
         // Day 0: Use fully cached data (instant!)
         if (cached != null && cached.swell != null && cached.wind != null) {
             val sst = cached.sst?.value ?: 24.0
-            val chlorophyll = cached.chlorophyll?.value
             
-            val weather = WeatherData(
-                temperature = 25.0,
-                windSpeed = cached.wind.value.speedKnots / 0.539957,
-                windDirection = 0,
-                precipitation = 0.0,
-                cloudCover = 50,
-                visibility = 10000.0
-            )
-            
-            val ocean = OceanData(
-                waveHeight = cached.swell.value.heightFt / 3.28084,
-                wavePeriod = cached.swell.value.periodSec,
-                waveDirection = 0,
-                waterTemperature = sst,
-                swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
-                swellDirection = 0
-            )
-            
-            val waterQuality = WaterQuality(
-                chlorophyllA = chlorophyll,
-                turbidity = null,
-                visibility = cachedVisibility,
-                seaSurfaceTemp = sst,
-                dataSource = "Cached"
-            )
+            // Extract only the values the scorer uses
+            val windSpeedKmh = cached.wind.value.speedKnots / 0.539957
+            val waveHeightM = cached.swell.value.heightFt / 3.28084
             
             val score = ShakaScorer.generateScore(
                 targetDate = today.toString(),
-                weather = weather,
-                ocean = ocean,
-                waterQuality = waterQuality,
-                moonPhase = getMoonPhase(today.toString()),
-                seasonalMultiplier = 1.0,
-                recentSightings = 0,
-                hasParking = true,
-                permitRequired = false
+                windSpeedKmh = windSpeedKmh,
+                waveHeightM = waveHeightM,
+                visibilityM = cachedVisibility,
+                solunarDayRating = cached.solunar?.value?.dayRating,
+                moonPhase = cached.solunar?.value?.moonPhase
             )
             
             forecasts += DayForecast(
@@ -116,24 +90,13 @@ class ForecastService {
                     val ocean = oceanData.getOrNull(dayIndex) ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
                     val sst = cached?.sst?.value ?: ocean.waterTemperature
                     
-                    val waterQuality = WaterQuality(
-                        chlorophyllA = cached?.chlorophyll?.value,
-                        turbidity = null,
-                        visibility = cachedVisibility,
-                        seaSurfaceTemp = sst,
-                        dataSource = "Forecast"
-                    )
-                    
                     val score = ShakaScorer.generateScore(
                         targetDate = dateStr,
-                        weather = weather,
-                        ocean = ocean,
-                        waterQuality = waterQuality,
-                        moonPhase = getMoonPhase(dateStr),
-                        seasonalMultiplier = 1.0,
-                        recentSightings = 0,
-                        hasParking = true,
-                        permitRequired = false
+                        windSpeedKmh = weather.windSpeed,
+                        waveHeightM = ocean.waveHeight,
+                        visibilityM = cachedVisibility,
+                        solunarDayRating = cached?.solunar?.value?.dayRating,
+                        moonPhase = cached?.solunar?.value?.moonPhase
                     )
                     
                     forecasts += DayForecast(
@@ -157,10 +120,6 @@ class ForecastService {
         return forecasts
     }
 
-    private fun getMoonPhase(date: String): Double {
-        val dayOfYear = LocalDate.parse(date).dayOfYear
-        return ((dayOfYear % 29) / 29.0)
-    }
     
     private fun getVisibilityCategory(meters: Double): String {
         return when {
@@ -199,24 +158,13 @@ class ForecastService {
                 val ocean = oceanData.getOrNull(i) ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
                 val sst = ocean.waterTemperature
                 
-                val waterQuality = WaterQuality(
-                    chlorophyllA = null,
-                    turbidity = null,
-                    visibility = null,
-                    seaSurfaceTemp = sst,
-                    dataSource = "Forecast"
-                )
-                
                 val score = ShakaScorer.generateScore(
                     targetDate = dateStr,
-                    weather = weather,
-                    ocean = ocean,
-                    waterQuality = waterQuality,
-                    moonPhase = getMoonPhase(dateStr),
-                    seasonalMultiplier = 1.0,
-                    recentSightings = 0,
-                    hasParking = true,
-                    permitRequired = false
+                    windSpeedKmh = weather.windSpeed,
+                    waveHeightM = ocean.waveHeight,
+                    visibilityM = null,           // No satellite data for ad-hoc locations
+                    solunarDayRating = null,       // No cached solunar for ad-hoc locations
+                    moonPhase = null               // Falls back to neutral 55
                 )
                 
                 forecasts += DayForecast(

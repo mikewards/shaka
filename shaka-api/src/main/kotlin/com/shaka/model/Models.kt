@@ -32,8 +32,7 @@ data class ScoreBreakdown(
     val visibility: Int,
     val weather: Int,
     val swell: Int,
-    val fishActivity: Int,
-    val accessibility: Int
+    val fishActivity: Int
 )
 
 @Serializable
