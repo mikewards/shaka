@@ -24,16 +24,17 @@ const _scoreExplanations = {
   'visibility': _ScoreExplanation(
     title: 'Visibility Score',
     weight: '35%',
-    description: 'Water clarity is the most important factor for spearfishing. Based on satellite-measured underwater visibility.',
+    description: 'Water clarity is the most important factor for spearfishing. Based on satellite chlorophyll-a concentration — lower chlorophyll means clearer water.',
     factors: [
-      'Underwater visibility in meters (from Copernicus satellite)',
+      'Chlorophyll-a concentration in mg/m³ (from satellite)',
     ],
     thresholds: {
-      '100': '25m+ visibility (crystal clear)',
-      '80-99': '15-25m visibility (excellent)',
-      '60-79': '7-15m visibility (good)',
-      '40-59': '3-7m visibility (moderate)',
-      '0-39': 'Under 3m (poor)',
+      '100': '< 0.1 mg/m³ (ultra-clear open ocean)',
+      '85': '0.1–0.3 mg/m³ (clear tropical)',
+      '65': '0.3–0.5 mg/m³ (average ocean)',
+      '45': '0.5–1.0 mg/m³ (below average)',
+      '25': '1–3 mg/m³ (murky coastal)',
+      '0-10': '3+ mg/m³ (poor to algae bloom)',
     },
   ),
   'weather': _ScoreExplanation(
@@ -54,7 +55,7 @@ const _scoreExplanations = {
   'swell': _ScoreExplanation(
     title: 'Swell Score',
     weight: '22%',
-    description: 'Wave height affects underwater visibility, surge, and entry/exit safety.',
+    description: 'Wave height affects underwater conditions, surge, and entry/exit safety.',
     factors: [
       'Wave height in meters (from Open-Meteo marine forecast)',
     ],

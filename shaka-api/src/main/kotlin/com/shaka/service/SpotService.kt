@@ -178,14 +178,13 @@ class SpotService {
             val waterQuality = if (cached?.visibility != null || cached?.sst != null) {
                 WaterQuality(
                     chlorophyllA = cached.chlorophyll?.value,
-                    turbidity = null,
                     visibility = cached.visibility?.value,
                     seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
                     dataSource = "Prefetched (${cached.visibility?.ageString() ?: "N/A"})"
                 )
             } else {
                 fallbackWaterQuality ?: WaterQuality(
-                    chlorophyllA = null, turbidity = null, visibility = null,
+                    chlorophyllA = null, visibility = null,
                     seaSurfaceTemp = ocean.waterTemperature, dataSource = "Data temporarily unavailable"
                 )
             }
@@ -210,7 +209,7 @@ class SpotService {
                 targetDate = date,
                 windSpeedKmh = weather.windSpeed,
                 waveHeightM = ocean.waveHeight,
-                visibilityM = waterQuality?.visibility,
+                chlorophyllMgM3 = waterQuality?.chlorophyllA,
                 solunarDayRating = cached?.solunar?.value?.dayRating,
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
@@ -340,7 +339,6 @@ class SpotService {
             
             waterQuality = WaterQuality(
                 chlorophyllA = cached.chlorophyll?.value,
-                turbidity = null,
                 visibility = cached.visibility?.value,
                 seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
                 dataSource = "Prefetched (updated ${cached.tide.ageString()})"
@@ -397,7 +395,7 @@ class SpotService {
             weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
             ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
             waterQuality = waterQualityDeferred.await() ?: WaterQuality(
-                null, null, null, ocean.waterTemperature, "Data temporarily unavailable"
+                null, null, ocean.waterTemperature, "Data temporarily unavailable"
             )
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
@@ -454,7 +452,7 @@ class SpotService {
             targetDate = date,
             windSpeedKmh = weather.windSpeed,
             waveHeightM = ocean.waveHeight,
-            visibilityM = waterQuality?.visibility,
+            chlorophyllMgM3 = waterQuality?.chlorophyllA,
             solunarDayRating = cached?.solunar?.value?.dayRating,
             moonPhase = cached?.solunar?.value?.moonPhase
         )
@@ -664,7 +662,7 @@ class SpotService {
                     targetDate = date,
                     windSpeedKmh = weather.windSpeed,
                     waveHeightM = ocean.waveHeight,
-                    visibilityM = waterQuality?.visibility,
+                    chlorophyllMgM3 = waterQuality?.chlorophyllA,
                     solunarDayRating = cachedSolunar?.dayRating,
                     moonPhase = cachedSolunar?.moonPhase
                 )
@@ -1282,7 +1280,6 @@ class SpotService {
             
             waterQuality = WaterQuality(
                 chlorophyllA = cached.chlorophyll?.value,
-                turbidity = null,
                 visibility = cached.visibility?.value,
                 seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
                 dataSource = "Prefetched (updated ${cached.tide.ageString()})"
@@ -1339,7 +1336,7 @@ class SpotService {
             weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
             ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
             waterQuality = waterQualityDeferred.await() ?: WaterQuality(
-                null, null, null, ocean.waterTemperature, "Data temporarily unavailable"
+                null, null, ocean.waterTemperature, "Data temporarily unavailable"
             )
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
@@ -1364,7 +1361,7 @@ class SpotService {
             targetDate = date,
             windSpeedKmh = weather.windSpeed,
             waveHeightM = ocean.waveHeight,
-            visibilityM = waterQuality?.visibility,
+            chlorophyllMgM3 = waterQuality?.chlorophyllA,
             solunarDayRating = cached?.solunar?.value?.dayRating,
             moonPhase = cached?.solunar?.value?.moonPhase
         )
@@ -1484,14 +1481,14 @@ class SpotService {
             cached.swell.value.heightFt / 3.28084
         } else 1.0
         
-        val visibilityM = cached.visibility?.value
+        val chlorophyllMgM3 = cached.chlorophyll?.value
         
         val today = LocalDate.now().toString()
         val score = ShakaScorer.generateScore(
             targetDate = today,
             windSpeedKmh = windSpeedKmh,
             waveHeightM = waveHeightM,
-            visibilityM = visibilityM,
+            chlorophyllMgM3 = chlorophyllMgM3,
             solunarDayRating = cached.solunar?.value?.dayRating,
             moonPhase = cached.solunar?.value?.moonPhase
         )

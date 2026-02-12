@@ -27,7 +27,7 @@ object OceanDataCache {
     private val logger = LoggerFactory.getLogger(OceanDataCache::class.java)
     
     // TTLs based on data change frequency
-    val TTL_WATER_QUALITY = 12.hours    // Chlorophyll, turbidity, visibility
+    val TTL_WATER_QUALITY = 12.hours    // Chlorophyll, visibility, SST
     val TTL_SST = 6.hours               // Sea surface temperature
     val TTL_TIDES = 6.hours             // Tide predictions
     val TTL_WEATHER = 1.hours           // Wind, precipitation

@@ -228,11 +228,6 @@ fun Application.configureRouting() {
                                 "unit" to "mg/m³",
                                 "category" to waterQuality.chlorophyllCategory
                             ),
-                            "turbidity" to mapOf(
-                                "value" to waterQuality.turbidity,
-                                "unit" to "NTU",
-                                "category" to waterQuality.turbidityCategory
-                            ),
                             "seaSurfaceTemp" to mapOf(
                                 "celsius" to waterQuality.seaSurfaceTemp,
                                 "fahrenheit" to waterQuality.seaSurfaceTemp?.let { (it * 9/5) + 32 }

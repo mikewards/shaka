@@ -14,7 +14,7 @@ import java.time.temporal.ChronoUnit
  * Inputs:
  *   windSpeedKmh    → Weather score   (28%)
  *   waveHeightM     → Swell score     (22%)
- *   visibilityM     → Visibility score (35%)
+ *   chlorophyllMgM3 → Visibility score (35%)  — satellite chlorophyll-a concentration
  *   solunarDayRating → Fish Activity   (15%)  — from api.solunar.org, with moon phase fallback
  */
 object ShakaScorer {
@@ -42,21 +42,23 @@ object ShakaScorer {
     }
 
     /**
-     * Calculate visibility score based on underwater visibility in meters.
-     * Falls back to 10m (score 70) when no satellite data available.
+     * Calculate visibility score from chlorophyll-a concentration (mg/m³).
+     * Lower chlorophyll = clearer water = higher score.
+     * Scored on a log scale (ocean chlorophyll ranges ~0.01 to 20+).
+     * Falls back to 40 (below average) when no satellite data available.
      */
-    fun scoreVisibility(visibilityM: Double?): Int {
-        val visM = visibilityM ?: 10.0
+    fun scoreVisibility(chlorophyllMgM3: Double?): Int {
+        if (chlorophyllMgM3 == null) return 40  // Unknown = below average
 
         return when {
-            visM >= 25 -> 100  // Crystal clear
-            visM >= 20 -> 90
-            visM >= 15 -> 80
-            visM >= 10 -> 70
-            visM >= 7 -> 60
-            visM >= 5 -> 50
-            visM >= 3 -> 35
-            else -> 20        // Very murky
+            chlorophyllMgM3 < 0.1  -> 100  // Ultra-clear open ocean
+            chlorophyllMgM3 < 0.3  -> 85   // Clear tropical
+            chlorophyllMgM3 < 0.5  -> 65   // Average ocean (log midpoint)
+            chlorophyllMgM3 < 1.0  -> 45   // Below average, slightly green
+            chlorophyllMgM3 < 3.0  -> 25   // Green, murky coastal
+            chlorophyllMgM3 < 5.0  -> 10   // Can't see your fins
+            chlorophyllMgM3 < 10.0 -> 5    // Stay home
+            else                   -> 0    // Algae bloom
         }
     }
 
@@ -152,7 +154,7 @@ object ShakaScorer {
      * @param targetDate       ISO date string (for confidence calculation)
      * @param windSpeedKmh     Wind speed in km/h (from Open-Meteo or cache)
      * @param waveHeightM      Wave height in meters (from Open-Meteo or cache)
-     * @param visibilityM      Underwater visibility in meters (from Copernicus), null = fallback to 10m
+     * @param chlorophyllMgM3   Chlorophyll-a in mg/m³ (from satellite), null = fallback score 40
      * @param solunarDayRating 0-100 day rating from api.solunar.org, null = use moonPhase fallback
      * @param moonPhase        Named phase string ("new_moon", "full_moon", etc.), null = neutral fallback
      */
@@ -160,12 +162,12 @@ object ShakaScorer {
         targetDate: String,
         windSpeedKmh: Double,
         waveHeightM: Double,
-        visibilityM: Double?,
+        chlorophyllMgM3: Double?,
         solunarDayRating: Int?,
         moonPhase: String?
     ): ShakaScore {
         val breakdown = ScoreBreakdown(
-            visibility = scoreVisibility(visibilityM),
+            visibility = scoreVisibility(chlorophyllMgM3),
             weather = scoreWeather(windSpeedKmh),
             swell = scoreSwell(waveHeightM),
             fishActivity = scoreFishActivity(solunarDayRating, moonPhase)

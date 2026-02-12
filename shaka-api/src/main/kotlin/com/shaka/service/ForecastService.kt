@@ -14,7 +14,7 @@ import java.time.LocalDate
  * OPTIMIZED:
  * - Day 0 (today): Uses cached data from SpotDataCache (instant!)
  * - Days 1-5: Uses batch Open-Meteo calls (2 API calls instead of 10+)
- * - Visibility: Uses cached value for all days (doesn't change much day-to-day)
+ * - Chlorophyll: Uses cached value for all days (doesn't change much day-to-day)
  */
 class ForecastService {
 
@@ -32,11 +32,11 @@ class ForecastService {
         val forecasts = mutableListOf<DayForecast>()
         val today = LocalDate.now()
         
-        // Get cached visibility for all forecast days (doesn't change much)
-        val cachedVisibility = cached?.visibility?.value
-        val visibilityStr = cachedVisibility?.let { 
-            "${it.toInt()}m (${getVisibilityCategory(it)})" 
-        } ?: "15m (Good)"
+        // Get cached chlorophyll for all forecast days (doesn't change much day-to-day)
+        val cachedChlorophyll = cached?.chlorophyll?.value
+        val visibilityStr = cachedChlorophyll?.let { chl ->
+            "${chl} mg/m³ (${getChlorophyllCategory(chl)})"
+        } ?: "No data"
         
         // Day 0: Use fully cached data (instant!)
         if (cached != null && cached.swell != null && cached.wind != null) {
@@ -50,7 +50,7 @@ class ForecastService {
                 targetDate = today.toString(),
                 windSpeedKmh = windSpeedKmh,
                 waveHeightM = waveHeightM,
-                visibilityM = cachedVisibility,
+                chlorophyllMgM3 = cachedChlorophyll,
                 solunarDayRating = cached.solunar?.value?.dayRating,
                 moonPhase = cached.solunar?.value?.moonPhase
             )
@@ -94,7 +94,7 @@ class ForecastService {
                         targetDate = dateStr,
                         windSpeedKmh = weather.windSpeed,
                         waveHeightM = ocean.waveHeight,
-                        visibilityM = cachedVisibility,
+                        chlorophyllMgM3 = cachedChlorophyll,
                         solunarDayRating = cached?.solunar?.value?.dayRating,
                         moonPhase = cached?.solunar?.value?.moonPhase
                     )
@@ -121,12 +121,15 @@ class ForecastService {
     }
 
     
-    private fun getVisibilityCategory(meters: Double): String {
+    private fun getChlorophyllCategory(chl: Double): String {
         return when {
-            meters >= 30 -> "Excellent"
-            meters >= 15 -> "Good"
-            meters >= 8 -> "Fair"
-            else -> "Poor"
+            chl < 0.1  -> "Crystal clear"
+            chl < 0.3  -> "Clear"
+            chl < 0.5  -> "Average"
+            chl < 1.0  -> "Below average"
+            chl < 3.0  -> "Murky"
+            chl < 5.0  -> "Poor"
+            else       -> "Very poor"
         }
     }
 
@@ -162,9 +165,9 @@ class ForecastService {
                     targetDate = dateStr,
                     windSpeedKmh = weather.windSpeed,
                     waveHeightM = ocean.waveHeight,
-                    visibilityM = null,           // No satellite data for ad-hoc locations
-                    solunarDayRating = null,       // No cached solunar for ad-hoc locations
-                    moonPhase = null               // Falls back to neutral 55
+                    chlorophyllMgM3 = null,        // No satellite data for ad-hoc locations
+                    solunarDayRating = null,        // No cached solunar for ad-hoc locations
+                    moonPhase = null                // Falls back to neutral 55
                 )
                 
                 forecasts += DayForecast(

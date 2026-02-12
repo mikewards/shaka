@@ -249,12 +249,10 @@ data class TideData(
 @Serializable
 data class WaterQuality(
     val chlorophyllA: Double?,        // mg/m³ - algae indicator (0.1-0.5 clear, 1-5 productive, >10 bloom)
-    val turbidity: Double?,           // NTU - Total Suspended Matter (0-1 clear, 1-5 moderate, >5 murky)
-    val visibility: Double?,          // meters - estimated underwater visibility
+    val visibility: Double?,          // meters - Copernicus ZSD (kept for display, not used in scorer)
     val seaSurfaceTemp: Double?,      // °C - from NOAA or Copernicus
     val dataSource: String,           // Source attribution
     val chlorophyllCategory: String = categorizeChlorophyll(chlorophyllA),
-    val turbidityCategory: String = categorizeTurbidity(turbidity),
     val visibilityCategory: String = categorizeVisibility(visibility)
 ) {
     companion object {
@@ -266,15 +264,6 @@ data class WaterQuality(
             chl < 3.0 -> "productive"    // Upwelling/coastal enrichment
             chl < 10.0 -> "high"         // Very productive
             else -> "bloom"              // Algae bloom conditions
-        }
-        
-        fun categorizeTurbidity(turb: Double?): String = when {
-            turb == null -> "unknown"
-            turb < 1.0 -> "clear"        // Excellent clarity
-            turb < 2.0 -> "good"         // Good visibility
-            turb < 4.0 -> "moderate"     // Some suspended particles
-            turb < 8.0 -> "murky"        // Reduced visibility
-            else -> "poor"               // Very turbid
         }
         
         fun categorizeVisibility(vis: Double?): String = when {

@@ -111,16 +111,8 @@ class CopernicusClient(
             }
         }
         
-        // Calculate turbidity from chlorophyll if available
-        val turbidity = if (chlorophyll != null) {
-            calculateTurbidity(chlorophyll, lat, lon)
-        } else {
-            null
-        }
-        
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
-            turbidity = turbidity,
             visibility = visibility,
             seaSurfaceTemp = sst,
             dataSource = dataSource
@@ -170,13 +162,9 @@ class CopernicusClient(
             "Unavailable (satellite obstructed)"
         }
         
-        val turbidity = if (chlorophyll != null) calculateTurbidity(chlorophyll, lat, lon) else null
-        val visibility = if (chlorophyll != null && turbidity != null) calculateVisibility(chlorophyll, turbidity) else null
-        
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
-            turbidity = turbidity,
-            visibility = visibility,
+            visibility = null,
             seaSurfaceTemp = sst,
             dataSource = dataSource
         )
@@ -185,8 +173,7 @@ class CopernicusClient(
         OceanDataCache.putWaterQuality(lat, lon, date, result)
         
         val chlStr = chlorophyll?.let { String.format("%.2f", it) } ?: "N/A"
-        val visStr = visibility?.let { String.format("%.0f", it) } ?: "N/A"
-        logger.info("REAL-TIME water quality for ($lat, $lon): chl=$chlStr mg/m³, vis=${visStr}m (source: $dataSource)")
+        logger.info("REAL-TIME water quality for ($lat, $lon): chl=$chlStr mg/m³ (source: $dataSource)")
         
         return result
     }
@@ -299,31 +286,6 @@ class CopernicusClient(
         }
     }
 
-    /**
-     * Calculate turbidity from chlorophyll and regional factors.
-     */
-    fun calculateTurbidity(chlorophyll: Double, lat: Double, lon: Double): Double {
-        var turbidity = 0.3 + (chlorophyll * 0.6)
-        
-        // Regional adjustments
-        if (lat in 32.0..42.0 && lon in -125.0..-117.0) turbidity *= 1.3  // California
-        if (lat in 18.0..23.0 && lon in -161.0..-154.0) turbidity *= 0.7  // Hawaii
-        if (lat in 24.0..26.0 && lon in -82.0..-80.0) turbidity *= 0.8    // Florida Keys
-        
-        return turbidity.coerceIn(0.1, 15.0)
-    }
-
-    /**
-     * Calculate visibility from chlorophyll and turbidity using Secchi depth relationships.
-     * Only used as fallback when real WMTS visibility is unavailable.
-     */
-    fun calculateVisibility(chlorophyll: Double, turbidity: Double): Double {
-        val kd = 0.027 * Math.pow(chlorophyll.coerceAtLeast(0.1), 0.6) + 
-                 0.066 * Math.pow(turbidity.coerceAtLeast(0.1), 0.7) +
-                 0.04
-        val secchiDepth = 1.7 / kd
-        return (secchiDepth * 2.7).coerceIn(1.0, 45.0)
-    }
 }
 
 @Serializable
