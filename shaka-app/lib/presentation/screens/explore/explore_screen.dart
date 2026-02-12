@@ -1219,7 +1219,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Using different parent widgets (SizedBox vs Expanded) can cause a remount
     // and MapLibre will fall back to initialCameraPosition (zooming out).
     final mapFlex = _isPinMode ? 1 : 3;
-    const carouselFlex = 1;
+    const carouselHeight = 148.0;
 
     // Map stack children (shared between pin mode and normal mode)
     final mapChildren = <Widget>[
@@ -1366,8 +1366,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               
               // Carousel section (hidden in pin mode)
               if (!_isPinMode)
-                Expanded(
-                  flex: carouselFlex,
+                SizedBox(
+                  height: carouselHeight,
                   child: Container(
                     color: const Color(0xFF0D0D0D),
                     child: !_mapFullyReady
