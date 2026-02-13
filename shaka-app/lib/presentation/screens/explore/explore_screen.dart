@@ -225,6 +225,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Increment style version to cancel any in-progress async operations
     _styleVersion++;
     
+    // Style rebuild destroys the GL context — registered images are gone
+    _registeredBadgeImages.clear();
+    
     // Increment key to force MapLibreMap widget rebuild with new style
     // Also clear any error state so it doesn't persist
     setState(() {
@@ -1037,7 +1040,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'spots-layer',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.33,             // 96px image → 32 logical pts
+          iconSize: 0.5,              // 96px image → ~48 logical pts
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
@@ -1119,7 +1122,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.40,           // 96px → ~38 pts (vs 32 pts for base)
+          iconSize: 0.6,            // 96px → ~58 pts (vs ~48 for base)
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
