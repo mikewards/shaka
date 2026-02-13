@@ -66,7 +66,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Timer? _mapAnimationDebounce;
   bool _isFromMarkerTap = false;
   
-  // Registered score badge images (prevent duplicate addImage calls)
+  // Badge image tracking: _badgeImageCache holds generated PNG bytes (survives
+  // style changes), _registeredBadgeImages tracks what's uploaded to the current
+  // GL context (cleared on style change so bytes are re-uploaded).
+  final Map<String, Uint8List> _badgeImageCache = {};
   final Set<String> _registeredBadgeImages = {};
   
   // Debounce timer for viewport filtering (no API calls, just client-side filter)
@@ -959,11 +962,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   /// Register badge images for every unique score in [_allSpots].
-  /// Skips scores already registered (idempotent across rebuilds).
+  ///
+  /// First call: generates PNGs via Canvas (slow, ~200ms total) and caches them.
+  /// Subsequent calls (e.g. after style change): re-uploads cached bytes (fast).
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
 
-    // Collect unique scores
     final scores = _allSpots
         .where((s) => s.shakaScore != null)
         .map((s) => s.shakaScore!)
@@ -972,18 +976,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
     for (final score in scores) {
       final key = 'score-$score';
       if (_registeredBadgeImages.contains(key)) continue;
-      final bytes = await _generateScoreBadgeImage(score);
-      if (_mapController == null) return; // controller gone during await
-      await _mapController!.addImage(key, bytes);
+      // Generate only if not already cached from a previous style load
+      _badgeImageCache[key] ??= await _generateScoreBadgeImage(score);
+      if (_mapController == null) return;
+      await _mapController!.addImage(key, _badgeImageCache[key]!);
       _registeredBadgeImages.add(key);
     }
 
-    // No-score placeholder
-    if (!_registeredBadgeImages.contains('score-none')) {
-      final bytes = await _generateNoScoreBadgeImage();
+    const noneKey = 'score-none';
+    if (!_registeredBadgeImages.contains(noneKey)) {
+      _badgeImageCache[noneKey] ??= await _generateNoScoreBadgeImage();
       if (_mapController == null) return;
-      await _mapController!.addImage('score-none', bytes);
-      _registeredBadgeImages.add('score-none');
+      await _mapController!.addImage(noneKey, _badgeImageCache[noneKey]!);
+      _registeredBadgeImages.add(noneKey);
     }
   }
 
