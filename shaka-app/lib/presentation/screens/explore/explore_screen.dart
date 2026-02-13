@@ -861,48 +861,67 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Map marker image generation (painted via Canvas → PNG → MapLibre icon)
   // ---------------------------------------------------------------------------
 
-  /// Paint a filled circle for a tier color with a dark outer ring.
-  /// Text overlay is handled by MapLibre's native symbol text layer.
-  Future<Uint8List> _generateTierDotImage(Color tierColor) async {
+  /// Paint a pill-shaped tier indicator for the map.
+  /// [tier] = 1-5 (how many segments are filled). tierColor = fill color.
+  Future<Uint8List> _generateTierPillImage(int tier, Color tierColor) async {
     const double px = 3.0;
-    const double size = 28.0 * px; // 84 actual pixels
+    const int segments = 5;
+    const double segW = 10.0 * px;   // 30 actual px per segment
+    const double segH = 8.0 * px;    // 24 actual px tall
+    const double gap = 2.0 * px;     // 6 actual px gap
+    const double pad = 2.0 * px;     // outer padding
+    final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
+    final double totalH = pad * 2 + segH;
 
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
 
-    final center = Offset(size / 2, size / 2);
-    final outerR = size / 2 - 1.0 * px;
-    final innerR = outerR - 2.0 * px;
+    // Dark pill background
+    final bgRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, totalW, totalH),
+      Radius.circular(totalH / 2),
+    );
+    canvas.drawRRect(bgRect, Paint()..color = const Color(0xDD1A1A1A));
 
-    // Dark ring
-    canvas.drawCircle(center, outerR, Paint()..color = const Color(0xFF1A1A1A));
-    // Tier-color fill
-    canvas.drawCircle(center, innerR, Paint()..color = tierColor.withOpacity(0.85));
+    // Draw 5 segments
+    for (int i = 0; i < segments; i++) {
+      final x = pad + i * (segW + gap);
+      final isFilled = i < tier;
+      final segRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, pad, segW, segH),
+        Radius.circular(3.0 * px),
+      );
+      canvas.drawRRect(
+        segRect,
+        Paint()..color = isFilled ? tierColor : Colors.white.withOpacity(0.12),
+      );
+    }
 
-    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final image = await recorder.endRecording().toImage(totalW.toInt(), totalH.toInt());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
 
-  /// Register the 6 dot images (5 tiers + no-score). Only 6 addImage calls.
+  /// Register the 6 pill images (5 tiers + no-score). Only 6 addImage calls.
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
 
-    final tiers = <String, Color>{
-      'tier-5': AppColors.scoreExcellent,
-      'tier-4': AppColors.scoreGood,
-      'tier-3': AppColors.scoreAverage,
-      'tier-2': AppColors.scoreBelowAvg,
-      'tier-1': AppColors.scorePoor,
-      'tier-0': const Color(0xFF555555), // no score
+    final tiers = <int, Color>{
+      5: AppColors.scoreExcellent,
+      4: AppColors.scoreGood,
+      3: AppColors.scoreAverage,
+      2: AppColors.scoreBelowAvg,
+      1: AppColors.scorePoor,
+      0: const Color(0xFF555555), // no score
     };
 
     for (final entry in tiers.entries) {
-      if (_registeredBadgeImages.contains(entry.key)) continue;
-      _badgeImageCache[entry.key] ??= await _generateTierDotImage(entry.value);
+      final key = 'tier-${entry.key}';
+      if (_registeredBadgeImages.contains(key)) continue;
+      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
       if (_mapController == null) return;
-      await _mapController!.addImage(entry.key, _badgeImageCache[entry.key]!);
-      _registeredBadgeImages.add(entry.key);
+      await _mapController!.addImage(key, _badgeImageCache[key]!);
+      _registeredBadgeImages.add(key);
     }
   }
 
@@ -930,19 +949,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
     await _registerScoreBadgeImages();
     if (_mapController == null) return;
 
-    // Build GeoJSON — each feature carries its tier icon + score text + color
+    // Build GeoJSON — each feature carries its tier pill icon
     final features = spots.map((spot) {
       final score = spot.shakaScore ?? 0;
       final tierKey = _tierKeyForScore(spot.shakaScore);
-      final colorHex = _getScoreColorHex(score);
       return {
         'type': 'Feature',
         'properties': {
           'id': spot.id,
           'name': spot.name,
           'icon': tierKey,
-          'score': (spot.shakaScore != null) ? score.toString() : '',
-          'color': colorHex,
           'sortKey': -score,
         },
         'geometry': {
@@ -962,7 +978,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // Tier-colored dot with white score number on top
+      // Pill-shaped tier markers — no text, just the visual indicator
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-layer',
@@ -971,19 +987,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
           iconSize: 0.5,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
-          textField: ['get', 'score'],
-          textSize: 11,
-          textColor: '#FFFFFF',
-          textHaloColor: '#1A1A1A',
-          textHaloWidth: 1,
-          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
         ),
       );
 
-      debugPrint('🗺️ Rendered ${spots.length} dot markers (6 tier images)');
+      debugPrint('🗺️ Rendered ${spots.length} pill markers (6 tier images)');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
@@ -1024,8 +1032,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           },
           'properties': {
             'icon': tierKey,
-            'score': (spot.shakaScore != null) ? score.toString() : '',
-            'color': scoreColor,
             'glowColor': scoreColor,
           },
         },
@@ -1054,7 +1060,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // 2. Dot icon + score text — slightly larger than base markers
+      // 2. Pill icon — slightly larger than base markers
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-icon',
@@ -1063,14 +1069,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           iconSize: 0.7,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
-          textField: ['get', 'score'],
-          textSize: 13,
-          textColor: '#FFFFFF',
-          textHaloColor: '#1A1A1A',
-          textHaloWidth: 1,
-          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
         ),
       );
     } catch (e) {
@@ -1697,26 +1695,11 @@ class _SpotMarkerCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Score number + tier pill
+            // Tier pill only
             SizedBox(
               width: 48,
               child: spot.shakaScore != null
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$score',
-                          style: TextStyle(
-                            color: _getScoreColor(score),
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            height: 1.0,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        ScoreTierPill(score: score, width: 44, height: 8),
-                      ],
-                    )
+                  ? ScoreTierPill(score: score, width: 44, height: 12)
                   : isLoading
                       ? const Center(
                           child: SizedBox(
@@ -1791,10 +1774,6 @@ class _SpotMarkerCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (spot.shakaScore != null) ...[
-                          const SizedBox(width: 8),
-                          ScoreTierPill(score: score, width: 50, height: 10),
-                        ],
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1905,26 +1884,11 @@ class _SavedSpotCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Score number + tier pill
+              // Tier pill only
               SizedBox(
                 width: 40,
                 child: hasScore
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '${spot.shakaScore}',
-                            style: TextStyle(
-                              color: scoreColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              height: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          ScoreTierPill(score: spot.shakaScore ?? 0, width: 36, height: 6),
-                        ],
-                      )
+                    ? ScoreTierPill(score: spot.shakaScore ?? 0, width: 36, height: 10)
                     : isLoading
                         ? const Center(
                             child: SizedBox(
