@@ -58,8 +58,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   
   bool _isLoading = true;
   bool _isMapReady = false;
-  /// True only after spots are loaded, markers added, and carousel updated; used for loading overlay only.
+  /// True only after spots are loaded, markers added, and carousel updated.
   bool _mapFullyReady = false;
+  /// True during style transitions — drives the crossfade overlay.
+  bool _styleTransitionActive = false;
   String? _error;
   int? _selectedSpotIndex;
   
@@ -223,10 +225,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
       _lastCameraPosition = _mapController!.cameraPosition;
     }
     
-    // Clear map controller (map will be rebuilt)
+    // Show crossfade overlay BEFORE destroying the map
     _mapController = null;
     _isMapReady = false;
     _mapFullyReady = false;
+    _styleTransitionActive = true;
     
     // Increment style version to cancel any in-progress async operations
     _styleVersion++;
@@ -235,7 +238,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _registeredBadgeImages.clear();
     
     // Increment key to force MapLibreMap widget rebuild with new style
-    // Also clear any error state so it doesn't persist
     setState(() {
       _mapKey++;
       _error = null;
@@ -247,13 +249,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _onStyleLoaded() async {
-    // Capture current style version to detect if user changed styles during async ops
     final currentVersion = _styleVersion;
-    
     debugPrint('_onStyleLoaded: Style loaded for ${_bgService.current}');
-    // DON'T set _isMapReady here - wait until overlays are loaded
     
-    // Try to animate to IP location (just centering, no reload)
     _tryAnimateToIpLocation();
     
     // Load curated spots once (if not already loaded)
@@ -261,35 +259,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
       await _loadAllSpots();
     }
     
-    // Add overlays first (raster tile layers)
+    // Add overlays (raster tile layers) — these render underneath markers
     await _addOverlays();
-    
-    // CRITICAL: Bail out if style changed during await (prevents iOS crash)
     if (!mounted || _styleVersion != currentVersion) return;
     
-    // For styles with overlays, add delay for tiles to start loading
-    if (_bgService.hasOverlays(_bgService.current)) {
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted || _styleVersion != currentVersion) return;
-    }
-    
-    // NOW set map ready - opaque overlay will hide, revealing loaded map
+    // Mark map ready immediately — no delay needed for the overlay itself.
+    // Raster tiles stream in progressively; markers go on top.
     if (mounted) setState(() => _isMapReady = true);
 
-    // Wait for raster layers to be registered before adding circle annotations
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    // Bail out if style changed during delay
+    // Small yield so the GL context finishes registering sources
+    await Future.delayed(const Duration(milliseconds: 50));
     if (!mounted || _styleVersion != currentVersion) return;
     
-    // Add markers on top - circle annotations should render above raster layers
+    // Add markers on top
     await _updateMarkers();
-    
-    // Update visible spots for carousel
     await _updateVisibleSpots();
     
-    // Loading overlay hides only after spots + markers + carousel are ready
-    if (mounted) setState(() => _mapFullyReady = true);
+    // Everything ready — begin fading out the crossfade overlay
+    if (mounted) {
+      setState(() {
+        _mapFullyReady = true;
+        _styleTransitionActive = false;
+      });
+    }
     debugPrint('_onStyleLoaded: Complete for ${_bgService.current}');
   }
 
@@ -1348,8 +1340,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: _buildRightFloatingButtons(),
         ),
       
-      // Loading overlay - show until initial center resolved, then until spots + markers + carousel ready
-      if (!_initialCenterReady || _isLoading || !_mapFullyReady)
+      // Initial loading overlay (first app launch — hard block)
+      if (!_initialCenterReady || _isLoading)
         Positioned.fill(
           child: Container(
             color: const Color(0xFF0D0D0D),
@@ -1358,6 +1350,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 color: AppColors.info,
               ),
             ),
+          ),
+        ),
+      
+      // Style-change crossfade — fades out over 400ms once map is ready
+      if (_initialCenterReady && !_isLoading)
+        IgnorePointer(
+          ignoring: _mapFullyReady && !_styleTransitionActive,
+          child: AnimatedOpacity(
+            opacity: (!_mapFullyReady || _styleTransitionActive) ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 400),
+            child: Container(color: const Color(0xFF0D0D0D)),
           ),
         ),
     ];
