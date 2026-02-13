@@ -876,21 +876,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
     const double pad = 3.0 * px;     // outer padding
     final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
     final double totalH = pad * 2 + segH;
-    // Fully rounded background (capsule shape)
-    final double bgR = totalH / 2;
-    // Segment end-cap radius — matches Flutter widget proportions
-    final double segR = segH * 0.3;
+    // Capsule radius — used for background AND first/last segments
+    final double capR = segH / 2;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
 
     // Dark capsule background
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(bgR)),
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(totalH / 2)),
       Paint()..color = const Color(0xDD1A1A1A),
     );
 
-    // Draw 5 segments — first/last get rounded outer edges, middle are sharp
+    // Draw 5 segments — first/last use same radius as capsule so colors
+    // follow the border curve exactly. Middle segments are sharp.
     for (int i = 0; i < segments; i++) {
       final x = pad + i * (segW + gap);
       final isFilled = i < tier;
@@ -898,10 +897,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final isLast = i == segments - 1;
       final segRect = RRect.fromRectAndCorners(
         Rect.fromLTWH(x, pad, segW, segH),
-        topLeft: isFirst ? Radius.circular(segR) : Radius.zero,
-        bottomLeft: isFirst ? Radius.circular(segR) : Radius.zero,
-        topRight: isLast ? Radius.circular(segR) : Radius.zero,
-        bottomRight: isLast ? Radius.circular(segR) : Radius.zero,
+        topLeft: isFirst ? Radius.circular(capR) : Radius.zero,
+        bottomLeft: isFirst ? Radius.circular(capR) : Radius.zero,
+        topRight: isLast ? Radius.circular(capR) : Radius.zero,
+        bottomRight: isLast ? Radius.circular(capR) : Radius.zero,
       );
       canvas.drawRRect(
         segRect,
