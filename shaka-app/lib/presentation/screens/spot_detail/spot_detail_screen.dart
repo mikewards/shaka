@@ -44,6 +44,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   bool _userSpotLoading = false;
   String? _userSpotError;
 
+  // Lazy-loaded forecast
+  List<DayForecast>? _forecast;
+  bool _forecastLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +121,31 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         }
       } catch (_) {
         // Ignore errors, will retry on next poll
+      }
+    }
+  }
+
+  /// Lazy-load forecast when user taps the Forecast tab.
+  Future<void> _loadForecast() async {
+    if (_forecast != null || _forecastLoading) return;
+    setState(() => _forecastLoading = true);
+    try {
+      final data = await _apiClient.getForecast(
+        spotId: widget.spotId,
+        days: 5,
+      );
+      if (mounted) {
+        setState(() {
+          _forecast = data;
+          _forecastLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _forecast = [];
+          _forecastLoading = false;
+        });
       }
     }
   }
@@ -373,9 +402,26 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  /// FORECAST TAB - Multi-day forecast
+  /// FORECAST TAB - Lazy-loaded when user taps this tab
   Widget _buildForecastTab(SpotDetail spot) {
-    if (spot.forecast.isEmpty) {
+    // Trigger lazy load on first view
+    if (_forecast == null && !_forecastLoading) {
+      // Schedule fetch after build
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadForecast());
+    }
+
+    // Loading state
+    if (_forecastLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColors.info,
+        ),
+      );
+    }
+
+    final forecast = _forecast;
+    if (forecast == null || forecast.isEmpty) {
       return const Center(
         child: Text(
           'Forecast data unavailable',
@@ -387,9 +433,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       physics: const ClampingScrollPhysics(),
-      itemCount: spot.forecast.length,
+      itemCount: forecast.length,
       itemBuilder: (context, index) {
-        final day = spot.forecast[index];
+        final day = forecast[index];
         return _buildForecastCard(day, index == 0);
       },
     );

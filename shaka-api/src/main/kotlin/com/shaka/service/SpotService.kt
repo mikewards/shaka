@@ -396,14 +396,7 @@ class SpotService {
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
         
-        // Forecast fetched live (community reports removed - not displayed in UI)
-        val forecastDeferred = async {
-            withTimeoutOrNull(6000) {
-                try { forecastService.getForecast(spotId, 5) } catch (e: Exception) { emptyList() }
-            }
-        }
-        
-        val forecast = forecastDeferred.await() ?: emptyList()
+        // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
         
         // Build fishing intel from cache (prefetched daily)
         val vesselActivity = cached?.vessel?.value?.let { vessel ->
@@ -505,7 +498,7 @@ class SpotService {
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),
-            forecast = forecast,
+            forecast = emptyList(), // Lazy-loaded by client via /forecast/{spotId}
             expectedFish = spot.commonFish.map { fish ->
                 FishInfo(
                     name = fish,
@@ -1343,19 +1336,7 @@ class SpotService {
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
         
-        // Forecast (fetched live)
-        val forecastDeferred = async {
-            withTimeoutOrNull(6000) {
-                try { 
-                    // User spots don't have a DB ID, generate forecast based on coordinates
-                    forecastService.getForecastForLocation(lat, lon, 5) 
-                } catch (e: Exception) { 
-                    emptyList() 
-                }
-            }
-        }
-        
-        val forecast = forecastDeferred.await() ?: emptyList()
+        // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
 
         logger.info("User spot detail loaded: ${userSpot.name} (${if (cached != null) "from cache" else "live fetch"})")
 
@@ -1439,7 +1420,7 @@ class SpotService {
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),
-            forecast = forecast,
+            forecast = emptyList(), // Lazy-loaded by client via /forecast/{spotId}
             expectedFish = emptyList(), // User spots don't have fish data
             gearRecommendations = generateGearRecs(actualSST, 10).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
