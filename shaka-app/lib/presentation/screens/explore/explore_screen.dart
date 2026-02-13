@@ -863,33 +863,42 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   /// Paint a pill-shaped tier indicator for the map.
   /// [tier] = 1-5 (how many segments are filled). tierColor = fill color.
+  /// Only the first and last segments have rounded outer edges; inner edges
+  /// are sharp so the segments tile cleanly.
   Future<Uint8List> _generateTierPillImage(int tier, Color tierColor) async {
     const double px = 3.0;
     const int segments = 5;
     const double segW = 10.0 * px;   // 30 actual px per segment
-    const double segH = 8.0 * px;    // 24 actual px tall
+    const double segH = 14.0 * px;   // 42 actual px tall (was 24)
     const double gap = 2.0 * px;     // 6 actual px gap
     const double pad = 2.0 * px;     // outer padding
     final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
     final double totalH = pad * 2 + segH;
+    final double r = 4.0 * px;       // corner radius for end caps
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
 
-    // Dark pill background
-    final bgRect = RRect.fromRectAndRadius(
+    // Dark pill background with rounded ends
+    final bgPath = Path()..addRRect(RRect.fromRectAndCorners(
       Rect.fromLTWH(0, 0, totalW, totalH),
-      Radius.circular(totalH / 2),
-    );
-    canvas.drawRRect(bgRect, Paint()..color = const Color(0xDD1A1A1A));
+      topLeft: Radius.circular(r), bottomLeft: Radius.circular(r),
+      topRight: Radius.circular(r), bottomRight: Radius.circular(r),
+    ));
+    canvas.drawPath(bgPath, Paint()..color = const Color(0xDD1A1A1A));
 
-    // Draw 5 segments
+    // Draw 5 segments — only outer edges of first/last are rounded
     for (int i = 0; i < segments; i++) {
       final x = pad + i * (segW + gap);
       final isFilled = i < tier;
-      final segRect = RRect.fromRectAndRadius(
+      final isFirst = i == 0;
+      final isLast = i == segments - 1;
+      final segRect = RRect.fromRectAndCorners(
         Rect.fromLTWH(x, pad, segW, segH),
-        Radius.circular(3.0 * px),
+        topLeft: isFirst ? Radius.circular(r * 0.6) : Radius.zero,
+        bottomLeft: isFirst ? Radius.circular(r * 0.6) : Radius.zero,
+        topRight: isLast ? Radius.circular(r * 0.6) : Radius.zero,
+        bottomRight: isLast ? Radius.circular(r * 0.6) : Radius.zero,
       );
       canvas.drawRRect(
         segRect,
@@ -1695,28 +1704,25 @@ class _SpotMarkerCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Tier pill only
-            SizedBox(
-              width: 48,
-              child: spot.shakaScore != null
-                  ? ScoreTierPill(score: score, width: 44, height: 12)
-                  : isLoading
-                      ? const Center(
+            // Vertical tier pill
+            spot.shakaScore != null
+                ? ScoreTierPill(score: score, width: 12, height: 48, vertical: true)
+                : isLoading
+                    ? const SizedBox(
+                        width: 12,
+                        height: 48,
+                        child: Center(
                           child: SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 12,
+                            height: 12,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Color(0xFF7A9BB8),
                             ),
                           ),
-                        )
-                      : Icon(
-                          Icons.hourglass_empty,
-                          color: _getScoreColor(score),
-                          size: 22,
                         ),
-            ),
+                      )
+                    : const SizedBox(width: 12, height: 48),
             const SizedBox(width: 12),
             
             // Spot info
@@ -1884,28 +1890,29 @@ class _SavedSpotCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Tier pill only
-              SizedBox(
-                width: 40,
-                child: hasScore
-                    ? ScoreTierPill(score: spot.shakaScore ?? 0, width: 36, height: 10)
-                    : isLoading
-                        ? const Center(
+              // Vertical tier pill
+              hasScore
+                  ? ScoreTierPill(score: spot.shakaScore ?? 0, width: 10, height: 36, vertical: true)
+                  : isLoading
+                      ? const SizedBox(
+                          width: 10,
+                          height: 36,
+                          child: Center(
                             child: SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 10,
+                              height: 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Color(0xFF7A9BB8),
                               ),
                             ),
-                          )
-                        : Icon(
-                            Icons.location_on,
-                            color: scoreColor,
-                            size: 20,
                           ),
-              ),
+                        )
+                      : Icon(
+                          Icons.location_on,
+                          color: scoreColor,
+                          size: 20,
+                        ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

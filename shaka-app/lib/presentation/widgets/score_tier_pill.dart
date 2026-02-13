@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
-/// A horizontal pill-shaped "battery" indicator showing the score tier (1–5).
+/// A pill-shaped "battery" indicator showing the score tier (1–5).
 ///
-/// 5 segments, filled left-to-right based on the tier. The filled segments
-/// use the tier color; empty segments are dark/muted.
+/// 5 segments, filled based on the tier. The filled segments use the tier
+/// color; empty segments are dark/muted.
 ///
-/// Used alongside the numeric score in carousel cards and spot detail headers
-/// to give an instant visual read on quality.
+/// [vertical] = true renders bottom-to-top (rotated 90° CCW from horizontal).
 class ScoreTierPill extends StatelessWidget {
   final int score;
   final double width;
   final double height;
+  final bool vertical;
 
   const ScoreTierPill({
     super.key,
     required this.score,
     this.width = 60,
     this.height = 14,
+    this.vertical = false,
   });
 
   @override
@@ -27,6 +28,36 @@ class ScoreTierPill extends StatelessWidget {
     const totalSegments = 5;
     const gap = 2.0;
 
+    if (vertical) {
+      // Bottom-to-top: tier 1 fills bottom segment, tier 5 fills all
+      return SizedBox(
+        width: width,
+        height: height,
+        child: Column(
+          children: List.generate(totalSegments, (i) {
+            // i=0 is top (segment 5), i=4 is bottom (segment 1)
+            final segmentTier = totalSegments - i; // 5, 4, 3, 2, 1
+            final isFilled = segmentTier <= tier;
+            final isFirst = i == 0; // top
+            final isLast = i == totalSegments - 1; // bottom
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(bottom: isLast ? 0 : gap),
+                decoration: BoxDecoration(
+                  color: isFilled ? color : Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.vertical(
+                    top: isFirst ? const Radius.circular(4) : Radius.zero,
+                    bottom: isLast ? const Radius.circular(4) : Radius.zero,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      );
+    }
+
+    // Horizontal: left-to-right
     return SizedBox(
       width: width,
       height: height,

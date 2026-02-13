@@ -251,26 +251,21 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ),
       padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  spot.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            child: Text(
+              spot.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          // Tier pill only
-          ScoreTierPill(score: spot.score.overall, width: 56, height: 14),
+          const SizedBox(width: 12),
+          // Vertical tier pill (matches carousel orientation)
+          ScoreTierPill(score: spot.score.overall, width: 14, height: 48, vertical: true),
         ],
       ),
     );
@@ -1163,25 +1158,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ),
       padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  spot.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            child: Text(
+              spot.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          ScoreTierPill(score: spot.shakaScore, width: 56, height: 14),
+          const SizedBox(width: 12),
+          ScoreTierPill(score: spot.shakaScore, width: 14, height: 48, vertical: true),
         ],
       ),
     );
