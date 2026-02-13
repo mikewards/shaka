@@ -318,9 +318,11 @@ class _Legend extends StatelessWidget {
           const SizedBox(height: 4),
           _LegendItem(color: AppColors.scoreGood, label: '60+'),
           const SizedBox(height: 4),
-          _LegendItem(color: AppColors.scoreFair, label: '40+'),
+          _LegendItem(color: AppColors.scoreAverage, label: '40+'),
           const SizedBox(height: 4),
-          _LegendItem(color: AppColors.scorePoor, label: '<40'),
+          _LegendItem(color: AppColors.scoreBelowAvg, label: '20+'),
+          const SizedBox(height: 4),
+          _LegendItem(color: AppColors.scorePoor, label: '<20'),
         ],
       ),
     );

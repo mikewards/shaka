@@ -39,11 +39,12 @@ class AppColors {
   static const Color borderLight = Color(0xFFF3F1ED);
   static const Color borderDark = Color(0xFFD4D2CD);
 
-  // Shaka Score Colors - Desaturated, natural tones
-  static const Color scoreExcellent = Color(0xFF6B8E7D);  // Sage green - 80-100
-  static const Color scoreGood = Color(0xFF8FA98B);       // Muted green - 60-79
-  static const Color scoreFair = Color(0xFFC9A66B);       // Amber/brass - 40-59
-  static const Color scorePoor = Color(0xFFB87A7A);       // Dusty rose - 0-39
+  // Shaka Score Colors - 5-tier, desaturated natural tones
+  static const Color scoreExcellent = Color(0xFF6B8E7D);    // Sage green      - 80-100
+  static const Color scoreGood = Color(0xFF8FA98B);          // Muted green     - 60-79
+  static const Color scoreAverage = Color(0xFFC9A66B);       // Amber/brass     - 40-59
+  static const Color scoreBelowAvg = Color(0xFFC4876B);      // Dusty terracotta- 20-39
+  static const Color scorePoor = Color(0xFFB87A7A);          // Dusty rose      - 0-19
 
   // Status - Desaturated, refined
   static const Color success = Color(0xFF6B8E7D);
@@ -51,12 +52,31 @@ class AppColors {
   static const Color error = Color(0xFFB87A7A);
   static const Color info = Color(0xFF7A9BB8);
 
-  /// Get score color based on shaka score value
+  /// Get score color based on shaka score value (5-tier, 20-point bands)
   static Color getScoreColor(int score) {
     if (score >= 80) return scoreExcellent;
     if (score >= 60) return scoreGood;
-    if (score >= 40) return scoreFair;
+    if (score >= 40) return scoreAverage;
+    if (score >= 20) return scoreBelowAvg;
     return scorePoor;
+  }
+
+  /// Which tier (1-5) a score falls into
+  static int getScoreTier(int score) {
+    if (score >= 80) return 5;
+    if (score >= 60) return 4;
+    if (score >= 40) return 3;
+    if (score >= 20) return 2;
+    return 1;
+  }
+
+  /// Human-readable label for a score
+  static String getScoreLabel(int score) {
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Average';
+    if (score >= 20) return 'Below Avg';
+    return 'Poor';
   }
 
   // ===========================================

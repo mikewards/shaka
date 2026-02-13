@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import 'score_tier_pill.dart';
 
 enum ShakaScoreSize { small, medium, large }
 
@@ -70,6 +71,8 @@ class ShakaScoreBadge extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 6),
+        ScoreTierPill(score: score, width: badgeSize, height: 8),
         if (showLabel) ...[
           const SizedBox(height: 6),
           Row(

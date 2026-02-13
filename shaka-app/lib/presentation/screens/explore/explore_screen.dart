@@ -13,6 +13,7 @@ import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
 import '../../widgets/background_picker.dart';
+import '../../widgets/score_tier_pill.dart';
 import '../../widgets/set_map_home_dialog.dart';
 import '../../widgets/save_spot_sheet.dart';
 
@@ -860,74 +861,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Score badge image generation (painted via Canvas → PNG → MapLibre icon)
   // ---------------------------------------------------------------------------
 
-  /// Paint a score badge matching the carousel/detail style:
-  /// rounded square, dark fill, score-colored border & number.
-  /// Returns PNG bytes suitable for [MapLibreMapController.addImage].
-  ///
-  /// Generated at 3× so text is crisp on retina; displayed via iconSize 0.33.
-  Future<Uint8List> _generateScoreBadgeImage(int score) async {
-    final scoreColor = AppColors.getScoreColor(score);
-    const double px = 3.0;           // pixel multiplier (3× retina)
-    const double logicalSize = 32.0; // logical point size of badge
-    final double size = logicalSize * px; // 96 actual pixels
+  /// Paint a tier badge: rounded square with dark fill & colored border.
+  /// No text — the score number is rendered by MapLibre's symbol text layer.
+  /// Only 6 images total (5 tiers + 1 no-score) instead of ~40 per-score.
+  Future<Uint8List> _generateTierBadgeImage(Color tierColor) async {
+    const double px = 3.0;
+    const double size = 32.0 * px; // 96 actual pixels
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
 
     final double borderW = 2.0 * px;
     final double radius = 8.0 * px;
-
-    final rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(borderW / 2, borderW / 2,
-          size - borderW, size - borderW),
-      Radius.circular(radius),
-    );
-
-    // 1. Solid dark background
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1A1A1A));
-    // 2. Score-color tint
-    canvas.drawRRect(rrect, Paint()..color = scoreColor.withOpacity(0.15));
-    // 3. Score-color border
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..color = scoreColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = borderW,
-    );
-
-    // 4. Score number
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '$score',
-        style: TextStyle(
-          color: scoreColor,
-          fontSize: 13.0 * px,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
-
-    // Rasterize to PNG
-    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return bytes!.buffer.asUint8List();
-  }
-
-  /// A neutral gray badge shown for spots that have no score yet.
-  Future<Uint8List> _generateNoScoreBadgeImage() async {
-    const double px = 3.0;
-    const double size = 32.0 * px;
-    const grayColor = Color(0xFF555555);
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
-
-    final double borderW = 1.5 * px;
-    final double radius = 8.0 * px;
-
     final rrect = RRect.fromRectAndRadius(
       Rect.fromLTWH(borderW / 2, borderW / 2,
           size - borderW, size - borderW),
@@ -935,61 +880,46 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
 
     canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1A1A1A));
+    canvas.drawRRect(rrect, Paint()..color = tierColor.withOpacity(0.15));
     canvas.drawRRect(
       rrect,
       Paint()
-        ..color = grayColor
+        ..color = tierColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = borderW,
     );
-
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '—',
-        style: TextStyle(
-          color: grayColor,
-          fontSize: 12.0 * px,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
 
     final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
 
-  /// Register badge images for every unique score in [_allSpots].
-  ///
-  /// First call: generates PNGs via Canvas (slow, ~200ms total) and caches them.
-  /// Subsequent calls (e.g. after style change): re-uploads cached bytes (fast).
+  /// Register the 6 badge images (5 tiers + no-score). Only 6 addImage calls.
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
 
-    final scores = _allSpots
-        .where((s) => s.shakaScore != null)
-        .map((s) => s.shakaScore!)
-        .toSet();
+    final tiers = <String, Color>{
+      'tier-5': AppColors.scoreExcellent,
+      'tier-4': AppColors.scoreGood,
+      'tier-3': AppColors.scoreAverage,
+      'tier-2': AppColors.scoreBelowAvg,
+      'tier-1': AppColors.scorePoor,
+      'tier-0': const Color(0xFF555555), // no score
+    };
 
-    for (final score in scores) {
-      final key = 'score-$score';
-      if (_registeredBadgeImages.contains(key)) continue;
-      // Generate only if not already cached from a previous style load
-      _badgeImageCache[key] ??= await _generateScoreBadgeImage(score);
+    for (final entry in tiers.entries) {
+      if (_registeredBadgeImages.contains(entry.key)) continue;
+      _badgeImageCache[entry.key] ??= await _generateTierBadgeImage(entry.value);
       if (_mapController == null) return;
-      await _mapController!.addImage(key, _badgeImageCache[key]!);
-      _registeredBadgeImages.add(key);
+      await _mapController!.addImage(entry.key, _badgeImageCache[entry.key]!);
+      _registeredBadgeImages.add(entry.key);
     }
+  }
 
-    const noneKey = 'score-none';
-    if (!_registeredBadgeImages.contains(noneKey)) {
-      _badgeImageCache[noneKey] ??= await _generateNoScoreBadgeImage();
-      if (_mapController == null) return;
-      await _mapController!.addImage(noneKey, _badgeImageCache[noneKey]!);
-      _registeredBadgeImages.add(noneKey);
-    }
+  /// Map a score to its tier icon key
+  String _tierKeyForScore(int? score) {
+    if (score == null) return 'tier-0';
+    return 'tier-${AppColors.getScoreTier(score)}';
   }
 
   /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
@@ -1010,17 +940,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
     await _registerScoreBadgeImages();
     if (_mapController == null) return;
 
-    // Build GeoJSON — each feature carries its icon key
+    // Build GeoJSON — each feature carries its tier icon + score text + color
     final features = spots.map((spot) {
       final score = spot.shakaScore ?? 0;
-      final icon = spot.shakaScore != null ? 'score-$score' : 'score-none';
+      final tierKey = _tierKeyForScore(spot.shakaScore);
+      final colorHex = _getScoreColorHex(score);
       return {
         'type': 'Feature',
         'properties': {
           'id': spot.id,
           'name': spot.name,
-          'icon': icon,
-          'sortKey': -score, // higher scores render on top
+          'icon': tierKey,
+          'score': (spot.shakaScore != null) ? score.toString() : '',
+          'color': colorHex,
+          'sortKey': -score,
         },
         'geometry': {
           'type': 'Point',
@@ -1039,20 +972,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // Single symbol layer — badge icon contains score number + colors
+      // Layer 1: tier badge icon (rounded square background)
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-layer',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.5,              // 96px image → ~48 logical pts
+          iconSize: 0.5,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
+          // Score number rendered natively by MapLibre (fast)
+          textField: ['get', 'score'],
+          textSize: 12,
+          textColor: ['get', 'color'],
+          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
         ),
       );
 
-      debugPrint('🗺️ Rendered ${spots.length} badge markers');
+      debugPrint('🗺️ Rendered ${spots.length} badge markers (6 tier images)');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
@@ -1079,7 +1019,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     final spot = _visibleSpots[_selectedSpotIndex!];
     final score = spot.shakaScore ?? 0;
-    final icon = spot.shakaScore != null ? 'score-$score' : 'score-none';
+    final tierKey = _tierKeyForScore(spot.shakaScore);
     final scoreColor = _getScoreColorHex(score);
 
     final geojson = {
@@ -1092,7 +1032,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
           },
           'properties': {
-            'icon': icon,
+            'icon': tierKey,
+            'score': (spot.shakaScore != null) ? score.toString() : '',
+            'color': scoreColor,
             'glowColor': scoreColor,
           },
         },
@@ -1121,15 +1063,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // 2. Badge icon on top — slightly larger than base markers
+      // 2. Badge icon + score text — slightly larger than base markers
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.6,            // 96px → ~58 pts (vs ~48 for base)
+          iconSize: 0.6,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
+          textField: ['get', 'score'],
+          textSize: 14,
+          textColor: ['get', 'color'],
+          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
         ),
       );
     } catch (e) {
@@ -1735,12 +1683,7 @@ class _SpotMarkerCard extends StatelessWidget {
 
   Color _getScoreColor(int score) => AppColors.getScoreColor(score);
 
-  String _getScoreLabel(int score) {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Fair';
-    return 'Poor';
-  }
+  String _getScoreLabel(int score) => AppColors.getScoreLabel(score);
 
   @override
   Widget build(BuildContext context) {
@@ -1856,6 +1799,10 @@ class _SpotMarkerCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (spot.shakaScore != null) ...[
+                          const SizedBox(width: 8),
+                          ScoreTierPill(score: score, width: 50, height: 10),
+                        ],
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(

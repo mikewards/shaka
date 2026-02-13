@@ -9,6 +9,7 @@ import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
+import '../../widgets/score_tier_pill.dart';
 
 class SpotDetailScreen extends StatefulWidget {
   final String spotId;
@@ -268,28 +269,34 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ],
             ),
           ),
-          // Score badge
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: _getScoreColor(spot.score.overall).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _getScoreColor(spot.score.overall),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '${spot.score.overall}',
-                style: TextStyle(
-                  color: _getScoreColor(spot.score.overall),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          // Score badge + tier pill
+          Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _getScoreColor(spot.score.overall).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getScoreColor(spot.score.overall),
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    '${spot.score.overall}',
+                    style: TextStyle(
+                      color: _getScoreColor(spot.score.overall),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 6),
+              ScoreTierPill(score: spot.score.overall, width: 52, height: 10),
+            ],
           ),
         ],
       ),
@@ -474,26 +481,31 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             ),
           ),
 
-          // Score
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _getScoreColor(day.shakaScore).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: _getScoreColor(day.shakaScore), width: 1.5),
-            ),
-            child: Center(
-              child: Text(
-                '${day.shakaScore}',
-                style: TextStyle(
-                  color: _getScoreColor(day.shakaScore),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+          // Score + tier pill
+          Column(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _getScoreColor(day.shakaScore).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _getScoreColor(day.shakaScore), width: 1.5),
+                ),
+                child: Center(
+                  child: Text(
+                    '${day.shakaScore}',
+                    style: TextStyle(
+                      color: _getScoreColor(day.shakaScore),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 4),
+              ScoreTierPill(score: day.shakaScore, width: 40, height: 6),
+            ],
           ),
 
           const SizedBox(width: 14),
@@ -1220,27 +1232,33 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ],
             ),
           ),
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: _getScoreColor(spot.shakaScore).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _getScoreColor(spot.shakaScore),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '${spot.shakaScore}',
-                style: TextStyle(
-                  color: _getScoreColor(spot.shakaScore),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _getScoreColor(spot.shakaScore).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getScoreColor(spot.shakaScore),
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    '${spot.shakaScore}',
+                    style: TextStyle(
+                      color: _getScoreColor(spot.shakaScore),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 6),
+              ScoreTierPill(score: spot.shakaScore, width: 52, height: 10),
+            ],
           ),
         ],
       ),

@@ -523,10 +523,10 @@ class _ScoreRow extends StatelessWidget {
   }
 
   String _getScoreDescription(int score) {
-    if (score >= 90) return 'Excellent conditions';
-    if (score >= 75) return 'Good conditions';
-    if (score >= 60) return 'Fair conditions';
-    if (score >= 40) return 'Below average';
+    if (score >= 80) return 'Excellent conditions';
+    if (score >= 60) return 'Good conditions';
+    if (score >= 40) return 'Average conditions';
+    if (score >= 20) return 'Below average';
     return 'Poor conditions';
   }
 }
