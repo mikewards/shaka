@@ -269,33 +269,31 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ],
             ),
           ),
-          // Score badge + tier pill
+          // Score number + tier pill
           Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: _getScoreColor(spot.score.overall).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _getScoreColor(spot.score.overall),
-                    width: 2,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    '${spot.score.overall}',
-                    style: TextStyle(
-                      color: _getScoreColor(spot.score.overall),
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              Text(
+                '${spot.score.overall}',
+                style: TextStyle(
+                  color: _getScoreColor(spot.score.overall),
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
                 ),
               ),
               const SizedBox(height: 6),
               ScoreTierPill(score: spot.score.overall, width: 52, height: 10),
+              const SizedBox(height: 4),
+              Text(
+                AppColors.getScoreLabel(spot.score.overall),
+                style: TextStyle(
+                  color: _getScoreColor(spot.score.overall).withOpacity(0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ],
           ),
         ],
@@ -484,23 +482,13 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           // Score + tier pill
           Column(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getScoreColor(day.shakaScore).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _getScoreColor(day.shakaScore), width: 1.5),
-                ),
-                child: Center(
-                  child: Text(
-                    '${day.shakaScore}',
-                    style: TextStyle(
-                      color: _getScoreColor(day.shakaScore),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              Text(
+                '${day.shakaScore}',
+                style: TextStyle(
+                  color: _getScoreColor(day.shakaScore),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
                 ),
               ),
               const SizedBox(height: 4),
@@ -1234,30 +1222,27 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           ),
           Column(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: _getScoreColor(spot.shakaScore).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _getScoreColor(spot.shakaScore),
-                    width: 2,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    '${spot.shakaScore}',
-                    style: TextStyle(
-                      color: _getScoreColor(spot.shakaScore),
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              Text(
+                '${spot.shakaScore}',
+                style: TextStyle(
+                  color: _getScoreColor(spot.shakaScore),
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
                 ),
               ),
               const SizedBox(height: 6),
               ScoreTierPill(score: spot.shakaScore, width: 52, height: 10),
+              const SizedBox(height: 4),
+              Text(
+                AppColors.getScoreLabel(spot.shakaScore),
+                style: TextStyle(
+                  color: _getScoreColor(spot.shakaScore).withOpacity(0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ],
           ),
         ],

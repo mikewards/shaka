@@ -858,43 +858,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Score badge image generation (painted via Canvas → PNG → MapLibre icon)
+  // Map marker image generation (painted via Canvas → PNG → MapLibre icon)
   // ---------------------------------------------------------------------------
 
-  /// Paint a tier badge: rounded square with dark fill & colored border.
-  /// No text — the score number is rendered by MapLibre's symbol text layer.
-  /// Only 6 images total (5 tiers + 1 no-score) instead of ~40 per-score.
-  Future<Uint8List> _generateTierBadgeImage(Color tierColor) async {
+  /// Paint a filled circle for a tier color with a dark outer ring.
+  /// Text overlay is handled by MapLibre's native symbol text layer.
+  Future<Uint8List> _generateTierDotImage(Color tierColor) async {
     const double px = 3.0;
-    const double size = 32.0 * px; // 96 actual pixels
+    const double size = 28.0 * px; // 84 actual pixels
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
 
-    final double borderW = 2.0 * px;
-    final double radius = 8.0 * px;
-    final rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(borderW / 2, borderW / 2,
-          size - borderW, size - borderW),
-      Radius.circular(radius),
-    );
+    final center = Offset(size / 2, size / 2);
+    final outerR = size / 2 - 1.0 * px;
+    final innerR = outerR - 2.0 * px;
 
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1A1A1A));
-    canvas.drawRRect(rrect, Paint()..color = tierColor.withOpacity(0.15));
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..color = tierColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = borderW,
-    );
+    // Dark ring
+    canvas.drawCircle(center, outerR, Paint()..color = const Color(0xFF1A1A1A));
+    // Tier-color fill
+    canvas.drawCircle(center, innerR, Paint()..color = tierColor.withOpacity(0.85));
 
     final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
   }
 
-  /// Register the 6 badge images (5 tiers + no-score). Only 6 addImage calls.
+  /// Register the 6 dot images (5 tiers + no-score). Only 6 addImage calls.
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
 
@@ -909,7 +899,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     for (final entry in tiers.entries) {
       if (_registeredBadgeImages.contains(entry.key)) continue;
-      _badgeImageCache[entry.key] ??= await _generateTierBadgeImage(entry.value);
+      _badgeImageCache[entry.key] ??= await _generateTierDotImage(entry.value);
       if (_mapController == null) return;
       await _mapController!.addImage(entry.key, _badgeImageCache[entry.key]!);
       _registeredBadgeImages.add(entry.key);
@@ -972,7 +962,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // Layer 1: tier badge icon (rounded square background)
+      // Tier-colored dot with white score number on top
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-layer',
@@ -981,10 +971,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
           iconSize: 0.5,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
-          // Score number rendered natively by MapLibre (fast)
           textField: ['get', 'score'],
-          textSize: 12,
-          textColor: ['get', 'color'],
+          textSize: 11,
+          textColor: '#FFFFFF',
+          textHaloColor: '#1A1A1A',
+          textHaloWidth: 1,
           textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
           textAllowOverlap: true,
           textIgnorePlacement: true,
@@ -992,7 +983,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         ),
       );
 
-      debugPrint('🗺️ Rendered ${spots.length} badge markers (6 tier images)');
+      debugPrint('🗺️ Rendered ${spots.length} dot markers (6 tier images)');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
@@ -1063,18 +1054,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // 2. Badge icon + score text — slightly larger than base markers
+      // 2. Dot icon + score text — slightly larger than base markers
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.6,
+          iconSize: 0.7,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
           textField: ['get', 'score'],
-          textSize: 14,
-          textColor: ['get', 'color'],
+          textSize: 13,
+          textColor: '#FFFFFF',
+          textHaloColor: '#1A1A1A',
+          textHaloWidth: 1,
           textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
           textAllowOverlap: true,
           textIgnorePlacement: true,
@@ -1704,43 +1697,42 @@ class _SpotMarkerCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Score badge or loading spinner
-            Container(
+            // Score number + tier pill
+            SizedBox(
               width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _getScoreColor(score).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _getScoreColor(score),
-                  width: 2,
-                ),
-              ),
-              child: Center(
-                child: spot.shakaScore != null
-                    ? Text(
-                        '$score',
-                        style: TextStyle(
-                          color: _getScoreColor(score),
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+              child: spot.shakaScore != null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$score',
+                          style: TextStyle(
+                            color: _getScoreColor(score),
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            height: 1.0,
+                          ),
                         ),
-                      )
-                    : isLoading
-                        ? const SizedBox(
+                        const SizedBox(height: 4),
+                        ScoreTierPill(score: score, width: 44, height: 8),
+                      ],
+                    )
+                  : isLoading
+                      ? const Center(
+                          child: SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Color(0xFF7A9BB8),
                             ),
-                          )
-                        : Icon(
-                            Icons.hourglass_empty,
-                            color: _getScoreColor(score),
-                            size: 22,
                           ),
-              ),
+                        )
+                      : Icon(
+                          Icons.hourglass_empty,
+                          color: _getScoreColor(score),
+                          size: 22,
+                        ),
             ),
             const SizedBox(width: 12),
             
@@ -1913,40 +1905,42 @@ class _SavedSpotCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Score badge or loading spinner
-              Container(
+              // Score number + tier pill
+              SizedBox(
                 width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: scoreColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
-                ),
-                child: Center(
-                  child: hasScore
-                      ? Text(
-                          '${spot.shakaScore}',
-                          style: TextStyle(
-                            color: scoreColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                child: hasScore
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${spot.shakaScore}',
+                            style: TextStyle(
+                              color: scoreColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
                           ),
-                        )
-                      : isLoading
-                          ? const SizedBox(
+                          const SizedBox(height: 3),
+                          ScoreTierPill(score: spot.shakaScore ?? 0, width: 36, height: 6),
+                        ],
+                      )
+                    : isLoading
+                        ? const Center(
+                            child: SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Color(0xFF7A9BB8),
                               ),
-                            )
-                          : Icon(
-                              Icons.location_on,
-                              color: scoreColor,
-                              size: 20,
                             ),
-                ),
+                          )
+                        : Icon(
+                            Icons.location_on,
+                            color: scoreColor,
+                            size: 20,
+                          ),
               ),
               const SizedBox(width: 12),
               Expanded(

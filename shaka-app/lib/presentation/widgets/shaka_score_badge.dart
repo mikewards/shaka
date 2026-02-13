@@ -50,29 +50,17 @@ class ShakaScoreBadge extends StatelessWidget {
     final badge = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: badgeSize,
-          height: badgeSize,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
-            shape: BoxShape.circle,
-            border: Border.all(color: color.withOpacity(0.4), width: 1.5),
-          ),
-          child: Center(
-            child: Text(
-              '$score',
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w400,
-                color: color,
-                fontFamily: 'Inter',
-                letterSpacing: -0.5,
-              ),
-            ),
+        Text(
+          '$score',
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.bold,
+            color: color,
+            height: 1.0,
           ),
         ),
         const SizedBox(height: 6),
-        ScoreTierPill(score: score, width: badgeSize, height: 8),
+        ScoreTierPill(score: score, width: badgeSize * 0.85, height: 8),
         if (showLabel) ...[
           const SizedBox(height: 6),
           Row(
