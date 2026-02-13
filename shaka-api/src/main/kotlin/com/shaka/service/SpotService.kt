@@ -261,7 +261,7 @@ class SpotService {
                     } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                     wind = cached?.wind?.let { 
                         "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                    } ?: "${weather.windSpeed.toInt()} knots",
+                    } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                     tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                     dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                     satelliteDataDate = satelliteDataDate
@@ -493,7 +493,7 @@ class SpotService {
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                } ?: "${weather.windSpeed.toInt()} knots",
+                } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
@@ -657,7 +657,7 @@ class SpotService {
                         visibility = getVisibilityLabel(waterQuality?.chlorophyllA, null),
                         waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
-                        wind = "${weather.windSpeed.toInt()} knots",
+                        wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                         tideState = ""
                     ),
                     expectedFish = spot.commonFish,
@@ -1415,7 +1415,7 @@ class SpotService {
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                } ?: "${weather.windSpeed.toInt()} knots",
+                } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate

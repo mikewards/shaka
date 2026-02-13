@@ -293,130 +293,39 @@ class _ConditionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        _showSourceInfo(context);
-      },
-      child: Container(
-        padding: EdgeInsets.only(
-          top: 10,
-          bottom: isLast ? 4 : 10,
-        ),
-        decoration: BoxDecoration(
-          border: isLast
-              ? null
-              : const Border(
-                  bottom: BorderSide(color: Colors.white10),
-                ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.info_outline, size: 10, color: Colors.white24),
-              ],
-            ),
-            Flexible(
-              child: Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.right,
+    return Container(
+      padding: EdgeInsets.only(
+        top: 10,
+        bottom: isLast ? 4 : 10,
+      ),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(
+                bottom: BorderSide(color: Colors.white10),
               ),
-            ),
-          ],
-        ),
       ),
-    );
-  }
-
-  void _showSourceInfo(BuildContext context) {
-    final source = _conditionSources[sourceKey];
-    if (source == null) return;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                  color: AppColors.textMuted,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildInfoRow(context, 'Source', source.source),
-            _buildInfoRow(context, 'Updates', source.updateFrequency),
-            const SizedBox(height: 12),
-            Text(
-              source.description,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textMuted,
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 70,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textMuted,
-              ),
-            ),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
           ),
-          Expanded(
+          Flexible(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.oceanBlue,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
+              textAlign: TextAlign.right,
             ),
           ),
         ],
       ),
     );
   }
+
 }
