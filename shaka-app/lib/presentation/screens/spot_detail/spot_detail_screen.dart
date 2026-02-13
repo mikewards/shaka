@@ -301,18 +301,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         const SizedBox(height: 20),
 
-        // Satellite Visibility (collapsed label, expandable details)
-        if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
-          SatelliteReadingsCard(readings: spot.satelliteReadings),
-          const SizedBox(height: 20),
-        ],
-
         // Score Breakdown
         _buildSectionHeader('SCORE BREAKDOWN'),
         const SizedBox(height: 10),
         _buildScoreBreakdown(spot.score.breakdown),
 
         const SizedBox(height: 20),
+
+        // Satellite Visibility (collapsed label, expandable details)
+        if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
+          _buildSectionHeader('VISIBILITY'),
+          const SizedBox(height: 10),
+          SatelliteReadingsCard(readings: spot.satelliteReadings),
+          const SizedBox(height: 20),
+        ],
 
         // Risks
         if (spot.risks.isNotEmpty) ...[
