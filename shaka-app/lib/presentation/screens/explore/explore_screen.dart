@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' show Point, sqrt;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -64,6 +65,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Debounce timer for map animations
   Timer? _mapAnimationDebounce;
   bool _isFromMarkerTap = false;
+  
+  // Registered score badge images (prevent duplicate addImage calls)
+  final Set<String> _registeredBadgeImages = {};
   
   // Debounce timer for viewport filtering (no API calls, just client-side filter)
   Timer? _viewportFilterDebounce;
@@ -846,53 +850,169 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Score badge image generation (painted via Canvas → PNG → MapLibre icon)
+  // ---------------------------------------------------------------------------
+
+  /// Paint a score badge matching the carousel/detail style:
+  /// rounded square, dark fill, score-colored border & number.
+  /// Returns PNG bytes suitable for [MapLibreMapController.addImage].
+  ///
+  /// Generated at 3× so text is crisp on retina; displayed via iconSize 0.33.
+  Future<Uint8List> _generateScoreBadgeImage(int score) async {
+    final scoreColor = AppColors.getScoreColor(score);
+    const double px = 3.0;           // pixel multiplier (3× retina)
+    const double logicalSize = 32.0; // logical point size of badge
+    final double size = logicalSize * px; // 96 actual pixels
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
+
+    final double borderW = 2.0 * px;
+    final double radius = 8.0 * px;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(borderW / 2, borderW / 2,
+          size - borderW, size - borderW),
+      Radius.circular(radius),
+    );
+
+    // 1. Solid dark background
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1A1A1A));
+    // 2. Score-color tint
+    canvas.drawRRect(rrect, Paint()..color = scoreColor.withOpacity(0.15));
+    // 3. Score-color border
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = scoreColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderW,
+    );
+
+    // 4. Score number
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '$score',
+        style: TextStyle(
+          color: scoreColor,
+          fontSize: 13.0 * px,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
+
+    // Rasterize to PNG
+    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  /// A neutral gray badge shown for spots that have no score yet.
+  Future<Uint8List> _generateNoScoreBadgeImage() async {
+    const double px = 3.0;
+    const double size = 32.0 * px;
+    const grayColor = Color(0xFF555555);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size, size));
+
+    final double borderW = 1.5 * px;
+    final double radius = 8.0 * px;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(borderW / 2, borderW / 2,
+          size - borderW, size - borderW),
+      Radius.circular(radius),
+    );
+
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1A1A1A));
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = grayColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderW,
+    );
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '—',
+        style: TextStyle(
+          color: grayColor,
+          fontSize: 12.0 * px,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
+
+    final image = await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  /// Register badge images for every unique score in [_allSpots].
+  /// Skips scores already registered (idempotent across rebuilds).
+  Future<void> _registerScoreBadgeImages() async {
+    if (_mapController == null) return;
+
+    // Collect unique scores
+    final scores = _allSpots
+        .where((s) => s.shakaScore != null)
+        .map((s) => s.shakaScore!)
+        .toSet();
+
+    for (final score in scores) {
+      final key = 'score-$score';
+      if (_registeredBadgeImages.contains(key)) continue;
+      final bytes = await _generateScoreBadgeImage(score);
+      if (_mapController == null) return; // controller gone during await
+      await _mapController!.addImage(key, bytes);
+      _registeredBadgeImages.add(key);
+    }
+
+    // No-score placeholder
+    if (!_registeredBadgeImages.contains('score-none')) {
+      final bytes = await _generateNoScoreBadgeImage();
+      if (_mapController == null) return;
+      await _mapController!.addImage('score-none', bytes);
+      _registeredBadgeImages.add('score-none');
+    }
+  }
+
   /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
   /// Shows ALL spots (not filtered) - markers persist during pan/zoom
   Future<void> _updateMarkers() async {
-    if (_mapController == null || !_isMapReady) {
-      return;
-    }
-    
+    if (_mapController == null || !_isMapReady) return;
+
     final spots = _allSpots;
-    
-    // Remove existing marker layers and source (use safe ?. operator)
-    try {
-      await _mapController?.removeLayer('spots-labels');
-    } catch (_) {}
-    try {
-      await _mapController?.removeLayer('spots-layer');
-    } catch (_) {}
-    try {
-      await _mapController?.removeSource('spots-source');
-    } catch (_) {}
-    
-    // Bail out if controller was nulled during removals
-    if (_mapController == null) return;
-    
-    if (spots.isEmpty) {
-      return;
+
+    // Remove old layers & source
+    for (final id in ['spots-labels', 'spots-layer']) {
+      try { await _mapController?.removeLayer(id); } catch (_) {}
     }
-    
-    // Build GeoJSON features for ALL spots. sortKey = score so when labels overlap,
-    // only the highest-score (top) spot's number is shown.
-    // User spots get a cyan border to visually distinguish from curated spots.
+    try { await _mapController?.removeSource('spots-source'); } catch (_) {}
+    if (_mapController == null || spots.isEmpty) return;
+
+    // Ensure badge icons are registered for every score in the data
+    await _registerScoreBadgeImages();
+    if (_mapController == null) return;
+
+    // Build GeoJSON — each feature carries its icon key
     final features = spots.map((spot) {
       final score = spot.shakaScore ?? 0;
-      final color = _getScoreColorHex(score);
-      final isUser = spot.isUserSpot;
+      final icon = spot.shakaScore != null ? 'score-$score' : 'score-none';
       return {
         'type': 'Feature',
         'properties': {
           'id': spot.id,
           'name': spot.name,
-          'score': (spot.shakaScore != null) ? score.toString() : '',
-          'sortKey': -score,
-          'color': color,
-          'radius': isUser ? 15 : 14,
-          'strokeWidth': isUser ? 2.5 : 0,
-          'strokeColor': isUser ? '#7A9BB8' : '#00000000',
-          'textSize': 11,
-          'isUserSpot': isUser,
+          'icon': icon,
+          'sortKey': -score, // higher scores render on top
         },
         'geometry': {
           'type': 'Point',
@@ -900,62 +1020,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
         },
       };
     }).toList();
-    
-    final geojson = {
-      'type': 'FeatureCollection',
-      'features': features,
-    };
-    
-    // Bail out if controller was nulled during feature building
-    if (_mapController == null) return;
-    
+
     try {
-      // Add GeoJSON source
       await _mapController!.addSource(
         'spots-source',
-        GeojsonSourceProperties(data: geojson),
+        GeojsonSourceProperties(data: {
+          'type': 'FeatureCollection',
+          'features': features,
+        }),
       );
-      
-      // Check after await
       if (_mapController == null) return;
-      
-      // Add circle layer - base circles with score colors
-      await _mapController!.addCircleLayer(
-        'spots-source',
-        'spots-layer',
-        const CircleLayerProperties(
-          circleRadius: ['get', 'radius'],
-          circleColor: ['get', 'color'],
-          circleStrokeColor: ['get', 'strokeColor'],
-          circleStrokeWidth: ['get', 'strokeWidth'],
-          circleOpacity: 1.0,
-          circleStrokeOpacity: 1.0,
-        ),
-      );
-      
-      // Check after await
-      if (_mapController == null) return;
-      
-      // Score labels visible from zoom 6; textPadding matches circle radius so
-      // collision zone = visual circle. Higher scores win (sortKey negated above).
+
+      // Single symbol layer — badge icon contains score number + colors
       await _mapController!.addSymbolLayer(
         'spots-source',
-        'spots-labels',
+        'spots-layer',
         const SymbolLayerProperties(
-          textField: ['get', 'score'],
-          textSize: ['get', 'textSize'],
-          textColor: '#FFFFFF',
-          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          textHaloColor: '#000000',
-          textHaloWidth: 1.0,
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
+          iconImage: ['get', 'icon'],
+          iconSize: 0.33,             // 96px image → 32 logical pts
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
         ),
-        minzoom: 6,
       );
-      
-      debugPrint('🗺️ Rendered ${spots.length} spot markers');
+
+      debugPrint('🗺️ Rendered ${spots.length} badge markers');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
@@ -972,7 +1061,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_mapController == null) return;
 
     // Remove old layers (order matters: labels, circle, ring, then source)
-    for (final id in ['selected-spot-label', 'selected-spot-circle', 'selected-spot-ring']) {
+    for (final id in ['selected-spot-icon', 'selected-spot-ring']) {
       try { await _mapController?.removeLayer(id); } catch (_) {}
     }
     try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
@@ -982,8 +1071,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     final spot = _visibleSpots[_selectedSpotIndex!];
     final score = spot.shakaScore ?? 0;
-    final color = _getScoreColorHex(score);
-    final isUser = spot.isUserSpot;
+    final icon = spot.shakaScore != null ? 'score-$score' : 'score-none';
+    final scoreColor = _getScoreColorHex(score);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -995,11 +1084,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
           },
           'properties': {
-            'score': (spot.shakaScore != null) ? score.toString() : '',
-            'color': color,
-            'radius': isUser ? 15 : 14,
-            'strokeWidth': isUser ? 2.5 : 0,
-            'strokeColor': isUser ? '#7A9BB8' : '#00000000',
+            'icon': icon,
+            'glowColor': scoreColor,
           },
         },
       ],
@@ -1010,54 +1096,32 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'selected-spot-source',
         GeojsonSourceProperties(data: geojson),
       );
-
       if (_mapController == null) return;
 
-      // 1. Glow ring (bottom of the three elevated layers)
+      // 1. Glow ring behind the badge (score-colored)
       await _mapController!.addCircleLayer(
         'selected-spot-source',
         'selected-spot-ring',
         const CircleLayerProperties(
-          circleRadius: 20,
-          circleColor: '#8A8A8A',
-          circleOpacity: 0.2,
-          circleStrokeColor: '#8A8A8A',
-          circleStrokeWidth: 2.5,
+          circleRadius: 22,
+          circleColor: ['get', 'glowColor'],
+          circleOpacity: 0.15,
+          circleStrokeColor: ['get', 'glowColor'],
+          circleStrokeWidth: 2,
           circleStrokeOpacity: 0.5,
         ),
       );
-
       if (_mapController == null) return;
 
-      // 2. Spot circle (same style as in spots-layer, but rendered on top)
-      await _mapController!.addCircleLayer(
-        'selected-spot-source',
-        'selected-spot-circle',
-        const CircleLayerProperties(
-          circleRadius: ['get', 'radius'],
-          circleColor: ['get', 'color'],
-          circleStrokeColor: ['get', 'strokeColor'],
-          circleStrokeWidth: ['get', 'strokeWidth'],
-          circleOpacity: 1.0,
-          circleStrokeOpacity: 1.0,
-        ),
-      );
-
-      if (_mapController == null) return;
-
-      // 3. Score label (on top of everything)
+      // 2. Badge icon on top — slightly larger than base markers
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
-        'selected-spot-label',
+        'selected-spot-icon',
         const SymbolLayerProperties(
-          textField: ['get', 'score'],
-          textSize: 11,
-          textColor: '#FFFFFF',
-          textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-          textHaloColor: '#000000',
-          textHaloWidth: 1.0,
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
+          iconImage: ['get', 'icon'],
+          iconSize: 0.40,           // 96px → ~38 pts (vs 32 pts for base)
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
         ),
       );
     } catch (e) {
