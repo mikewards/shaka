@@ -871,25 +871,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
     const double px = 3.0;
     const int segments = 5;
     const double segW = 10.0 * px;   // 30 actual px per segment
-    const double segH = 14.0 * px;   // 42 actual px tall (was 24)
+    const double segH = 14.0 * px;   // 42 actual px tall
     const double gap = 2.0 * px;     // 6 actual px gap
-    const double pad = 2.0 * px;     // outer padding
+    const double pad = 3.0 * px;     // outer padding
     final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
     final double totalH = pad * 2 + segH;
-    final double r = 4.0 * px;       // corner radius for end caps
+    // Fully rounded background (capsule shape)
+    final double bgR = totalH / 2;
+    // Segment end-cap radius — matches Flutter widget proportions
+    final double segR = segH * 0.3;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
 
-    // Dark pill background with rounded ends
-    final bgPath = Path()..addRRect(RRect.fromRectAndCorners(
-      Rect.fromLTWH(0, 0, totalW, totalH),
-      topLeft: Radius.circular(r), bottomLeft: Radius.circular(r),
-      topRight: Radius.circular(r), bottomRight: Radius.circular(r),
-    ));
-    canvas.drawPath(bgPath, Paint()..color = const Color(0xDD1A1A1A));
+    // Dark capsule background
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(bgR)),
+      Paint()..color = const Color(0xDD1A1A1A),
+    );
 
-    // Draw 5 segments — only outer edges of first/last are rounded
+    // Draw 5 segments — first/last get rounded outer edges, middle are sharp
     for (int i = 0; i < segments; i++) {
       final x = pad + i * (segW + gap);
       final isFilled = i < tier;
@@ -897,10 +898,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final isLast = i == segments - 1;
       final segRect = RRect.fromRectAndCorners(
         Rect.fromLTWH(x, pad, segW, segH),
-        topLeft: isFirst ? Radius.circular(r * 0.6) : Radius.zero,
-        bottomLeft: isFirst ? Radius.circular(r * 0.6) : Radius.zero,
-        topRight: isLast ? Radius.circular(r * 0.6) : Radius.zero,
-        bottomRight: isLast ? Radius.circular(r * 0.6) : Radius.zero,
+        topLeft: isFirst ? Radius.circular(segR) : Radius.zero,
+        bottomLeft: isFirst ? Radius.circular(segR) : Radius.zero,
+        topRight: isLast ? Radius.circular(segR) : Radius.zero,
+        bottomRight: isLast ? Radius.circular(segR) : Radius.zero,
       );
       canvas.drawRRect(
         segRect,
