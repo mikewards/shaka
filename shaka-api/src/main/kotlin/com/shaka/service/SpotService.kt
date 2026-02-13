@@ -396,20 +396,13 @@ class SpotService {
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
         
-        // Community and forecast still fetched live (not cached)
-        val communityDeferred = async {
-            withTimeoutOrNull(3000) {
-                try { community.getReportsForRegion(region, 5) } catch (e: Exception) { emptyList() }
-            }
-        }
-        
+        // Forecast fetched live (community reports removed - not displayed in UI)
         val forecastDeferred = async {
             withTimeoutOrNull(6000) {
                 try { forecastService.getForecast(spotId, 5) } catch (e: Exception) { emptyList() }
             }
         }
         
-        val communityReports = communityDeferred.await() ?: emptyList()
         val forecast = forecastDeferred.await() ?: emptyList()
         
         // Build fishing intel from cache (prefetched daily)
@@ -526,7 +519,7 @@ class SpotService {
             risks = generateRisks(weather, ocean).map { risk ->
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
-            communityReports = communityReports,
+            communityReports = emptyList(),
             bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,

@@ -186,15 +186,6 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
               ),
             ),
             const SizedBox(width: 10),
-            // "Visibility" label
-            const Text(
-              'Visibility',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(width: 8),
             // The actual label (e.g., "Clear")
             Expanded(
               child: Text(
