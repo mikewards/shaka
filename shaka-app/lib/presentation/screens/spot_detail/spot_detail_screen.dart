@@ -301,10 +301,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         const SizedBox(height: 20),
 
-        // Satellite Readings (Visibility)
+        // Satellite Visibility (collapsed label, expandable details)
         if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
-          _buildSectionHeader('VISIBILITY (CHLOROPHYLL-A) SATELLITE READINGS'),
-          const SizedBox(height: 10),
           SatelliteReadingsCard(readings: spot.satelliteReadings),
           const SizedBox(height: 20),
         ],
@@ -1069,10 +1067,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               const SizedBox(height: 10),
               ConditionsCard(conditions: spot.conditions),
               const SizedBox(height: 20),
-              // Satellite readings from cache (instant!)
+              // Satellite Visibility (collapsed label, expandable details)
               if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
-                _buildSectionHeader('VISIBILITY (CHLOROPHYLL-A) SATELLITE READINGS'),
-                const SizedBox(height: 10),
                 SatelliteReadingsCard(readings: spot.satelliteReadings),
                 const SizedBox(height: 20),
               ],
