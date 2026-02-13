@@ -114,6 +114,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _bgService.addListener(_onBackgroundChanged);
     MapHomeService.mapHomeChanged.addListener(_onMapHomeChanged);
     _initDefaultCenter();
+    // Pre-generate all 6 pill PNGs before map loads (non-blocking)
+    _preGeneratePillImages();
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
     _loadSavedSpots();
   }
@@ -911,27 +913,40 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return bytes!.buffer.asUint8List();
   }
 
-  /// Register the 6 pill images (5 tiers + no-score). Only 6 addImage calls.
+  static const _tierDefs = <int, Color>{
+    5: AppColors.scoreExcellent,
+    4: AppColors.scoreGood,
+    3: AppColors.scoreAverage,
+    2: AppColors.scoreBelowAvg,
+    1: AppColors.scorePoor,
+    0: Color(0xFF555555), // no score
+  };
+
+  /// Pre-generate all 6 pill PNGs in parallel at startup (before map loads).
+  /// Stored in _badgeImageCache so _registerScoreBadgeImages just uploads.
+  Future<void> _preGeneratePillImages() async {
+    await Future.wait(_tierDefs.entries.map((entry) async {
+      final key = 'tier-${entry.key}';
+      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
+    }));
+  }
+
+  /// Upload pre-generated pill PNGs to the current GL context.
+  /// All bytes are already in _badgeImageCache — this just calls addImage.
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
 
-    final tiers = <int, Color>{
-      5: AppColors.scoreExcellent,
-      4: AppColors.scoreGood,
-      3: AppColors.scoreAverage,
-      2: AppColors.scoreBelowAvg,
-      1: AppColors.scorePoor,
-      0: const Color(0xFF555555), // no score
-    };
+    // Wait for pre-generation if it hasn't finished yet
+    if (_badgeImageCache.length < 6) await _preGeneratePillImages();
 
-    for (final entry in tiers.entries) {
-      final key = 'tier-${entry.key}';
-      if (_registeredBadgeImages.contains(key)) continue;
-      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
+    // Upload all 6 in parallel
+    await Future.wait(_tierDefs.keys.map((tier) async {
+      final key = 'tier-$tier';
+      if (_registeredBadgeImages.contains(key)) return;
       if (_mapController == null) return;
       await _mapController!.addImage(key, _badgeImageCache[key]!);
       _registeredBadgeImages.add(key);
-    }
+    }));
   }
 
   /// Map a score to its tier icon key
@@ -1006,18 +1021,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
   
-  String _getScoreColorHex(int score) {
-    final color = AppColors.getScoreColor(score);
-    return '#${color.value.toRadixString(16).substring(2)}';
-  }
-
-  /// Highlight the selected spot and elevate it above all other markers.
-  /// Renders three layers on top: glow ring, spot circle, score label.
+  /// Highlight the selected spot — larger pill on top of base markers.
   Future<void> _updateSelectedMarker() async {
     if (_mapController == null) return;
 
-    // Remove old layers (order matters: labels, circle, ring, then source)
-    for (final id in ['selected-spot-icon', 'selected-spot-ring']) {
+    for (final id in ['selected-spot-icon']) {
       try { await _mapController?.removeLayer(id); } catch (_) {}
     }
     try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
@@ -1026,9 +1034,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_selectedSpotIndex == null || _selectedSpotIndex! >= _visibleSpots.length) return;
 
     final spot = _visibleSpots[_selectedSpotIndex!];
-    final score = spot.shakaScore ?? 0;
     final tierKey = _tierKeyForScore(spot.shakaScore);
-    final scoreColor = _getScoreColorHex(score);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -1041,7 +1047,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           },
           'properties': {
             'icon': tierKey,
-            'glowColor': scoreColor,
           },
         },
       ],
@@ -1054,28 +1059,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // 1. Glow ring behind the badge (score-colored)
-      await _mapController!.addCircleLayer(
-        'selected-spot-source',
-        'selected-spot-ring',
-        const CircleLayerProperties(
-          circleRadius: 22,
-          circleColor: ['get', 'glowColor'],
-          circleOpacity: 0.15,
-          circleStrokeColor: ['get', 'glowColor'],
-          circleStrokeWidth: 2,
-          circleStrokeOpacity: 0.5,
-        ),
-      );
-      if (_mapController == null) return;
-
-      // 2. Pill icon — slightly larger than base markers
+      // Larger pill — same icon, just scaled up
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.7,
+          iconSize: 0.75,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
