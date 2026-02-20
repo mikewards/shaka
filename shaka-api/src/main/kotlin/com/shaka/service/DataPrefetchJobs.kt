@@ -689,6 +689,69 @@ class DataPrefetchJobs(
                     logger.debug("User spot weather fetch failed for ${spot.name}: ${e.message}")
                 }
                 
+                // SST from NOAA ERDDAP
+                var gotSST = false
+                try {
+                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
+                    SpotDataCache.updateSST(
+                        cacheId,
+                        SpotDataCache.CachedValue(
+                            value = sst,
+                            fetchedAt = now,
+                            dataValidAt = Instant.now().minusSeconds(86400)
+                        )
+                    )
+                    gotSST = true
+                    gotData = true
+                } catch (e: Exception) {
+                    logger.debug("User spot SST fetch failed for ${spot.name}: ${e.message}")
+                }
+                
+                // Water quality from Copernicus (visibility, chlorophyll, SST fallback)
+                try {
+                    val waterQuality = copernicus.getWaterQuality(lat, lon, today)
+                    
+                    waterQuality.visibility?.let { vis ->
+                        SpotDataCache.updateVisibility(
+                            cacheId,
+                            SpotDataCache.CachedValue(
+                                value = vis,
+                                fetchedAt = now,
+                                dataValidAt = Instant.now().minusSeconds(86400)
+                            )
+                        )
+                        gotData = true
+                    }
+                    
+                    waterQuality.chlorophyllA?.let { chl ->
+                        SpotDataCache.updateChlorophyll(
+                            cacheId,
+                            SpotDataCache.CachedValue(
+                                value = chl,
+                                fetchedAt = now,
+                                dataValidAt = Instant.now().minusSeconds(86400)
+                            )
+                        )
+                        gotData = true
+                    }
+                    
+                    if (!gotSST) {
+                        waterQuality.seaSurfaceTemp?.let { sst ->
+                            SpotDataCache.updateSST(
+                                cacheId,
+                                SpotDataCache.CachedValue(
+                                    value = sst,
+                                    fetchedAt = now,
+                                    dataValidAt = Instant.now().minusSeconds(86400)
+                                )
+                            )
+                            gotData = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.debug("User spot Copernicus fetch failed for ${spot.name}: ${e.message}")
+                }
+                
                 // GIBS Satellite Colors (for display only)
                 try {
                     val gibsColors = GIBSClient.getAllSatelliteColors(lat, lon)
