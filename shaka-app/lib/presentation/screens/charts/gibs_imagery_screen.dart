@@ -1,5 +1,6 @@
 import 'dart:async' show Timer;
 import 'dart:math' show Point, sqrt;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import '../../../data/services/map_home_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/save_spot_sheet.dart';
+import '../../widgets/score_tier_pill.dart';
 
 /// GIBS Satellite Imagery Screen
 /// Uses MapLibre GL to display NASA GIBS satellite imagery layers
@@ -105,6 +107,12 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   Timer? _spotPulseTimer;
   bool _pulseExpanded = false;
   
+  // Pill badge image tracking (same system as Explore):
+  // _badgeImageCache holds generated PNG bytes (survives style changes),
+  // _registeredBadgeImages tracks what's uploaded to the current GL context.
+  final Map<String, Uint8List> _badgeImageCache = {};
+  final Set<String> _registeredBadgeImages = {};
+
   // Tap detection for spot markers
   Offset? _pointerDownPosition;
   DateTime? _pointerDownTime;
@@ -135,6 +143,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       _initialZoom = _defaultZoom;
       _loadInitialCenter();
     }
+
+    // Pre-generate pill PNGs before map loads
+    _preGeneratePillImages();
 
     // Immersive status bar
     SystemChrome.setSystemUIOverlayStyle(
@@ -227,6 +238,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
     _mapController = null;
     _styleVersion++;
+    _registeredBadgeImages.clear();
     
     setState(() {
       _gibsMapStyle = style;
@@ -712,95 +724,139 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Pill-shaped tier indicator images (same system as Explore)
+  // ---------------------------------------------------------------------------
+
+  static const _tierDefs = <int, Color>{
+    5: AppColors.scoreExcellent,
+    4: AppColors.scoreGood,
+    3: AppColors.scoreAverage,
+    2: AppColors.scoreBelowAvg,
+    1: AppColors.scorePoor,
+    0: Color(0xFF555555),
+  };
+
+  Future<Uint8List> _generateTierPillImage(int tier, Color tierColor) async {
+    const double px = 3.0;
+    const int segments = 5;
+    const double segW = 10.0 * px;
+    const double segH = 14.0 * px;
+    const double gap = 2.0 * px;
+    const double pad = 3.0 * px;
+    final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
+    final double totalH = pad * 2 + segH;
+    final double capR = segH / 2;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(totalH / 2)),
+      Paint()..color = const Color(0xDD1A1A1A),
+    );
+
+    for (int i = 0; i < segments; i++) {
+      final x = pad + i * (segW + gap);
+      final isFilled = i < tier;
+      final isFirst = i == 0;
+      final isLast = i == segments - 1;
+      final segRect = RRect.fromRectAndCorners(
+        Rect.fromLTWH(x, pad, segW, segH),
+        topLeft: isFirst ? Radius.circular(capR) : Radius.zero,
+        bottomLeft: isFirst ? Radius.circular(capR) : Radius.zero,
+        topRight: isLast ? Radius.circular(capR) : Radius.zero,
+        bottomRight: isLast ? Radius.circular(capR) : Radius.zero,
+      );
+      canvas.drawRRect(
+        segRect,
+        Paint()..color = isFilled ? tierColor : Colors.white.withOpacity(0.12),
+      );
+    }
+
+    final image = await recorder.endRecording().toImage(totalW.toInt(), totalH.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
+
+  Future<void> _preGeneratePillImages() async {
+    await Future.wait(_tierDefs.entries.map((entry) async {
+      final key = 'tier-${entry.key}';
+      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
+    }));
+  }
+
+  Future<void> _registerScoreBadgeImages() async {
+    if (_mapController == null) return;
+    if (_badgeImageCache.length < 6) await _preGeneratePillImages();
+
+    await Future.wait(_tierDefs.keys.map((tier) async {
+      final key = 'tier-$tier';
+      if (_registeredBadgeImages.contains(key)) return;
+      if (_mapController == null) return;
+      await _mapController!.addImage(key, _badgeImageCache[key]!);
+      _registeredBadgeImages.add(key);
+    }));
+  }
+
+  String _tierKeyForScore(int? score) {
+    if (score == null) return 'tier-0';
+    return 'tier-${AppColors.getScoreTier(score)}';
+  }
+
   Future<void> _updateSpotMarkers() async {
     if (_mapController == null || _savedSpots.isEmpty) return;
     
     await _removeSpotMarkers();
-    
-    // CRITICAL: Check controller after each await (prevents crashes)
     if (_mapController == null) return;
-    
-    // Build GeoJSON with sortKey so when labels overlap, only top (highest score) spot's number shows.
+
+    await _registerScoreBadgeImages();
+    if (_mapController == null) return;
+
     final features = _savedSpots.map((spot) {
-      final score = spot.shakaScore;
-      final hasScore = score != null;
-      final sortKey = hasScore ? -score! : 1;
-      final color = hasScore ? _getScoreColorHex(score!) : '#808080';
+      final score = spot.shakaScore ?? 0;
+      final tierKey = _tierKeyForScore(spot.shakaScore);
       return {
         'type': 'Feature',
+        'properties': {
+          'id': spot.id,
+          'name': spot.name,
+          'icon': tierKey,
+          'sortKey': -score,
+        },
         'geometry': {
           'type': 'Point',
           'coordinates': [spot.longitude, spot.latitude],
         },
-        'properties': {
-          'id': spot.id,
-          'name': spot.name,
-          'score': hasScore ? score.toString() : '',
-          'sortKey': sortKey,
-          'color': color,
-          'radius': 15,
-          'strokeWidth': 2.5,
-          'strokeColor': '#7A9BB8',
-          'textSize': 11,
-        },
       };
     }).toList();
-    
-    final geojson = {
-      'type': 'FeatureCollection',
-      'features': features,
-    };
-    
-    if (_mapController == null) return;
-    
-    // Add source
-    await _mapController!.addSource(
-      'saved-spots-source',
-      GeojsonSourceProperties(data: geojson),
-    );
-    
-    if (_mapController == null) return;
-    
-    // Add circle layer with score-based colors
-    await _mapController!.addCircleLayer(
-      'saved-spots-source',
-      'saved-spots-layer',
-      const CircleLayerProperties(
-        circleRadius: ['get', 'radius'],
-        circleColor: ['get', 'color'],
-        circleStrokeColor: ['get', 'strokeColor'],
-        circleStrokeWidth: ['get', 'strokeWidth'],
-        circleOpacity: 1.0,
-        circleStrokeOpacity: 1.0,
-      ),
-    );
-    
-    if (_mapController == null) return;
-    
-    // Score labels visible from zoom 6; textPadding matches circle radius so
-    // collision zone = visual circle. Higher scores win (sortKey negated above).
-    await _mapController!.addSymbolLayer(
-      'saved-spots-source',
-      'saved-spots-labels',
-      const SymbolLayerProperties(
-        textField: ['get', 'score'],
-        textSize: ['get', 'textSize'],
-        textColor: '#FFFFFF',
-        textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
-        textHaloColor: '#000000',
-        textHaloWidth: 1.0,
-        textAllowOverlap: true,
-        textIgnorePlacement: true,
-        symbolSortKey: ['get', 'sortKey'],
-      ),
-      minzoom: 6,
-    );
-  }
-  
-  /// Convert score to hex color string for map styling
-  String _getScoreColorHex(int score) {
-    final color = AppColors.getScoreColor(score);
-    return '#${color.value.toRadixString(16).substring(2)}';
+
+    try {
+      await _mapController!.addSource(
+        'saved-spots-source',
+        GeojsonSourceProperties(data: {
+          'type': 'FeatureCollection',
+          'features': features,
+        }),
+      );
+      if (_mapController == null) return;
+
+      await _mapController!.addSymbolLayer(
+        'saved-spots-source',
+        'saved-spots-layer',
+        const SymbolLayerProperties(
+          iconImage: ['get', 'icon'],
+          iconSize: 0.5,
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
+          symbolSortKey: ['get', 'sortKey'],
+        ),
+      );
+
+      debugPrint('📍 GIBS: Rendered ${_savedSpots.length} pill markers');
+    } catch (e) {
+      debugPrint('📍 GIBS: Failed to add spots layer: $e');
+    }
   }
   
   /// Handle map tap - find closest spot and navigate to detail
@@ -879,15 +935,16 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
   }
 
-  /// Highlight a selected spot on the map with a glow ring behind it.
+  /// Highlight a selected spot with a scaled-up pill icon on top.
   Future<void> _highlightSpot(UserSpotResponse spot) async {
     if (_mapController == null) return;
 
-    // Remove old highlight
     try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
     try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
 
     if (_mapController == null) return;
+
+    final tierKey = _tierKeyForScore(spot.shakaScore);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -898,7 +955,9 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             'type': 'Point',
             'coordinates': [spot.longitude, spot.latitude],
           },
-          'properties': {},
+          'properties': {
+            'icon': tierKey,
+          },
         },
       ],
     };
@@ -911,16 +970,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
       if (_mapController == null) return;
 
-      await _mapController!.addCircleLayer(
+      await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-layer',
-        const CircleLayerProperties(
-          circleRadius: 20,
-          circleColor: '#8A8A8A',
-          circleOpacity: 0.2,
-          circleStrokeColor: '#8A8A8A',
-          circleStrokeWidth: 2.5,
-          circleStrokeOpacity: 0.5,
+        const SymbolLayerProperties(
+          iconImage: ['get', 'icon'],
+          iconSize: 0.75,
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
         ),
       );
     } catch (e) {
@@ -931,7 +988,6 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   Future<void> _removeSpotMarkers() async {
     try { await _mapController?.removeLayer('selected-spot-layer'); } catch (_) {}
     try { await _mapController?.removeSource('selected-spot-source'); } catch (_) {}
-    try { await _mapController?.removeLayer('saved-spots-labels'); } catch (_) {}
     try { await _mapController?.removeLayer('saved-spots-layer'); } catch (_) {}
     try { await _mapController?.removeSource('saved-spots-source'); } catch (_) {}
     await _removePulseRing();
@@ -2347,7 +2403,7 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// Card for saved spot in bottom sheet
+/// Card for saved spot in bottom sheet (pill indicator matching Explore)
 class _SavedSpotCard extends StatelessWidget {
   final UserSpotResponse spot;
   final VoidCallback? onTap;
@@ -2364,9 +2420,6 @@ class _SavedSpotCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasScore = spot.shakaScore != null;
-    final scoreColor = hasScore 
-        ? AppColors.getScoreColor(spot.shakaScore!) 
-        : Colors.grey;
     
     return GestureDetector(
       onTap: onTap,
@@ -2381,41 +2434,28 @@ class _SavedSpotCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Score badge or loading spinner
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: scoreColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: scoreColor.withOpacity(0.5), width: 1),
-                ),
-                child: Center(
-                  child: hasScore
-                      ? Text(
-                          '${spot.shakaScore}',
-                          style: TextStyle(
-                            color: scoreColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
+              hasScore
+                  ? ScoreTierPill(score: spot.shakaScore ?? 0, width: 10, height: 36, vertical: true)
+                  : isLoading
+                      ? const SizedBox(
+                          width: 10,
+                          height: 36,
+                          child: Center(
+                            child: SizedBox(
+                              width: 10,
+                              height: 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF4FC3F7),
+                                color: Color(0xFF7A9BB8),
                               ),
-                            )
-                          : Icon(
-                              Icons.location_on,
-                              color: scoreColor,
-                              size: 20,
                             ),
-                ),
-              ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.location_on,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2435,7 +2475,7 @@ class _SavedSpotCard extends StatelessWidget {
                           ? 'Getting intel on this spot...'
                           : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                       style: TextStyle(
-                        color: isLoading ? const Color(0xFF4FC3F7) : Colors.white54,
+                        color: isLoading ? const Color(0xFF7A9BB8) : Colors.white54,
                         fontSize: 12,
                         fontFamily: isLoading ? null : 'monospace',
                       ),
