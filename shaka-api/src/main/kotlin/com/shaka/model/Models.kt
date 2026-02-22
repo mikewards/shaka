@@ -233,7 +233,8 @@ data class OceanData(
     val waterTemperature: Double,
     val swellHeight: Double,
     val swellDirection: Int,
-    val swellPeriod: Double = 0.0
+    val swellPeriod: Double = 0.0,
+    val rawSST: Double? = null
 )
 
 @Serializable

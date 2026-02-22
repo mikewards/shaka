@@ -64,8 +64,8 @@ class CopernicusClient(
             return it 
         }
         
-        // Fetch SST from NOAA (fast) - this actually returns real data
-        val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
+        // SST is handled separately via the NOAA satellite path in SpotService/DataPrefetchJobs.
+        // Copernicus only provides visibility and chlorophyll.
         
         // Get REAL visibility from Copernicus L3 NRT (Secchi disk depth)
         val visibilityResult = try {
@@ -114,7 +114,7 @@ class CopernicusClient(
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
             visibility = visibility,
-            seaSurfaceTemp = sst,
+            seaSurfaceTemp = null,
             dataSource = dataSource
         )
         
@@ -141,9 +141,6 @@ class CopernicusClient(
         
         logger.info("Fetching REAL-TIME satellite data for ($lat, $lon) - this may take 30-60 seconds...")
         
-        // Always get fresh SST from NOAA (fast, doesn't need Copernicus)
-        val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, date)
-        
         // Authenticate with Copernicus
         ensureAuthenticated()
         
@@ -165,7 +162,7 @@ class CopernicusClient(
         val result = WaterQuality(
             chlorophyllA = chlorophyll,
             visibility = null,
-            seaSurfaceTemp = sst,
+            seaSurfaceTemp = null,
             dataSource = dataSource
         )
         

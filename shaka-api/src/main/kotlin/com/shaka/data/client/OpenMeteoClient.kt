@@ -102,19 +102,19 @@ class OpenMeteoClient {
                 waveHeight = response.hourly.wave_height?.getOrNull(idx) ?: 1.0,
                 wavePeriod = response.hourly.wave_period?.getOrNull(idx) ?: 8.0,
                 waveDirection = response.hourly.wave_direction?.getOrNull(idx)?.toInt() ?: 0,
-                waterTemperature = sst ?: 20.0,
+                waterTemperature = sst ?: 15.0,
                 swellHeight = response.hourly.swell_wave_height?.getOrNull(idx) ?: 0.5,
                 swellDirection = response.hourly.swell_wave_direction?.getOrNull(idx)?.toInt() ?: 0,
-                swellPeriod = response.hourly.swell_wave_period?.getOrNull(idx) ?: 0.0
+                swellPeriod = response.hourly.swell_wave_period?.getOrNull(idx) ?: 0.0,
+                rawSST = sst
             )
         } catch (e: Exception) {
             logger.warn("Open-Meteo Marine API failed for ($lat, $lon): ${e.message}")
-            // Return default values if API fails
             OceanData(
                 waveHeight = 1.0,
                 wavePeriod = 8.0,
                 waveDirection = 270,
-                waterTemperature = 18.0,
+                waterTemperature = 15.0,
                 swellHeight = 0.5,
                 swellDirection = 270
             )

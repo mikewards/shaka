@@ -5,6 +5,7 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.GIBSClient
+import com.shaka.data.client.NOAAClient
 import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.ProtectedSeasClient
@@ -42,6 +43,7 @@ class SpotService {
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
     private val tidesClient = NOAATidesClient()
+    private val noaaClient = NOAAClient()
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val protectedSeasClient = ProtectedSeasClient()
@@ -164,14 +166,14 @@ class SpotService {
                     waveHeight = cached.swell.value.heightFt / 3.28084,  // Convert ft to m
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 24.0,
+                    waterTemperature = cached.sst?.value ?: 15.0,
                     swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
                     swellDirection = 0
                 )
             } else {
                 fallbackOcean ?: OceanData(
                     waveHeight = 1.0, wavePeriod = 8.0, waveDirection = 0,
-                    waterTemperature = 24.0, swellHeight = 1.0, swellDirection = 0
+                    waterTemperature = 15.0, swellHeight = 1.0, swellDirection = 0
                 )
             }
             
@@ -179,13 +181,13 @@ class SpotService {
                 WaterQuality(
                     chlorophyllA = cached.chlorophyll?.value,
                     visibility = cached.visibility?.value,
-                    seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
+                    seaSurfaceTemp = cached.sst?.value,
                     dataSource = "Prefetched (${cached.visibility?.ageString() ?: "N/A"})"
                 )
             } else {
                 fallbackWaterQuality ?: WaterQuality(
                     chlorophyllA = null, visibility = null,
-                    seaSurfaceTemp = ocean.waterTemperature, dataSource = "Data temporarily unavailable"
+                    seaSurfaceTemp = null, dataSource = "Data temporarily unavailable"
                 )
             }
             
@@ -214,8 +216,7 @@ class SpotService {
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
 
-            // Use real SST - prefer cached satellite data
-            val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
+            val sst = resolveSST(cached?.sst?.value, ocean.rawSST, spot.coordinates.lat, spot.coordinates.lon, date)
             
             // Data freshness from cache
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -255,7 +256,7 @@ class SpotService {
                 confidence = score.confidence,
                 conditions = SpotConditions(
                     visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                    waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                    waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                     swell = cached?.swell?.let { 
                         "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                     } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -267,7 +268,7 @@ class SpotService {
                     satelliteDataDate = satelliteDataDate
                 ),
                 expectedFish = spot.commonFish,
-                gearRecommendations = generateGearRecs(actualSST, spot.depth),
+                gearRecommendations = generateGearRecs(sst.tempC, spot.depth),
                 risks = generateRisks(weather, ocean),
                 bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
                 satelliteReadings = gibsReadings
@@ -325,18 +326,18 @@ class SpotService {
                     waveHeight = cached.swell.value.heightFt / 3.28084,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 24.0,
+                    waterTemperature = cached.sst?.value ?: 15.0,
                     swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
                     swellDirection = 0
                 )
             } else {
-                OceanData(1.0, 8.0, 0, cached.sst?.value ?: 24.0, 1.0, 0)
+                OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
             }
             
             waterQuality = WaterQuality(
                 chlorophyllA = cached.chlorophyll?.value,
                 visibility = cached.visibility?.value,
-                seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
+                seaSurfaceTemp = cached.sst?.value,
                 dataSource = "Prefetched (updated ${cached.tide.ageString()})"
             )
             
@@ -389,9 +390,9 @@ class SpotService {
             }
             
             weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
             waterQuality = waterQualityDeferred.await() ?: WaterQuality(
-                null, null, ocean.waterTemperature, "Data temporarily unavailable"
+                null, null, null, "Data temporarily unavailable"
             )
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
@@ -439,7 +440,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
+        val sst = resolveSST(cached?.sst?.value, ocean.rawSST, lat, lon, date)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -487,7 +488,7 @@ class SpotService {
             ),
             conditions = SpotConditions(
                 visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -498,7 +499,7 @@ class SpotService {
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate
             ),
-            forecast = emptyList(), // Lazy-loaded by client via /forecast/{spotId}
+            forecast = emptyList(),
             expectedFish = spot.commonFish.map { fish ->
                 FishInfo(
                     name = fish,
@@ -506,7 +507,7 @@ class SpotService {
                     seasonalNotes = getSeasonalNotes(fish, spotId, date)
                 )
             },
-            gearRecommendations = generateGearRecs(actualSST, spot.depth).map { item ->
+            gearRecommendations = generateGearRecs(sst.tempC, spot.depth).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
             risks = generateRisks(weather, ocean).map { risk ->
@@ -645,7 +646,7 @@ class SpotService {
                     moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val actualSST = waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
+                val sst = resolveSST(SpotDataCache.get(spotId)?.sst?.value, ocean.rawSST, lat, lon, date)
                 
                 SpotSummary(
                     id = spot.id,
@@ -655,7 +656,7 @@ class SpotService {
                     confidence = score.confidence,
                     conditions = SpotConditions(
                         visibility = getVisibilityLabel(waterQuality?.chlorophyllA, null),
-                        waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                        waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                         tideState = ""
@@ -1097,11 +1098,29 @@ class SpotService {
         }
     }
 
-    private fun generateGearRecs(waterTempC: Double, depthM: Int): List<String> {
+    data class ResolvedSST(val tempC: Double, val isEstimate: Boolean)
+
+    private fun resolveSST(
+        cachedSST: Double?,
+        openMeteoSST: Double?,
+        lat: Double, lon: Double, date: String
+    ): ResolvedSST {
+        cachedSST?.let { return ResolvedSST(it, false) }
+        openMeteoSST?.let { return ResolvedSST(it, false) }
+        return ResolvedSST(noaaClient.getRegionalSSTEstimate(lat, lon, date), true)
+    }
+
+    private fun formatWaterTemp(sstCelsius: Double?, isEstimate: Boolean = false): String {
+        if (sstCelsius == null) return "N/A"
+        val f = ((sstCelsius * 9.0 / 5) + 32).toInt()
+        return if (isEstimate) "~${sstCelsius.toInt()}°C / ~${f}°F (est.)" else "${sstCelsius.toInt()}°C / ${f}°F"
+    }
+
+    private fun generateGearRecs(waterTempC: Double?, depthM: Int): List<String> {
         val recs = mutableListOf<String>()
 
-        // Wetsuit recommendation
         recs += when {
+            waterTempC == null -> "5mm+ wetsuit (water temp unavailable)"
             waterTempC >= 26 -> "Rashguard or 1mm suit"
             waterTempC >= 23 -> "3mm wetsuit"
             waterTempC >= 20 -> "5mm wetsuit"
@@ -1265,18 +1284,18 @@ class SpotService {
                     waveHeight = cached.swell.value.heightFt / 3.28084,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 24.0,
+                    waterTemperature = cached.sst?.value ?: 15.0,
                     swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
                     swellDirection = 0
                 )
             } else {
-                OceanData(1.0, 8.0, 0, cached.sst?.value ?: 24.0, 1.0, 0)
+                OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
             }
             
             waterQuality = WaterQuality(
                 chlorophyllA = cached.chlorophyll?.value,
                 visibility = cached.visibility?.value,
-                seaSurfaceTemp = cached.sst?.value ?: ocean.waterTemperature,
+                seaSurfaceTemp = cached.sst?.value,
                 dataSource = "Prefetched (updated ${cached.tide.ageString()})"
             )
             
@@ -1329,9 +1348,9 @@ class SpotService {
             }
             
             weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
             waterQuality = waterQualityDeferred.await() ?: WaterQuality(
-                null, null, ocean.waterTemperature, "Data temporarily unavailable"
+                null, null, null, "Data temporarily unavailable"
             )
             tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
@@ -1349,7 +1368,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
+        val sst = resolveSST(cached?.sst?.value, ocean.rawSST, lat, lon, date)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -1359,7 +1378,6 @@ class SpotService {
         val gibsReadings = if (cached?.gibsChlorophyll != null || cached?.chlorophyll != null) {
             val gibs = cached.gibsChlorophyll?.value
             GibsSatelliteReadings(
-                // Satellite imagery colors (display only - may include sediment/kelp)
                 paceTodayColor = gibs?.paceTodayColor,
                 paceYesterdayColor = gibs?.paceYesterdayColor,
                 noaa20TodayColor = gibs?.noaa20TodayColor,
@@ -1409,7 +1427,7 @@ class SpotService {
             ),
             conditions = SpotConditions(
                 visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
+                waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -1422,7 +1440,7 @@ class SpotService {
             ),
             forecast = emptyList(), // Lazy-loaded by client via /forecast/{spotId}
             expectedFish = emptyList(), // User spots don't have fish data
-            gearRecommendations = generateGearRecs(actualSST, 10).map { item ->
+            gearRecommendations = generateGearRecs(sst.tempC, 10).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
             risks = generateRisks(weather, ocean).map { risk ->
@@ -1530,6 +1548,17 @@ class SpotService {
             }
         }
         
+        val sstDeferred = async {
+            withTimeoutOrNull(10000) {
+                try {
+                    noaaClient.getSeaSurfaceTemperature(lat, lon, today)
+                } catch (e: Exception) {
+                    logger.warn("NOAA SST fetch failed for $spotId: ${e.message}")
+                    null
+                }
+            }
+        }
+        
         val gibsDeferred = async {
             withTimeoutOrNull(30000) {
                 try {
@@ -1545,6 +1574,7 @@ class SpotService {
         val tideData = tideDeferred.await()
         val weatherData = weatherDeferred.await()
         val satelliteData = satelliteDeferred.await()
+        val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
         
         // MPA check: exact first, then buffer
@@ -1615,18 +1645,19 @@ class SpotService {
             )
         }
         
+        // SST: NOAA satellite is the authoritative source
+        if (sstData != null) {
+            SpotDataCache.updateSST(
+                spotId,
+                SpotDataCache.CachedValue(value = sstData, fetchedAt = now)
+            )
+        }
+        
         if (satelliteData != null) {
             satelliteData.visibility?.let { vis ->
                 SpotDataCache.updateVisibility(
                     spotId,
                     SpotDataCache.CachedValue(value = vis, fetchedAt = now)
-                )
-            }
-            
-            satelliteData.seaSurfaceTemp?.let { sst ->
-                SpotDataCache.updateSST(
-                    spotId,
-                    SpotDataCache.CachedValue(value = sst, fetchedAt = now)
                 )
             }
             

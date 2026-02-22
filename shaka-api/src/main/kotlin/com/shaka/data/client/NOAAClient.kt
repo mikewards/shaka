@@ -3,6 +3,7 @@ package com.shaka.data.client
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import org.slf4j.LoggerFactory
+import java.time.LocalDate
 
 /**
  * Client for NOAA ERDDAP ocean data.
@@ -43,33 +44,31 @@ class NOAAClient {
 
     /**
      * Get real Sea Surface Temperature from NOAA MUR SST dataset.
-     * Returns temperature in Celsius.
+     * Returns temperature in Celsius, or null if no satellite data available.
      * 
-     * Falls back to regional climatological estimate if satellite data unavailable.
+     * MUR SST has a 1-2 day processing lag, so queries use (date - 2 days).
+     * Returns null (not a regional estimate) when satellite data is unavailable
+     * so callers can decide how to handle missing data honestly.
      * 
      * @param lat Latitude
      * @param lon Longitude  
      * @param date Date in YYYY-MM-DD format
-     * @return SST in Celsius (always returns a value, never null)
+     * @return SST in Celsius, or null if satellite data unavailable
      */
-    suspend fun getSeaSurfaceTemperature(lat: Double, lon: Double, date: String): Double {
+    suspend fun getSeaSurfaceTemperature(lat: Double, lon: Double, date: String): Double? {
         return try {
-            // Rate limit
             RateLimiters.noaa.acquire()
             
-            // Try MUR SST first (best resolution for coastal waters)
             val sst = getMURSST(lat, lon, date) ?: getGHRSST(lat, lon, date)
             if (sst != null) {
-                logger.info("NOAA SST for ($lat, $lon): ${String.format("%.1f", sst)}°C")
-                sst
+                logger.info("NOAA satellite SST for ($lat, $lon): ${String.format("%.1f", sst)}°C / ${String.format("%.0f", sst * 9.0/5 + 32)}°F")
             } else {
-                logger.info("NOAA SST unavailable for ($lat, $lon), using regional estimate")
-                getRegionalSSTEstimate(lat, lon, date)
+                logger.info("NOAA satellite SST unavailable for ($lat, $lon) on $date")
             }
+            sst
         } catch (e: Exception) {
             logger.warn("NOAA SST fetch failed for ($lat, $lon): ${e.message}")
-            // Return regional estimate as fallback
-            getRegionalSSTEstimate(lat, lon, date)
+            null
         }
     }
 
@@ -172,7 +171,8 @@ class NOAAClient {
      */
     private suspend fun getMURSST(lat: Double, lon: Double, date: String): Double? {
         return try {
-            val dateTime = "${date}T12:00:00Z"
+            val queryDate = LocalDate.parse(date).minusDays(2).toString()
+            val dateTime = "${queryDate}T12:00:00Z"
             
             val latMin = lat - 0.05
             val latMax = lat + 0.05
@@ -194,15 +194,15 @@ class NOAAClient {
      */
     private suspend fun getGHRSST(lat: Double, lon: Double, date: String): Double? {
         return try {
-            // Rate limit second attempt
             RateLimiters.noaa.acquire()
             
+            val queryDate = LocalDate.parse(date).minusDays(2).toString()
             val latMin = lat - 0.1
             val latMax = lat + 0.1
             val lonMin = lon - 0.1
             val lonMax = lon + 0.1
             
-            val url = "$GHRSST_URL?sea_surface_temperature[($date)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            val url = "$GHRSST_URL?sea_surface_temperature[($queryDate)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             val response: String = client.get(url).bodyAsText()
             parseSSTFromERDDAP(response)
