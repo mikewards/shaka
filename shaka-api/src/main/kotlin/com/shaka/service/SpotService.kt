@@ -5,7 +5,6 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CommunityClient
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.GIBSClient
-import com.shaka.data.client.NOAAClient
 import com.shaka.data.client.NOAATidesClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.ProtectedSeasClient
@@ -43,11 +42,12 @@ class SpotService {
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
     private val tidesClient = NOAATidesClient()
-    private val noaaClient = NOAAClient()
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val protectedSeasClient = ProtectedSeasClient()
     private val spotDb = SpotDatabase
+    // Note: GlobalFishingWatchClient and SolunarClient are used by DataPrefetchJobs
+    // SpotService reads the cached data from SpotDataCache
     
     // Lazy-load regulatory links from JSON resource
     private val regulatoryLinks: JsonElement? by lazy {
@@ -214,7 +214,8 @@ class SpotService {
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
 
-            val actualSST: Double? = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp
+            // Use real SST - prefer cached satellite data
+            val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
             
             // Data freshness from cache
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -254,7 +255,7 @@ class SpotService {
                 confidence = score.confidence,
                 conditions = SpotConditions(
                     visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                    waterTemp = formatWaterTemp(actualSST),
+                    waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                     swell = cached?.swell?.let { 
                         "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                     } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -438,7 +439,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST: Double? = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp
+        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -486,7 +487,7 @@ class SpotService {
             ),
             conditions = SpotConditions(
                 visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                waterTemp = formatWaterTemp(actualSST),
+                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -644,7 +645,7 @@ class SpotService {
                     moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val actualSST: Double? = waterQuality?.seaSurfaceTemp
+                val actualSST = waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
                 
                 SpotSummary(
                     id = spot.id,
@@ -654,7 +655,7 @@ class SpotService {
                     confidence = score.confidence,
                     conditions = SpotConditions(
                         visibility = getVisibilityLabel(waterQuality?.chlorophyllA, null),
-                        waterTemp = formatWaterTemp(actualSST),
+                        waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                         tideState = ""
@@ -1096,16 +1097,11 @@ class SpotService {
         }
     }
 
-    private fun formatWaterTemp(sstCelsius: Double?): String {
-        if (sstCelsius == null) return "N/A"
-        return "${sstCelsius.toInt()}°C / ${((sstCelsius * 9/5) + 32).toInt()}°F"
-    }
-
-    private fun generateGearRecs(waterTempC: Double?, depthM: Int): List<String> {
+    private fun generateGearRecs(waterTempC: Double, depthM: Int): List<String> {
         val recs = mutableListOf<String>()
 
+        // Wetsuit recommendation
         recs += when {
-            waterTempC == null -> "5mm+ wetsuit (water temp unavailable)"
             waterTempC >= 26 -> "Rashguard or 1mm suit"
             waterTempC >= 23 -> "3mm wetsuit"
             waterTempC >= 20 -> "5mm wetsuit"
@@ -1353,7 +1349,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val actualSST: Double? = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp
+        val actualSST = cached?.sst?.value ?: waterQuality?.seaSurfaceTemp ?: ocean.waterTemperature
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -1413,7 +1409,7 @@ class SpotService {
             ),
             conditions = SpotConditions(
                 visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
-                waterTemp = formatWaterTemp(actualSST),
+                waterTemp = "${actualSST.toInt()}°C / ${((actualSST * 9/5) + 32).toInt()}°F",
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
                 } ?: "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
@@ -1534,17 +1530,6 @@ class SpotService {
             }
         }
         
-        val sstDeferred = async {
-            withTimeoutOrNull(10000) {
-                try {
-                    noaaClient.getSeaSurfaceTemperature(lat, lon, today)
-                } catch (e: Exception) {
-                    logger.warn("NOAA SST fetch failed for $spotId: ${e.message}")
-                    null
-                }
-            }
-        }
-        
         val gibsDeferred = async {
             withTimeoutOrNull(30000) {
                 try {
@@ -1560,7 +1545,6 @@ class SpotService {
         val tideData = tideDeferred.await()
         val weatherData = weatherDeferred.await()
         val satelliteData = satelliteDeferred.await()
-        val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
         
         // MPA check: exact first, then buffer
@@ -1631,20 +1615,18 @@ class SpotService {
             )
         }
         
-        // SST: prefer NOAA ERDDAP (primary), fall back to Copernicus
-        val bestSST = sstData ?: satelliteData?.seaSurfaceTemp
-        if (bestSST != null) {
-            SpotDataCache.updateSST(
-                spotId,
-                SpotDataCache.CachedValue(value = bestSST, fetchedAt = now)
-            )
-        }
-        
         if (satelliteData != null) {
             satelliteData.visibility?.let { vis ->
                 SpotDataCache.updateVisibility(
                     spotId,
                     SpotDataCache.CachedValue(value = vis, fetchedAt = now)
+                )
+            }
+            
+            satelliteData.seaSurfaceTemp?.let { sst ->
+                SpotDataCache.updateSST(
+                    spotId,
+                    SpotDataCache.CachedValue(value = sst, fetchedAt = now)
                 )
             }
             
@@ -1702,7 +1684,7 @@ class SpotService {
         // Persist to database
         SpotDataCache.saveToDatabase(spotId)
         
-        logger.info("Prefetch complete for spot $spotId - tide:${tideData != null}, weather:${weatherData != null}, sst:${bestSST != null}, satellite:${satelliteData != null}, gibs:${gibsData != null}, mpa:${mpaData != null}")
+        logger.info("Prefetch complete for spot $spotId - tide:${tideData != null}, weather:${weatherData != null}, satellite:${satelliteData != null}, gibs:${gibsData != null}, mpa:${mpaData != null}")
     }
 
 }
