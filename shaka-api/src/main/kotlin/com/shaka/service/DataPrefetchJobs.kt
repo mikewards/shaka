@@ -278,17 +278,15 @@ class DataPrefetchJobs(
                 // SST from NOAA satellite (date-2 internally for processing lag)
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
-                    if (sst != null) {
-                        SpotDataCache.updateSST(
-                            spot.id,
-                            SpotDataCache.CachedValue(
-                                value = sst,
-                                fetchedAt = now,
-                                dataValidAt = Instant.now().minusSeconds(86400)
-                            )
-                        )
-                        gotData = true
-                    }
+                    SpotDataCache.updateSST(
+                        spot.id,
+                        if (sst != null) SpotDataCache.CachedValue(
+                            value = sst,
+                            fetchedAt = now,
+                            dataValidAt = Instant.now().minusSeconds(86400)
+                        ) else null
+                    )
+                    if (sst != null) gotData = true
                 } catch (e: Exception) {
                     logger.debug("SST fetch failed for ${spot.name}: ${e.message}")
                 }
@@ -603,14 +601,19 @@ class DataPrefetchJobs(
      * Runs on same schedule as weather but in separate loop.
      */
     suspend fun prefetchUserSpots() = withContext(Dispatchers.IO) {
-        val userSpots = com.shaka.data.db.UserSpotRepository.getAllUserSpots()
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots()
+        } catch (e: Exception) {
+            logger.error("USER SPOTS prefetch: Failed to load user spots from DB: ${e.message}", e)
+            return@withContext
+        }
         
         if (userSpots.isEmpty()) {
             logger.info("USER SPOTS prefetch: No user spots to prefetch")
             return@withContext
         }
         
-        logger.info("USER SPOTS prefetch: ${userSpots.size} user spots to check")
+        logger.info("USER SPOTS prefetch: ${userSpots.size} user spots to process")
         
         val startTime = System.currentTimeMillis()
         var successCount = 0
@@ -694,17 +697,15 @@ class DataPrefetchJobs(
                 // SST from NOAA satellite
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
-                    if (sst != null) {
-                        SpotDataCache.updateSST(
-                            cacheId,
-                            SpotDataCache.CachedValue(
-                                value = sst,
-                                fetchedAt = now,
-                                dataValidAt = Instant.now().minusSeconds(86400)
-                            )
-                        )
-                        gotData = true
-                    }
+                    SpotDataCache.updateSST(
+                        cacheId,
+                        if (sst != null) SpotDataCache.CachedValue(
+                            value = sst,
+                            fetchedAt = now,
+                            dataValidAt = Instant.now().minusSeconds(86400)
+                        ) else null
+                    )
+                    if (sst != null) gotData = true
                 } catch (e: Exception) {
                     logger.debug("User spot SST fetch failed for ${spot.name}: ${e.message}")
                 }
@@ -830,13 +831,13 @@ class DataPrefetchJobs(
                 delay(500)
                 
             } catch (e: Exception) {
-                logger.debug("User spot prefetch failed for ${spot.name}: ${e.message}")
+                logger.warn("User spot prefetch failed for ${spot.name}: ${e.message}")
                 errorCount++
             }
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("USER SPOTS prefetch complete: $successCount updated, $skippedCount skipped (fresh), $errorCount errors in ${elapsed}ms")
+        logger.info("USER SPOTS prefetch complete: $successCount updated, $skippedCount skipped (fresh), $errorCount errors out of ${userSpots.size} total in ${elapsed}ms")
     }
     
     // ==================== Full Prefetch (Startup) ====================

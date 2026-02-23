@@ -271,13 +271,17 @@ object SpotDataCache {
     }
     
     /**
-     * Update SST data for a spot.
+     * Update SST data for a spot. Pass null to explicitly clear stale data.
      */
-    fun updateSST(spotId: String, sst: CachedValue<Double>) {
+    fun updateSST(spotId: String, sst: CachedValue<Double>?) {
         cache.compute(spotId) { _, existing ->
             (existing ?: SpotData()).copy(sst = sst)
         }
-        logger.debug("Updated SST for spot $spotId: ${sst.value}°C")
+        if (sst != null) {
+            logger.debug("Updated SST for spot $spotId: ${sst.value}°C")
+        } else {
+            logger.debug("Cleared SST for spot $spotId (satellite data unavailable)")
+        }
     }
     
     /**
@@ -977,7 +981,7 @@ object SpotDataCache {
                         wind_direction = COALESCE(EXCLUDED.wind_direction, spot_cache.wind_direction),
                         weather_fetched_at = COALESCE(EXCLUDED.weather_fetched_at, spot_cache.weather_fetched_at),
                         visibility_m = COALESCE(EXCLUDED.visibility_m, spot_cache.visibility_m),
-                        sst_celsius = COALESCE(EXCLUDED.sst_celsius, spot_cache.sst_celsius),
+                        sst_celsius = EXCLUDED.sst_celsius,
                         chlorophyll_mg_m3 = COALESCE(EXCLUDED.chlorophyll_mg_m3, spot_cache.chlorophyll_mg_m3),
                         satellite_date = COALESCE(EXCLUDED.satellite_date, spot_cache.satellite_date),
                         satellite_fetched_at = COALESCE(EXCLUDED.satellite_fetched_at, spot_cache.satellite_fetched_at),

@@ -1645,13 +1645,11 @@ class SpotService {
             )
         }
         
-        // SST: NOAA satellite is the authoritative source
-        if (sstData != null) {
-            SpotDataCache.updateSST(
-                spotId,
-                SpotDataCache.CachedValue(value = sstData, fetchedAt = now)
-            )
-        }
+        // SST: NOAA satellite is the authoritative source. Always write (null clears stale estimates).
+        SpotDataCache.updateSST(
+            spotId,
+            if (sstData != null) SpotDataCache.CachedValue(value = sstData, fetchedAt = now) else null
+        )
         
         if (satelliteData != null) {
             satelliteData.visibility?.let { vis ->
