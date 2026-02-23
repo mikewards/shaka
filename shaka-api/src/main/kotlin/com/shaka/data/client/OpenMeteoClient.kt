@@ -43,8 +43,8 @@ class OpenMeteoClient {
                 parameter("timezone", "auto")
             }.body()
 
-            // Get midday values (index 12 for noon)
-            val idx = 12.coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
+            val currentHour = java.time.LocalTime.now().hour
+            val idx = currentHour.coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
 
             WeatherData(
                 temperature = response.hourly.temperature_2m?.getOrNull(idx) ?: 25.0,
@@ -142,8 +142,10 @@ class OpenMeteoClient {
             val hoursTotal = response.hourly.temperature_2m?.size ?: 0
             val numDays = hoursTotal / 24
             
+            val currentHour = java.time.LocalTime.now().hour
             (0 until numDays).map { day ->
-                val idx = (day * 24) + 12 // Midday for each day
+                val hourForDay = if (day == 0) currentHour else 12
+                val idx = (day * 24) + hourForDay
                 WeatherData(
                     temperature = response.hourly.temperature_2m?.getOrNull(idx) ?: 25.0,
                     windSpeed = response.hourly.windspeed_10m?.getOrNull(idx) ?: 10.0,
