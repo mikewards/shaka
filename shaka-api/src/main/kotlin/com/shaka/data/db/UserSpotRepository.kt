@@ -108,6 +108,32 @@ class UserSpotRepository {
     }
 
     /**
+     * Find a user spot by ID only (no device ownership check).
+     * Used for coordinate lookups where access control isn't needed (e.g. forecasts).
+     */
+    suspend fun findById(spotId: String): UserSpotRecord? {
+        return try {
+            if (!DatabaseFactory.isConnected()) return null
+
+            val uuid = try {
+                UUID.fromString(spotId)
+            } catch (e: Exception) {
+                return null
+            }
+
+            DatabaseFactory.dbQuery {
+                UserSpotsTable.selectAll()
+                    .where { UserSpotsTable.id eq uuid }
+                    .map { rowToRecord(it) }
+                    .firstOrNull()
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to find user spot by ID: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Find a user spot by ID and device ID.
      * Device ID check ensures users can only access their own spots.
      */

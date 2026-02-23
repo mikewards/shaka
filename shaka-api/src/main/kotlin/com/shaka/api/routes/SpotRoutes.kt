@@ -247,13 +247,27 @@ fun Application.configureRouting() {
                 }
             }
 
-            // Get forecast for a spot
+            // Get forecast for a spot (curated or user-created)
             get("/forecast/{spotId}") {
                 val spotId = call.parameters["spotId"]
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
                 val days = call.parameters["days"]?.toIntOrNull() ?: 7
 
-                val forecast = forecastService.getForecast(spotId, days)
+                val curated = SpotDatabase.findSpotById(spotId)
+                val forecast = if (curated != null) {
+                    forecastService.getForecast(spotId, days)
+                } else {
+                    val userSpot = userSpotRepository.findById(spotId)
+                    if (userSpot != null) {
+                        forecastService.getForecastForLocation(
+                            userSpot.coordinates.lat,
+                            userSpot.coordinates.lon,
+                            days
+                        )
+                    } else {
+                        emptyList()
+                    }
+                }
                 call.respond(forecast)
             }
 
