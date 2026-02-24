@@ -136,18 +136,33 @@ class DataPrefetchJobs(
      * Prefetch weather data for spots with stale or missing data.
      * Cache-aware: skips spots with fresh data.
      */
+    private data class WeatherSpot(val cacheId: String, val lat: Double, val lon: Double, val name: String)
+
     suspend fun prefetchWeather() = withContext(Dispatchers.IO) {
-        val allSpots = spotDb.getAllSpots()
         val today = LocalDate.now().toString()
+        
+        // Combine curated + user spots into a unified list
+        val curatedSpots = spotDb.getAllSpots().map { 
+            WeatherSpot(it.id, it.coordinates.lat, it.coordinates.lon, it.name) 
+        }
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
+                WeatherSpot("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not load user spots for weather prefetch: ${e.message}")
+            emptyList()
+        }
+        val allSpots = curatedSpots + userSpots
         
         // Filter to spots that need updating
         val spotsToUpdate = allSpots.filter { spot ->
-            val cached = SpotDataCache.get(spot.id)
+            val cached = SpotDataCache.get(spot.cacheId)
             cached?.swell == null || cached.wind == null || 
                 isStale(cached.swell.fetchedAt, WEATHER_STALE_HOURS)
         }
         
-        logger.info("WEATHER prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates")
+        logger.info("WEATHER prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates (${curatedSpots.size} curated + ${userSpots.size} user)")
         
         if (spotsToUpdate.isEmpty()) {
             logger.info("WEATHER prefetch: All spots have fresh data, skipping")
@@ -163,16 +178,13 @@ class DataPrefetchJobs(
                 async {
                     try {
                         withTimeout(SPOT_TIMEOUT_MS) {
-                            val lat = spot.coordinates.lat
-                            val lon = spot.coordinates.lon
-                            
-                            val ocean = openMeteo.getMarineData(lat, lon, today)
-                            val weather = openMeteo.getWeather(lat, lon, today)
+                            val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
+                            val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
                             
                             val now = Instant.now()
                             
                             SpotDataCache.updateSwell(
-                                spot.id,
+                                spot.cacheId,
                                 SpotDataCache.CachedValue(
                                     value = SpotDataCache.SwellInfo(
                                         heightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
@@ -186,7 +198,7 @@ class DataPrefetchJobs(
                             )
                             
                             SpotDataCache.updateWind(
-                                spot.id,
+                                spot.cacheId,
                                 SpotDataCache.CachedValue(
                                     value = SpotDataCache.WindInfo(
                                         speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
@@ -198,7 +210,7 @@ class DataPrefetchJobs(
                                 )
                             )
                             
-                            SpotDataCache.saveToDatabase(spot.id)
+                            SpotDataCache.saveToDatabase(spot.cacheId)
                             true
                         }
                     } catch (e: Exception) {
@@ -660,39 +672,7 @@ class DataPrefetchJobs(
                     logger.debug("User spot tide fetch failed for ${spot.name}: ${e.message}")
                 }
                 
-                // Weather
-                try {
-                    val ocean = openMeteo.getMarineData(lat, lon, today)
-                    val weather = openMeteo.getWeather(lat, lon, today)
-                    
-                    SpotDataCache.updateSwell(
-                        cacheId,
-                        SpotDataCache.CachedValue(
-                            value = SpotDataCache.SwellInfo(
-                                heightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
-                                periodSec = ocean.wavePeriod,
-                                direction = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                                swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
-                            ),
-                            fetchedAt = now
-                        )
-                    )
-                    
-                    SpotDataCache.updateWind(
-                        cacheId,
-                        SpotDataCache.CachedValue(
-                            value = SpotDataCache.WindInfo(
-                                speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
-                                direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
-                                gustKnots = null
-                            ),
-                            fetchedAt = now
-                        )
-                    )
-                    gotData = true
-                } catch (e: Exception) {
-                    logger.debug("User spot weather fetch failed for ${spot.name}: ${e.message}")
-                }
+                // Weather/swell handled by prefetchWeather() which covers all spots
                 
                 // SST from NOAA satellite
                 try {

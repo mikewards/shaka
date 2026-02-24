@@ -506,9 +506,16 @@ fun Application.configureRouting() {
                     var failed = 0
                     for (spotId in spotsToFetch) {
                         try {
-                            val spot = SpotDatabase.findSpotById(spotId) ?: continue
-                            val ocean = openMeteo.getMarineData(spot.coordinates.lat, spot.coordinates.lon, today)
-                            val weather = openMeteo.getWeather(spot.coordinates.lat, spot.coordinates.lon, today)
+                            // Look up coordinates from curated spots or user spots
+                            val curatedSpot = SpotDatabase.findSpotById(spotId)
+                            val coords = if (curatedSpot != null) {
+                                curatedSpot.coordinates
+                            } else {
+                                val userSpotId = spotId.removePrefix("user-")
+                                userSpotRepository.findById(userSpotId)?.coordinates ?: continue
+                            }
+                            val ocean = openMeteo.getMarineData(coords.lat, coords.lon, today)
+                            val weather = openMeteo.getWeather(coords.lat, coords.lon, today)
                             val now = java.time.Instant.now()
                             
                             com.shaka.data.cache.SpotDataCache.updateSwell(
