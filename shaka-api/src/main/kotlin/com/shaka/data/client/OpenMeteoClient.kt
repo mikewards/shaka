@@ -43,7 +43,8 @@ class OpenMeteoClient {
                 parameter("timezone", "auto")
             }.body()
 
-            val currentHour = java.time.LocalTime.now().hour
+            val spotZone = try { java.time.ZoneId.of(response.timezone) } catch (_: Exception) { java.time.ZoneId.systemDefault() }
+            val currentHour = java.time.LocalTime.now(spotZone).hour
             val idx = currentHour.coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
 
             WeatherData(
@@ -142,7 +143,8 @@ class OpenMeteoClient {
             val hoursTotal = response.hourly.temperature_2m?.size ?: 0
             val numDays = hoursTotal / 24
             
-            val currentHour = java.time.LocalTime.now().hour
+            val spotZone = try { java.time.ZoneId.of(response.timezone) } catch (_: Exception) { java.time.ZoneId.systemDefault() }
+            val currentHour = java.time.LocalTime.now(spotZone).hour
             (0 until numDays).map { day ->
                 val hourForDay = if (day == 0) currentHour else 12
                 val idx = (day * 24) + hourForDay
@@ -203,7 +205,8 @@ class OpenMeteoClient {
 
 @Serializable
 data class OpenMeteoWeatherResponse(
-    val hourly: OpenMeteoHourlyWeather
+    val hourly: OpenMeteoHourlyWeather,
+    val timezone: String? = null
 )
 
 @Serializable
