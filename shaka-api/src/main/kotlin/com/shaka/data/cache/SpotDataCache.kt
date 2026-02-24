@@ -281,6 +281,27 @@ object SpotDataCache {
             logger.debug("Updated SST for spot $spotId: ${sst.value}°C")
         } else {
             logger.debug("Cleared SST for spot $spotId (satellite data unavailable)")
+            clearSSTFromDatabase(spotId)
+        }
+    }
+
+    /**
+     * Explicitly NULL out sst_celsius in the DB for a spot.
+     * Only called when NOAA satellite confirms no data available,
+     * because the UPSERT COALESCE prevents saveToDatabase from clearing it.
+     */
+    private fun clearSSTFromDatabase(spotId: String) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("UPDATE spot_cache SET sst_celsius = NULL WHERE spot_id = ?").use { stmt ->
+                    stmt.setString(1, spotId)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Could not clear SST from database for $spotId: ${e.message}")
         }
     }
     
@@ -981,7 +1002,7 @@ object SpotDataCache {
                         wind_direction = COALESCE(EXCLUDED.wind_direction, spot_cache.wind_direction),
                         weather_fetched_at = COALESCE(EXCLUDED.weather_fetched_at, spot_cache.weather_fetched_at),
                         visibility_m = COALESCE(EXCLUDED.visibility_m, spot_cache.visibility_m),
-                        sst_celsius = EXCLUDED.sst_celsius,
+                        sst_celsius = COALESCE(EXCLUDED.sst_celsius, spot_cache.sst_celsius),
                         chlorophyll_mg_m3 = COALESCE(EXCLUDED.chlorophyll_mg_m3, spot_cache.chlorophyll_mg_m3),
                         satellite_date = COALESCE(EXCLUDED.satellite_date, spot_cache.satellite_date),
                         satellite_fetched_at = COALESCE(EXCLUDED.satellite_fetched_at, spot_cache.satellite_fetched_at),

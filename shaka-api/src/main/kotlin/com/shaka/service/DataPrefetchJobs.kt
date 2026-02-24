@@ -636,9 +636,10 @@ class DataPrefetchJobs(
         for (spot in userSpots) {
             val cacheId = "user-${spot.id}"
             
-            // Check if data is stale (same threshold as weather: 4 hours)
+            // Check if satellite/SST data is stale (weather/swell is handled by prefetchWeather)
             val cached = SpotDataCache.get(cacheId)
-            if (cached?.swell != null && !isStale(cached.swell.fetchedAt, WEATHER_STALE_HOURS)) {
+            if (cached?.sst != null && cached.visibility != null &&
+                !isStale(cached.sst.fetchedAt, SATELLITE_STALE_HOURS)) {
                 skippedCount++
                 continue
             }
