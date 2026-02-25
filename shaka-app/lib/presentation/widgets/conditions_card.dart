@@ -113,12 +113,6 @@ class ConditionsCard extends StatelessWidget {
             value: conditions.wind,
             sourceKey: 'wind',
           ),
-          if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
-            _ConditionRow(
-              label: 'Tide',
-              value: conditions.tideState,
-              sourceKey: 'tide',
-            ),
           _ConditionRow(
             label: 'Water',
             value: conditions.waterTemp,
@@ -128,8 +122,15 @@ class ConditionsCard extends StatelessWidget {
             label: 'Visibility',
             value: _resolveVisibility(),
             sourceKey: 'visibility',
-            isLast: true,
+            isLast: !(conditions.tideState.isNotEmpty && conditions.tideState != 'unknown'),
           ),
+          if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
+            _ConditionRow(
+              label: 'Tide',
+              value: conditions.tideState,
+              sourceKey: 'tide',
+              isLast: true,
+            ),
         ],
       ),
     );
@@ -170,20 +171,20 @@ class ConditionsCard extends StatelessWidget {
       < 10.0 => "Can't see your hand",
       _      => 'Zero vis',
     };
-    return '$label (est.)';
+    return '$label (approx)';
   }
 
   void _showAllSourcesInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFF1A1A1A),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) => SingleChildScrollView(
@@ -194,27 +195,26 @@ class ConditionsCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'Data Sources',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                    color: AppColors.textMuted,
+                    icon: const Icon(Icons.close, color: Colors.white54),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Condition data is aggregated from multiple scientific sources:',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
+                style: TextStyle(color: Colors.white54, fontSize: 13),
               ),
               const SizedBox(height: 20),
               ..._conditionSources.entries.map((e) => _buildSourceCard(
@@ -226,20 +226,18 @@ class ConditionsCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
+                child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.schedule, size: 16, color: AppColors.textMuted),
-                    const SizedBox(width: 8),
+                    Icon(Icons.schedule, size: 16, color: Colors.white38),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Data is refreshed automatically. Forecasts become more accurate as the date approaches.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                        style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
                       ),
                     ),
                   ],
@@ -265,11 +263,11 @@ class ConditionsCard extends StatelessWidget {
 
   Widget _buildSourceCard(BuildContext context, String label, _ConditionSource source) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,21 +276,25 @@ class ConditionsCard extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.oceanBlue.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   source.updateFrequency,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.oceanBlue,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -301,16 +303,19 @@ class ConditionsCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             source.source,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.oceanBlue,
+            style: TextStyle(
+              color: AppColors.success,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             source.description,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.4,
             ),
           ),
         ],

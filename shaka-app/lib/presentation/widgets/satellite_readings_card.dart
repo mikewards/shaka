@@ -6,8 +6,8 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 import '../utils/gibs_colormap.dart';
 
-/// Visibility label derived from chlorophyll concentration.
-/// Matches the backend ShakaScorer thresholds exactly.
+/// Visibility label derived from chlorophyll-a concentration.
+/// Matches the backend SpotService thresholds exactly.
 class _VisibilityInfo {
   final String label;
   final Color color;
@@ -139,7 +139,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       return const SizedBox.shrink();
     }
 
-    // Use ERDDAP chlorophyll if available; otherwise estimate from satellite colors
+    // Use Copernicus L3 chlorophyll if available; otherwise estimate from GIBS colors
     double? effectiveChl = readings.noaaErddapChlorophyll;
     bool isEstimated = false;
     if (effectiveChl == null) {
@@ -150,7 +150,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     var info = _getVisibilityInfo(effectiveChl);
     if (isEstimated) {
       info = _VisibilityInfo(
-        label: '${info.label} (est.)',
+        label: '${info.label} (approx)',
         color: info.color,
         description: info.description,
         range: info.range,
@@ -225,21 +225,6 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 ),
               ),
             ),
-            // Info button
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showLabelLegend(context);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                child: const Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.white38,
-                ),
-              ),
-            ),
             const SizedBox(width: 4),
             // Expand chevron
             AnimatedRotation(
@@ -279,14 +264,14 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
             const SizedBox(height: 12),
           ],
 
-          // Estimated Chlorophyll (when ERDDAP unavailable but satellite colors exist)
+          // Single-pass chlorophyll (when Copernicus L3 unavailable but GIBS colors exist)
           if (readings.noaaErddapChlorophyll == null && estimatedChl != null) ...[
             _buildEstimatedChlorophyllSection(estimatedChl),
             const SizedBox(height: 12),
           ],
 
-          // Legend
-          _buildLegend(),
+          // Visibility scale
+          _buildVisibilityScale(readings, estimatedChl),
           const SizedBox(height: 16),
 
           // Satellite imagery
@@ -296,7 +281,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     );
   }
 
-  /// Measured chlorophyll (NOAA ERDDAP) — compact version.
+  /// Measured chlorophyll (Copernicus Marine L3 NRT) — compact version.
   Widget _buildMeasuredChlorophyllSection(
       GibsSatelliteReadings readings, _VisibilityInfo info) {
     return Container(
@@ -313,7 +298,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'MEASURED CHLOROPHYLL',
+                'MULTI-SATELLITE CHLOROPHYLL',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 10,
@@ -329,7 +314,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'TRUSTED',
+                  'L3 QC',
                   style: TextStyle(
                     color: AppColors.success,
                     fontSize: 8,
@@ -378,7 +363,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           ),
           const SizedBox(height: 4),
           const Text(
-            'Source: NOAA ERDDAP',
+            'Source: Copernicus Marine Service',
             style: TextStyle(color: Colors.white38, fontSize: 11),
           ),
         ],
@@ -402,7 +387,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'ESTIMATED FROM IMAGERY',
+                'SINGLE-PASS CHLOROPHYLL',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 10,
@@ -418,7 +403,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'ESTIMATED',
+                  'APPROX',
                   style: TextStyle(
                     color: AppColors.warning,
                     fontSize: 8,
@@ -455,7 +440,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           ),
           const SizedBox(height: 4),
           const Text(
-            'Derived from satellite imagery colors (may include sediment/kelp)',
+            'Source: Averaged NASA GIBS satellite passes',
             style: TextStyle(color: Colors.white38, fontSize: 11),
           ),
         ],
@@ -488,31 +473,85 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
   }
 
   /// Chlorophyll color legend bar.
-  Widget _buildLegend() {
+  Widget _buildVisibilityScale(GibsSatelliteReadings readings, double? estimatedChl) {
+    const labels = [
+      ('Crystal clear', '< 0.1', Color(0xFF4400AA)),
+      ('Blue water', '0.1 – 0.3', Color(0xFF0066FF)),
+      ('Slight haze', '0.3 – 0.5', Color(0xFF00CCAA)),
+      ('Green tint', '0.5 – 1.0', Color(0xFFAADD00)),
+      ('Murky', '1.0 – 3.0', Color(0xFFFFCC00)),
+      ("Can't see your fins", '3.0 – 5.0', Color(0xFFFF8800)),
+      ("Can't see your hand", '5.0 – 10.0', Color(0xFFFF4400)),
+      ('Zero vis', '> 10.0', Color(0xFF880000)),
+    ];
+
+    final effectiveChl = readings.noaaErddapChlorophyll ?? estimatedChl;
+    final currentLabel = _getVisibilityInfo(effectiveChl).label;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          height: 12,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: _legendColors),
-            borderRadius: BorderRadius.circular(4),
+        const Text(
+          'VISIBILITY SCALE',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
           ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final label in ['0.01', '0.1', '0.5', '3.0', '20.0'])
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 10,
+        const SizedBox(height: 8),
+        ...labels.map((entry) {
+          final (label, range, color) = entry;
+          final isCurrent = label == currentLabel;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: isCurrent
+                  ? color.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: isCurrent
+                  ? Border.all(color: color.withValues(alpha: 0.4))
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                  ),
                 ),
-              ),
-          ],
-        ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: isCurrent ? Colors.white : Colors.white70,
+                      fontSize: 12,
+                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  range,
+                  style: TextStyle(
+                    color: isCurrent ? Colors.white : Colors.white70,
+                    fontSize: 12,
+                    fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
@@ -541,7 +580,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'SATELLITE IMAGERY',
+              'NASA GIBS SATELLITE VALUES',
               style: TextStyle(
                 color: Colors.white54,
                 fontSize: 10,
@@ -648,7 +687,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       child: Row(
         children: [
           SizedBox(
-            width: 80,
+            width: 82,
             child: Text(
               name,
               style: const TextStyle(
@@ -656,6 +695,8 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Container(
@@ -667,17 +708,19 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
               border: Border.all(color: Colors.white24, width: 0.5),
             ),
           ),
-          if (estChl != null) ...[
-            const SizedBox(width: 8),
-            Text(
-              estChl.toStringAsFixed(2),
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+          if (estChl != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                '${estChl.toStringAsFixed(2)} mg/m\u00B3',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
               ),
             ),
-          ],
           Expanded(
             child: Text(
               observationTime != null
@@ -685,6 +728,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                   : (isToday ? 'Today' : 'Yesterday'),
               style: const TextStyle(color: Colors.white54, fontSize: 12),
               textAlign: TextAlign.right,
+              maxLines: 1,
             ),
           ),
         ],
@@ -814,15 +858,21 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               children: [
                 const Expanded(
@@ -842,6 +892,14 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
               ],
             ),
             const SizedBox(height: 16),
+            const Text(
+              'More chlorophyll = more plankton = less visibility. '
+              'We measure chlorophyll from space to estimate what '
+              'you\'ll see underwater.',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -854,7 +912,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'MEASURED CHLOROPHYLL',
+                    'MULTI-SATELLITE (L3 QC)',
                     style: TextStyle(
                       color: AppColors.success,
                       fontSize: 10,
@@ -864,8 +922,43 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Trusted chlorophyll from quality-controlled satellite data '
-                    'with coastal contamination filtered out.',
+                    'Copernicus Marine Service merges multiple satellite '
+                    'passes into one quality-controlled daily product. '
+                    'This is the most reliable number and what the '
+                    'visibility label is based on.',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 13, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SINGLE-PASS (APPROX)',
+                    style: TextStyle(
+                      color: AppColors.warning,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'When the merged product isn\'t available, we read '
+                    'ocean color from individual satellite passes via '
+                    'NASA GIBS. Less reliable near shore — sediment and '
+                    'kelp can look like chlorophyll.',
                     style: TextStyle(
                         color: Colors.white70, fontSize: 13, height: 1.4),
                   ),
@@ -883,7 +976,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SATELLITE IMAGERY COLORS',
+                    'COLOR DOTS',
                     style: TextStyle(
                       color: Colors.white54,
                       fontSize: 10,
@@ -893,8 +986,10 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Raw satellite colors — may include sediment, kelp, or '
-                    'shallow bottom reflectance in coastal areas.',
+                    'Each dot is one satellite\'s reading of ocean color '
+                    'at this spot. Purple/blue = clear. Green/yellow = '
+                    'moderate. Orange/red = high chlorophyll. Multiple '
+                    'satellites give you a cross-check.',
                     style: TextStyle(
                         color: Colors.white70, fontSize: 13, height: 1.4),
                   ),
@@ -927,11 +1022,18 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                       name: 'NOAA-20/21', desc: 'VIIRS ocean color'),
                   _SatelliteInfoRow(
                       name: 'Sentinel-3A/B', desc: 'ESA OLCI sensor'),
+                  SizedBox(height: 6),
+                  Text(
+                    'Copernicus L3 merges data from these and other sensors.',
+                    style: TextStyle(
+                        color: Colors.white38, fontSize: 11, height: 1.3),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 8),
           ],
+        ),
         ),
       ),
     );
