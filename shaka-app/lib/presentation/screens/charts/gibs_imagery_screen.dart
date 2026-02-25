@@ -1,6 +1,5 @@
 import 'dart:async' show Timer;
 import 'dart:math' show Point, sqrt;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +18,7 @@ import '../../../data/services/map_home_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/save_spot_sheet.dart';
+import '../../utils/tier_pill_painter.dart';
 import '../../widgets/score_tier_pill.dart';
 
 /// GIBS Satellite Imagery Screen
@@ -144,8 +144,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       _loadInitialCenter();
     }
 
-    // Pre-generate pill PNGs before map loads
-    _preGeneratePillImages();
+    _preGenerateChipImages();
 
     // Immersive status bar
     SystemChrome.setSystemUIOverlayStyle(
@@ -378,7 +377,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await _mapController!.addCircle(
         CircleOptions(
           geometry: _initialCenter,
-          circleRadius: 24,
+          circleRadius: 19.2,
           circleColor: '#00BCD4',
           circleStrokeColor: '#00BCD4',
           circleStrokeWidth: 2,
@@ -390,7 +389,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await _mapController!.addCircle(
         CircleOptions(
           geometry: _initialCenter,
-          circleRadius: 14,
+          circleRadius: 11.2,
           circleColor: '#FFFFFF',
           circleStrokeColor: '#FFFFFF',
           circleStrokeWidth: 0,
@@ -402,7 +401,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await _mapController!.addCircle(
         CircleOptions(
           geometry: _initialCenter,
-          circleRadius: 10,
+          circleRadius: 8,
           circleColor: '#00BCD4',
           circleStrokeColor: '#00838F',
           circleStrokeWidth: 2,
@@ -414,7 +413,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
       await _mapController!.addCircle(
         CircleOptions(
           geometry: _initialCenter,
-          circleRadius: 4,
+          circleRadius: 3.2,
           circleColor: '#FFFFFF',
           circleStrokeColor: '#FFFFFF',
           circleStrokeWidth: 0,
@@ -725,83 +724,29 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Pill-shaped tier indicator images (same system as Explore)
+  // Map marker image generation (Surfline-style colored chips)
   // ---------------------------------------------------------------------------
 
-  static const _tierDefs = <int, Color>{
-    5: AppColors.scoreExcellent,
-    4: AppColors.scoreGood,
-    3: AppColors.scoreAverage,
-    2: AppColors.scoreBelowAvg,
-    1: AppColors.scorePoor,
-    0: Color(0xFF555555),
-  };
-
-  Future<Uint8List> _generateTierPillImage(int tier, Color tierColor) async {
-    const double px = 3.0;
-    const int segments = 5;
-    const double segW = 10.0 * px;
-    const double segH = 14.0 * px;
-    const double gap = 2.0 * px;
-    const double pad = 3.0 * px;
-    final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
-    final double totalH = pad * 2 + segH;
-    final double capR = segH / 2;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(totalH / 2)),
-      Paint()..color = const Color(0xDD1A1A1A),
-    );
-
-    for (int i = 0; i < segments; i++) {
-      final x = pad + i * (segW + gap);
-      final isFilled = i < tier;
-      final isFirst = i == 0;
-      final isLast = i == segments - 1;
-      final segRect = RRect.fromRectAndCorners(
-        Rect.fromLTWH(x, pad, segW, segH),
-        topLeft: isFirst ? Radius.circular(capR) : Radius.zero,
-        bottomLeft: isFirst ? Radius.circular(capR) : Radius.zero,
-        topRight: isLast ? Radius.circular(capR) : Radius.zero,
-        bottomRight: isLast ? Radius.circular(capR) : Radius.zero,
-      );
-      canvas.drawRRect(
-        segRect,
-        Paint()..color = isFilled ? tierColor : Colors.white.withOpacity(0.12),
-      );
-    }
-
-    final image = await recorder.endRecording().toImage(totalW.toInt(), totalH.toInt());
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return bytes!.buffer.asUint8List();
-  }
-
-  Future<void> _preGeneratePillImages() async {
-    await Future.wait(_tierDefs.entries.map((entry) async {
-      final key = 'tier-${entry.key}';
-      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
+  Future<void> _preGenerateChipImages() async {
+    await Future.wait(tierDefs.entries.map((entry) async {
+      final key = 'chip-${entry.key}';
+      final label = tierLabels[entry.key] ?? '—';
+      _badgeImageCache[key] ??=
+          await generateScoreChipImage(entry.key, entry.value, label);
     }));
   }
 
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
-    if (_badgeImageCache.length < 6) await _preGeneratePillImages();
+    if (_badgeImageCache.length < 6) await _preGenerateChipImages();
 
-    await Future.wait(_tierDefs.keys.map((tier) async {
-      final key = 'tier-$tier';
+    await Future.wait(tierDefs.keys.map((tier) async {
+      final key = 'chip-$tier';
       if (_registeredBadgeImages.contains(key)) return;
       if (_mapController == null) return;
       await _mapController!.addImage(key, _badgeImageCache[key]!);
       _registeredBadgeImages.add(key);
     }));
-  }
-
-  String _tierKeyForScore(int? score) {
-    if (score == null) return 'tier-0';
-    return 'tier-${AppColors.getScoreTier(score)}';
   }
 
   Future<void> _updateSpotMarkers() async {
@@ -815,7 +760,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
     final features = _savedSpots.map((spot) {
       final score = spot.shakaScore ?? 0;
-      final tierKey = _tierKeyForScore(spot.shakaScore);
+      final tierKey = chipKeyForScore(spot.shakaScore);
       return {
         'type': 'Feature',
         'properties': {
@@ -846,7 +791,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         'saved-spots-layer',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.5,
+          iconSize: 0.8,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
@@ -944,7 +889,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
 
     if (_mapController == null) return;
 
-    final tierKey = _tierKeyForScore(spot.shakaScore);
+    final tierKey = chipKeyForScore(spot.shakaScore);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -975,7 +920,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
         'selected-spot-layer',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.75,
+          iconSize: 1.2,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
@@ -1028,7 +973,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     await _removePulseRing();
     if (_mapController == null) return;
 
-    final radius = _pulseExpanded ? 24.0 : 16.0;
+    final radius = _pulseExpanded ? 19.2 : 12.8;
     final opacity = _pulseExpanded ? 0.15 : 0.35;
 
     final features = loadingSpots.map((spot) => {

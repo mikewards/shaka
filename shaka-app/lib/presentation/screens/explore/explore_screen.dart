@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' show Point, sqrt;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -13,6 +12,7 @@ import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
 import '../../widgets/background_picker.dart';
+import '../../utils/tier_pill_painter.dart';
 import '../../widgets/score_tier_pill.dart';
 import '../../widgets/set_map_home_dialog.dart';
 import '../../widgets/save_spot_sheet.dart';
@@ -116,8 +116,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _bgService.addListener(_onBackgroundChanged);
     MapHomeService.mapHomeChanged.addListener(_onMapHomeChanged);
     _initDefaultCenter();
-    // Pre-generate all 6 pill PNGs before map loads (non-blocking)
-    _preGeneratePillImages();
+    _preGenerateChipImages();
     // NOTE: All spots are loaded once in _onStyleLoaded - no location-based reload
     _loadSavedSpots();
   }
@@ -589,7 +588,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     await _removePulseRing();
     if (_mapController == null) return;
 
-    final radius = _pulseExpanded ? 24.0 : 16.0;
+    final radius = _pulseExpanded ? 19.2 : 12.8;
     final opacity = _pulseExpanded ? 0.15 : 0.35;
 
     final features = loadingSpots.map((spot) => {
@@ -852,99 +851,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Map marker image generation (painted via Canvas → PNG → MapLibre icon)
+  // Map marker image generation (Surfline-style colored chips)
   // ---------------------------------------------------------------------------
 
-  /// Paint a pill-shaped tier indicator for the map.
-  /// [tier] = 1-5 (how many segments are filled). tierColor = fill color.
-  /// Only the first and last segments have rounded outer edges; inner edges
-  /// are sharp so the segments tile cleanly.
-  Future<Uint8List> _generateTierPillImage(int tier, Color tierColor) async {
-    const double px = 3.0;
-    const int segments = 5;
-    const double segW = 10.0 * px;   // 30 actual px per segment
-    const double segH = 14.0 * px;   // 42 actual px tall
-    const double gap = 2.0 * px;     // 6 actual px gap
-    const double pad = 3.0 * px;     // outer padding
-    final double totalW = pad * 2 + segments * segW + (segments - 1) * gap;
-    final double totalH = pad * 2 + segH;
-    // Capsule radius — used for background AND first/last segments
-    final double capR = segH / 2;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, totalW, totalH));
-
-    // Dark capsule background
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, totalW, totalH), Radius.circular(totalH / 2)),
-      Paint()..color = const Color(0xDD1A1A1A),
-    );
-
-    // Draw 5 segments — first/last use same radius as capsule so colors
-    // follow the border curve exactly. Middle segments are sharp.
-    for (int i = 0; i < segments; i++) {
-      final x = pad + i * (segW + gap);
-      final isFilled = i < tier;
-      final isFirst = i == 0;
-      final isLast = i == segments - 1;
-      final segRect = RRect.fromRectAndCorners(
-        Rect.fromLTWH(x, pad, segW, segH),
-        topLeft: isFirst ? Radius.circular(capR) : Radius.zero,
-        bottomLeft: isFirst ? Radius.circular(capR) : Radius.zero,
-        topRight: isLast ? Radius.circular(capR) : Radius.zero,
-        bottomRight: isLast ? Radius.circular(capR) : Radius.zero,
-      );
-      canvas.drawRRect(
-        segRect,
-        Paint()..color = isFilled ? tierColor : Colors.white.withOpacity(0.12),
-      );
-    }
-
-    final image = await recorder.endRecording().toImage(totalW.toInt(), totalH.toInt());
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return bytes!.buffer.asUint8List();
-  }
-
-  static const _tierDefs = <int, Color>{
-    5: AppColors.scoreExcellent,
-    4: AppColors.scoreGood,
-    3: AppColors.scoreAverage,
-    2: AppColors.scoreBelowAvg,
-    1: AppColors.scorePoor,
-    0: Color(0xFF555555), // no score
-  };
-
-  /// Pre-generate all 6 pill PNGs in parallel at startup (before map loads).
-  /// Stored in _badgeImageCache so _registerScoreBadgeImages just uploads.
-  Future<void> _preGeneratePillImages() async {
-    await Future.wait(_tierDefs.entries.map((entry) async {
-      final key = 'tier-${entry.key}';
-      _badgeImageCache[key] ??= await _generateTierPillImage(entry.key, entry.value);
+  Future<void> _preGenerateChipImages() async {
+    await Future.wait(tierDefs.entries.map((entry) async {
+      final key = 'chip-${entry.key}';
+      final label = tierLabels[entry.key] ?? '—';
+      _badgeImageCache[key] ??=
+          await generateScoreChipImage(entry.key, entry.value, label);
     }));
   }
 
-  /// Upload pre-generated pill PNGs to the current GL context.
-  /// All bytes are already in _badgeImageCache — this just calls addImage.
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
+    if (_badgeImageCache.length < 6) await _preGenerateChipImages();
 
-    // Wait for pre-generation if it hasn't finished yet
-    if (_badgeImageCache.length < 6) await _preGeneratePillImages();
-
-    // Upload all 6 in parallel
-    await Future.wait(_tierDefs.keys.map((tier) async {
-      final key = 'tier-$tier';
+    await Future.wait(tierDefs.keys.map((tier) async {
+      final key = 'chip-$tier';
       if (_registeredBadgeImages.contains(key)) return;
       if (_mapController == null) return;
       await _mapController!.addImage(key, _badgeImageCache[key]!);
       _registeredBadgeImages.add(key);
     }));
-  }
-
-  /// Map a score to its tier icon key
-  String _tierKeyForScore(int? score) {
-    if (score == null) return 'tier-0';
-    return 'tier-${AppColors.getScoreTier(score)}';
   }
 
   /// Update markers using GeoJSON layer - renders ON TOP of raster overlays
@@ -968,7 +897,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // Build GeoJSON — each feature carries its tier pill icon
     final features = spots.map((spot) {
       final score = spot.shakaScore ?? 0;
-      final tierKey = _tierKeyForScore(spot.shakaScore);
+      final tierKey = chipKeyForScore(spot.shakaScore);
       return {
         'type': 'Feature',
         'properties': {
@@ -994,20 +923,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // Pill-shaped tier markers — no text, just the visual indicator
       await _mapController!.addSymbolLayer(
         'spots-source',
         'spots-layer',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.5,
+          iconSize: 0.8,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
           symbolSortKey: ['get', 'sortKey'],
         ),
       );
 
-      debugPrint('🗺️ Rendered ${spots.length} pill markers (6 tier images)');
+      debugPrint('🗺️ Rendered ${spots.length} chip markers');
     } catch (e) {
       debugPrint('Failed to add spots layer: $e');
     }
@@ -1026,7 +954,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_selectedSpotIndex == null || _selectedSpotIndex! >= _visibleSpots.length) return;
 
     final spot = _visibleSpots[_selectedSpotIndex!];
-    final tierKey = _tierKeyForScore(spot.shakaScore);
+    final tierKey = chipKeyForScore(spot.shakaScore);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -1051,13 +979,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       if (_mapController == null) return;
 
-      // Larger pill — same icon, just scaled up
       await _mapController!.addSymbolLayer(
         'selected-spot-source',
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 0.75,
+          iconSize: 1.2,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),

@@ -1,7 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/spot_models.dart';
+import '../../utils/tier_pill_painter.dart';
 import '../../widgets/shaka_score_badge.dart';
 
 class MapView extends StatefulWidget {
@@ -25,55 +27,94 @@ class MapView extends StatefulWidget {
 class _MapViewState extends State<MapView> {
   MapLibreMapController? _mapController;
   SpotSummary? _selectedSpot;
-  final List<Circle> _circles = [];
-  bool _isMapReady = false;
+
+  final Map<String, Uint8List> _badgeImageCache = {};
+  final Set<String> _registeredBadgeImages = {};
 
   void _onMapCreated(MapLibreMapController controller) {
     _mapController = controller;
   }
 
   void _onStyleLoaded() {
-    setState(() => _isMapReady = true);
     _addMarkers();
+  }
+
+  Future<void> _preGenerateChipImages() async {
+    await Future.wait(tierDefs.entries.map((entry) async {
+      final key = 'chip-${entry.key}';
+      final label = tierLabels[entry.key] ?? '—';
+      _badgeImageCache[key] ??=
+          await generateScoreChipImage(entry.key, entry.value, label);
+    }));
+  }
+
+  Future<void> _registerScoreBadgeImages() async {
+    if (_mapController == null) return;
+    if (_badgeImageCache.length < 6) await _preGenerateChipImages();
+
+    await Future.wait(tierDefs.keys.map((tier) async {
+      final key = 'chip-$tier';
+      if (_registeredBadgeImages.contains(key)) return;
+      if (_mapController == null) return;
+      await _mapController!.addImage(key, _badgeImageCache[key]!);
+      _registeredBadgeImages.add(key);
+    }));
   }
 
   Future<void> _addMarkers() async {
     if (_mapController == null) return;
 
-    // Clear existing circles
-    for (final circle in _circles) {
-      try {
-        await _mapController!.removeCircle(circle);
-      } catch (_) {}
+    for (final id in ['results-spots-layer']) {
+      try { await _mapController?.removeLayer(id); } catch (_) {}
     }
-    _circles.clear();
+    try { await _mapController?.removeSource('results-spots-source'); } catch (_) {}
+    if (_mapController == null || widget.spots.isEmpty) return;
 
-    // Add circles for each spot
-    for (final spot in widget.spots) {
-      final color = _getMarkerColorHex(spot.shakaScore);
-      try {
-        final circle = await _mapController!.addCircle(
-          CircleOptions(
-            geometry: LatLng(spot.coordinates.lat, spot.coordinates.lon),
-            circleRadius: 14.0,
-            circleColor: color,
-            circleStrokeColor: '#FFFFFF',
-            circleStrokeWidth: 2.0,
-            circleOpacity: 1.0,
-          ),
-        );
-        _circles.add(circle);
-      } catch (e) {
-        debugPrint('Failed to add marker: $e');
-      }
+    await _registerScoreBadgeImages();
+    if (_mapController == null) return;
+
+    final features = widget.spots.map((spot) {
+      final score = spot.shakaScore;
+      final tKey = chipKeyForScore(spot.shakaScore);
+      return {
+        'type': 'Feature',
+        'properties': {
+          'id': spot.id,
+          'name': spot.name,
+          'icon': tKey,
+          'sortKey': -score,
+        },
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
+        },
+      };
+    }).toList();
+
+    try {
+      await _mapController!.addSource(
+        'results-spots-source',
+        GeojsonSourceProperties(data: {
+          'type': 'FeatureCollection',
+          'features': features,
+        }),
+      );
+      if (_mapController == null) return;
+
+      await _mapController!.addSymbolLayer(
+        'results-spots-source',
+        'results-spots-layer',
+        const SymbolLayerProperties(
+          iconImage: ['get', 'icon'],
+          iconSize: 0.8,
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
+          symbolSortKey: ['get', 'sortKey'],
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to add results spots layer: $e');
     }
-  }
-
-  Color _getMarkerColor(int score) => AppColors.getScoreColor(score);
-
-  String _getMarkerColorHex(int score) {
-    final color = AppColors.getScoreColor(score);
-    return '#${color.value.toRadixString(16).substring(2)}';
   }
 
   @override
@@ -91,7 +132,6 @@ class _MapViewState extends State<MapView> {
           compassEnabled: false,
         ),
 
-        // Selected spot preview card
         if (_selectedSpot != null)
           Positioned(
             left: 16,
@@ -108,7 +148,6 @@ class _MapViewState extends State<MapView> {
             ),
           ),
 
-        // Legend
         Positioned(
           top: 16,
           right: 16,
@@ -150,7 +189,6 @@ class _SpotPreviewCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header row
             Row(
               children: [
                 ShakaScoreBadge(
@@ -193,7 +231,6 @@ class _SpotPreviewCard extends StatelessWidget {
             
             const SizedBox(height: 14),
             
-            // Conditions row
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
@@ -225,7 +262,6 @@ class _SpotPreviewCard extends StatelessWidget {
             
             const SizedBox(height: 12),
             
-            // View indicator
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

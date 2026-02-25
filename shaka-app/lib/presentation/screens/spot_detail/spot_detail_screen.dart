@@ -316,7 +316,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
           _buildSectionHeader('VISIBILITY'),
           const SizedBox(height: 10),
-          SatelliteReadingsCard(readings: spot.satelliteReadings),
+          SatelliteReadingsCard(
+            readings: spot.satelliteReadings,
+            visibilityScore: spot.score.breakdown.visibility,
+          ),
           const SizedBox(height: 20),
         ],
 
@@ -581,9 +584,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ),
       child: Column(
         children: [
-          _buildScoreRow('Visibility', breakdown.visibility),
-          _buildScoreRow('Wind', breakdown.weather),
           _buildScoreRow('Swell', breakdown.swell),
+          _buildScoreRow('Wind', breakdown.weather),
+          _buildScoreRow('Visibility', breakdown.visibility),
           _buildScoreRow('Solunar', breakdown.solunar, isLast: true),
         ],
       ),

@@ -101,16 +101,6 @@ class ConditionsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ConditionRow(
-            label: 'Visibility',
-            value: conditions.visibility,
-            sourceKey: 'visibility',
-          ),
-          _ConditionRow(
-            label: 'Water',
-            value: conditions.waterTemp,
-            sourceKey: 'water',
-          ),
-          _ConditionRow(
             label: 'Swell',
             value: conditions.swell,
             sourceKey: 'swell',
@@ -125,8 +115,18 @@ class ConditionsCard extends StatelessWidget {
               label: 'Tide',
               value: conditions.tideState,
               sourceKey: 'tide',
-              isLast: true,
             ),
+          _ConditionRow(
+            label: 'Water',
+            value: conditions.waterTemp,
+            sourceKey: 'water',
+          ),
+          _ConditionRow(
+            label: 'Visibility',
+            value: conditions.visibility,
+            sourceKey: 'visibility',
+            isLast: true,
+          ),
         ],
       ),
     );

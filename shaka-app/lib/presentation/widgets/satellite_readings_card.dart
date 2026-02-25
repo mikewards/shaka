@@ -100,8 +100,9 @@ _VisibilityInfo _getVisibilityInfo(double? chl) {
 /// INFO: Tapping the "?" shows what each label means.
 class SatelliteReadingsCard extends StatefulWidget {
   final GibsSatelliteReadings? readings;
+  final int? visibilityScore;
 
-  const SatelliteReadingsCard({super.key, this.readings});
+  const SatelliteReadingsCard({super.key, this.readings, this.visibilityScore});
 
   @override
   State<SatelliteReadingsCard> createState() => _SatelliteReadingsCardState();
@@ -136,7 +137,16 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       return const SizedBox.shrink();
     }
 
-    final info = _getVisibilityInfo(readings.noaaErddapChlorophyll);
+    var info = _getVisibilityInfo(readings.noaaErddapChlorophyll);
+    if (widget.visibilityScore != null) {
+      final scoreColor = AppColors.getScoreColor(widget.visibilityScore!);
+      info = _VisibilityInfo(
+        label: info.label,
+        color: scoreColor,
+        description: info.description,
+        range: info.range,
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
