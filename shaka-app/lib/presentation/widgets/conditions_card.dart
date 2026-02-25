@@ -1,7 +1,9 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
+import '../utils/gibs_colormap.dart';
 
 /// Data source information for conditions
 class _ConditionSource {
@@ -49,12 +51,13 @@ const _conditionSources = {
 /// Tap row for info about data source.
 class ConditionsCard extends StatelessWidget {
   final SpotConditions conditions;
+  final GibsSatelliteReadings? satelliteReadings;
 
   // Dark theme colors
   static const _cardColor = Color(0xFF1A1A1A);
   static const _borderColor = Color(0xFF2A2A2A);
 
-  const ConditionsCard({super.key, required this.conditions});
+  const ConditionsCard({super.key, required this.conditions, this.satelliteReadings});
 
   @override
   Widget build(BuildContext context) {
@@ -123,13 +126,51 @@ class ConditionsCard extends StatelessWidget {
           ),
           _ConditionRow(
             label: 'Visibility',
-            value: conditions.visibility,
+            value: _resolveVisibility(),
             sourceKey: 'visibility',
             isLast: true,
           ),
         ],
       ),
     );
+  }
+
+  String _resolveVisibility() {
+    if (conditions.visibility != 'No satellite data') return conditions.visibility;
+    final readings = satelliteReadings;
+    if (readings == null) return conditions.visibility;
+
+    final hexColors = <String?>[
+      readings.paceYesterdayColor ?? readings.paceTodayColor,
+      readings.noaa20YesterdayColor ?? readings.noaa20TodayColor,
+      readings.noaa21YesterdayColor ?? readings.noaa21TodayColor,
+      readings.sentinel3aYesterdayColor ?? readings.sentinel3aTodayColor,
+      readings.sentinel3bYesterdayColor ?? readings.sentinel3bTodayColor,
+    ].whereType<String>().toList();
+
+    if (hexColors.isEmpty) return conditions.visibility;
+
+    final estimates = hexColors
+        .map((hex) => estimateChlorophyllFromHex(hex))
+        .whereType<double>()
+        .toList();
+
+    if (estimates.isEmpty) return conditions.visibility;
+
+    final logSum = estimates.fold<double>(0, (s, v) => s + log(v));
+    final chl = exp(logSum / estimates.length);
+
+    final label = switch (chl) {
+      < 0.1  => 'Crystal clear',
+      < 0.3  => 'Blue water',
+      < 0.5  => 'Slight haze',
+      < 1.0  => 'Green tint',
+      < 3.0  => 'Murky',
+      < 5.0  => "Can't see your fins",
+      < 10.0 => "Can't see your hand",
+      _      => 'Zero vis',
+    };
+    return '$label (est.)';
   }
 
   void _showAllSourcesInfo(BuildContext context) {

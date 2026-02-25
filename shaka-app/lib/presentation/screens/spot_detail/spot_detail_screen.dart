@@ -301,7 +301,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         // Conditions
         _buildSectionHeader('CONDITIONS'),
         const SizedBox(height: 10),
-        ConditionsCard(conditions: spot.conditions),
+        ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
 
         const SizedBox(height: 20),
 
@@ -1072,7 +1072,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             children: [
               _buildSectionHeader('CONDITIONS'),
               const SizedBox(height: 10),
-              ConditionsCard(conditions: spot.conditions),
+              ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
               const SizedBox(height: 20),
               // Satellite Visibility (collapsed label, expandable details)
               if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[

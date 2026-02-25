@@ -124,12 +124,13 @@ class ForecastService {
     private fun getChlorophyllCategory(chl: Double): String {
         return when {
             chl < 0.1  -> "Crystal clear"
-            chl < 0.3  -> "Clear"
-            chl < 0.5  -> "Average"
-            chl < 1.0  -> "Below average"
+            chl < 0.3  -> "Blue water"
+            chl < 0.5  -> "Slight haze"
+            chl < 1.0  -> "Green tint"
             chl < 3.0  -> "Murky"
-            chl < 5.0  -> "Poor"
-            else       -> "Very poor"
+            chl < 5.0  -> "Can't see your fins"
+            chl < 10.0 -> "Can't see your hand"
+            else       -> "Zero vis"
         }
     }
 

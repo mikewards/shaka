@@ -1,8 +1,10 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
+import '../utils/gibs_colormap.dart';
 
 /// Visibility label derived from chlorophyll concentration.
 /// Matches the backend ShakaScorer thresholds exactly.
@@ -39,7 +41,7 @@ _VisibilityInfo _getVisibilityInfo(double? chl) {
   }
   if (chl < 0.3) {
     return _VisibilityInfo(
-      label: 'Clear',
+      label: 'Blue water',
       color: const Color(0xFF0066FF),
       description: 'Very good conditions. Great visibility underwater.',
       range: '0.1 – 0.3 mg/m³',
@@ -47,17 +49,17 @@ _VisibilityInfo _getVisibilityInfo(double? chl) {
   }
   if (chl < 0.5) {
     return _VisibilityInfo(
-      label: 'Average',
+      label: 'Slight haze',
       color: const Color(0xFF00CCAA),
-      description: 'Typical coastal conditions. Decent visibility.',
+      description: 'Typical coastal conditions. Visibility slightly reduced.',
       range: '0.3 – 0.5 mg/m³',
     );
   }
   if (chl < 1.0) {
     return _VisibilityInfo(
-      label: 'Below average',
+      label: 'Green tint',
       color: const Color(0xFFAADD00),
-      description: 'Reduced clarity from phytoplankton. Still diveable.',
+      description: 'Water shifting from blue to green. Reduced clarity.',
       range: '0.5 – 1.0 mg/m³',
     );
   }
@@ -65,7 +67,7 @@ _VisibilityInfo _getVisibilityInfo(double? chl) {
     return _VisibilityInfo(
       label: 'Murky',
       color: const Color(0xFFFFCC00),
-      description: 'Significant phytoplankton bloom. Limited visibility.',
+      description: 'Significant phytoplankton. Limited visibility.',
       range: '1.0 – 3.0 mg/m³',
     );
   }
@@ -79,16 +81,16 @@ _VisibilityInfo _getVisibilityInfo(double? chl) {
   }
   if (chl < 10.0) {
     return _VisibilityInfo(
-      label: 'Stay home',
+      label: "Can't see your hand",
       color: const Color(0xFFFF4400),
-      description: 'Dense bloom. Dangerous conditions — stay out of the water.',
+      description: 'Dense bloom. Dangerous conditions.',
       range: '5.0 – 10.0 mg/m³',
     );
   }
   return _VisibilityInfo(
-    label: 'Algae bloom',
+    label: 'Zero vis',
     color: const Color(0xFF880000),
-    description: 'Severe algae bloom. Potentially toxic — do not enter.',
+    description: 'Severe bloom. No underwater visibility.',
     range: '> 10.0 mg/m³',
   );
 }
@@ -137,7 +139,23 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       return const SizedBox.shrink();
     }
 
-    var info = _getVisibilityInfo(readings.noaaErddapChlorophyll);
+    // Use ERDDAP chlorophyll if available; otherwise estimate from satellite colors
+    double? effectiveChl = readings.noaaErddapChlorophyll;
+    bool isEstimated = false;
+    if (effectiveChl == null) {
+      effectiveChl = _estimateFromSatelliteColors(readings);
+      isEstimated = effectiveChl != null;
+    }
+
+    var info = _getVisibilityInfo(effectiveChl);
+    if (isEstimated) {
+      info = _VisibilityInfo(
+        label: '${info.label} (est.)',
+        color: info.color,
+        description: info.description,
+        range: info.range,
+      );
+    }
     if (widget.visibilityScore != null) {
       final scoreColor = AppColors.getScoreColor(widget.visibilityScore!);
       info = _VisibilityInfo(
@@ -242,6 +260,10 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
   /// Full expanded content: measured chlorophyll, legend, satellite imagery.
   Widget _buildExpandedContent(
       GibsSatelliteReadings readings, _VisibilityInfo info) {
+    final estimatedChl = readings.noaaErddapChlorophyll == null
+        ? _estimateFromSatelliteColors(readings)
+        : null;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(
@@ -254,6 +276,12 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           // Measured Chlorophyll
           if (readings.noaaErddapChlorophyll != null) ...[
             _buildMeasuredChlorophyllSection(readings, info),
+            const SizedBox(height: 12),
+          ],
+
+          // Estimated Chlorophyll (when ERDDAP unavailable but satellite colors exist)
+          if (readings.noaaErddapChlorophyll == null && estimatedChl != null) ...[
+            _buildEstimatedChlorophyllSection(estimatedChl),
             const SizedBox(height: 12),
           ],
 
@@ -358,6 +386,107 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     );
   }
 
+  /// Estimated chlorophyll from satellite imagery colors.
+  Widget _buildEstimatedChlorophyllSection(double estimatedChl) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'ESTIMATED FROM IMAGERY',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'ESTIMATED',
+                  style: TextStyle(
+                    color: AppColors.warning,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                estimatedChl.toStringAsFixed(2),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'mg/m\u00B3',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Derived from satellite imagery colors (may include sediment/kelp)',
+            style: TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compute geometric mean of satellite-derived chlorophyll estimates.
+  double? _estimateFromSatelliteColors(GibsSatelliteReadings readings) {
+    final hexColors = <String?>[
+      readings.paceYesterdayColor ?? readings.paceTodayColor,
+      readings.noaa20YesterdayColor ?? readings.noaa20TodayColor,
+      readings.noaa21YesterdayColor ?? readings.noaa21TodayColor,
+      readings.sentinel3aYesterdayColor ?? readings.sentinel3aTodayColor,
+      readings.sentinel3bYesterdayColor ?? readings.sentinel3bTodayColor,
+    ].whereType<String>().toList();
+
+    if (hexColors.isEmpty) return null;
+
+    final estimates = hexColors
+        .map((hex) => estimateChlorophyllFromHex(hex))
+        .whereType<double>()
+        .toList();
+
+    if (estimates.isEmpty) return null;
+
+    // Geometric mean (average in log space) for log-distributed data
+    final logSum = estimates.fold<double>(0, (s, v) => s + log(v));
+    return exp(logSum / estimates.length);
+  }
+
   /// Chlorophyll color legend bar.
   Widget _buildLegend() {
     return Column(
@@ -402,6 +531,8 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
         readings.sentinel3bYesterdayColor != null;
 
     if (!hasSatelliteColors) return const SizedBox.shrink();
+
+    final showEstimates = readings.noaaErddapChlorophyll == null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,6 +583,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           observationTime: readings.paceObservationTime,
           isToday: readings.paceYesterdayColor == null &&
               readings.paceTodayColor != null,
+          showEstimate: showEstimates,
         ),
         _buildSatelliteColorRow(
           name: 'NOAA-20',
@@ -460,6 +592,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           observationTime: readings.noaa20ObservationTime,
           isToday: readings.noaa20YesterdayColor == null &&
               readings.noaa20TodayColor != null,
+          showEstimate: showEstimates,
         ),
         _buildSatelliteColorRow(
           name: 'NOAA-21',
@@ -468,6 +601,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           observationTime: readings.noaa21ObservationTime,
           isToday: readings.noaa21YesterdayColor == null &&
               readings.noaa21TodayColor != null,
+          showEstimate: showEstimates,
         ),
         _buildSatelliteColorRow(
           name: 'Sentinel-3A',
@@ -476,6 +610,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           observationTime: null,
           isToday: readings.sentinel3aYesterdayColor == null &&
               readings.sentinel3aTodayColor != null,
+          showEstimate: showEstimates,
         ),
         _buildSatelliteColorRow(
           name: 'Sentinel-3B',
@@ -485,6 +620,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           isToday: readings.sentinel3bYesterdayColor == null &&
               readings.sentinel3bTodayColor != null,
           isLast: true,
+          showEstimate: showEstimates,
         ),
       ],
     );
@@ -496,8 +632,11 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     required DateTime? observationTime,
     bool isToday = false,
     bool isLast = false,
+    bool showEstimate = false,
   }) {
     if (colorHex == null) return const SizedBox.shrink();
+
+    final estChl = showEstimate ? estimateChlorophyllFromHex(colorHex) : null;
 
     return Container(
       padding: EdgeInsets.only(top: 8, bottom: isLast ? 4 : 8),
@@ -508,7 +647,8 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       ),
       child: Row(
         children: [
-          Expanded(
+          SizedBox(
+            width: 80,
             child: Text(
               name,
               style: const TextStyle(
@@ -527,6 +667,17 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
               border: Border.all(color: Colors.white24, width: 0.5),
             ),
           ),
+          if (estChl != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              estChl.toStringAsFixed(2),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           Expanded(
             child: Text(
               observationTime != null
@@ -547,13 +698,13 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
   void _showLabelLegend(BuildContext context) {
     final labels = [
       ('Crystal clear', '< 0.1', const Color(0xFF4400AA), 'Open ocean clarity'),
-      ('Clear', '0.1 – 0.3', const Color(0xFF0066FF), 'Great visibility'),
-      ('Average', '0.3 – 0.5', const Color(0xFF00CCAA), 'Typical coastal'),
-      ('Below average', '0.5 – 1.0', const Color(0xFFAADD00), 'Reduced clarity'),
+      ('Blue water', '0.1 – 0.3', const Color(0xFF0066FF), 'Great visibility'),
+      ('Slight haze', '0.3 – 0.5', const Color(0xFF00CCAA), 'Visibility slightly reduced'),
+      ('Green tint', '0.5 – 1.0', const Color(0xFFAADD00), 'Water shifting blue to green'),
       ('Murky', '1.0 – 3.0', const Color(0xFFFFCC00), 'Limited visibility'),
       ("Can't see your fins", '3.0 – 5.0', const Color(0xFFFF8800), 'Very poor'),
-      ('Stay home', '5.0 – 10.0', const Color(0xFFFF4400), 'Dangerous'),
-      ('Algae bloom', '> 10.0', const Color(0xFF880000), 'Do not enter'),
+      ("Can't see your hand", '5.0 – 10.0', const Color(0xFFFF4400), 'Dense bloom'),
+      ('Zero vis', '> 10.0', const Color(0xFF880000), 'Severe bloom'),
     ];
 
     // Highlight the current label
