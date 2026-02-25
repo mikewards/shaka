@@ -274,6 +274,10 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           _buildVisibilityScale(readings, estimatedChl),
           const SizedBox(height: 16),
 
+          // Copernicus Marine value
+          _buildCopernicusSection(readings),
+          const SizedBox(height: 16),
+
           // Satellite imagery
           _buildSatelliteImagerySection(readings),
         ],
@@ -387,7 +391,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'SINGLE-PASS CHLOROPHYLL',
+                'BLENDED SATELLITE ESTIMATE',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 10,
@@ -440,11 +444,101 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           ),
           const SizedBox(height: 4),
           const Text(
-            'Source: Averaged NASA GIBS satellite passes',
+            'Source: Blended satellite estimate',
             style: TextStyle(color: Colors.white38, fontSize: 11),
           ),
         ],
       ),
+    );
+  }
+
+  /// Copernicus Marine chlorophyll value — always shown, with "Not available" fallback.
+  Widget _buildCopernicusSection(GibsSatelliteReadings readings) {
+    final chl = readings.noaaErddapChlorophyll;
+    final available = chl != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'COPERNICUS MARINE VALUE',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: (available ? AppColors.success : Colors.white54)
+                    .withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                available ? 'L3 QC' : 'UNAVAILABLE',
+                style: TextStyle(
+                  color: available ? AppColors.success : Colors.white54,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              const Text(
+                'Copernicus',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (available) ...[
+                Text(
+                  '${chl.toStringAsFixed(3)} mg/m\u00B3',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                ),
+                Expanded(
+                  child: Text(
+                    readings.noaaErddapFetchTime != null
+                        ? _formatDateTime(readings.noaaErddapFetchTime!)
+                        : '',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                  ),
+                ),
+              ] else
+                const Text(
+                  'Not available',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -571,7 +665,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
 
     if (!hasSatelliteColors) return const SizedBox.shrink();
 
-    final showEstimates = readings.noaaErddapChlorophyll == null;
+    const showEstimates = true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
