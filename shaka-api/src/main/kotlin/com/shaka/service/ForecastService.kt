@@ -4,6 +4,7 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
+import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
@@ -32,9 +33,10 @@ class ForecastService {
         val forecasts = mutableListOf<DayForecast>()
         val today = LocalDate.now()
         
-        // Get cached chlorophyll for all forecast days (doesn't change much day-to-day)
-        val cachedChlorophyll = cached?.chlorophyll?.value
-        val visibilityStr = cachedChlorophyll?.let { chl ->
+        // Resolve chlorophyll once for all forecast days (doesn't change much day-to-day)
+        val effectiveChl = cached?.chlorophyll?.value
+            ?: GibsColormap.estimateFromGibsColors(cached?.gibsChlorophyll?.value)
+        val visibilityStr = effectiveChl?.let { chl ->
             getChlorophyllCategory(chl)
         } ?: "No satellite data"
         
@@ -50,7 +52,7 @@ class ForecastService {
                 targetDate = today.toString(),
                 windSpeedKmh = windSpeedKmh,
                 waveHeightM = waveHeightM,
-                chlorophyllMgM3 = cachedChlorophyll,
+                chlorophyllMgM3 = effectiveChl,
                 solunarDayRating = cached.solunar?.value?.dayRating,
                 moonPhase = cached.solunar?.value?.moonPhase
             )
@@ -94,7 +96,7 @@ class ForecastService {
                         targetDate = dateStr,
                         windSpeedKmh = weather.windSpeed,
                         waveHeightM = ocean.waveHeight,
-                        chlorophyllMgM3 = cachedChlorophyll,
+                        chlorophyllMgM3 = effectiveChl,
                         solunarDayRating = cached?.solunar?.value?.dayRating,
                         moonPhase = cached?.solunar?.value?.moonPhase
                     )

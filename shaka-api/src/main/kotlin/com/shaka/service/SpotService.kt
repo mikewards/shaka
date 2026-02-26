@@ -12,6 +12,7 @@ import com.shaka.data.client.ProtectedSeasClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
+import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -207,11 +208,15 @@ class SpotService {
                 )
             }
             
+            val effectiveChl = resolveChlorophyll(
+                waterQuality?.chlorophyllA, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value
+            )
+
             val score = ShakaScorer.generateScore(
                 targetDate = date,
                 windSpeedKmh = weather.windSpeed,
                 waveHeightM = ocean.waveHeight,
-                chlorophyllMgM3 = waterQuality?.chlorophyllA,
+                chlorophyllMgM3 = effectiveChl,
                 solunarDayRating = cached?.solunar?.value?.dayRating,
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
@@ -255,7 +260,7 @@ class SpotService {
                 shakaScore = score.overall,
                 confidence = score.confidence,
                 conditions = SpotConditions(
-                    visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
+                    visibility = getVisibilityLabel(effectiveChl),
                     waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                     swell = cached?.swell?.let { 
                         "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
@@ -431,11 +436,15 @@ class SpotService {
 
         logger.info("Spot detail loaded: ${spot.name} (${if (cached != null) "from cache" else "live fetch"})")
 
+        val effectiveChl = resolveChlorophyll(
+            waterQuality?.chlorophyllA, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value
+        )
+
         val score = ShakaScorer.generateScore(
             targetDate = date,
             windSpeedKmh = weather.windSpeed,
             waveHeightM = ocean.waveHeight,
-            chlorophyllMgM3 = waterQuality?.chlorophyllA,
+            chlorophyllMgM3 = effectiveChl,
             solunarDayRating = cached?.solunar?.value?.dayRating,
             moonPhase = cached?.solunar?.value?.moonPhase
         )
@@ -487,7 +496,7 @@ class SpotService {
                 permitRequired = false
             ),
             conditions = SpotConditions(
-                visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
+                visibility = getVisibilityLabel(effectiveChl),
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
@@ -633,20 +642,25 @@ class SpotService {
                 // Fetch water quality
                 val waterQuality = copernicus.getWaterQuality(lat, lon, date)
                 
-                // Get cached solunar data for solunar score
-                val cachedSolunar = SpotDataCache.get(spotId)?.solunar?.value
+                // Get cached data for score
+                val spotCache = SpotDataCache.get(spotId)
+                val cachedSolunar = spotCache?.solunar?.value
+
+                val effectiveChl = resolveChlorophyll(
+                    waterQuality?.chlorophyllA, spotCache?.chlorophyll?.value, spotCache?.gibsChlorophyll?.value
+                )
                 
                 // Calculate score
                 val score = ShakaScorer.generateScore(
                     targetDate = date,
                     windSpeedKmh = weather.windSpeed,
                     waveHeightM = ocean.waveHeight,
-                    chlorophyllMgM3 = waterQuality?.chlorophyllA,
+                    chlorophyllMgM3 = effectiveChl,
                     solunarDayRating = cachedSolunar?.dayRating,
                     moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val sst = resolveSST(SpotDataCache.get(spotId)?.sst?.value, ocean.rawSST, lat, lon, date)
+                val sst = resolveSST(spotCache?.sst?.value, ocean.rawSST, lat, lon, date)
                 
                 SpotSummary(
                     id = spot.id,
@@ -655,7 +669,7 @@ class SpotService {
                     shakaScore = score.overall,
                     confidence = score.confidence,
                     conditions = SpotConditions(
-                        visibility = getVisibilityLabel(waterQuality?.chlorophyllA, null),
+                        visibility = getVisibilityLabel(effectiveChl),
                         waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -1081,11 +1095,26 @@ class SpotService {
     }
 
     /**
+     * Resolve the best available chlorophyll value using the same fallback chain
+     * as the Flutter SatelliteReadingsCard: Copernicus → ERDDAP cache → GIBS blended estimate.
+     * The result drives BOTH the visibility score and the visibility label.
+     */
+    private fun resolveChlorophyll(
+        copernicusChl: Double?,
+        cachedErddapChl: Double?,
+        gibsData: SpotDataCache.Companion.GIBSSatelliteData?
+    ): Double? {
+        return copernicusChl
+            ?: cachedErddapChl
+            ?: GibsColormap.estimateFromGibsColors(gibsData)
+    }
+
+    /**
      * Get visibility display string from chlorophyll concentration.
      * Uses the same thresholds as the scorer so the label matches the score.
      */
-    private fun getVisibilityLabel(chlorophyll: Double?, cachedChlorophyll: Double?): String {
-        val chl = chlorophyll ?: cachedChlorophyll ?: return "No satellite data"
+    private fun getVisibilityLabel(chl: Double?): String {
+        if (chl == null) return "No satellite data"
         return when {
             chl < 0.1  -> "Crystal clear"
             chl < 0.3  -> "Blue water"
@@ -1359,11 +1388,15 @@ class SpotService {
 
         logger.info("User spot detail loaded: ${userSpot.name} (${if (cached != null) "from cache" else "live fetch"})")
 
+        val effectiveChl = resolveChlorophyll(
+            waterQuality?.chlorophyllA, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value
+        )
+
         val score = ShakaScorer.generateScore(
             targetDate = date,
             windSpeedKmh = weather.windSpeed,
             waveHeightM = ocean.waveHeight,
-            chlorophyllMgM3 = waterQuality?.chlorophyllA,
+            chlorophyllMgM3 = effectiveChl,
             solunarDayRating = cached?.solunar?.value?.dayRating,
             moonPhase = cached?.solunar?.value?.moonPhase
         )
@@ -1426,7 +1459,7 @@ class SpotService {
                 permitRequired = false
             ),
             conditions = SpotConditions(
-                visibility = getVisibilityLabel(waterQuality?.chlorophyllA, cached?.chlorophyll?.value),
+                visibility = getVisibilityLabel(effectiveChl),
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
@@ -1478,14 +1511,14 @@ class SpotService {
             cached.swell.value.heightFt / 3.28084
         } else 1.0
         
-        val chlorophyllMgM3 = cached.chlorophyll?.value
+        val effectiveChl = resolveChlorophyll(null, cached.chlorophyll?.value, cached.gibsChlorophyll?.value)
         
         val today = LocalDate.now().toString()
         val score = ShakaScorer.generateScore(
             targetDate = today,
             windSpeedKmh = windSpeedKmh,
             waveHeightM = waveHeightM,
-            chlorophyllMgM3 = chlorophyllMgM3,
+            chlorophyllMgM3 = effectiveChl,
             solunarDayRating = cached.solunar?.value?.dayRating,
             moonPhase = cached.solunar?.value?.moonPhase
         )
