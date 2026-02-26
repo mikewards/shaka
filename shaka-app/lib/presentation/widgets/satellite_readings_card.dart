@@ -148,23 +148,6 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     }
 
     var info = _getVisibilityInfo(effectiveChl);
-    if (isEstimated) {
-      info = _VisibilityInfo(
-        label: '${info.label} (approx)',
-        color: info.color,
-        description: info.description,
-        range: info.range,
-      );
-    }
-    if (widget.visibilityScore != null) {
-      final scoreColor = AppColors.getScoreColor(widget.visibilityScore!);
-      info = _VisibilityInfo(
-        label: info.label,
-        color: scoreColor,
-        description: info.description,
-        range: info.range,
-      );
-    }
 
     return Container(
       decoration: BoxDecoration(
@@ -257,18 +240,6 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           // Divider
           Container(height: 1, color: Colors.white10),
           const SizedBox(height: 14),
-
-          // Measured Chlorophyll
-          if (readings.noaaErddapChlorophyll != null) ...[
-            _buildMeasuredChlorophyllSection(readings, info),
-            const SizedBox(height: 12),
-          ],
-
-          // Single-pass chlorophyll (when Copernicus L3 unavailable but GIBS colors exist)
-          if (readings.noaaErddapChlorophyll == null && estimatedChl != null) ...[
-            _buildEstimatedChlorophyllSection(estimatedChl),
-            const SizedBox(height: 12),
-          ],
 
           // Visibility scale
           _buildVisibilityScale(readings, estimatedChl),
@@ -473,71 +444,88 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
-                color: (available ? AppColors.success : Colors.white54)
-                    .withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
+                color: AppColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(3),
               ),
               child: Text(
-                available ? 'L3 QC' : 'UNAVAILABLE',
+                '#1 PREFERRED',
                 style: TextStyle(
-                  color: available ? AppColors.success : Colors.white54,
+                  color: AppColors.success,
                   fontSize: 8,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              const Text(
-                'Copernicus',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (available) ...[
+        () {
+          final highlight = available;
+          final highlightColor = highlight
+              ? _getVisibilityInfo(chl).color
+              : Colors.transparent;
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            decoration: BoxDecoration(
+              color: highlight
+                  ? highlightColor.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: highlight
+                  ? Border.all(color: highlightColor.withValues(alpha: 0.4))
+                  : null,
+            ),
+            child: Row(
+              children: [
                 Text(
-                  '${chl.toStringAsFixed(3)} mg/m\u00B3',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  'Copernicus',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
                   ),
-                  maxLines: 1,
                 ),
-                Expanded(
-                  child: Text(
-                    readings.noaaErddapFetchTime != null
-                        ? _formatDateTime(readings.noaaErddapFetchTime!)
-                        : '',
+                const SizedBox(width: 8),
+                if (available) ...[
+                  Text(
+                    '${chl.toStringAsFixed(3)} mg/m\u00B3',
                     style: const TextStyle(
-                      color: Colors.white54,
+                      color: Colors.white70,
                       fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
-                    textAlign: TextAlign.right,
                     maxLines: 1,
                   ),
-                ),
-              ] else
-                const Text(
-                  'Not available',
-                  style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 12,
+                  Expanded(
+                    child: Text(
+                      readings.noaaErddapFetchTime != null
+                          ? _formatDateTime(readings.noaaErddapFetchTime!)
+                          : '',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
+                ] else
+                  Expanded(
+                    child: Text(
+                      'Not available',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }(),
       ],
     );
   }
@@ -585,14 +573,44 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'VISIBILITY SCALE',
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'VISIBILITY SCALE',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showSatelliteInfo(context);
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline, size: 12, color: Colors.white54),
+                    SizedBox(width: 4),
+                    Text(
+                      'About',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         ...labels.map((entry) {
@@ -682,34 +700,25 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 letterSpacing: 1,
               ),
             ),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showSatelliteInfo(context);
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.info_outline, size: 12, color: Colors.white54),
-                    SizedBox(width: 4),
-                    Text(
-                      'About',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
-                    ),
-                  ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                '#2 FALLBACK',
+                style: TextStyle(
+                  color: AppColors.warning,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
+        _buildBlendedEstimateRow(readings, highlight: readings.noaaErddapChlorophyll == null),
         _buildSatelliteColorRow(
           name: 'PACE',
           colorHex: readings.paceYesterdayColor ?? readings.paceTodayColor,
@@ -756,6 +765,80 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           showEstimate: showEstimates,
         ),
       ],
+    );
+  }
+
+  Widget _buildBlendedEstimateRow(GibsSatelliteReadings readings, {bool highlight = false}) {
+    final blended = _estimateFromSatelliteColors(readings);
+    if (blended == null) return const SizedBox.shrink();
+
+    final info = _getVisibilityInfo(blended);
+    final highlightColor = info.color;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.symmetric(vertical: 8, horizontal: highlight ? 10 : 0),
+      decoration: BoxDecoration(
+        color: highlight
+            ? highlightColor.withValues(alpha: 0.15)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: highlight
+            ? Border.all(color: highlightColor.withValues(alpha: 0.4))
+            : const Border(bottom: BorderSide(color: Colors.white10)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: const Text(
+              'BLENDED',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: info.color,
+              border: Border.all(color: Colors.white24, width: 0.5),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Text(
+              '${blended.toStringAsFixed(2)} mg/m\u00B3',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
+              ),
+              maxLines: 1,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              info.label,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.right,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -947,7 +1030,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     );
   }
 
-  /// Shows satellite info bottom sheet.
+  /// Shows comprehensive satellite info bottom sheet.
   void _showSatelliteInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -957,21 +1040,22 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.75,
+        initialChildSize: 0.85,
         minChildSize: 0.4,
-        maxChildSize: 0.9,
+        maxChildSize: 0.95,
         expand: false,
         builder: (ctx, scrollController) => SingleChildScrollView(
           controller: scrollController,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+            // Header
             Row(
               children: [
                 const Expanded(
                   child: Text(
-                    'About Satellite Data',
+                    'Understanding Visibility',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -985,150 +1069,293 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+
+            // TL;DR
+            const SizedBox(height: 12),
             const Text(
-              'More chlorophyll = more plankton = less visibility. '
-              'We measure chlorophyll from space to estimate what '
-              'you\'ll see underwater.',
+              'We estimate underwater visibility using chlorophyll-a '
+              'concentration measured by satellites. Less chlorophyll '
+              'means less plankton means clearer water.',
               style: TextStyle(
                   color: Colors.white70, fontSize: 13, height: 1.5),
             ),
+
+            // How it works
+            const SizedBox(height: 24),
+            _aboutSectionHeader('HOW IT WORKS'),
+            const SizedBox(height: 10),
+            const Text(
+              'Satellites measure ocean color from space. Greener water '
+              'has more phytoplankton (tiny plants), which produce '
+              'chlorophyll-a. We convert that chlorophyll number into '
+              'a visibility rating you can relate to — from "Crystal '
+              'clear" to "Zero vis."',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
+            ),
+
+            // Visibility scale explained
+            const SizedBox(height: 24),
+            _aboutSectionHeader('VISIBILITY SCALE'),
+            const SizedBox(height: 10),
+            const Text(
+              'The scale maps chlorophyll concentration (mg/m\u00B3) to '
+              'a description of what you\'ll actually experience in the '
+              'water. The highlighted row is your current reading.',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Ranges are based on real-world observations in coastal '
+              'and offshore environments. They won\'t be perfect '
+              'everywhere — local factors like sediment, runoff, and '
+              'currents also affect what you see.',
+              style: TextStyle(
+                  color: Colors.white54, fontSize: 12, height: 1.4),
+            ),
+
+            // Data sources — the two tiers
+            const SizedBox(height: 24),
+            _aboutSectionHeader('DATA SOURCES'),
+            const SizedBox(height: 10),
+            const Text(
+              'We pull from two tiers of satellite data. The app '
+              'automatically picks the best available source.',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
+            ),
+
+            // #1 Copernicus
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.1),
+                color: AppColors.success.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: AppColors.success.withValues(alpha: 0.3)),
+                    color: AppColors.success.withValues(alpha: 0.25)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'MULTI-SATELLITE (L3 QC)',
-                    style: TextStyle(
-                      color: AppColors.success,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '#1 PREFERRED — COPERNICUS MARINE',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Copernicus Marine Service merges multiple satellite '
-                    'passes into one quality-controlled daily product. '
-                    'This is the most reliable number and what the '
-                    'visibility label is based on.',
+                    'Copernicus Marine Service (run by the EU) merges data '
+                    'from multiple satellites into a single daily product. '
+                    'Cloud gaps are filled, bad pixels are removed, and '
+                    'sensors are cross-calibrated. This is the same data '
+                    'used by ocean researchers and government agencies.',
                     style: TextStyle(
                         color: Colors.white70, fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'When available, this is what determines your visibility rating.',
+                    style: TextStyle(
+                        color: Colors.white54, fontSize: 12,
+                        fontStyle: FontStyle.italic, height: 1.4),
                   ),
                 ],
               ),
             ),
+
+            // #2 NASA GIBS
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
+                color: AppColors.warning.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: AppColors.warning.withValues(alpha: 0.3)),
+                    color: AppColors.warning.withValues(alpha: 0.25)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'SINGLE-PASS (APPROX)',
-                    style: TextStyle(
-                      color: AppColors.warning,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '#2 FALLBACK — NASA GIBS',
+                        style: TextStyle(
+                          color: AppColors.warning,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'When the merged product isn\'t available, we read '
-                    'ocean color from individual satellite passes via '
-                    'NASA GIBS. Less reliable near shore — sediment and '
-                    'kelp can look like chlorophyll.',
+                    'When Copernicus data isn\'t available for a location, '
+                    'we fall back to individual satellite passes from NASA\'s '
+                    'Global Imagery Browse Services (GIBS). Each satellite '
+                    'captures an ocean-color image as it flies over — we '
+                    'extract the color at your spot and convert it to a '
+                    'chlorophyll estimate.',
                     style: TextStyle(
                         color: Colors.white70, fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'The "Blended" value combines all available satellite '
+                    'readings into a single estimate. Individual values are '
+                    'shown below it so you can see how they compare.',
+                    style: TextStyle(
+                        color: Colors.white54, fontSize: 12,
+                        fontStyle: FontStyle.italic, height: 1.4),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'COLOR DOTS',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Each dot is one satellite\'s reading of ocean color '
-                    'at this spot. Purple/blue = clear. Green/yellow = '
-                    'moderate. Orange/red = high chlorophyll. Multiple '
-                    'satellites give you a cross-check.',
-                    style: TextStyle(
-                        color: Colors.white70, fontSize: 13, height: 1.4),
-                  ),
-                ],
-              ),
+
+            // Why two sources?
+            const SizedBox(height: 24),
+            _aboutSectionHeader('WHY TWO SOURCES?'),
+            const SizedBox(height: 10),
+            const Text(
+              'Copernicus doesn\'t cover every coastal location, and its '
+              'daily product can lag by a day or two. NASA GIBS imagery '
+              'updates faster and covers more areas, but each pass is '
+              'noisier — clouds, sun glare, and shallow water can throw '
+              'off single-pass readings. Having both means you get the '
+              'best of each: precision from Copernicus when possible, '
+              'coverage from NASA GIBS when not.',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SATELLITES',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  _SatelliteInfoRow(
-                      name: 'PACE', desc: 'NASA hyperspectral (2024)'),
-                  _SatelliteInfoRow(
-                      name: 'NOAA-20/21', desc: 'VIIRS ocean color'),
-                  _SatelliteInfoRow(
-                      name: 'Sentinel-3A/B', desc: 'ESA OLCI sensor'),
-                  SizedBox(height: 6),
-                  Text(
-                    'Copernicus L3 merges data from these and other sensors.',
-                    style: TextStyle(
-                        color: Colors.white38, fontSize: 11, height: 1.3),
-                  ),
-                ],
-              ),
+
+            // Color dots
+            const SizedBox(height: 24),
+            _aboutSectionHeader('READING THE COLOR DOTS'),
+            const SizedBox(height: 10),
+            const Text(
+              'Each color dot represents one satellite\'s ocean-color '
+              'reading at your spot, matched to the same color scale '
+              'used on NASA\'s chlorophyll maps:',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                _colorLegendDot(const Color(0xFF4400AA)),
+                _colorLegendDot(const Color(0xFF0066FF)),
+                _colorLegendDot(const Color(0xFF00CCAA)),
+                const SizedBox(width: 6),
+                const Text('Clear',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(width: 16),
+                _colorLegendDot(const Color(0xFFAADD00)),
+                _colorLegendDot(const Color(0xFFFFCC00)),
+                const SizedBox(width: 6),
+                const Text('Moderate',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(width: 16),
+                _colorLegendDot(const Color(0xFFFF8800)),
+                _colorLegendDot(const Color(0xFFFF4400)),
+                _colorLegendDot(const Color(0xFF880000)),
+                const SizedBox(width: 6),
+                const Text('High chl',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'When multiple satellites agree, you can be more confident. '
+              'If one is way off from the others, it may have hit a cloud '
+              'edge or sun glint.',
+              style: TextStyle(
+                  color: Colors.white54, fontSize: 12, height: 1.4),
+            ),
+
+            // Satellites
+            const SizedBox(height: 24),
+            _aboutSectionHeader('SATELLITES'),
+            const SizedBox(height: 10),
+            const _SatelliteInfoRow(
+                name: 'PACE OCI',
+                desc: 'NASA\'s newest ocean-color sensor (launched 2024). '
+                    'Hyperspectral — sees hundreds of wavelengths.'),
+            const SizedBox(height: 6),
+            const _SatelliteInfoRow(
+                name: 'NOAA-20 / 21',
+                desc: 'VIIRS sensors on NOAA polar-orbiting weather '
+                    'satellites. Reliable, well-calibrated.'),
+            const SizedBox(height: 6),
+            const _SatelliteInfoRow(
+                name: 'Sentinel-3A / 3B',
+                desc: 'ESA satellites with OLCI sensors, designed '
+                    'specifically for ocean and land color.'),
+            const SizedBox(height: 8),
+            const Text(
+              'Copernicus merges data from these and additional sensors '
+              'into its quality-controlled product.',
+              style: TextStyle(
+                  color: Colors.white38, fontSize: 11, height: 1.3),
+            ),
+
+            // Limitations
+            const SizedBox(height: 24),
+            _aboutSectionHeader('LIMITATIONS'),
+            const SizedBox(height: 10),
+            const Text(
+              '\u2022  Satellites see the surface. Subsurface conditions '
+              '(thermoclines, deep currents) aren\'t captured.\n'
+              '\u2022  Near shore, sediment runoff and kelp can mimic '
+              'chlorophyll, making water look worse than it is.\n'
+              '\u2022  Cloud cover blocks satellite views entirely — '
+              'readings may be from yesterday or older.\n'
+              '\u2022  These are estimates, not guarantees. Always use '
+              'your own judgment once you\'re on the water.',
+              style: TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.6),
+            ),
+
+            const SizedBox(height: 16),
           ],
         ),
         ),
+      ),
+    );
+  }
+
+  static Widget _aboutSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: Colors.white54,
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  static Widget _colorLegendDot(Color color) {
+    return Container(
+      width: 10,
+      height: 10,
+      margin: const EdgeInsets.only(right: 3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
       ),
     );
   }

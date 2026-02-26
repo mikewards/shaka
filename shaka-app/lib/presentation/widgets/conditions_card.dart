@@ -171,7 +171,7 @@ class ConditionsCard extends StatelessWidget {
       < 10.0 => "Can't see your hand",
       _      => 'Zero vis',
     };
-    return '$label (approx)';
+    return label;
   }
 
   void _showAllSourcesInfo(BuildContext context) {
