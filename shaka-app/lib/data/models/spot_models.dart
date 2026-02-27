@@ -890,6 +890,7 @@ class UserSpotResponse {
   final DateTime createdAt;
   final bool isUserSpot;
   final int? shakaScore;  // Latest Shaka Score (if available from API)
+  final String? visibility; // e.g. "Murky", "Blue water" (from cache)
   final String? swell;      // e.g. "3ft @ 12s NW" (from cache)
   final String? wind;       // e.g. "8 kts NE" (from cache)
   final String? waterTemp;  // e.g. "24°C / 75°F" (from cache)
@@ -903,6 +904,7 @@ class UserSpotResponse {
     required this.createdAt,
     this.isUserSpot = true,
     this.shakaScore,
+    this.visibility,
     this.swell,
     this.wind,
     this.waterTemp,
@@ -922,6 +924,7 @@ class UserSpotResponse {
       createdAt: DateTime.parse(json['createdAt'] as String),
       isUserSpot: json['isUserSpot'] as bool? ?? true,
       shakaScore: json['shakaScore'] as int?,
+      visibility: json['visibility'] as String?,
       swell: json['swell'] as String?,
       wind: json['wind'] as String?,
       waterTemp: json['waterTemp'] as String?,
@@ -936,6 +939,7 @@ class UserSpotResponse {
       coordinates: coordinates,
       region: region,
       shakaScore: shakaScore,
+      visibility: visibility,
       swell: swell,
       wind: wind,
       waterTemp: waterTemp,
@@ -1000,6 +1004,7 @@ class SpotMapMarker {
   final String region;
   final int? shakaScore;
   // Condition fields from cache (nullable - may not have data)
+  final String? visibility; // "Murky", "Blue water", etc.
   final String? swell;      // "3ft @ 12s NW"
   final String? wind;       // "8 kts NE"
   final String? waterTemp;  // "24°C / 75°F"
@@ -1011,6 +1016,7 @@ class SpotMapMarker {
     required this.coordinates,
     required this.region,
     this.shakaScore,
+    this.visibility,
     this.swell,
     this.wind,
     this.waterTemp,
@@ -1024,6 +1030,7 @@ class SpotMapMarker {
       coordinates: Coordinates.fromJson(json['coordinates'] as Map<String, dynamic>),
       region: json['region'] as String,
       shakaScore: json['shakaScore'] as int?,
+      visibility: json['visibility'] as String?,
       swell: json['swell'] as String?,
       wind: json['wind'] as String?,
       waterTemp: json['waterTemp'] as String?,

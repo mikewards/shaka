@@ -1095,6 +1095,15 @@ class SpotService {
     }
 
     /**
+     * Public: resolve the visibility label from cached data only (no API calls).
+     * Used by SpotRoutes for lightweight endpoints like /spots/all.
+     */
+    fun resolveVisibilityLabel(cached: SpotDataCache.Companion.SpotData?): String {
+        val chl = resolveChlorophyll(null, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value)
+        return getVisibilityLabel(chl)
+    }
+
+    /**
      * Resolve the best available chlorophyll value using the same fallback chain
      * as the Flutter SatelliteReadingsCard: Copernicus → ERDDAP cache → GIBS blended estimate.
      * The result drives BOTH the visibility score and the visibility label.

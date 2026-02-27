@@ -371,6 +371,7 @@ data class UserSpotResponse(
     val createdAt: String,
     val isUserSpot: Boolean = true,  // Always true, used by frontend to show "Saved" badge
     val shakaScore: Int? = null,  // Latest score from cache (null if not yet calculated)
+    val visibility: String? = null, // e.g. "Murky", "Blue water" (from cache)
     val swell: String? = null,     // e.g. "3ft @ 12s NW" (from cache)
     val wind: String? = null,      // e.g. "8 kts NE" (from cache)
     val waterTemp: String? = null   // e.g. "24°C / 75°F" (from cache)
@@ -406,9 +407,10 @@ data class SpotMapMarker(
     val region: String,
     val shakaScore: Int?,  // From cache, null if not yet calculated
     // Condition fields from cache (nullable - may not have data)
-    val swell: String? = null,      // "3ft @ 12s NW"
-    val wind: String? = null,       // "8 kts NE"
-    val waterTemp: String? = null   // "24°C / 75°F"
+    val visibility: String? = null,  // "Murky", "Blue water", etc.
+    val swell: String? = null,       // "3ft @ 12s NW"
+    val wind: String? = null,        // "8 kts NE"
+    val waterTemp: String? = null    // "24°C / 75°F"
 )
 
 @Serializable

@@ -141,6 +141,7 @@ fun Application.configureRouting() {
                         coordinates = spot.coordinates,
                         region = region,
                         shakaScore = score,
+                        visibility = spotService.resolveVisibilityLabel(cached),
                         swell = cached?.swell?.value?.let { 
                             "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
                         },
@@ -874,6 +875,7 @@ fun Application.configureRouting() {
                             createdAt = spot.createdAt.toString(),
                             isUserSpot = true,
                             shakaScore = score,  // null if no cached data
+                            visibility = spotService.resolveVisibilityLabel(cached),
                             swell = cached?.swell?.value?.let { 
                                 "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
                             },

@@ -1713,12 +1713,39 @@ class _SpotMarkerCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    // Condition row (swell + wind) with bordered chips
-                    if (spot.swell != null || spot.wind != null)
+                    // Condition row (visibility + swell + wind) with bordered chips
+                    if (spot.visibility != null || spot.swell != null || spot.wind != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Row(
                           children: [
+                            if (spot.visibility != null && spot.visibility != 'No satellite data') ...[
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.white24),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.visibility, size: 11, color: Colors.white54),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          spot.visibility!,
+                                          style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                             if (spot.swell != null) ...[
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
