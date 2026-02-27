@@ -309,7 +309,7 @@ object GibsColormap {
      * picks yesterday's color (preferred) or today's for each satellite,
      * maps each to chlorophyll via the colormap, then returns the geometric mean.
      */
-    fun estimateFromGibsColors(gibs: SpotDataCache.Companion.GIBSSatelliteData?): Double? {
+    fun estimateFromGibsColors(gibs: SpotDataCache.GIBSSatelliteData?): Double? {
         if (gibs == null) return null
 
         val hexColors = listOfNotNull(

@@ -1098,7 +1098,7 @@ class SpotService {
      * Public: resolve the visibility label from cached data only (no API calls).
      * Used by SpotRoutes for lightweight endpoints like /spots/all.
      */
-    fun resolveVisibilityLabel(cached: SpotDataCache.Companion.SpotData?): String {
+    fun resolveVisibilityLabel(cached: SpotDataCache.SpotData?): String {
         val chl = resolveChlorophyll(null, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value)
         return getVisibilityLabel(chl)
     }
@@ -1111,7 +1111,7 @@ class SpotService {
     private fun resolveChlorophyll(
         copernicusChl: Double?,
         cachedErddapChl: Double?,
-        gibsData: SpotDataCache.Companion.GIBSSatelliteData?
+        gibsData: SpotDataCache.GIBSSatelliteData?
     ): Double? {
         return copernicusChl
             ?: cachedErddapChl
