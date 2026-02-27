@@ -1,6 +1,7 @@
 package com.shaka.fishing_intel.jobs
 
 import com.shaka.data.client.RateLimiters
+import com.shaka.fishing_intel.api.FishingIntelRoutes
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.models.*
 import com.shaka.fishing_intel.parsing.CountsParser
@@ -58,6 +59,13 @@ object FishingIntelPrefetchJob {
         }
         
         logger.info("Fishing intel scrape complete: $totalReports reports, $totalClaims claims")
+
+        // Pre-generate AI insights for the current time slot so the request path never blocks on AI
+        try {
+            FishingIntelRoutes.prefetchRegionInsights("so_cal")
+        } catch (e: Exception) {
+            logger.warn("Region insight pre-generation failed: ${e.message}")
+        }
     }
     
     /**
