@@ -946,20 +946,24 @@ class DataPrefetchJobs(
         logger.info("Fetching readings from ${buoyStationsCache.size} buoy stations...")
         var success = 0
         var failed = 0
+        val deactivate = mutableListOf<String>()
         
         for (batch in buoyStationsCache.chunked(BATCH_SIZE)) {
             coroutineScope {
                 batch.map { station ->
                     async {
                         try {
-                            val reading = withTimeoutOrNull(SPOT_TIMEOUT_MS) {
+                            val reading = withTimeoutOrNull(3_000) {
                                 ndbcBuoyClient.fetchLatestReading(station.stationId)
                             }
                             if (reading != null && reading.waveHeightM != null) {
                                 SpotDataCache.saveBuoyReading(reading)
                                 success++
+                            } else {
+                                deactivate += station.stationId
                             }
                         } catch (e: Exception) {
+                            deactivate += station.stationId
                             failed++
                         }
                         Unit
@@ -969,7 +973,13 @@ class DataPrefetchJobs(
             delay(BATCH_DELAY_MS)
         }
         
-        logger.info("Buoy readings: $success successful, $failed failed out of ${buoyStationsCache.size} stations")
+        if (deactivate.isNotEmpty()) {
+            SpotDataCache.deactivateBuoyStations(deactivate)
+            buoyStationsCache = SpotDataCache.loadBuoyStations()
+            logger.info("Deactivated ${deactivate.size} stations without wave data")
+        }
+        
+        logger.info("Buoy readings: $success successful, $failed failed, ${deactivate.size} deactivated")
     }
     
     /**

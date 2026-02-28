@@ -798,6 +798,22 @@ object SpotDataCache {
         }
     }
     
+    fun deactivateBuoyStations(stationIds: List<String>) {
+        if (!DatabaseFactory.isConnected() || stationIds.isEmpty()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val placeholders = stationIds.joinToString(",") { "?" }
+                conn.prepareStatement("UPDATE buoy_stations SET active = false WHERE station_id IN ($placeholders)").use { stmt ->
+                    stationIds.forEachIndexed { i, id -> stmt.setString(i + 1, id) }
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to deactivate buoy stations: ${e.message}")
+        }
+    }
+    
     fun haversineNm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val R = 3440.065 // Earth radius in nautical miles
         val dLat = Math.toRadians(lat2 - lat1)
