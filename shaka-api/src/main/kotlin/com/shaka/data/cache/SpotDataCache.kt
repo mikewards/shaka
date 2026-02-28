@@ -92,7 +92,8 @@ object SpotDataCache {
         val heightFt: Double,           // Wave height in feet
         val periodSec: Double,          // Wave period in seconds
         val direction: String,          // Cardinal direction (N, NE, E, etc.)
-        val swellHeightFt: Double? = null  // Primary swell height if different
+        val swellHeightFt: Double? = null,  // Primary swell height if different
+        val source: String = "open-meteo"   // Data source: "open-meteo" or "ndbc-{station_id}"
     )
     
     /**
@@ -647,6 +648,244 @@ object SpotDataCache {
         )
     }
     
+    // ============================================
+    // BUOY DATA METHODS
+    // ============================================
+    
+    data class BuoyStation(
+        val stationId: String,
+        val lat: Double,
+        val lon: Double,
+        val name: String?,
+        val network: String = "ndbc",
+        val active: Boolean = true
+    )
+    
+    data class BuoyReading(
+        val stationId: String,
+        val observedAt: java.time.Instant,
+        val waveHeightM: Double?,
+        val dominantPeriodSec: Double?,
+        val meanDirection: Int?
+    )
+    
+    fun saveBuoyStations(stations: List<BuoyStation>) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val sql = """
+                    INSERT INTO buoy_stations (station_id, lat, lon, name, network, active)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (station_id) DO UPDATE SET
+                        lat = EXCLUDED.lat, lon = EXCLUDED.lon,
+                        name = EXCLUDED.name, active = EXCLUDED.active
+                """.trimIndent()
+                conn.prepareStatement(sql).use { stmt ->
+                    for (s in stations) {
+                        stmt.setString(1, s.stationId)
+                        stmt.setDouble(2, s.lat)
+                        stmt.setDouble(3, s.lon)
+                        stmt.setString(4, s.name)
+                        stmt.setString(5, s.network)
+                        stmt.setBoolean(6, s.active)
+                        stmt.addBatch()
+                    }
+                    stmt.executeBatch()
+                }
+            }
+            logger.info("Saved ${stations.size} buoy stations to database")
+        } catch (e: Exception) {
+            logger.error("Failed to save buoy stations: ${e.message}")
+        }
+    }
+    
+    fun loadBuoyStations(): List<BuoyStation> {
+        if (!DatabaseFactory.isConnected()) return emptyList()
+        try {
+            return transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val results = mutableListOf<BuoyStation>()
+                conn.prepareStatement("SELECT station_id, lat, lon, name, network, active FROM buoy_stations WHERE active = true").use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        while (rs.next()) {
+                            results += BuoyStation(
+                                stationId = rs.getString("station_id"),
+                                lat = rs.getDouble("lat"),
+                                lon = rs.getDouble("lon"),
+                                name = rs.getString("name"),
+                                network = rs.getString("network") ?: "ndbc",
+                                active = rs.getBoolean("active")
+                            )
+                        }
+                    }
+                }
+                results
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to load buoy stations: ${e.message}")
+            return emptyList()
+        }
+    }
+    
+    fun saveBuoyReading(reading: BuoyReading) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    INSERT INTO buoy_readings (station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT (station_id, observed_at) DO UPDATE SET
+                        wave_height_m = EXCLUDED.wave_height_m,
+                        dominant_period_sec = EXCLUDED.dominant_period_sec,
+                        mean_direction = EXCLUDED.mean_direction,
+                        fetched_at = NOW()
+                """.trimIndent()).use { stmt ->
+                    stmt.setString(1, reading.stationId)
+                    stmt.setTimestamp(2, java.sql.Timestamp.from(reading.observedAt))
+                    stmt.setObject(3, reading.waveHeightM)
+                    stmt.setObject(4, reading.dominantPeriodSec)
+                    stmt.setObject(5, reading.meanDirection)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to save buoy reading for ${reading.stationId}: ${e.message}")
+        }
+    }
+    
+    fun getLatestBuoyReading(stationId: String): BuoyReading? {
+        if (!DatabaseFactory.isConnected()) return null
+        try {
+            return transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    SELECT station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction
+                    FROM buoy_readings WHERE station_id = ? ORDER BY observed_at DESC LIMIT 1
+                """.trimIndent()).use { stmt ->
+                    stmt.setString(1, stationId)
+                    stmt.executeQuery().use { rs ->
+                        if (rs.next()) BuoyReading(
+                            stationId = rs.getString("station_id"),
+                            observedAt = rs.getTimestamp("observed_at").toInstant(),
+                            waveHeightM = rs.getDouble("wave_height_m").takeIf { !rs.wasNull() },
+                            dominantPeriodSec = rs.getDouble("dominant_period_sec").takeIf { !rs.wasNull() },
+                            meanDirection = rs.getInt("mean_direction").takeIf { !rs.wasNull() }
+                        ) else null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to get buoy reading for $stationId: ${e.message}")
+            return null
+        }
+    }
+    
+    fun updateSwellSource(spotId: String, source: String) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("UPDATE spot_cache SET swell_source = ? WHERE spot_id = ?").use { stmt ->
+                    stmt.setString(1, source)
+                    stmt.setString(2, spotId)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to update swell source for $spotId: ${e.message}")
+        }
+    }
+    
+    fun haversineNm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val R = 3440.065 // Earth radius in nautical miles
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    }
+    
+    @Volatile private var buoyStationsMemCache: List<BuoyStation> = emptyList()
+    
+    /**
+     * One-time migration: clear stale swell data that stored waveHeight (combined)
+     * instead of swellHeight (swell-only). Uses swell_source column as a flag —
+     * if it's NULL (old data without the column yet populated), clear swell columns.
+     * Only runs once; subsequent calls are no-ops.
+     */
+    fun runSwellMigrationIfNeeded() {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                // Check if any rows have NULL swell_source (pre-migration data)
+                val count = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM spot_cache WHERE swell_source IS NULL AND swell_height_ft IS NOT NULL"
+                ).use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        if (rs.next()) rs.getInt(1) else 0
+                    }
+                }
+                if (count > 0) {
+                    conn.createStatement().use { stmt ->
+                        stmt.executeUpdate("""
+                            UPDATE spot_cache SET 
+                                swell_height_ft = NULL, swell_period_sec = NULL, 
+                                swell_direction = NULL, weather_fetched_at = NULL,
+                                swell_source = 'open-meteo'
+                            WHERE swell_source IS NULL
+                        """.trimIndent())
+                    }
+                    logger.info("Swell migration: cleared $count stale rows (waveHeight -> swellHeight)")
+                } else {
+                    logger.debug("Swell migration: already applied or no data to migrate")
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Swell migration check failed (safe to ignore on first run): ${e.message}")
+        }
+    }
+    
+    fun ensureBuoyStationsLoaded() {
+        if (buoyStationsMemCache.isEmpty()) {
+            buoyStationsMemCache = loadBuoyStations()
+        }
+    }
+    
+    fun refreshBuoyStationsCache() {
+        buoyStationsMemCache = loadBuoyStations()
+    }
+    
+    /**
+     * Find the nearest active buoy to a lat/lon within maxNm nautical miles,
+     * with a fresh reading (< 2 hours old). Returns null if none qualifies.
+     */
+    fun findNearestBuoyReading(lat: Double, lon: Double, maxNm: Double = 10.0): Pair<BuoyStation, BuoyReading>? {
+        ensureBuoyStationsLoaded()
+        
+        var bestStation: BuoyStation? = null
+        var bestDistance = Double.MAX_VALUE
+        
+        for (station in buoyStationsMemCache) {
+            val dist = haversineNm(lat, lon, station.lat, station.lon)
+            if (dist < bestDistance && dist <= maxNm) {
+                bestDistance = dist
+                bestStation = station
+            }
+        }
+        
+        val station = bestStation ?: return null
+        val reading = getLatestBuoyReading(station.stationId) ?: return null
+        
+        val ageHours = java.time.Duration.between(reading.observedAt, java.time.Instant.now()).toHours()
+        if (ageHours > 2) return null
+        
+        return station to reading
+    }
+    
     /**
      * Get chlorophyll stats as JSON string (avoids serialization issues).
      */
@@ -943,6 +1182,51 @@ object SpotDataCache {
                 }
                 
                 logger.info("Vessel and solunar columns added to spot_cache table")
+                
+                // Add swell source attribution column
+                val swellSourceColumn = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS swell_source VARCHAR(50) DEFAULT 'open-meteo';
+                """.trimIndent()
+                conn.createStatement().use { stmt ->
+                    swellSourceColumn.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                
+                // Create buoy stations registry table
+                val buoyStationsTable = """
+                    CREATE TABLE IF NOT EXISTS buoy_stations (
+                        station_id VARCHAR(10) PRIMARY KEY,
+                        lat DOUBLE PRECISION NOT NULL,
+                        lon DOUBLE PRECISION NOT NULL,
+                        name VARCHAR(200),
+                        network VARCHAR(20) DEFAULT 'ndbc',
+                        active BOOLEAN DEFAULT true
+                    );
+                """.trimIndent()
+                conn.createStatement().use { stmt ->
+                    stmt.execute(buoyStationsTable)
+                }
+                
+                // Create buoy readings cache table
+                val buoyReadingsTable = """
+                    CREATE TABLE IF NOT EXISTS buoy_readings (
+                        station_id VARCHAR(10) NOT NULL,
+                        observed_at TIMESTAMP NOT NULL,
+                        wave_height_m DOUBLE PRECISION,
+                        dominant_period_sec DOUBLE PRECISION,
+                        mean_direction INTEGER,
+                        fetched_at TIMESTAMP DEFAULT NOW(),
+                        PRIMARY KEY (station_id, observed_at)
+                    );
+                    CREATE INDEX IF NOT EXISTS buoy_readings_station_idx ON buoy_readings (station_id, observed_at DESC);
+                """.trimIndent()
+                conn.createStatement().use { stmt ->
+                    buoyReadingsTable.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                logger.info("Buoy tables and swell_source column ready")
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
@@ -1234,12 +1518,14 @@ object SpotDataCache {
                         val swellDir = rs.getString("swell_direction")
                         val weatherFetchedAt = rs.getTimestamp("weather_fetched_at")
                         if (!rs.wasNull() && weatherFetchedAt != null) {
+                            val swellSource = try { rs.getString("swell_source") } catch (_: Exception) { null }
                             spotData = spotData.copy(
                                 swell = CachedValue(
                                     value = SwellInfo(
                                         heightFt = swellHeight,
                                         periodSec = swellPeriod,
-                                        direction = swellDir ?: "N"
+                                        direction = swellDir ?: "N",
+                                        source = swellSource ?: "open-meteo"
                                     ),
                                     fetchedAt = weatherFetchedAt.toInstant()
                                 )

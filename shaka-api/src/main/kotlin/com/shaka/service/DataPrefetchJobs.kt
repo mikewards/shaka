@@ -30,9 +30,12 @@ class DataPrefetchJobs(
     private val noaaClient: NOAAClient,
     private val protectedSeasClient: ProtectedSeasClient = ProtectedSeasClient(),
     private val globalFishingWatch: GlobalFishingWatchClient = GlobalFishingWatchClient(),
-    private val solunarClient: SolunarClient = SolunarClient()
+    private val solunarClient: SolunarClient = SolunarClient(),
+    private val ndbcBuoyClient: NDBCBuoyClient = NDBCBuoyClient()
 ) {
     private val logger = LoggerFactory.getLogger(DataPrefetchJobs::class.java)
+    
+    @Volatile private var buoyStationsCache: List<SpotDataCache.BuoyStation> = emptyList()
     
     companion object {
         const val BATCH_SIZE = 10
@@ -183,19 +186,37 @@ class DataPrefetchJobs(
                             
                             val now = Instant.now()
                             
+                            // Resolution: prefer buoy data if a nearby buoy has a fresh reading
+                            val buoyResult = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
+                            val swellInfo: SpotDataCache.SwellInfo
+                            if (buoyResult != null) {
+                                val (buoyStation, buoyReading) = buoyResult
+                                swellInfo = SpotDataCache.SwellInfo(
+                                    heightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight),
+                                    periodSec = buoyReading.dominantPeriodSec ?: ocean.swellPeriod,
+                                    direction = SpotDataCache.degreesToCardinal((buoyReading.meanDirection ?: ocean.swellDirection.toInt()).toDouble()),
+                                    swellHeightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight),
+                                    source = "ndbc-${buoyStation.stationId}"
+                                )
+                            } else {
+                                swellInfo = SpotDataCache.SwellInfo(
+                                    heightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
+                                    periodSec = ocean.swellPeriod,
+                                    direction = SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
+                                    swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
+                                    source = "open-meteo"
+                                )
+                            }
+                            
                             SpotDataCache.updateSwell(
                                 spot.cacheId,
                                 SpotDataCache.CachedValue(
-                                    value = SpotDataCache.SwellInfo(
-                                        heightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
-                                        periodSec = ocean.swellPeriod,
-                                        direction = SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
-                                        swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
-                                    ),
+                                    value = swellInfo,
                                     fetchedAt = now,
                                     dataValidAt = now
                                 )
                             )
+                            SpotDataCache.updateSwellSource(spot.cacheId, swellInfo.source)
                             
                             SpotDataCache.updateWind(
                                 spot.cacheId,
@@ -888,5 +909,96 @@ class DataPrefetchJobs(
             "cachedSpots" to SpotDataCache.size(),
             "rateLimiters" to RateLimiters.getAllStats()
         )
+    }
+    
+    // ==================== BUOY DATA ====================
+    
+    /**
+     * Fetch ALL NDBC wave buoy stations and save to database.
+     * Idempotent — updates existing, adds new.
+     * Called once on startup.
+     */
+    suspend fun seedBuoyStations() {
+        logger.info("Seeding NDBC buoy stations...")
+        val stations = ndbcBuoyClient.fetchWaveStations()
+        if (stations.isEmpty()) {
+            logger.warn("No NDBC stations fetched — skipping seed")
+            return
+        }
+        SpotDataCache.saveBuoyStations(stations)
+        buoyStationsCache = SpotDataCache.loadBuoyStations()
+        logger.info("Seeded ${stations.size} stations, ${buoyStationsCache.size} active in cache")
+    }
+    
+    /**
+     * Fetch latest readings from all active buoy stations.
+     * Runs hourly — buoys report every hour.
+     */
+    suspend fun prefetchBuoyReadings() {
+        if (buoyStationsCache.isEmpty()) {
+            buoyStationsCache = SpotDataCache.loadBuoyStations()
+        }
+        if (buoyStationsCache.isEmpty()) {
+            logger.info("No buoy stations configured — skipping buoy prefetch")
+            return
+        }
+        
+        logger.info("Fetching readings from ${buoyStationsCache.size} buoy stations...")
+        var success = 0
+        var failed = 0
+        
+        for (batch in buoyStationsCache.chunked(BATCH_SIZE)) {
+            coroutineScope {
+                batch.map { station ->
+                    async {
+                        try {
+                            val reading = withTimeoutOrNull(SPOT_TIMEOUT_MS) {
+                                ndbcBuoyClient.fetchLatestReading(station.stationId)
+                            }
+                            if (reading != null && reading.waveHeightM != null) {
+                                SpotDataCache.saveBuoyReading(reading)
+                                success++
+                            }
+                        } catch (e: Exception) {
+                            failed++
+                        }
+                        Unit
+                    }
+                }.forEach { it.await() }
+            }
+            delay(BATCH_DELAY_MS)
+        }
+        
+        logger.info("Buoy readings: $success successful, $failed failed out of ${buoyStationsCache.size} stations")
+    }
+    
+    /**
+     * Find the nearest buoy station to a given lat/lon.
+     * Returns the station and its latest reading, or null if none within range.
+     */
+    fun findNearestBuoy(lat: Double, lon: Double, maxNm: Double = 10.0): Pair<SpotDataCache.BuoyStation, SpotDataCache.BuoyReading>? {
+        if (buoyStationsCache.isEmpty()) {
+            buoyStationsCache = SpotDataCache.loadBuoyStations()
+        }
+        
+        var bestStation: SpotDataCache.BuoyStation? = null
+        var bestDistance = Double.MAX_VALUE
+        
+        for (station in buoyStationsCache) {
+            val dist = SpotDataCache.haversineNm(lat, lon, station.lat, station.lon)
+            if (dist < bestDistance && dist <= maxNm) {
+                bestDistance = dist
+                bestStation = station
+            }
+        }
+        
+        val station = bestStation ?: return null
+        val reading = SpotDataCache.getLatestBuoyReading(station.stationId) ?: return null
+        
+        // Only use if reading is fresh (< 2 hours old)
+        val ageHours = java.time.Duration.between(reading.observedAt, java.time.Instant.now()).toHours()
+        if (ageHours > 2) return null
+        
+        return station to reading
     }
 }

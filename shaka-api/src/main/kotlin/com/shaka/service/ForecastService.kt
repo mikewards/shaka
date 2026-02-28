@@ -108,7 +108,7 @@ class ForecastService {
                         conditions = SpotConditions(
                             visibility = visibilityStr,
                             waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
-                            swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                            swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
                             wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}"
                         )
                     )
@@ -180,7 +180,7 @@ class ForecastService {
                     conditions = SpotConditions(
                         visibility = "Check conditions",
                         waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
-                        swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                        swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}"
                     )
                 )

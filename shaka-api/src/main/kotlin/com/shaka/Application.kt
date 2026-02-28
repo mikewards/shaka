@@ -92,12 +92,14 @@ fun Application.module() {
  * Uses SupervisorJob to prevent failures from cancelling other jobs.
  */
 private fun Application.configureScheduledJobs() {
+    val ndbcClient = NDBCBuoyClient()
     val prefetchJobs = DataPrefetchJobs(
         SpotDatabase,
         NOAATidesClient(),
         OpenMeteoClient(),
         CopernicusClient(),
-        NOAAClient()
+        NOAAClient(),
+        ndbcBuoyClient = ndbcClient
     )
     
     // Create isolated scope for background jobs - failures won't affect other jobs or the app
@@ -111,6 +113,7 @@ private fun Application.configureScheduledJobs() {
         // This restores chlorophyll/SST/visibility data from previous runs
         try {
             SpotDataCache.createTableIfNotExists()
+            SpotDataCache.runSwellMigrationIfNeeded()
             val loadedCount = SpotDataCache.loadFromDatabase()
             logger.info("Loaded $loadedCount spots from database cache")
         } catch (e: Exception) {
@@ -124,10 +127,24 @@ private fun Application.configureScheduledJobs() {
             logger.info("Cache empty - starting full data prefetch...")
         }
         
+        // Seed NDBC buoy stations (idempotent — updates existing, adds new)
+        try {
+            prefetchJobs.seedBuoyStations()
+        } catch (e: Exception) {
+            logger.warn("Buoy station seeding failed: ${e.message}")
+        }
+        
         try {
             prefetchJobs.prefetchAll()
         } catch (e: Exception) {
             logger.error("Initial prefetch failed: ${e.message}", e)
+        }
+        
+        // Initial buoy readings fetch
+        try {
+            prefetchJobs.prefetchBuoyReadings()
+        } catch (e: Exception) {
+            logger.warn("Initial buoy readings fetch failed: ${e.message}")
         }
     }
     
@@ -199,6 +216,20 @@ private fun Application.configureScheduledJobs() {
                 prefetchJobs.prefetchFishingIntel()
             } catch (e: Exception) {
                 logger.error("Scheduled solunar prefetch failed: ${e.message}", e)
+            }
+        }
+    }
+    
+    // HOURLY: Buoy readings refresh
+    backgroundScope.launch {
+        delay(360_000)  // Initial 6 minute delay
+        while (true) {
+            delay(3_600_000)  // 1 hour
+            try {
+                logger.info("Running scheduled BUOY READINGS prefetch")
+                prefetchJobs.prefetchBuoyReadings()
+            } catch (e: Exception) {
+                logger.error("Scheduled buoy readings prefetch failed: ${e.message}", e)
             }
         }
     }

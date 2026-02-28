@@ -17,7 +17,8 @@ data class SpotConditions(
     val tideState: String = "",
     // Data freshness indicators (from prefetch cache)
     val dataUpdatedMinutesAgo: Int? = null,      // "Updated 23 min ago"
-    val satelliteDataDate: String? = null         // "Satellite: Jan 27"
+    val satelliteDataDate: String? = null,        // "Satellite: Jan 27"
+    val swellSource: String? = null               // "open-meteo" or "ndbc-46240"
 )
 
 @Serializable

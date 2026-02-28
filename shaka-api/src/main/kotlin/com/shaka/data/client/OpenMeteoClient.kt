@@ -88,8 +88,12 @@ class OpenMeteoClient {
                 parameter("timezone", "auto")
             }.body()
 
-            // Get midday values
-            val idx = 12.coerceAtMost((response.hourly.wave_height?.size ?: 1) - 1)
+            val today = java.time.LocalDate.now().toString()
+            val idx = if (date == today) {
+                java.time.LocalTime.now().hour
+            } else {
+                12
+            }.coerceAtMost((response.hourly.wave_height?.size ?: 1) - 1)
             
             // Get REAL SST from Open-Meteo
             val sst = response.hourly.sea_surface_temperature?.getOrNull(idx)
