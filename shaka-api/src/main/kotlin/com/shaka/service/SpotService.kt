@@ -1292,157 +1292,66 @@ class SpotService {
         val region = userSpot.region
         
         // Check prefetched cache first (instant!)
-        val cached = SpotDataCache.get(cacheId)
+        var cached = SpotDataCache.get(cacheId)
         
-        // Build data from cache or fetch live
-        val weather: WeatherData
-        val ocean: OceanData
-        val waterQuality: WaterQuality
-        val tideData: TideData
-        
-        if (cached != null && cached.tide != null && cached.swell != null && cached.wind != null) {
-            // Use prefetched data — all critical fields present, no defaults needed
-            logger.debug("Using prefetched data for user spot detail: ${userSpot.name}")
-            
-            weather = WeatherData(
-                temperature = 25.0,
-                windSpeed = cached.wind.value.speedKnots / 0.539957,
-                windDirection = 0,
-                precipitation = 0.0,
-                cloudCover = 50,
-                visibility = 10000.0
-            )
-            
-            ocean = OceanData(
-                waveHeight = cached.swell.value.heightFt / 3.28084,
-                wavePeriod = cached.swell.value.periodSec,
-                waveDirection = 0,
-                waterTemperature = cached.sst?.value ?: 15.0,
-                swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
-                swellDirection = 0
-            )
-            
-            waterQuality = WaterQuality(
-                chlorophyllA = cached.chlorophyll?.value,
-                visibility = cached.visibility?.value,
-                seaSurfaceTemp = cached.sst?.value,
-                dataSource = "Prefetched (updated ${cached.tide.ageString()})"
-            )
-            
-            tideData = TideData(
-                currentHeight = cached.tide.value.currentHeight,
-                nextHighTide = cached.tide.value.nextHighTide,
-                nextLowTide = cached.tide.value.nextLowTide,
-                tideState = cached.tide.value.state,
-                nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
-                nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
-            )
-        } else {
-            // Cache miss - fetch live
-            logger.info("Prefetch cache miss for user spot ${userSpot.name}, fetching live")
-            
-            val weatherDeferred = async {
-                withTimeoutOrNull(5000) {
-                    OceanDataCache.getWeather(lat, lon, date) ?: run {
-                        val data = openMeteo.getWeather(lat, lon, date)
-                        OceanDataCache.putWeather(lat, lon, date, data)
-                        data
-                    }
-                }
-            }
-            
-            val oceanDeferred = async {
-                withTimeoutOrNull(5000) {
-                    OceanDataCache.getOcean(lat, lon, date) ?: run {
-                        val data = openMeteo.getMarineData(lat, lon, date)
-                        OceanDataCache.putOcean(lat, lon, date, data)
-                        data
-                    }
-                }
-            }
-            
-            val waterQualityDeferred = async {
-                withTimeoutOrNull(8000) {
-                    copernicus.getWaterQuality(lat, lon, date)
-                }
-            }
-            
-            val tideDeferred = async {
-                withTimeoutOrNull(5000) {
-                    OceanDataCache.getTide(lat, lon, date) ?: run {
-                        val data = tidesClient.getTideData(lat, lon, date)
-                        OceanDataCache.putTide(lat, lon, date, data)
-                        data
-                    }
-                }
-            }
-            
-            val rawWeather = weatherDeferred.await()
-            val rawOcean = oceanDeferred.await()
-            val rawWaterQuality = waterQualityDeferred.await()
-            val rawTide = tideDeferred.await()
-            
-            weather = rawWeather ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-            ocean = rawOcean ?: OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
-            waterQuality = rawWaterQuality ?: WaterQuality(
-                null, null, null, "Data temporarily unavailable"
-            )
-            tideData = rawTide ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
-            
-            // Write REAL (non-fallback) data back to SpotDataCache so subsequent
-            // GET /user-spots list calls return conditions immediately.
-            val now = Instant.now()
+        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
+            // Cache incomplete — run full prefetch to populate it with real data.
+            // The background prefetch from spot creation may already be running;
+            // duplicate API calls are idempotent and harmless.
+            logger.info("Cache incomplete for user spot ${userSpot.name}, running full prefetch")
             try {
-                if (rawTide != null) {
-                    SpotDataCache.updateTide(cacheId, SpotDataCache.CachedValue(
-                        value = SpotDataCache.TideInfo(
-                            state = rawTide.tideState,
-                            nextHighTide = rawTide.nextHighTide,
-                            nextLowTide = rawTide.nextLowTide,
-                            currentHeight = rawTide.currentHeight,
-                            nextHighTideTime = rawTide.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
-                            nextLowTideTime = rawTide.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
-                        ),
-                        fetchedAt = now
-                    ))
-                }
-                if (rawOcean != null && rawWeather != null) {
-                    SpotDataCache.updateSwell(cacheId, SpotDataCache.CachedValue(
-                        value = SpotDataCache.SwellInfo(
-                            heightFt = SpotDataCache.metersToFeet(rawOcean.waveHeight),
-                            periodSec = rawOcean.wavePeriod,
-                            direction = SpotDataCache.degreesToCardinal(rawOcean.waveDirection.toDouble()),
-                            swellHeightFt = SpotDataCache.metersToFeet(rawOcean.swellHeight)
-                        ),
-                        fetchedAt = now
-                    ))
-                    SpotDataCache.updateWind(cacheId, SpotDataCache.CachedValue(
-                        value = SpotDataCache.WindInfo(
-                            speedKnots = SpotDataCache.kmhToKnots(rawWeather.windSpeed),
-                            direction = SpotDataCache.degreesToCardinal(rawWeather.windDirection.toDouble())
-                        ),
-                        fetchedAt = now
-                    ))
-                }
-                rawWaterQuality?.seaSurfaceTemp?.let { sst ->
-                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = sst, fetchedAt = now))
-                }
-                rawWaterQuality?.visibility?.let { vis ->
-                    SpotDataCache.updateVisibility(cacheId, SpotDataCache.CachedValue(value = vis, fetchedAt = now))
-                }
-                rawWaterQuality?.chlorophyllA?.let { chl ->
-                    SpotDataCache.updateChlorophyll(cacheId, SpotDataCache.CachedValue(value = chl, fetchedAt = now))
-                }
-                SpotDataCache.saveToDatabase(cacheId)
-                logger.info("Live-fetch data written to SpotDataCache for ${userSpot.name}")
+                prefetchSingleSpot(cacheId, lat, lon)
             } catch (e: Exception) {
-                logger.warn("Failed to write live-fetch data to SpotDataCache for ${userSpot.name}: ${e.message}")
+                logger.warn("Full prefetch failed for ${userSpot.name}: ${e.message}")
+            }
+            
+            cached = SpotDataCache.get(cacheId)
+            if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
+                logger.warn("Cache still incomplete after prefetch for ${userSpot.name}")
+                return@coroutineScope null
             }
         }
         
+        // Always build from cache — single code path, consistent formatting
+        logger.debug("Building detail from cache for ${userSpot.name}")
+        
+        val weather = WeatherData(
+            temperature = 25.0,
+            windSpeed = cached.wind!!.value.speedKnots / 0.539957,
+            windDirection = 0,
+            precipitation = 0.0,
+            cloudCover = 50,
+            visibility = 10000.0
+        )
+        
+        val ocean = OceanData(
+            waveHeight = cached.swell!!.value.heightFt / 3.28084,
+            wavePeriod = cached.swell!!.value.periodSec,
+            waveDirection = 0,
+            waterTemperature = cached.sst?.value ?: 15.0,
+            swellHeight = (cached.swell!!.value.swellHeightFt ?: cached.swell!!.value.heightFt) / 3.28084,
+            swellDirection = 0
+        )
+        
+        val waterQuality = WaterQuality(
+            chlorophyllA = cached.chlorophyll?.value,
+            visibility = cached.visibility?.value,
+            seaSurfaceTemp = cached.sst?.value,
+            dataSource = "Prefetched (updated ${cached.tide!!.ageString()})"
+        )
+        
+        val tideData = TideData(
+            currentHeight = cached.tide!!.value.currentHeight,
+            nextHighTide = cached.tide!!.value.nextHighTide,
+            nextLowTide = cached.tide!!.value.nextLowTide,
+            tideState = cached.tide!!.value.state,
+            nextHighTideTime = cached.tide!!.value.nextHighTideTime?.toEpochMilli(),
+            nextLowTideTime = cached.tide!!.value.nextLowTideTime?.toEpochMilli()
+        )
+        
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
 
-        logger.info("User spot detail loaded: ${userSpot.name} (${if (cached != null) "from cache" else "live fetch"})")
+        logger.info("User spot detail loaded from cache: ${userSpot.name}")
 
         val effectiveChl = resolveChlorophyll(
             waterQuality?.chlorophyllA, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value
