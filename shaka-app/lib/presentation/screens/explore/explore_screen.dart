@@ -507,10 +507,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     final futures = <Future>[];
     for (final spot in spotsNeedingScores) {
-      futures.add(_fetchSpotScore(spot.id, today).then((score) {
-        if (score != null) {
+      futures.add(_fetchSpotDetail(spot.id, today).then((detail) {
+        if (detail != null) {
           final index = _userSpots.indexWhere((s) => s.id == spot.id);
           if (index != -1) {
+            final cond = detail.spot.conditions;
             _userSpots[index] = UserSpotResponse(
               id: spot.id,
               name: spot.name,
@@ -519,10 +520,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
               country: spot.country,
               createdAt: spot.createdAt,
               isUserSpot: spot.isUserSpot,
-              shakaScore: score,
-              swell: spot.swell,
-              wind: spot.wind,
-              waterTemp: spot.waterTemp,
+              shakaScore: detail.spot.score.overall,
+              visibility: cond.visibility,
+              swell: cond.swell,
+              wind: cond.wind,
+              waterTemp: cond.waterTemp,
             );
             anyUpdated = true;
           }
@@ -533,7 +535,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     await Future.wait(futures);
 
     if (anyUpdated && mounted && _showSpotsOnMap) {
-      debugPrint('📍 Explore: Updated spot scores, refreshing markers');
+      debugPrint('📍 Explore: Updated spot scores + conditions, refreshing markers');
       setState(() => _rebuildCombinedSpots());
       await _updateMarkers();
       await _updateVisibleSpots();
@@ -544,12 +546,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  Future<int?> _fetchSpotScore(String spotId, String date) async {
+  Future<UserSpotDetailResponse?> _fetchSpotDetail(String spotId, String date) async {
     try {
-      final detail = await _apiClient.getUserSpotDetail(spotId: spotId, date: date);
-      return detail.spot.score.overall;
+      return await _apiClient.getUserSpotDetail(spotId: spotId, date: date);
     } catch (e) {
-      debugPrint('📍 Explore: Failed to fetch score for $spotId: $e');
+      debugPrint('📍 Explore: Failed to fetch detail for $spotId: $e');
       return null;
     }
   }
@@ -786,7 +787,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               itemCount: _userSpots.length,
                               itemBuilder: (context, index) {
                                 final spot = _userSpots[index];
-                                final isLoading = spot.shakaScore == null;
+                                final isLoading = spot.shakaScore == null || spot.swell == null;
                                 return _SavedSpotCard(
                                   spot: spot,
                                   isLoading: isLoading,
@@ -816,6 +817,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     context.push('/spot/${spot.id}', extra: {
       'date': today,
       'isUserSpot': true,
+    }).then((_) {
+      if (mounted) _loadSavedSpots();
     });
   }
 
@@ -1116,8 +1119,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   /// Open spot detail page - works with either SpotMapMarker or SpotSummary
   void _openSpotDetail(SpotMapMarker spot) {
-    // Block navigation for user spots still loading scores
-    if (spot.isUserSpot && spot.shakaScore == null) {
+    // Block navigation for user spots still loading (need score + conditions)
+    if (spot.isUserSpot && !_isUserSpotReady(spot)) {
       HapticFeedback.lightImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1132,7 +1135,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     context.push('/spot/${spot.id}', extra: {
       'date': today,
       if (spot.isUserSpot) 'isUserSpot': true,
+    }).then((_) {
+      // Re-fetch user spots when returning — server cache is now populated
+      if (spot.isUserSpot && mounted) {
+        _loadSavedSpots();
+      }
     });
+  }
+
+  /// A user spot is "ready" when we have both the score and condition data.
+  bool _isUserSpotReady(SpotMapMarker spot) {
+    return spot.shakaScore != null && spot.swell != null;
   }
   
   void _showBackgroundPicker() {
@@ -1608,7 +1621,7 @@ class _SpotMarkerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final score = spot.shakaScore ?? 0;
-    final isLoading = spot.isUserSpot && spot.shakaScore == null;
+    final isLoading = spot.isUserSpot && (spot.shakaScore == null || spot.swell == null);
     
     return Opacity(
       opacity: isLoading ? 0.7 : 1.0,
