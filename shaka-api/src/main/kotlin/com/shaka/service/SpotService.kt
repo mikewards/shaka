@@ -1300,35 +1300,27 @@ class SpotService {
         val waterQuality: WaterQuality
         val tideData: TideData
         
-        if (cached != null && cached.tide != null) {
-            // Use prefetched data - instant lookup, no API calls!
+        if (cached != null && cached.tide != null && cached.swell != null && cached.wind != null) {
+            // Use prefetched data — all critical fields present, no defaults needed
             logger.debug("Using prefetched data for user spot detail: ${userSpot.name}")
             
-            weather = if (cached.wind != null) {
-                WeatherData(
-                    temperature = 25.0,
-                    windSpeed = cached.wind.value.speedKnots / 0.539957,
-                    windDirection = 0,
-                    precipitation = 0.0,
-                    cloudCover = 50,
-                    visibility = 10000.0
-                )
-            } else {
-                WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-            }
+            weather = WeatherData(
+                temperature = 25.0,
+                windSpeed = cached.wind.value.speedKnots / 0.539957,
+                windDirection = 0,
+                precipitation = 0.0,
+                cloudCover = 50,
+                visibility = 10000.0
+            )
             
-            ocean = if (cached.swell != null) {
-                OceanData(
-                    waveHeight = cached.swell.value.heightFt / 3.28084,
-                    wavePeriod = cached.swell.value.periodSec,
-                    waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 15.0,
-                    swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
-                    swellDirection = 0
-                )
-            } else {
-                OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
-            }
+            ocean = OceanData(
+                waveHeight = cached.swell.value.heightFt / 3.28084,
+                wavePeriod = cached.swell.value.periodSec,
+                waveDirection = 0,
+                waterTemperature = cached.sst?.value ?: 15.0,
+                swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
+                swellDirection = 0
+            )
             
             waterQuality = WaterQuality(
                 chlorophyllA = cached.chlorophyll?.value,
@@ -1385,55 +1377,60 @@ class SpotService {
                 }
             }
             
-            weather = weatherDeferred.await() ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
-            ocean = oceanDeferred.await() ?: OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
-            waterQuality = waterQualityDeferred.await() ?: WaterQuality(
+            val rawWeather = weatherDeferred.await()
+            val rawOcean = oceanDeferred.await()
+            val rawWaterQuality = waterQualityDeferred.await()
+            val rawTide = tideDeferred.await()
+            
+            weather = rawWeather ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10.0)
+            ocean = rawOcean ?: OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
+            waterQuality = rawWaterQuality ?: WaterQuality(
                 null, null, null, "Data temporarily unavailable"
             )
-            tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
+            tideData = rawTide ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
             
-            // Write live-fetched data back to SpotDataCache so subsequent
+            // Write REAL (non-fallback) data back to SpotDataCache so subsequent
             // GET /user-spots list calls return conditions immediately.
             val now = Instant.now()
             try {
-                if (tideData.tideState != "Unknown") {
+                if (rawTide != null) {
                     SpotDataCache.updateTide(cacheId, SpotDataCache.CachedValue(
                         value = SpotDataCache.TideInfo(
-                            state = tideData.tideState,
-                            nextHighTide = tideData.nextHighTide,
-                            nextLowTide = tideData.nextLowTide,
-                            currentHeight = tideData.currentHeight,
-                            nextHighTideTime = tideData.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
-                            nextLowTideTime = tideData.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
+                            state = rawTide.tideState,
+                            nextHighTide = rawTide.nextHighTide,
+                            nextLowTide = rawTide.nextLowTide,
+                            currentHeight = rawTide.currentHeight,
+                            nextHighTideTime = rawTide.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
+                            nextLowTideTime = rawTide.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
                         ),
                         fetchedAt = now
                     ))
                 }
-                if (weather.windSpeed > 0) {
+                if (rawOcean != null && rawWeather != null) {
                     SpotDataCache.updateSwell(cacheId, SpotDataCache.CachedValue(
                         value = SpotDataCache.SwellInfo(
-                            heightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
-                            periodSec = ocean.wavePeriod,
-                            direction = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                            swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                            heightFt = SpotDataCache.metersToFeet(rawOcean.waveHeight),
+                            periodSec = rawOcean.wavePeriod,
+                            direction = SpotDataCache.degreesToCardinal(rawOcean.waveDirection.toDouble()),
+                            swellHeightFt = SpotDataCache.metersToFeet(rawOcean.swellHeight)
                         ),
                         fetchedAt = now
                     ))
                     SpotDataCache.updateWind(cacheId, SpotDataCache.CachedValue(
                         value = SpotDataCache.WindInfo(
-                            speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
-                            direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
+                            speedKnots = SpotDataCache.kmhToKnots(rawWeather.windSpeed),
+                            direction = SpotDataCache.degreesToCardinal(rawWeather.windDirection.toDouble())
                         ),
                         fetchedAt = now
                     ))
                 }
-                waterQuality.seaSurfaceTemp?.let { sst ->
+                rawWaterQuality?.seaSurfaceTemp?.let { sst ->
                     SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = sst, fetchedAt = now))
                 }
-                waterQuality.visibility?.let { vis ->
+                rawWaterQuality?.visibility?.let { vis ->
                     SpotDataCache.updateVisibility(cacheId, SpotDataCache.CachedValue(value = vis, fetchedAt = now))
                 }
-                waterQuality.chlorophyllA?.let { chl ->
+                rawWaterQuality?.chlorophyllA?.let { chl ->
                     SpotDataCache.updateChlorophyll(cacheId, SpotDataCache.CachedValue(value = chl, fetchedAt = now))
                 }
                 SpotDataCache.saveToDatabase(cacheId)
@@ -1558,17 +1555,11 @@ class SpotService {
     fun getUserSpotScore(cacheId: String): Int? {
         val cached = SpotDataCache.get(cacheId) ?: return null
         
-        // Need at least tide data to calculate a meaningful score
-        if (cached.tide == null) return null
+        // Require tide + swell + wind so the score reflects real data, not defaults
+        if (cached.tide == null || cached.swell == null || cached.wind == null) return null
         
-        // Extract only the 3 values the scorer actually uses
-        val windSpeedKmh = if (cached.wind != null) {
-            cached.wind.value.speedKnots / 0.539957
-        } else 10.0
-        
-        val waveHeightM = if (cached.swell != null) {
-            cached.swell.value.heightFt / 3.28084
-        } else 1.0
+        val windSpeedKmh = cached.wind.value.speedKnots / 0.539957
+        val waveHeightM = cached.swell.value.heightFt / 3.28084
         
         val effectiveChl = resolveChlorophyll(null, cached.chlorophyll?.value, cached.gibsChlorophyll?.value)
         
