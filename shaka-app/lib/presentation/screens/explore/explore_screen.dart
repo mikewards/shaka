@@ -489,59 +489,77 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  /// Fetch shaka scores for user spots that don't have them
+  /// Fetch full detail for user spots missing score or conditions.
+  /// Retries up to 3 times with backoff for spots that fail to fetch.
   Future<void> _fetchMissingScores() async {
-    final spotsNeedingScores = _userSpots.where((s) => s.shakaScore == null).toList();
-    if (spotsNeedingScores.isEmpty) {
-      debugPrint('📍 Explore: All user spots have scores');
+    final spotsNeedingData = _userSpots.where(
+      (s) => s.shakaScore == null || s.swell == null,
+    ).toList();
+    if (spotsNeedingData.isEmpty) {
+      debugPrint('📍 Explore: All user spots have scores + conditions');
       _stopPulseTimer();
       return;
     }
 
-    // Start pulse animation for loading spots
     if (_showSpotsOnMap) _startPulseTimer();
 
-    debugPrint('📍 Explore: Fetching scores for ${spotsNeedingScores.length} spots...');
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    bool anyUpdated = false;
 
-    final futures = <Future>[];
-    for (final spot in spotsNeedingScores) {
-      futures.add(_fetchSpotDetail(spot.id, today).then((detail) {
-        if (detail != null) {
-          final index = _userSpots.indexWhere((s) => s.id == spot.id);
-          if (index != -1) {
-            final cond = detail.spot.conditions;
-            _userSpots[index] = UserSpotResponse(
-              id: spot.id,
-              name: spot.name,
-              coordinates: spot.coordinates,
-              region: spot.region,
-              country: spot.country,
-              createdAt: spot.createdAt,
-              isUserSpot: spot.isUserSpot,
-              shakaScore: detail.spot.score.overall,
-              visibility: cond.visibility,
-              swell: cond.swell,
-              wind: cond.wind,
-              waterTemp: cond.waterTemp,
-            );
-            anyUpdated = true;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      if (!mounted) return;
+
+      final pending = _userSpots.where(
+        (s) => s.shakaScore == null || s.swell == null,
+      ).toList();
+      if (pending.isEmpty) break;
+
+      if (attempt > 0) {
+        debugPrint('📍 Explore: Retry ${attempt + 1}/3 for ${pending.length} spots...');
+        await Future.delayed(Duration(seconds: 3 * attempt));
+        if (!mounted) return;
+      } else {
+        debugPrint('📍 Explore: Fetching data for ${pending.length} spots...');
+      }
+
+      bool anyUpdated = false;
+      final futures = <Future>[];
+      for (final spot in pending) {
+        futures.add(_fetchSpotDetail(spot.id, today).then((detail) {
+          if (detail != null) {
+            final index = _userSpots.indexWhere((s) => s.id == spot.id);
+            if (index != -1) {
+              final cond = detail.spot.conditions;
+              _userSpots[index] = UserSpotResponse(
+                id: spot.id,
+                name: spot.name,
+                coordinates: spot.coordinates,
+                region: spot.region,
+                country: spot.country,
+                createdAt: spot.createdAt,
+                isUserSpot: spot.isUserSpot,
+                shakaScore: detail.spot.score.overall,
+                visibility: cond.visibility,
+                swell: cond.swell,
+                wind: cond.wind,
+                waterTemp: cond.waterTemp,
+              );
+              anyUpdated = true;
+            }
           }
-        }
-      }));
+        }));
+      }
+
+      await Future.wait(futures);
+
+      if (anyUpdated && mounted && _showSpotsOnMap) {
+        debugPrint('📍 Explore: Updated spot data, refreshing markers');
+        setState(() => _rebuildCombinedSpots());
+        await _updateMarkers();
+        await _updateVisibleSpots();
+      }
     }
 
-    await Future.wait(futures);
-
-    if (anyUpdated && mounted && _showSpotsOnMap) {
-      debugPrint('📍 Explore: Updated spot scores + conditions, refreshing markers');
-      setState(() => _rebuildCombinedSpots());
-      await _updateMarkers();
-      await _updateVisibleSpots();
-    }
-
-    if (_userSpots.every((s) => s.shakaScore != null)) {
+    if (_userSpots.every((s) => s.shakaScore != null && s.swell != null)) {
       _stopPulseTimer();
     }
   }
@@ -580,7 +598,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _updatePulseRing() async {
     if (_mapController == null) return;
 
-    final loadingSpots = _userSpots.where((s) => s.shakaScore == null).toList();
+    final loadingSpots = _userSpots.where((s) => s.shakaScore == null || s.swell == null).toList();
     if (loadingSpots.isEmpty) {
       _stopPulseTimer();
       return;
