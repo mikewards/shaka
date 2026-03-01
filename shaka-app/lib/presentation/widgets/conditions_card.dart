@@ -104,10 +104,28 @@ class ConditionsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ConditionRow(
-            label: 'Swell',
-            value: conditions.swell,
+            label: conditions.swellCorrected != null ? 'Swell (at spot)' : 'Swell',
+            value: conditions.swellCorrected ?? conditions.swell,
             sourceKey: 'swell',
           ),
+          if (conditions.swellCorrected != null && conditions.swellCorrected != conditions.swell)
+            _ConditionRow(
+              label: 'Swell (open ocean)',
+              value: conditions.swell,
+              sourceKey: 'swell',
+            ),
+          if (conditions.secondarySwell != null)
+            _ConditionRow(
+              label: conditions.secondarySwellCorrected != null ? '2nd swell (at spot)' : '2nd swell',
+              value: conditions.secondarySwellCorrected ?? conditions.secondarySwell!,
+              sourceKey: 'swell',
+            ),
+          if (conditions.secondarySwell != null && conditions.secondarySwellCorrected != null && conditions.secondarySwellCorrected != conditions.secondarySwell)
+            _ConditionRow(
+              label: '2nd swell (open ocean)',
+              value: conditions.secondarySwell!,
+              sourceKey: 'swell',
+            ),
           _ConditionRow(
             label: 'Wind',
             value: conditions.wind,
@@ -129,11 +147,31 @@ class ConditionsCard extends StatelessWidget {
               label: 'Tide',
               value: conditions.tideState,
               sourceKey: 'tide',
+              isLast: conditions.exposureBearing == null && conditions.bathymetryDepthM == null,
+            ),
+          if (conditions.exposureBearing != null)
+            _ConditionRow(
+              label: 'Exposure',
+              value: 'Faces ${_bearingToCardinal(conditions.exposureBearing!)} (${conditions.exposureWidth ?? 0}°)',
+              sourceKey: 'swell',
+              isLast: conditions.bathymetryDepthM == null,
+            ),
+          if (conditions.bathymetryDepthM != null)
+            _ConditionRow(
+              label: 'Depth',
+              value: '${conditions.bathymetryDepthM!.abs().toStringAsFixed(1)}m / ${(conditions.bathymetryDepthM!.abs() * 3.28084).toStringAsFixed(0)}ft',
+              sourceKey: 'swell',
               isLast: true,
             ),
         ],
       ),
     );
+  }
+
+  static String _bearingToCardinal(int degrees) {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[((degrees % 360) / 22.5).round() % 16];
   }
 
   String _resolveVisibility() {

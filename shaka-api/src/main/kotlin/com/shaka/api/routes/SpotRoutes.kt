@@ -142,8 +142,9 @@ fun Application.configureRouting() {
                         region = region,
                         shakaScore = score,
                         visibility = spotService.resolveVisibilityLabel(cached),
-                        swell = cached?.swell?.value?.let { 
-                            "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
+                        swell = cached?.swell?.value?.let { s ->
+                            val ht = s.correctedHeightFt ?: s.heightFt
+                            "${ht.toInt()}ft @ ${s.periodSec.toInt()}s ${s.direction}"
                         },
                         wind = cached?.wind?.value?.let { 
                             "${it.speedKnots.toInt()} kts ${it.direction}" 
@@ -874,10 +875,11 @@ fun Application.configureRouting() {
                             country = spot.country,
                             createdAt = spot.createdAt.toString(),
                             isUserSpot = true,
-                            shakaScore = score,  // null if no cached data
+                            shakaScore = score,
                             visibility = spotService.resolveVisibilityLabel(cached),
-                            swell = cached?.swell?.value?.let { 
-                                "${it.heightFt.toInt()}ft @ ${it.periodSec.toInt()}s ${it.direction}" 
+                            swell = cached?.swell?.value?.let { s ->
+                                val ht = s.correctedHeightFt ?: s.heightFt
+                                "${ht.toInt()}ft @ ${s.periodSec.toInt()}s ${s.direction}"
                             },
                             wind = cached?.wind?.value?.let { 
                                 "${it.speedKnots.toInt()} kts ${it.direction}" 

@@ -15,10 +15,15 @@ data class SpotConditions(
     val swell: String,
     val wind: String,
     val tideState: String = "",
-    // Data freshness indicators (from prefetch cache)
-    val dataUpdatedMinutesAgo: Int? = null,      // "Updated 23 min ago"
-    val satelliteDataDate: String? = null,        // "Satellite: Jan 27"
-    val swellSource: String? = null               // "open-meteo" or "ndbc-46240"
+    val dataUpdatedMinutesAgo: Int? = null,
+    val satelliteDataDate: String? = null,
+    val swellSource: String? = null,
+    val swellCorrected: String? = null,
+    val secondarySwell: String? = null,
+    val secondarySwellCorrected: String? = null,
+    val exposureBearing: Int? = null,
+    val exposureWidth: Int? = null,
+    val bathymetryDepthM: Double? = null
 )
 
 @Serializable
@@ -235,7 +240,10 @@ data class OceanData(
     val swellHeight: Double,
     val swellDirection: Int,
     val swellPeriod: Double = 0.0,
-    val rawSST: Double? = null
+    val rawSST: Double? = null,
+    val secondarySwellHeight: Double? = null,
+    val secondarySwellDirection: Int? = null,
+    val secondarySwellPeriod: Double? = null
 )
 
 @Serializable

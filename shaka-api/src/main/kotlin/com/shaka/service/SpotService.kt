@@ -48,6 +48,7 @@ class SpotService {
     private val community = CommunityClient()
     private val forecastService = ForecastService()
     private val protectedSeasClient = ProtectedSeasClient()
+    private val bathymetryClient = com.shaka.data.client.BathymetryClient()
     private val spotDb = SpotDatabase
     // Note: GlobalFishingWatchClient and SolunarClient are used by DataPrefetchJobs
     // SpotService reads the cached data from SpotDataCache
@@ -259,20 +260,28 @@ class SpotService {
                 coordinates = spot.coordinates,
                 shakaScore = score.overall,
                 confidence = score.confidence,
-                conditions = SpotConditions(
-                    visibility = getVisibilityLabel(effectiveChl),
-                    waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
-                    swell = cached?.swell?.let { 
-                        "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                    } ?: "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
-                    wind = cached?.wind?.let { 
-                        "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                    } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
-                    tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
-                    dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
-                    satelliteDataDate = satelliteDataDate,
-                    swellSource = cached?.swell?.value?.source
-                ),
+                conditions = buildSwellConditionFields(cached).let { scf ->
+                    SpotConditions(
+                        visibility = getVisibilityLabel(effectiveChl),
+                        waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                        swell = cached?.swell?.let { 
+                            "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
+                        } ?: "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                        wind = cached?.wind?.let { 
+                            "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
+                        } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
+                        tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
+                        dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
+                        satelliteDataDate = satelliteDataDate,
+                        swellSource = cached?.swell?.value?.source,
+                        swellCorrected = scf.swellCorrected,
+                        secondarySwell = scf.secondarySwell,
+                        secondarySwellCorrected = scf.secondarySwellCorrected,
+                        exposureBearing = scf.exposureBearing,
+                        exposureWidth = scf.exposureWidth,
+                        bathymetryDepthM = scf.bathymetryDepthM
+                    )
+                },
                 expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(sst.tempC, spot.depth),
                 risks = generateRisks(weather, ocean),
@@ -508,7 +517,13 @@ class SpotService {
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate,
-                swellSource = cached?.swell?.value?.source
+                swellSource = cached?.swell?.value?.source,
+                swellCorrected = buildSwellConditionFields(cached).swellCorrected,
+                secondarySwell = buildSwellConditionFields(cached).secondarySwell,
+                secondarySwellCorrected = buildSwellConditionFields(cached).secondarySwellCorrected,
+                exposureBearing = cached?.exposure?.bearing,
+                exposureWidth = cached?.exposure?.width,
+                bathymetryDepthM = cached?.exposure?.depthM
             ),
             forecast = emptyList(),
             expectedFish = spot.commonFish.map { fish ->
@@ -670,14 +685,22 @@ class SpotService {
                     coordinates = spot.coordinates,
                     shakaScore = score.overall,
                     confidence = score.confidence,
-                    conditions = SpotConditions(
-                        visibility = getVisibilityLabel(effectiveChl),
-                        waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
-                        swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
-                        wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
-                        tideState = "",
-                        swellSource = "open-meteo"
-                    ),
+                    conditions = buildSwellConditionFields(SpotDataCache.get(spotId)).let { scf ->
+                        SpotConditions(
+                            visibility = getVisibilityLabel(effectiveChl),
+                            waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                            swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                            wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
+                            tideState = "",
+                            swellSource = "open-meteo",
+                            swellCorrected = scf.swellCorrected,
+                            secondarySwell = scf.secondarySwell,
+                            secondarySwellCorrected = scf.secondarySwellCorrected,
+                            exposureBearing = scf.exposureBearing,
+                            exposureWidth = scf.exposureWidth,
+                            bathymetryDepthM = scf.bathymetryDepthM
+                        )
+                    },
                     expectedFish = spot.commonFish,
                     gearRecommendations = emptyList(),
                     risks = emptyList(),
@@ -1125,6 +1148,32 @@ class SpotService {
      * Get visibility display string from chlorophyll concentration.
      * Uses the same thresholds as the scorer so the label matches the score.
      */
+    private fun buildSwellConditionFields(cached: SpotDataCache.SpotData?): SwellConditionFields {
+        val swell = cached?.swell?.value
+        val exposure = cached?.exposure
+        return SwellConditionFields(
+            swellCorrected = swell?.correctedHeightFt?.let { "${it.toInt()}ft @ ${swell.periodSec.toInt()}s ${swell.direction}" },
+            secondarySwell = swell?.secondaryHeightFt?.let { ht ->
+                if (ht >= 0.5) "${ht.toInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+            },
+            secondarySwellCorrected = swell?.secondaryCorrectedHeightFt?.let { ht ->
+                if (ht >= 0.5) "${ht.toInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+            },
+            exposureBearing = exposure?.bearing,
+            exposureWidth = exposure?.width,
+            bathymetryDepthM = exposure?.depthM
+        )
+    }
+
+    private data class SwellConditionFields(
+        val swellCorrected: String?,
+        val secondarySwell: String?,
+        val secondarySwellCorrected: String?,
+        val exposureBearing: Int?,
+        val exposureWidth: Int?,
+        val bathymetryDepthM: Double?
+    )
+
     private fun getVisibilityLabel(chl: Double?): String {
         if (chl == null) return "No satellite data"
         return when {
@@ -1438,10 +1487,16 @@ class SpotService {
                 tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate,
-                swellSource = cached?.swell?.value?.source
+                swellSource = cached?.swell?.value?.source,
+                swellCorrected = buildSwellConditionFields(cached).swellCorrected,
+                secondarySwell = buildSwellConditionFields(cached).secondarySwell,
+                secondarySwellCorrected = buildSwellConditionFields(cached).secondarySwellCorrected,
+                exposureBearing = cached?.exposure?.bearing,
+                exposureWidth = cached?.exposure?.width,
+                bathymetryDepthM = cached?.exposure?.depthM
             ),
-            forecast = emptyList(), // Lazy-loaded by client via /forecast/{spotId}
-            expectedFish = emptyList(), // User spots don't have fish data
+            forecast = emptyList(),
+            expectedFish = emptyList(),
             gearRecommendations = generateGearRecs(sst.tempC, 10).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
@@ -1532,6 +1587,22 @@ class SpotService {
             data
         }
         
+        val exposureDeferred = async {
+            val existing = SpotDataCache.get(spotId)?.exposure
+            if (existing != null) return@async existing
+            try {
+                val result = withTimeoutOrNull(10000) { bathymetryClient.computeExposure(lat, lon) }
+                if (result != null) {
+                    val info = SpotDataCache.ExposureInfo(result.bearing, result.width, result.depthM)
+                    SpotDataCache.updateExposure(spotId, info)
+                    info
+                } else null
+            } catch (e: Exception) {
+                logger.warn("Exposure compute failed for $spotId: ${e.message}")
+                null
+            }
+        }
+        
         val weatherDeferred = async {
             val data = withTimeoutOrNull(10000) {
                 try { openMeteo.getMarineData(lat, lon, today) to openMeteo.getWeather(lat, lon, today) }
@@ -1539,34 +1610,59 @@ class SpotService {
             }
             if (data != null) {
                 val (ocean, weather) = data
+                val exposure = exposureDeferred.await()
                 
-                // Resolution: prefer buoy data if a nearby buoy has a fresh reading
                 val buoyResult = SpotDataCache.findNearestBuoyReading(lat, lon)
-                val swellInfo: SpotDataCache.SwellInfo
+                val rawHeightFt: Double
+                val rawDirectionDeg: Double
+                val swellSource: String
+                val periodSec: Double
+                val directionCardinal: String
+                
                 if (buoyResult != null) {
                     val (buoyStation, buoyReading) = buoyResult
-                    swellInfo = SpotDataCache.SwellInfo(
-                        heightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight),
-                        periodSec = buoyReading.dominantPeriodSec ?: ocean.swellPeriod,
-                        direction = SpotDataCache.degreesToCardinal((buoyReading.meanDirection ?: ocean.swellDirection.toInt()).toDouble()),
-                        swellHeightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight),
-                        source = "ndbc-${buoyStation.stationId}"
-                    )
+                    rawHeightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight)
+                    periodSec = buoyReading.dominantPeriodSec ?: ocean.swellPeriod
+                    rawDirectionDeg = (buoyReading.meanDirection ?: ocean.swellDirection).toDouble()
+                    directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
+                    swellSource = "ndbc-${buoyStation.stationId}"
                     logger.info("Using buoy ${buoyStation.stationId} data for spot $spotId (${buoyReading.waveHeightM}m)")
                 } else {
-                    swellInfo = SpotDataCache.SwellInfo(
-                        heightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
-                        periodSec = ocean.swellPeriod,
-                        direction = SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
-                        swellHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight),
-                        source = "open-meteo"
-                    )
+                    rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                    periodSec = ocean.swellPeriod
+                    rawDirectionDeg = ocean.swellDirection.toDouble()
+                    directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
+                    swellSource = "open-meteo"
                 }
                 
-                SpotDataCache.updateSwell(spotId, SpotDataCache.CachedValue(
-                    value = swellInfo, fetchedAt = now
-                ))
+                val correctedHt = if (exposure != null) {
+                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
+                } else null
+                
+                val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
+                val secPeriod = ocean.secondarySwellPeriod
+                val secDirDeg = ocean.secondarySwellDirection?.toDouble()
+                val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
+                val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
+                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
+                } else null
+                
+                val swellInfo = SpotDataCache.SwellInfo(
+                    heightFt = rawHeightFt,
+                    periodSec = periodSec,
+                    direction = directionCardinal,
+                    swellHeightFt = rawHeightFt,
+                    source = swellSource,
+                    correctedHeightFt = correctedHt,
+                    secondaryHeightFt = secHtRaw,
+                    secondaryPeriodSec = secPeriod,
+                    secondaryDirection = secDirCardinal,
+                    secondaryCorrectedHeightFt = secCorrHt
+                )
+                
+                SpotDataCache.updateSwell(spotId, SpotDataCache.CachedValue(value = swellInfo, fetchedAt = now))
                 SpotDataCache.updateSwellSource(spotId, swellInfo.source)
+                SpotDataCache.updateCorrectedSwell(spotId, correctedHt, secHtRaw, secPeriod, secDirCardinal, secCorrHt)
                 SpotDataCache.updateWind(spotId, SpotDataCache.CachedValue(
                     value = SpotDataCache.WindInfo(
                         speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),

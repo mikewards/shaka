@@ -83,7 +83,7 @@ class OpenMeteoClient {
                 parameter("longitude", lon)
                 parameter("start_date", date)
                 parameter("end_date", date)
-                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,ocean_current_velocity,sea_surface_temperature")
+                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,ocean_current_velocity,sea_surface_temperature")
                 parameter("daily", "wave_height_max,wave_period_max")
                 parameter("timezone", "auto")
             }.body()
@@ -111,7 +111,10 @@ class OpenMeteoClient {
                 swellHeight = response.hourly.swell_wave_height?.getOrNull(idx) ?: 0.5,
                 swellDirection = response.hourly.swell_wave_direction?.getOrNull(idx)?.toInt() ?: 0,
                 swellPeriod = response.hourly.swell_wave_period?.getOrNull(idx) ?: 0.0,
-                rawSST = sst
+                rawSST = sst,
+                secondarySwellHeight = response.hourly.secondary_swell_wave_height?.getOrNull(idx),
+                secondarySwellDirection = response.hourly.secondary_swell_wave_direction?.getOrNull(idx)?.toInt(),
+                secondarySwellPeriod = response.hourly.secondary_swell_wave_period?.getOrNull(idx)
             )
         } catch (e: Exception) {
             logger.warn("Open-Meteo Marine API failed for ($lat, $lon): ${e.message}")
@@ -180,11 +183,10 @@ class OpenMeteoClient {
                 parameter("longitude", lon)
                 parameter("start_date", startDate)
                 parameter("end_date", endDate)
-                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,sea_surface_temperature")
+                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,sea_surface_temperature")
                 parameter("timezone", "auto")
             }.body()
             
-            // Extract midday values for each day
             val hoursTotal = response.hourly.wave_height?.size ?: 0
             val numDays = hoursTotal / 24
             
@@ -197,7 +199,10 @@ class OpenMeteoClient {
                     waterTemperature = response.hourly.sea_surface_temperature?.getOrNull(idx) ?: 20.0,
                     swellHeight = response.hourly.swell_wave_height?.getOrNull(idx) ?: 0.5,
                     swellDirection = response.hourly.swell_wave_direction?.getOrNull(idx)?.toInt() ?: 0,
-                    swellPeriod = response.hourly.swell_wave_period?.getOrNull(idx) ?: 0.0
+                    swellPeriod = response.hourly.swell_wave_period?.getOrNull(idx) ?: 0.0,
+                    secondarySwellHeight = response.hourly.secondary_swell_wave_height?.getOrNull(idx),
+                    secondarySwellDirection = response.hourly.secondary_swell_wave_direction?.getOrNull(idx)?.toInt(),
+                    secondarySwellPeriod = response.hourly.secondary_swell_wave_period?.getOrNull(idx)
                 )
             }
         } catch (e: Exception) {
@@ -236,6 +241,9 @@ data class OpenMeteoHourlyMarine(
     val swell_wave_height: List<Double>? = null,
     val swell_wave_period: List<Double>? = null,
     val swell_wave_direction: List<Double>? = null,
+    val secondary_swell_wave_height: List<Double>? = null,
+    val secondary_swell_wave_period: List<Double>? = null,
+    val secondary_swell_wave_direction: List<Double>? = null,
     val ocean_current_velocity: List<Double>? = null,
     val sea_surface_temperature: List<Double>? = null
 )

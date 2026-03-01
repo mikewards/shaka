@@ -154,8 +154,9 @@ class _ConditionSummary extends StatelessWidget {
   }
 
   String _extractSwell(String swell) {
-    // Extract just the feet: "0-1ft @ 12s" -> "0-1ft"
-    final match = RegExp(r'([\d-]+ft)').firstMatch(swell);
+    final corrected = conditions.swellCorrected;
+    final source = corrected ?? swell;
+    final match = RegExp(r'([\d-]+ft)').firstMatch(source);
     return match?.group(1) ?? 'N/A';
   }
 

@@ -22,6 +22,12 @@ class SpotConditions {
   final String swell;
   final String wind;
   final String tideState;
+  final String? swellCorrected;
+  final String? secondarySwell;
+  final String? secondarySwellCorrected;
+  final int? exposureBearing;
+  final int? exposureWidth;
+  final double? bathymetryDepthM;
 
   const SpotConditions({
     required this.visibility,
@@ -29,6 +35,12 @@ class SpotConditions {
     required this.swell,
     required this.wind,
     this.tideState = '',
+    this.swellCorrected,
+    this.secondarySwell,
+    this.secondarySwellCorrected,
+    this.exposureBearing,
+    this.exposureWidth,
+    this.bathymetryDepthM,
   });
 
   factory SpotConditions.fromJson(Map<String, dynamic> json) {
@@ -38,6 +50,12 @@ class SpotConditions {
       swell: json['swell'] ?? '',
       wind: json['wind'] ?? '',
       tideState: json['tideState'] ?? '',
+      swellCorrected: json['swellCorrected'],
+      secondarySwell: json['secondarySwell'],
+      secondarySwellCorrected: json['secondarySwellCorrected'],
+      exposureBearing: json['exposureBearing'],
+      exposureWidth: json['exposureWidth'],
+      bathymetryDepthM: (json['bathymetryDepthM'] as num?)?.toDouble(),
     );
   }
 }

@@ -65,7 +65,13 @@ class ForecastService {
                     visibility = visibilityStr,
                     waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
                     swell = "${cached.swell.value.heightFt.toInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}",
-                    wind = "${cached.wind.value.speedKnots.toInt()} kts ${cached.wind.value.direction}"
+                    wind = "${cached.wind.value.speedKnots.toInt()} kts ${cached.wind.value.direction}",
+                    swellCorrected = cached.swell.value.correctedHeightFt?.let { "${it.toInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}" },
+                    secondarySwell = cached.swell.value.secondaryHeightFt?.takeIf { it >= 0.5 }?.let { "${it.toInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
+                    secondarySwellCorrected = cached.swell.value.secondaryCorrectedHeightFt?.takeIf { it >= 0.5 }?.let { "${it.toInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
+                    exposureBearing = cached.exposure?.bearing,
+                    exposureWidth = cached.exposure?.width,
+                    bathymetryDepthM = cached.exposure?.depthM
                 )
             )
         }
@@ -101,21 +107,28 @@ class ForecastService {
                         moonPhase = cached?.solunar?.value?.moonPhase
                     )
                     
+                    val secSwell = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }?.takeIf { it >= 0.5 }
+                    val secPeriod = ocean.secondarySwellPeriod
+                    val secDir = ocean.secondarySwellDirection?.toDouble()?.let { SpotDataCache.degreesToCardinal(it) }
+                    
                     forecasts += DayForecast(
                         date = dateStr,
                         shakaScore = score.overall,
-                        confidence = score.confidence - (i * 5), // Confidence decreases further out
+                        confidence = score.confidence - (i * 5),
                         conditions = SpotConditions(
                             visibility = visibilityStr,
                             waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
                             swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
-                            wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}"
+                            wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
+                            secondarySwell = secSwell?.let { "${it.toInt()}ft @ ${secPeriod?.toInt() ?: 0}s ${secDir ?: ""}" },
+                            exposureBearing = cached?.exposure?.bearing,
+                            exposureWidth = cached?.exposure?.width,
+                            bathymetryDepthM = cached?.exposure?.depthM
                         )
                     )
                 }
             } catch (e: Exception) {
                 logger.warn("Forecast fetch failed for $spotId: ${e.message}")
-                // Return at least today's forecast if we have it
             }
         }
 
@@ -173,15 +186,20 @@ class ForecastService {
                     moonPhase = null                // Falls back to neutral 55
                 )
                 
+                val secSwell2 = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }?.takeIf { it >= 0.5 }
+                val secPeriod2 = ocean.secondarySwellPeriod
+                val secDir2 = ocean.secondarySwellDirection?.toDouble()?.let { SpotDataCache.degreesToCardinal(it) }
+                
                 forecasts += DayForecast(
                     date = dateStr,
                     shakaScore = score.overall,
-                    confidence = score.confidence - (i * 5), // Confidence decreases further out
+                    confidence = score.confidence - (i * 5),
                     conditions = SpotConditions(
                         visibility = "Check conditions",
                         waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
-                        wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}"
+                        wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
+                        secondarySwell = secSwell2?.let { "${it.toInt()}ft @ ${secPeriod2?.toInt() ?: 0}s ${secDir2 ?: ""}" }
                     )
                 )
             }

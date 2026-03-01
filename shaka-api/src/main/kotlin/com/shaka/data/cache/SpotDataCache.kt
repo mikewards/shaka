@@ -89,11 +89,22 @@ object SpotDataCache {
      * Structured swell/wave information for caching.
      */
     data class SwellInfo(
-        val heightFt: Double,           // Wave height in feet
+        val heightFt: Double,           // Raw wave height in feet (from buoy or Open-Meteo)
         val periodSec: Double,          // Wave period in seconds
         val direction: String,          // Cardinal direction (N, NE, E, etc.)
         val swellHeightFt: Double? = null,  // Primary swell height if different
-        val source: String = "open-meteo"   // Data source: "open-meteo" or "ndbc-{station_id}"
+        val source: String = "open-meteo",  // Data source: "open-meteo" or "ndbc-{station_id}"
+        val correctedHeightFt: Double? = null,  // Height after exposure attenuation
+        val secondaryHeightFt: Double? = null,  // Secondary swell raw height
+        val secondaryPeriodSec: Double? = null,  // Secondary swell period
+        val secondaryDirection: String? = null,  // Secondary swell cardinal direction
+        val secondaryCorrectedHeightFt: Double? = null  // Secondary swell attenuated height
+    )
+
+    data class ExposureInfo(
+        val bearing: Int,       // Direction of open water (0-360 degrees)
+        val width: Int,         // Angular spread of open water arc
+        val depthM: Double?     // Bathymetry depth at spot (negative = underwater)
     )
     
     /**
@@ -188,7 +199,8 @@ object SpotDataCache {
         val gibsChlorophyll: CachedValue<GIBSSatelliteData>? = null,  // GIBS satellite data
         val mpa: CachedValue<MPACacheInfo?>? = null,      // MPA data (null value = no specific MPA)
         val vessel: CachedValue<VesselInfo>? = null,      // Vessel activity from Global Fishing Watch
-        val solunar: CachedValue<SolunarInfo>? = null     // Moon phase and feeding periods
+        val solunar: CachedValue<SolunarInfo>? = null,    // Moon phase and feeding periods
+        val exposure: ExposureInfo? = null                 // Spot coastal exposure (static, computed once)
     ) {
         /**
          * Get the most recent fetch time across all data types.
@@ -798,6 +810,57 @@ object SpotDataCache {
         }
     }
     
+    fun updateExposure(spotId: String, exposure: ExposureInfo) {
+        if (!DatabaseFactory.isConnected()) return
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(exposure = exposure)
+        }
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    UPDATE spot_cache SET exposure_bearing = ?, exposure_width = ?, bathymetry_depth_m = ? WHERE spot_id = ?
+                """.trimIndent()).use { stmt ->
+                    stmt.setInt(1, exposure.bearing)
+                    stmt.setInt(2, exposure.width)
+                    stmt.setObject(3, exposure.depthM)
+                    stmt.setString(4, spotId)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to update exposure for $spotId: ${e.message}")
+        }
+    }
+
+    fun updateCorrectedSwell(spotId: String, correctedHeightFt: Double?, secondaryHeightFt: Double?, secondaryPeriodSec: Double?, secondaryDirection: String?, secondaryCorrectedHeightFt: Double?) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    UPDATE spot_cache SET 
+                        swell_corrected_height_ft = ?,
+                        secondary_swell_height_ft = ?,
+                        secondary_swell_period_sec = ?,
+                        secondary_swell_direction = ?,
+                        secondary_swell_corrected_height_ft = ?
+                    WHERE spot_id = ?
+                """.trimIndent()).use { stmt ->
+                    stmt.setObject(1, correctedHeightFt)
+                    stmt.setObject(2, secondaryHeightFt)
+                    stmt.setObject(3, secondaryPeriodSec)
+                    stmt.setString(4, secondaryDirection)
+                    stmt.setObject(5, secondaryCorrectedHeightFt)
+                    stmt.setString(6, spotId)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to update corrected swell for $spotId: ${e.message}")
+        }
+    }
+
     fun deactivateBuoyStations(stationIds: List<String>) {
         if (!DatabaseFactory.isConnected() || stationIds.isEmpty()) return
         try {
@@ -1000,6 +1063,45 @@ object SpotDataCache {
      * Convert meters to feet.
      */
     fun metersToFeet(meters: Double): Double = meters * 3.28084
+
+    /**
+     * Directional swell attenuation based on Wiegel/Penny-Price diffraction.
+     *
+     * Step-function model: full height within exposure arc, Kd~0.5 at shadow
+     * boundary, tapering to a 20% floor in the deep shadow zone.
+     * Physics: US Army Corps Coastal Engineering Manual; validated by SoCal
+     * island sheltering studies (~30% wave height in deep shadow).
+     */
+    fun attenuateSwell(
+        swellHeightFt: Double,
+        swellDirectionDeg: Double,
+        exposureBearing: Int,
+        exposureWidth: Int
+    ): Double {
+        if (exposureWidth >= 355) return swellHeightFt
+
+        val angle = kotlin.math.abs(angleDifference(swellDirectionDeg, exposureBearing.toDouble()))
+        val halfWidth = exposureWidth / 2.0
+
+        return swellHeightFt * when {
+            angle <= halfWidth -> 1.0
+            angle <= halfWidth + 30 -> {
+                val fraction = (angle - halfWidth) / 30.0
+                0.5 - (fraction * 0.2)
+            }
+            angle <= halfWidth + 90 -> {
+                val fraction = (angle - halfWidth - 30) / 60.0
+                0.3 - (fraction * 0.1)
+            }
+            else -> 0.2
+        }
+    }
+
+    private fun angleDifference(a: Double, b: Double): Double {
+        var diff = ((a - b) % 360 + 360) % 360
+        if (diff > 180) diff = 360 - diff
+        return diff
+    }
     
     // ==================== Database Persistence ====================
     
@@ -1204,6 +1306,24 @@ object SpotDataCache {
                     }
                 }
                 logger.info("Buoy tables and swell_source column ready")
+                
+                // Phase 3: Exposure, depth, corrected swell, secondary swell columns
+                val phase3Columns = """
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS exposure_bearing INT;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS exposure_width INT;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS bathymetry_depth_m DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS swell_corrected_height_ft DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS secondary_swell_height_ft DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS secondary_swell_period_sec DOUBLE PRECISION;
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS secondary_swell_direction VARCHAR(10);
+                    ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS secondary_swell_corrected_height_ft DOUBLE PRECISION;
+                """.trimIndent()
+                conn.createStatement().use { stmt ->
+                    phase3Columns.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                logger.info("Phase 3 columns (exposure, depth, corrected/secondary swell) ready")
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
@@ -1496,16 +1616,36 @@ object SpotDataCache {
                         val weatherFetchedAt = rs.getTimestamp("weather_fetched_at")
                         if (!rs.wasNull() && weatherFetchedAt != null) {
                             val swellSource = try { rs.getString("swell_source") } catch (_: Exception) { null }
+                            val correctedHt = try { rs.getDouble("swell_corrected_height_ft").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                            val secHt = try { rs.getDouble("secondary_swell_height_ft").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                            val secPeriod = try { rs.getDouble("secondary_swell_period_sec").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                            val secDir = try { rs.getString("secondary_swell_direction") } catch (_: Exception) { null }
+                            val secCorrHt = try { rs.getDouble("secondary_swell_corrected_height_ft").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
                             spotData = spotData.copy(
                                 swell = CachedValue(
                                     value = SwellInfo(
                                         heightFt = swellHeight,
                                         periodSec = swellPeriod,
                                         direction = swellDir ?: "N",
-                                        source = swellSource ?: "open-meteo"
+                                        source = swellSource ?: "open-meteo",
+                                        correctedHeightFt = correctedHt,
+                                        secondaryHeightFt = secHt,
+                                        secondaryPeriodSec = secPeriod,
+                                        secondaryDirection = secDir,
+                                        secondaryCorrectedHeightFt = secCorrHt
                                     ),
                                     fetchedAt = weatherFetchedAt.toInstant()
                                 )
+                            )
+                        }
+                        
+                        // Exposure data (static, computed once)
+                        val expBearing = try { rs.getInt("exposure_bearing").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                        val expWidth = try { rs.getInt("exposure_width").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                        val bathDepth = try { rs.getDouble("bathymetry_depth_m").takeIf { !rs.wasNull() } } catch (_: Exception) { null }
+                        if (expBearing != null && expWidth != null) {
+                            spotData = spotData.copy(
+                                exposure = ExposureInfo(bearing = expBearing, width = expWidth, depthM = bathDepth)
                             )
                         }
                         

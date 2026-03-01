@@ -93,13 +93,15 @@ fun Application.module() {
  */
 private fun Application.configureScheduledJobs() {
     val ndbcClient = NDBCBuoyClient()
+    val bathymetryClient = BathymetryClient()
     val prefetchJobs = DataPrefetchJobs(
         SpotDatabase,
         NOAATidesClient(),
         OpenMeteoClient(),
         CopernicusClient(),
         NOAAClient(),
-        ndbcBuoyClient = ndbcClient
+        ndbcBuoyClient = ndbcClient,
+        bathymetryClient = bathymetryClient
     )
     
     // Create isolated scope for background jobs - failures won't affect other jobs or the app

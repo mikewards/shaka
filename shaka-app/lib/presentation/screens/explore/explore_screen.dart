@@ -539,7 +539,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 isUserSpot: spot.isUserSpot,
                 shakaScore: detail.spot.score.overall,
                 visibility: cond.visibility,
-                swell: cond.swell,
+                swell: cond.swellCorrected ?? cond.swell,
                 wind: cond.wind,
                 waterTemp: cond.waterTemp,
               );
