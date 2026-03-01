@@ -113,7 +113,6 @@ private fun Application.configureScheduledJobs() {
         // This restores chlorophyll/SST/visibility data from previous runs
         try {
             SpotDataCache.createTableIfNotExists()
-            SpotDataCache.runSwellMigrationIfNeeded()
             val loadedCount = SpotDataCache.loadFromDatabase()
             logger.info("Loaded $loadedCount spots from database cache")
         } catch (e: Exception) {

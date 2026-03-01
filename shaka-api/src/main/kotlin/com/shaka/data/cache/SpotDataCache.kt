@@ -826,45 +826,6 @@ object SpotDataCache {
     
     @Volatile private var buoyStationsMemCache: List<BuoyStation> = emptyList()
     
-    /**
-     * One-time migration: clear stale swell data that stored waveHeight (combined)
-     * instead of swellHeight (swell-only). Uses swell_source column as a flag —
-     * if it's NULL (old data without the column yet populated), clear swell columns.
-     * Only runs once; subsequent calls are no-ops.
-     */
-    fun runSwellMigrationIfNeeded() {
-        if (!DatabaseFactory.isConnected()) return
-        try {
-            transaction {
-                val conn = this.connection.connection as java.sql.Connection
-                // One-time: clear swell data fetched before the swellHeight fix (2026-03-05T19:00Z).
-                // Old data used waveHeight (combined) which inflates values.
-                val count = conn.prepareStatement(
-                    "SELECT COUNT(*) FROM spot_cache WHERE swell_height_ft IS NOT NULL AND weather_fetched_at < '2026-03-05T19:00:00Z'"
-                ).use { stmt ->
-                    stmt.executeQuery().use { rs ->
-                        if (rs.next()) rs.getInt(1) else 0
-                    }
-                }
-                if (count > 0) {
-                    conn.createStatement().use { stmt ->
-                        stmt.executeUpdate("""
-                            UPDATE spot_cache SET 
-                                swell_height_ft = NULL, swell_period_sec = NULL, 
-                                swell_direction = NULL, weather_fetched_at = NULL
-                            WHERE weather_fetched_at < '2026-03-05T19:00:00Z'
-                        """.trimIndent())
-                    }
-                    logger.info("Swell migration: cleared $count stale rows (waveHeight -> swellHeight)")
-                } else {
-                    logger.debug("Swell migration: already applied")
-                }
-            }
-        } catch (e: Exception) {
-            logger.warn("Swell migration check failed (safe to ignore on first run): ${e.message}")
-        }
-    }
-    
     fun ensureBuoyStationsLoaded() {
         if (buoyStationsMemCache.isEmpty()) {
             buoyStationsMemCache = loadBuoyStations()
