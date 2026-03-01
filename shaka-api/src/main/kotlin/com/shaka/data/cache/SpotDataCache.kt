@@ -837,9 +837,10 @@ object SpotDataCache {
         try {
             transaction {
                 val conn = this.connection.connection as java.sql.Connection
-                // Check if any rows have NULL swell_source (pre-migration data)
+                // One-time: clear swell data fetched before the swellHeight fix (2026-03-05T19:00Z).
+                // Old data used waveHeight (combined) which inflates values.
                 val count = conn.prepareStatement(
-                    "SELECT COUNT(*) FROM spot_cache WHERE swell_source IS NULL AND swell_height_ft IS NOT NULL"
+                    "SELECT COUNT(*) FROM spot_cache WHERE swell_height_ft IS NOT NULL AND weather_fetched_at < '2026-03-05T19:00:00Z'"
                 ).use { stmt ->
                     stmt.executeQuery().use { rs ->
                         if (rs.next()) rs.getInt(1) else 0
@@ -850,14 +851,13 @@ object SpotDataCache {
                         stmt.executeUpdate("""
                             UPDATE spot_cache SET 
                                 swell_height_ft = NULL, swell_period_sec = NULL, 
-                                swell_direction = NULL, weather_fetched_at = NULL,
-                                swell_source = 'open-meteo'
-                            WHERE swell_source IS NULL
+                                swell_direction = NULL, weather_fetched_at = NULL
+                            WHERE weather_fetched_at < '2026-03-05T19:00:00Z'
                         """.trimIndent())
                     }
                     logger.info("Swell migration: cleared $count stale rows (waveHeight -> swellHeight)")
                 } else {
-                    logger.debug("Swell migration: already applied or no data to migrate")
+                    logger.debug("Swell migration: already applied")
                 }
             }
         } catch (e: Exception) {
