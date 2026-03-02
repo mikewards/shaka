@@ -159,10 +159,11 @@ class DataPrefetchJobs(
         }
         val allSpots = curatedSpots + userSpots
         
-        // Filter to spots that need updating
+        // Filter to spots that need updating (including those missing exposure/Phase 3 data)
         val spotsToUpdate = allSpots.filter { spot ->
             val cached = SpotDataCache.get(spot.cacheId)
             cached?.swell == null || cached.wind == null || 
+                cached.exposure == null ||
                 isStale(cached.swell.fetchedAt, WEATHER_STALE_HOURS)
         }
         
