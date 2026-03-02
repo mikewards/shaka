@@ -1307,6 +1307,14 @@ object SpotDataCache {
                 }
                 logger.info("Buoy tables and swell_source column ready")
                 
+                // Re-activate ALL buoy stations on every deploy. Previous code
+                // permanently deactivated stations on transient failures (timeouts,
+                // temporary missing data). This undoes that damage.
+                conn.createStatement().use { stmt ->
+                    stmt.execute("UPDATE buoy_stations SET active = true")
+                }
+                logger.info("All buoy stations re-activated")
+                
                 // Phase 3: Exposure, depth, corrected swell, secondary swell columns
                 val phase3Columns = """
                     ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS exposure_bearing INT;

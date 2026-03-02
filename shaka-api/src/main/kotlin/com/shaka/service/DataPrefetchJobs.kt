@@ -974,6 +974,8 @@ class DataPrefetchJobs(
     /**
      * Fetch latest readings from all active buoy stations.
      * Runs hourly — buoys report every hour.
+     * Never deactivates stations — transient failures are normal (NDBC is slow,
+     * stations go offline for maintenance, wave data is intermittently missing).
      */
     suspend fun prefetchBuoyReadings() {
         if (buoyStationsCache.isEmpty()) {
@@ -986,25 +988,24 @@ class DataPrefetchJobs(
         
         logger.info("Fetching readings from ${buoyStationsCache.size} buoy stations...")
         var success = 0
+        var skipped = 0
         var failed = 0
-        val deactivate = mutableListOf<String>()
         
         for (batch in buoyStationsCache.chunked(BATCH_SIZE)) {
             coroutineScope {
                 batch.map { station ->
                     async {
                         try {
-                            val reading = withTimeoutOrNull(3_000) {
+                            val reading = withTimeoutOrNull(15_000) {
                                 ndbcBuoyClient.fetchLatestReading(station.stationId)
                             }
                             if (reading != null && reading.waveHeightM != null) {
                                 SpotDataCache.saveBuoyReading(reading)
                                 success++
                             } else {
-                                deactivate += station.stationId
+                                skipped++
                             }
                         } catch (e: Exception) {
-                            deactivate += station.stationId
                             failed++
                         }
                         Unit
@@ -1014,13 +1015,7 @@ class DataPrefetchJobs(
             delay(BATCH_DELAY_MS)
         }
         
-        if (deactivate.isNotEmpty()) {
-            SpotDataCache.deactivateBuoyStations(deactivate)
-            buoyStationsCache = SpotDataCache.loadBuoyStations()
-            logger.info("Deactivated ${deactivate.size} stations without wave data")
-        }
-        
-        logger.info("Buoy readings: $success successful, $failed failed, ${deactivate.size} deactivated")
+        logger.info("Buoy readings: $success successful, $skipped no wave data, $failed errors")
     }
     
     /**
