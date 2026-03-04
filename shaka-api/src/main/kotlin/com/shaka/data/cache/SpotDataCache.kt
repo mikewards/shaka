@@ -104,7 +104,7 @@ object SpotDataCache {
     data class ExposureInfo(
         val bearing: Int,       // Direction of open water (0-360 degrees)
         val width: Int,         // Angular spread of open water arc
-        val depthM: Double?     // Bathymetry depth at spot (negative = underwater)
+        val depthM: Double?     // Bathymetry depth at spot (positive = underwater depth in meters)
     )
     
     /**
@@ -899,11 +899,20 @@ object SpotDataCache {
         buoyStationsMemCache = loadBuoyStations()
     }
     
+    data class BuoyMatch(
+        val station: BuoyStation,
+        val reading: BuoyReading,
+        val distanceNm: Double
+    )
+
     /**
      * Find the nearest active buoy to a lat/lon within maxNm nautical miles,
      * with a fresh reading (< 2 hours old). Returns null if none qualifies.
+     *
+     * Open-ocean swell is coherent over 50-100+ nm, so a real buoy measurement
+     * at 40nm is far more accurate than a model grid-point interpolation.
      */
-    fun findNearestBuoyReading(lat: Double, lon: Double, maxNm: Double = 10.0): Pair<BuoyStation, BuoyReading>? {
+    fun findNearestBuoyReading(lat: Double, lon: Double, maxNm: Double = 50.0): BuoyMatch? {
         ensureBuoyStationsLoaded()
         
         var bestStation: BuoyStation? = null
@@ -923,7 +932,7 @@ object SpotDataCache {
         val ageHours = java.time.Duration.between(reading.observedAt, java.time.Instant.now()).toHours()
         if (ageHours > 2) return null
         
-        return station to reading
+        return BuoyMatch(station, reading, bestDistance)
     }
     
     /**
@@ -1067,34 +1076,54 @@ object SpotDataCache {
     /**
      * Directional swell attenuation based on Wiegel/Penny-Price diffraction.
      *
-     * Step-function model: full height within exposure arc, Kd~0.5 at shadow
-     * boundary, tapering to a 20% floor in the deep shadow zone.
-     * Physics: US Army Corps Coastal Engineering Manual; validated by SoCal
-     * island sheltering studies (~30% wave height in deep shadow).
+     * Smooth model: full height within exposure arc, linear taper through
+     * transition zone (1.0 → 0.5 over 15°), then gradual decay to 20% floor.
+     * Physics: US Army Corps Coastal Engineering Manual.
+     *
+     * When swell data comes from a nearby NDBC buoy, the buoy already measures
+     * the local wave field including any sheltering effects. The attenuation
+     * correction is blended down proportionally: buoy at 0nm = no correction,
+     * buoy at 30nm+ = full correction. Model-sourced data (buoyDistNm = null)
+     * always gets full correction.
      */
     fun attenuateSwell(
         swellHeightFt: Double,
         swellDirectionDeg: Double,
         exposureBearing: Int,
-        exposureWidth: Int
+        exposureWidth: Int,
+        buoyDistNm: Double? = null
     ): Double {
         if (exposureWidth >= 355) return swellHeightFt
 
         val angle = kotlin.math.abs(angleDifference(swellDirectionDeg, exposureBearing.toDouble()))
         val halfWidth = exposureWidth / 2.0
 
-        return swellHeightFt * when {
+        val directionalFactor = when {
             angle <= halfWidth -> 1.0
-            angle <= halfWidth + 30 -> {
-                val fraction = (angle - halfWidth) / 30.0
+            angle <= halfWidth + 15 -> {
+                val fraction = (angle - halfWidth) / 15.0
+                1.0 - (fraction * 0.5)
+            }
+            angle <= halfWidth + 45 -> {
+                val fraction = (angle - halfWidth - 15) / 30.0
                 0.5 - (fraction * 0.2)
             }
             angle <= halfWidth + 90 -> {
-                val fraction = (angle - halfWidth - 30) / 60.0
+                val fraction = (angle - halfWidth - 45) / 45.0
                 0.3 - (fraction * 0.1)
             }
             else -> 0.2
         }
+
+        // Blend: nearby buoy data already reflects local conditions
+        val buoyBlend = if (buoyDistNm != null) {
+            (buoyDistNm / 30.0).coerceIn(0.0, 1.0)
+        } else {
+            1.0
+        }
+        val effectiveFactor = 1.0 - buoyBlend * (1.0 - directionalFactor)
+
+        return swellHeightFt * effectiveFactor
     }
 
     private fun angleDifference(a: Double, b: Double): Double {
@@ -1332,6 +1361,29 @@ object SpotDataCache {
                     }
                 }
                 logger.info("Phase 3 columns (exposure, depth, corrected/secondary swell) ready")
+
+                // One-time migration: recompute exposure with 5km sample distance.
+                // Old 1km data stored negative depth values (raw elevation).
+                // New code stores positive depth. Detect old data by checking for
+                // negative depth values; if found, clear all exposure for recomputation.
+                val oldDataCount = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM spot_cache WHERE bathymetry_depth_m < 0 AND bathymetry_depth_m IS NOT NULL"
+                ).use { stmt ->
+                    stmt.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+                }
+                if (oldDataCount > 0) {
+                    val updated = conn.createStatement().executeUpdate("""
+                        UPDATE spot_cache 
+                        SET exposure_bearing = NULL, 
+                            exposure_width = NULL, 
+                            bathymetry_depth_m = NULL,
+                            swell_corrected_height_ft = NULL,
+                            secondary_swell_corrected_height_ft = NULL
+                    """.trimIndent())
+                    logger.info("Cleared $updated spots with old 1km exposure data — will recompute with 5km sampling")
+                } else {
+                    logger.info("Exposure data already uses 5km sampling, no migration needed")
+                }
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {

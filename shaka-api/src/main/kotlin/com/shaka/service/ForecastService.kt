@@ -6,6 +6,7 @@ import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
+import kotlin.math.roundToInt
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
 
@@ -66,9 +67,9 @@ class ForecastService {
                     waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
                     swell = "${cached.swell.value.heightFt.toInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}",
                     wind = "${cached.wind.value.speedKnots.toInt()} kts ${cached.wind.value.direction}",
-                    swellCorrected = cached.swell.value.correctedHeightFt?.let { "${it.toInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}" },
-                    secondarySwell = cached.swell.value.secondaryHeightFt?.takeIf { it >= 0.5 }?.let { "${it.toInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
-                    secondarySwellCorrected = cached.swell.value.secondaryCorrectedHeightFt?.takeIf { it >= 0.5 }?.let { "${it.toInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
+                    swellCorrected = cached.swell.value.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}" },
+                    secondarySwell = cached.swell.value.secondaryHeightFt?.takeIf { it >= 0.5 }?.let { "${it.roundToInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
+                    secondarySwellCorrected = cached.swell.value.secondaryCorrectedHeightFt?.takeIf { it >= 0.5 }?.let { "${it.roundToInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
                     exposureBearing = cached.exposure?.bearing,
                     exposureWidth = cached.exposure?.width,
                     bathymetryDepthM = cached.exposure?.depthM

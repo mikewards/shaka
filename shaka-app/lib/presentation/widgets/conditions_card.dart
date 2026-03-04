@@ -159,7 +159,7 @@ class ConditionsCard extends StatelessWidget {
           if (conditions.bathymetryDepthM != null)
             _ConditionRow(
               label: 'Depth',
-              value: '${conditions.bathymetryDepthM!.abs().toStringAsFixed(1)}m / ${(conditions.bathymetryDepthM!.abs() * 3.28084).toStringAsFixed(0)}ft',
+              value: '${conditions.bathymetryDepthM!.toStringAsFixed(1)}m / ${(conditions.bathymetryDepthM! * 3.28084).toStringAsFixed(0)}ft',
               sourceKey: 'swell',
               isLast: true,
             ),

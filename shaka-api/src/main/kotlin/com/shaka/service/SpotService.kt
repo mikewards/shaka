@@ -3,6 +3,7 @@ package com.shaka.service
 import com.shaka.data.cache.OceanDataCache
 import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.CommunityClient
+import kotlin.math.roundToInt
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.GIBSClient
 import com.shaka.data.client.NOAAClient
@@ -1152,12 +1153,12 @@ class SpotService {
         val swell = cached?.swell?.value
         val exposure = cached?.exposure
         return SwellConditionFields(
-            swellCorrected = swell?.correctedHeightFt?.let { "${it.toInt()}ft @ ${swell.periodSec.toInt()}s ${swell.direction}" },
+            swellCorrected = swell?.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${swell.periodSec.toInt()}s ${swell.direction}" },
             secondarySwell = swell?.secondaryHeightFt?.let { ht ->
-                if (ht >= 0.5) "${ht.toInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
             },
             secondarySwellCorrected = swell?.secondaryCorrectedHeightFt?.let { ht ->
-                if (ht >= 0.5) "${ht.toInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
             },
             exposureBearing = exposure?.bearing,
             exposureWidth = exposure?.width,
@@ -1612,31 +1613,33 @@ class SpotService {
                 val (ocean, weather) = data
                 val exposure = exposureDeferred.await()
                 
-                val buoyResult = SpotDataCache.findNearestBuoyReading(lat, lon)
+                val buoyMatch = SpotDataCache.findNearestBuoyReading(lat, lon)
                 val rawHeightFt: Double
                 val rawDirectionDeg: Double
                 val swellSource: String
                 val periodSec: Double
                 val directionCardinal: String
+                val buoyDistNm: Double?
                 
-                if (buoyResult != null) {
-                    val (buoyStation, buoyReading) = buoyResult
-                    rawHeightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight)
-                    periodSec = buoyReading.dominantPeriodSec ?: ocean.swellPeriod
-                    rawDirectionDeg = (buoyReading.meanDirection ?: ocean.swellDirection).toDouble()
+                if (buoyMatch != null) {
+                    rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM ?: ocean.swellHeight)
+                    periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.swellPeriod
+                    rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.swellDirection).toDouble()
                     directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
-                    swellSource = "ndbc-${buoyStation.stationId}"
-                    logger.info("Using buoy ${buoyStation.stationId} data for spot $spotId (${buoyReading.waveHeightM}m)")
+                    swellSource = "ndbc-${buoyMatch.station.stationId}"
+                    buoyDistNm = buoyMatch.distanceNm
+                    logger.info("Using buoy ${buoyMatch.station.stationId} data for spot $spotId (${buoyMatch.reading.waveHeightM}m, ${buoyMatch.distanceNm.toInt()}nm away)")
                 } else {
                     rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
                     periodSec = ocean.swellPeriod
                     rawDirectionDeg = ocean.swellDirection.toDouble()
                     directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                     swellSource = "open-meteo"
+                    buoyDistNm = null
                 }
                 
                 val correctedHt = if (exposure != null) {
-                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
+                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width, buoyDistNm)
                 } else null
                 
                 val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
@@ -1644,7 +1647,7 @@ class SpotService {
                 val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                 val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
                 val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
+                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width, null)
                 } else null
                 
                 val swellInfo = SpotDataCache.SwellInfo(

@@ -23,7 +23,7 @@ class BathymetryClient {
     companion object {
         private const val BASE_URL = "https://api.opentopodata.org/v1/mapzen"
         private const val MAX_LOCATIONS_PER_REQUEST = 100
-        private const val SAMPLE_DISTANCE_KM = 1.0
+        private const val SAMPLE_DISTANCE_KM = 5.0
         private const val NUM_DIRECTIONS = 16
         private const val EARTH_RADIUS_KM = 6371.0
     }
@@ -88,9 +88,10 @@ class BathymetryClient {
     /**
      * Compute exposure bearing, width, and depth for a spot.
      *
-     * Samples 16 points at 1km in each compass direction plus the spot center.
+     * Samples 16 points at 5km in each compass direction plus the spot center.
      * Classifies water (negative elevation) vs land (positive).
      * Returns the centroid direction and angular width of the open-water arc.
+     * 5km avoids false land detection on headlands/peninsulas at shorter ranges.
      */
     suspend fun computeExposure(lat: Double, lon: Double): ExposureResult? {
         val points = mutableListOf<Pair<Double, Double>>()
@@ -163,8 +164,9 @@ class BathymetryClient {
         val arcCenterIdx = (bestStart + bestLength / 2.0) % NUM_DIRECTIONS
         val bearing = ((arcCenterIdx * stepDeg) % 360).toInt()
 
-        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${spotDepth}m")
-        return ExposureResult(bearing = bearing, width = width, depthM = spotDepth)
+        val depthPositive = spotDepth?.let { if (it < 0) -it else 0.0 }
+        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${depthPositive}m")
+        return ExposureResult(bearing = bearing, width = width, depthM = depthPositive)
     }
 
     private fun offsetPoint(lat: Double, lon: Double, bearingDeg: Double, distKm: Double): Pair<Double, Double> {

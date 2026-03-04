@@ -204,40 +204,42 @@ class DataPrefetchJobs(
                             }
                             
                             // Resolution: prefer buoy data if a nearby buoy has a fresh reading
-                            val buoyResult = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
+                            val buoyMatch = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
                             val rawHeightFt: Double
                             val rawDirectionDeg: Double
                             val swellSource: String
                             val periodSec: Double
                             val directionCardinal: String
+                            val buoyDistNm: Double?
                             
-                            if (buoyResult != null) {
-                                val (buoyStation, buoyReading) = buoyResult
-                                rawHeightFt = SpotDataCache.metersToFeet(buoyReading.waveHeightM ?: ocean.swellHeight)
-                                periodSec = buoyReading.dominantPeriodSec ?: ocean.swellPeriod
-                                rawDirectionDeg = (buoyReading.meanDirection ?: ocean.swellDirection).toDouble()
+                            if (buoyMatch != null) {
+                                rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM ?: ocean.swellHeight)
+                                periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.swellPeriod
+                                rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.swellDirection).toDouble()
                                 directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
-                                swellSource = "ndbc-${buoyStation.stationId}"
+                                swellSource = "ndbc-${buoyMatch.station.stationId}"
+                                buoyDistNm = buoyMatch.distanceNm
                             } else {
                                 rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
                                 periodSec = ocean.swellPeriod
                                 rawDirectionDeg = ocean.swellDirection.toDouble()
                                 directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                                 swellSource = "open-meteo"
+                                buoyDistNm = null
                             }
                             
-                            // Compute corrected (attenuated) swell
+                            // Compute corrected (attenuated) swell, scaling by buoy distance
                             val correctedHt = if (exposure != null) {
-                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
+                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width, buoyDistNm)
                             } else null
                             
-                            // Secondary swell from Open-Meteo
+                            // Secondary swell from Open-Meteo (always model data, no buoy proximity)
                             val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
                             val secPeriod = ocean.secondarySwellPeriod
                             val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                             val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
                             val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
+                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width, null)
                             } else null
                             
                             val swellInfo = SpotDataCache.SwellInfo(
