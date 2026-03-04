@@ -135,20 +135,17 @@ private fun Application.configureScheduledJobs() {
             logger.warn("Buoy station seeding failed: ${e.message}")
         }
         
-        // Launch prefetchAll and buoy readings in PARALLEL — they're independent
-        launch {
-            try {
-                prefetchJobs.prefetchAll()
-            } catch (e: Exception) {
-                logger.error("Initial prefetch failed: ${e.message}", e)
-            }
+        // Fetch buoy readings FIRST so weather prefetch can use real buoy data
+        try {
+            prefetchJobs.prefetchBuoyReadings()
+        } catch (e: Exception) {
+            logger.warn("Initial buoy readings fetch failed: ${e.message}")
         }
-        launch {
-            try {
-                prefetchJobs.prefetchBuoyReadings()
-            } catch (e: Exception) {
-                logger.warn("Initial buoy readings fetch failed: ${e.message}")
-            }
+        
+        try {
+            prefetchJobs.prefetchAll()
+        } catch (e: Exception) {
+            logger.error("Initial prefetch failed: ${e.message}", e)
         }
     }
     
