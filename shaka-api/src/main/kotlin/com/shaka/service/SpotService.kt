@@ -165,12 +165,13 @@ class SpotService {
             }
             
             val ocean = if (cached?.swell != null) {
+                val htM = cached.swell.value.heightFt / 3.28084
                 OceanData(
-                    waveHeight = cached.swell.value.heightFt / 3.28084,  // Convert ft to m
+                    waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
                     waterTemperature = cached.sst?.value ?: 15.0,
-                    swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
+                    swellHeight = htM,
                     swellDirection = 0
                 )
             } else {
@@ -267,7 +268,7 @@ class SpotService {
                         waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                         swell = cached?.swell?.let { 
                             "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                        } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                        } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = cached?.wind?.let { 
                             "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                         } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -338,12 +339,13 @@ class SpotService {
             }
             
             ocean = if (cached.swell != null) {
+                val htM = cached.swell.value.heightFt / 3.28084
                 OceanData(
-                    waveHeight = cached.swell.value.heightFt / 3.28084,
+                    waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
                     waterTemperature = cached.sst?.value ?: 15.0,
-                    swellHeight = (cached.swell.value.swellHeightFt ?: cached.swell.value.heightFt) / 3.28084,
+                    swellHeight = htM,
                     swellDirection = 0
                 )
             } else {
@@ -511,7 +513,7 @@ class SpotService {
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -690,7 +692,7 @@ class SpotService {
                         SpotConditions(
                             visibility = getVisibilityLabel(effectiveChl),
                             waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
-                            swell = "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                            swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                             wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                             tideState = "",
                             swellSource = "open-meteo",
@@ -1377,12 +1379,13 @@ class SpotService {
             visibility = 10000.0
         )
         
+        val htM = cached.swell!!.value.heightFt / 3.28084
         val ocean = OceanData(
-            waveHeight = cached.swell!!.value.heightFt / 3.28084,
+            waveHeight = htM,
             wavePeriod = cached.swell!!.value.periodSec,
             waveDirection = 0,
             waterTemperature = cached.sst?.value ?: 15.0,
-            swellHeight = (cached.swell!!.value.swellHeightFt ?: cached.swell!!.value.heightFt) / 3.28084,
+            swellHeight = htM,
             swellDirection = 0
         )
         
@@ -1481,7 +1484,7 @@ class SpotService {
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -1613,33 +1616,35 @@ class SpotService {
                 val (ocean, weather) = data
                 val exposure = exposureDeferred.await()
                 
+                // Option D: Open-Meteo primary, buoy only at < 1.5nm
                 val buoyMatch = SpotDataCache.findNearestBuoyReading(lat, lon)
                 val rawHeightFt: Double
                 val rawDirectionDeg: Double
                 val swellSource: String
                 val periodSec: Double
                 val directionCardinal: String
-                val buoyDistNm: Double?
+                val usedBuoy: Boolean
                 
                 if (buoyMatch != null) {
-                    rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM ?: ocean.swellHeight)
-                    periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.swellPeriod
-                    rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.swellDirection).toDouble()
+                    rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM!!)
+                    periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.wavePeriod
+                    rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.waveDirection).toDouble()
                     directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                     swellSource = "ndbc-${buoyMatch.station.stationId}"
-                    buoyDistNm = buoyMatch.distanceNm
+                    usedBuoy = true
                     logger.info("Using buoy ${buoyMatch.station.stationId} data for spot $spotId (${buoyMatch.reading.waveHeightM}m, ${buoyMatch.distanceNm.toInt()}nm away)")
                 } else {
-                    rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
-                    periodSec = ocean.swellPeriod
-                    rawDirectionDeg = ocean.swellDirection.toDouble()
+                    rawHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight)
+                    periodSec = ocean.wavePeriod
+                    rawDirectionDeg = ocean.waveDirection.toDouble()
                     directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                     swellSource = "open-meteo"
-                    buoyDistNm = null
+                    usedBuoy = false
                 }
                 
-                val correctedHt = if (exposure != null) {
-                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width, buoyDistNm)
+                // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
+                val correctedHt = if (exposure != null && !usedBuoy) {
+                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
                 } else null
                 
                 val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
@@ -1647,7 +1652,7 @@ class SpotService {
                 val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                 val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
                 val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width, null)
+                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
                 } else null
                 
                 val swellInfo = SpotDataCache.SwellInfo(

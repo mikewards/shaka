@@ -203,43 +203,43 @@ class DataPrefetchJobs(
                                 }
                             }
                             
-                            // Resolution: prefer buoy data if a nearby buoy has a fresh reading
+                            // Option D: Open-Meteo primary, buoy only at < 1.5nm
                             val buoyMatch = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
                             val rawHeightFt: Double
                             val rawDirectionDeg: Double
                             val swellSource: String
                             val periodSec: Double
                             val directionCardinal: String
-                            val buoyDistNm: Double?
+                            val usedBuoy: Boolean
                             
                             if (buoyMatch != null) {
-                                rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM ?: ocean.swellHeight)
-                                periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.swellPeriod
-                                rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.swellDirection).toDouble()
+                                rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM!!)
+                                periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.wavePeriod
+                                rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.waveDirection).toDouble()
                                 directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                                 swellSource = "ndbc-${buoyMatch.station.stationId}"
-                                buoyDistNm = buoyMatch.distanceNm
+                                usedBuoy = true
                             } else {
-                                rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
-                                periodSec = ocean.swellPeriod
-                                rawDirectionDeg = ocean.swellDirection.toDouble()
+                                rawHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight)
+                                periodSec = ocean.wavePeriod
+                                rawDirectionDeg = ocean.waveDirection.toDouble()
                                 directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                                 swellSource = "open-meteo"
-                                buoyDistNm = null
+                                usedBuoy = false
                             }
                             
-                            // Compute corrected (attenuated) swell, scaling by buoy distance
-                            val correctedHt = if (exposure != null) {
-                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width, buoyDistNm)
+                            // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
+                            val correctedHt = if (exposure != null && !usedBuoy) {
+                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
                             } else null
                             
-                            // Secondary swell from Open-Meteo (always model data, no buoy proximity)
+                            // Secondary swell from Open-Meteo (always model data)
                             val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
                             val secPeriod = ocean.secondarySwellPeriod
                             val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                             val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
                             val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width, null)
+                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
                             } else null
                             
                             val swellInfo = SpotDataCache.SwellInfo(
@@ -1020,34 +1020,5 @@ class DataPrefetchJobs(
         
         logger.info("Buoy readings: $success successful, $skipped no wave data, $failed errors")
     }
-    
-    /**
-     * Find the nearest buoy station to a given lat/lon.
-     * Returns the station and its latest reading, or null if none within range.
-     */
-    fun findNearestBuoy(lat: Double, lon: Double, maxNm: Double = 10.0): Pair<SpotDataCache.BuoyStation, SpotDataCache.BuoyReading>? {
-        if (buoyStationsCache.isEmpty()) {
-            buoyStationsCache = SpotDataCache.loadBuoyStations()
-        }
-        
-        var bestStation: SpotDataCache.BuoyStation? = null
-        var bestDistance = Double.MAX_VALUE
-        
-        for (station in buoyStationsCache) {
-            val dist = SpotDataCache.haversineNm(lat, lon, station.lat, station.lon)
-            if (dist < bestDistance && dist <= maxNm) {
-                bestDistance = dist
-                bestStation = station
-            }
-        }
-        
-        val station = bestStation ?: return null
-        val reading = SpotDataCache.getLatestBuoyReading(station.stationId) ?: return null
-        
-        // Only use if reading is fresh (< 2 hours old)
-        val ageHours = java.time.Duration.between(reading.observedAt, java.time.Instant.now()).toHours()
-        if (ageHours > 2) return null
-        
-        return station to reading
-    }
+
 }

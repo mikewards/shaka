@@ -907,32 +907,30 @@ object SpotDataCache {
 
     /**
      * Find the nearest active buoy to a lat/lon within maxNm nautical miles,
-     * with a fresh reading (< 2 hours old). Returns null if none qualifies.
+     * with a fresh wave reading (< 2 hours old). Returns null if none qualifies.
      *
-     * Open-ocean swell is coherent over 50-100+ nm, so a real buoy measurement
-     * at 40nm is far more accurate than a model grid-point interpolation.
+     * Option D: buoy only overrides when the spot is essentially ON the buoy
+     * (< 1.5nm). Open-Meteo is the primary source for everything else.
+     * Iterates in distance order so a tide gauge doesn't block a wave buoy.
      */
-    fun findNearestBuoyReading(lat: Double, lon: Double, maxNm: Double = 50.0): BuoyMatch? {
+    fun findNearestBuoyReading(lat: Double, lon: Double, maxNm: Double = 1.5): BuoyMatch? {
         ensureBuoyStationsLoaded()
         
-        var bestStation: BuoyStation? = null
-        var bestDistance = Double.MAX_VALUE
+        val candidates = buoyStationsMemCache
+            .map { station -> station to haversineNm(lat, lon, station.lat, station.lon) }
+            .filter { it.second <= maxNm }
+            .sortedBy { it.second }
         
-        for (station in buoyStationsMemCache) {
-            val dist = haversineNm(lat, lon, station.lat, station.lon)
-            if (dist < bestDistance && dist <= maxNm) {
-                bestDistance = dist
-                bestStation = station
-            }
+        val now = java.time.Instant.now()
+        for ((station, dist) in candidates) {
+            val reading = getLatestBuoyReading(station.stationId) ?: continue
+            val ageHours = java.time.Duration.between(reading.observedAt, now).toHours()
+            if (ageHours > 2) continue
+            if (reading.waveHeightM == null) continue
+            return BuoyMatch(station, reading, dist)
         }
         
-        val station = bestStation ?: return null
-        val reading = getLatestBuoyReading(station.stationId) ?: return null
-        
-        val ageHours = java.time.Duration.between(reading.observedAt, java.time.Instant.now()).toHours()
-        if (ageHours > 2) return null
-        
-        return BuoyMatch(station, reading, bestDistance)
+        return null
     }
     
     /**
@@ -1080,18 +1078,15 @@ object SpotDataCache {
      * transition zone (1.0 → 0.5 over 15°), then gradual decay to 20% floor.
      * Physics: US Army Corps Coastal Engineering Manual.
      *
-     * When swell data comes from a nearby NDBC buoy, the buoy already measures
-     * the local wave field including any sheltering effects. The attenuation
-     * correction is blended down proportionally: buoy at 0nm = no correction,
-     * buoy at 30nm+ = full correction. Model-sourced data (buoyDistNm = null)
-     * always gets full correction.
+     * Only called for Open-Meteo (model) data. When a buoy is within 1.5nm,
+     * the buoy reading is used directly without attenuation since it already
+     * reflects local conditions.
      */
     fun attenuateSwell(
         swellHeightFt: Double,
         swellDirectionDeg: Double,
         exposureBearing: Int,
-        exposureWidth: Int,
-        buoyDistNm: Double? = null
+        exposureWidth: Int
     ): Double {
         if (exposureWidth >= 355) return swellHeightFt
 
@@ -1115,15 +1110,7 @@ object SpotDataCache {
             else -> 0.2
         }
 
-        // Blend: nearby buoy data already reflects local conditions
-        val buoyBlend = if (buoyDistNm != null) {
-            (buoyDistNm / 30.0).coerceIn(0.0, 1.0)
-        } else {
-            1.0
-        }
-        val effectiveFactor = 1.0 - buoyBlend * (1.0 - directionalFactor)
-
-        return swellHeightFt * effectiveFactor
+        return swellHeightFt * directionalFactor
     }
 
     private fun angleDifference(a: Double, b: Double): Double {
@@ -1383,6 +1370,25 @@ object SpotDataCache {
                     logger.info("Cleared $updated spots with old 1km exposure data — will recompute with 5km sampling")
                 } else {
                     logger.info("Exposure data already uses 5km sampling, no migration needed")
+                }
+                
+                // Option D migration: switch from swell-only to total significant wave height,
+                // and from 50nm buoy radius to 1.5nm. Force all spots to re-fetch swell data.
+                conn.createStatement().use { stmt ->
+                    stmt.execute("ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS swell_data_version INT DEFAULT 0")
+                }
+                val minVersion = conn.prepareStatement(
+                    "SELECT COALESCE(MIN(swell_data_version), 0) FROM spot_cache"
+                ).use { stmt ->
+                    stmt.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+                }
+                if (minVersion < 1) {
+                    val migrated = conn.createStatement().executeUpdate(
+                        "UPDATE spot_cache SET weather_fetched_at = NULL, swell_data_version = 1"
+                    )
+                    logger.info("Option D migration: cleared weather_fetched_at for $migrated spots — will re-fetch with wave_height + 1.5nm buoy rule")
+                } else {
+                    logger.info("Swell data already at version 1, no migration needed")
                 }
             }
             logger.info("spot_cache table ready")

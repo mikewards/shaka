@@ -524,10 +524,10 @@ fun Application.configureRouting() {
                                 spotId,
                                 com.shaka.data.cache.SpotDataCache.CachedValue(
                                     value = com.shaka.data.cache.SpotDataCache.SwellInfo(
-                                        heightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.swellHeight),
-                                        periodSec = ocean.swellPeriod,
-                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(ocean.swellDirection.toDouble()),
-                                        swellHeightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.swellHeight)
+                                        heightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.waveHeight),
+                                        periodSec = ocean.wavePeriod,
+                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                                        swellHeightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.waveHeight)
                                     ),
                                     fetchedAt = now
                                 )
