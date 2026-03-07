@@ -1409,23 +1409,37 @@ object SpotDataCache {
                     logger.info("Exposure data already uses 5km sampling, no migration needed")
                 }
                 
-                // Option D migration: switch from swell-only to total significant wave height,
-                // and from 50nm buoy radius to 1.5nm. Force all spots to re-fetch swell data.
+                // Schema migration tracking — uses a dedicated table instead of per-row
+                // versioning to prevent re-running migrations when new spots are inserted.
                 conn.createStatement().use { stmt ->
-                    stmt.execute("ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS swell_data_version INT DEFAULT 0")
+                    stmt.execute("""
+                        CREATE TABLE IF NOT EXISTS schema_migrations (
+                            id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                            version INT NOT NULL DEFAULT 0
+                        )
+                    """.trimIndent())
                 }
-                val minVersion = conn.prepareStatement(
-                    "SELECT COALESCE(MIN(swell_data_version), 0) FROM spot_cache"
+                conn.createStatement().use { stmt ->
+                    stmt.execute("INSERT INTO schema_migrations (id, version) VALUES (1, 2) ON CONFLICT DO NOTHING")
+                }
+                val schemaVersion = conn.prepareStatement(
+                    "SELECT version FROM schema_migrations WHERE id = 1"
                 ).use { stmt ->
                     stmt.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
                 }
-                if (minVersion < 1) {
+                // Keep swell_data_version column (existing rows have it) but stop relying on it
+                conn.createStatement().use { stmt ->
+                    stmt.execute("ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS swell_data_version INT DEFAULT 0")
+                }
+
+                if (schemaVersion < 1) {
                     val migrated = conn.createStatement().executeUpdate(
                         "UPDATE spot_cache SET weather_fetched_at = NULL, swell_data_version = 1"
                     )
-                    logger.info("Option D migration: cleared weather_fetched_at for $migrated spots — will re-fetch with wave_height + 1.5nm buoy rule")
+                    conn.createStatement().executeUpdate("UPDATE schema_migrations SET version = 1")
+                    logger.info("Option D migration: cleared weather_fetched_at for $migrated spots")
                 } else {
-                    logger.info("Swell data already at version 1, no migration needed")
+                    logger.info("Schema already at version >= 1, skipping Option D migration")
                 }
 
                 // Create spot_exposure table for 16-direction land distances
@@ -1444,8 +1458,7 @@ object SpotDataCache {
                 }
                 logger.info("spot_exposure table ready")
 
-                // Version 2 migration: multi-ring exposure recomputation
-                if (minVersion < 2) {
+                if (schemaVersion < 2) {
                     val cleared = conn.createStatement().executeUpdate("""
                         UPDATE spot_cache SET
                             exposure_bearing = NULL,
@@ -1456,9 +1469,10 @@ object SpotDataCache {
                             swell_data_version = 2
                     """.trimIndent())
                     conn.createStatement().executeUpdate("DELETE FROM spot_exposure")
-                    logger.info("V2 migration: cleared exposure for $cleared spots — will recompute with multi-ring sampling")
+                    conn.createStatement().executeUpdate("UPDATE schema_migrations SET version = 2")
+                    logger.info("V2 migration: cleared exposure for $cleared spots")
                 } else {
-                    logger.info("Swell data already at version 2, no migration needed")
+                    logger.info("Schema already at version >= 2, skipping multi-ring migration")
                 }
             }
             logger.info("spot_cache table ready")
