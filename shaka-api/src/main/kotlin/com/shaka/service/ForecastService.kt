@@ -65,7 +65,7 @@ class ForecastService {
                 conditions = SpotConditions(
                     visibility = visibilityStr,
                     waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
-                    swell = "${cached.swell.value.heightFt.toInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}",
+                    swell = "${cached.swell.value.heightFt.roundToInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}",
                     wind = "${cached.wind.value.speedKnots.toInt()} kts ${cached.wind.value.direction}",
                     swellCorrected = cached.swell.value.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}" },
                     secondarySwell = cached.swell.value.secondaryHeightFt?.takeIf { it >= 0.5 }?.let { "${it.roundToInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },

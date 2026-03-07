@@ -266,8 +266,8 @@ class SpotService {
                         visibility = getVisibilityLabel(effectiveChl),
                         waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                         swell = cached?.swell?.let { 
-                            "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                        } ?: "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                            "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
+                        } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
                         wind = cached?.wind?.let { 
                             "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                         } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -510,8 +510,8 @@ class SpotService {
                 visibility = getVisibilityLabel(effectiveChl),
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
-                    "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                } ?: "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                    "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
+                } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -1480,8 +1480,8 @@ class SpotService {
                 visibility = getVisibilityLabel(effectiveChl),
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
-                    "${it.value.heightFt.toInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                } ?: "${ocean.swellHeight.toInt()}-${(ocean.swellHeight + 1).toInt()}ft @ ${ocean.swellPeriod.toInt()}s",
+                    "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
+                } ?: "${ocean.swellHeight.roundToInt()}-${(ocean.swellHeight + 1).roundToInt()}ft @ ${ocean.swellPeriod.toInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
