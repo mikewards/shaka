@@ -182,29 +182,31 @@ class DataPrefetchJobs(
             val results = batch.map { spot ->
                 async {
                     try {
+                        // Compute exposure OUTSIDE the weather timeout (one-time, needs up to 60s for 48 land/water API calls)
+                        val cached = SpotDataCache.get(spot.cacheId)
+                        var exposure = cached?.exposure
+                        if (exposure == null || exposure.landDistances == null) {
+                            try {
+                                val result = withTimeoutOrNull(60_000) {
+                                    bathymetryClient.computeExposure(spot.lat, spot.lon)
+                                }
+                                if (result != null) {
+                                    exposure = SpotDataCache.ExposureInfo(
+                                        result.bearing, result.width, result.depthM,
+                                        result.directional.landDistanceKm
+                                    )
+                                    SpotDataCache.updateExposure(spot.cacheId, exposure)
+                                }
+                            } catch (e: Exception) {
+                                logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
+                            }
+                        }
+
                         withTimeout(SPOT_TIMEOUT_MS) {
                             val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
                             val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
                             
                             val now = Instant.now()
-                            
-                            // Compute exposure if not yet known (one-time, static)
-                            val cached = SpotDataCache.get(spot.cacheId)
-                            var exposure = cached?.exposure
-                            if (exposure == null || exposure.landDistances == null) {
-                                try {
-                                    val result = bathymetryClient.computeExposure(spot.lat, spot.lon)
-                                    if (result != null) {
-                                        exposure = SpotDataCache.ExposureInfo(
-                                            result.bearing, result.width, result.depthM,
-                                            result.directional.landDistanceKm
-                                        )
-                                        SpotDataCache.updateExposure(spot.cacheId, exposure)
-                                    }
-                                } catch (e: Exception) {
-                                    logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
-                                }
-                            }
                             
                             // Option D: Open-Meteo primary, buoy only at < 1.5nm
                             val buoyMatch = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
