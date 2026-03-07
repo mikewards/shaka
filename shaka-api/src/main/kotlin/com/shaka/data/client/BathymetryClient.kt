@@ -111,7 +111,8 @@ class BathymetryClient {
             return null
         }
 
-        val spotDepth = elevations[NUM_DIRECTIONS]
+        val spotElevation = elevations[NUM_DIRECTIONS]
+        val depthM = spotElevation?.let { if (it < 0) -it else 0.0 }
 
         // Classify each direction as water or land
         val waterDirections = mutableListOf<Double>()
@@ -126,11 +127,11 @@ class BathymetryClient {
 
         if (waterDirections.isEmpty()) {
             logger.info("No water detected around ($lat, $lon) — likely inland spot")
-            return ExposureResult(bearing = 0, width = 360, depthM = spotDepth)
+            return ExposureResult(bearing = 0, width = 360, depthM = depthM)
         }
 
         if (waterDirections.size == NUM_DIRECTIONS) {
-            return ExposureResult(bearing = 0, width = 360, depthM = spotDepth)
+            return ExposureResult(bearing = 0, width = 360, depthM = depthM)
         }
 
         // Find the largest contiguous water arc
@@ -164,9 +165,8 @@ class BathymetryClient {
         val arcCenterIdx = (bestStart + bestLength / 2.0) % NUM_DIRECTIONS
         val bearing = ((arcCenterIdx * stepDeg) % 360).toInt()
 
-        val depthPositive = spotDepth?.let { if (it < 0) -it else 0.0 }
-        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${depthPositive}m")
-        return ExposureResult(bearing = bearing, width = width, depthM = depthPositive)
+        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${depthM}m")
+        return ExposureResult(bearing = bearing, width = width, depthM = depthM)
     }
 
     private fun offsetPoint(lat: Double, lon: Double, bearingDeg: Double, distKm: Double): Pair<Double, Double> {
