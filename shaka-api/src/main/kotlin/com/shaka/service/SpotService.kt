@@ -1593,11 +1593,14 @@ class SpotService {
         
         val exposureDeferred = async {
             val existing = SpotDataCache.get(spotId)?.exposure
-            if (existing != null) return@async existing
+            if (existing != null && existing.landDistances != null) return@async existing
             try {
-                val result = withTimeoutOrNull(10000) { bathymetryClient.computeExposure(lat, lon) }
+                val result = withTimeoutOrNull(30000) { bathymetryClient.computeExposure(lat, lon) }
                 if (result != null) {
-                    val info = SpotDataCache.ExposureInfo(result.bearing, result.width, result.depthM)
+                    val info = SpotDataCache.ExposureInfo(
+                        result.bearing, result.width, result.depthM,
+                        result.directional.landDistanceKm
+                    )
                     SpotDataCache.updateExposure(spotId, info)
                     info
                 } else null
@@ -1643,16 +1646,17 @@ class SpotService {
                 }
                 
                 // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
-                val correctedHt = if (exposure != null && !usedBuoy) {
-                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
+                val ld = exposure?.landDistances
+                val correctedHt = if (ld != null && !usedBuoy) {
+                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, ld)
                 } else null
                 
                 val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
                 val secPeriod = ocean.secondarySwellPeriod
                 val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                 val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
-                val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
+                val secCorrHt = if (ld != null && secHtRaw != null && secDirDeg != null) {
+                    SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, ld)
                 } else null
                 
                 val swellInfo = SpotDataCache.SwellInfo(

@@ -191,11 +191,14 @@ class DataPrefetchJobs(
                             // Compute exposure if not yet known (one-time, static)
                             val cached = SpotDataCache.get(spot.cacheId)
                             var exposure = cached?.exposure
-                            if (exposure == null) {
+                            if (exposure == null || exposure.landDistances == null) {
                                 try {
                                     val result = bathymetryClient.computeExposure(spot.lat, spot.lon)
                                     if (result != null) {
-                                        exposure = SpotDataCache.ExposureInfo(result.bearing, result.width, result.depthM)
+                                        exposure = SpotDataCache.ExposureInfo(
+                                            result.bearing, result.width, result.depthM,
+                                            result.directional.landDistanceKm
+                                        )
                                         SpotDataCache.updateExposure(spot.cacheId, exposure)
                                     }
                                 } catch (e: Exception) {
@@ -229,8 +232,9 @@ class DataPrefetchJobs(
                             }
                             
                             // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
-                            val correctedHt = if (exposure != null && !usedBuoy) {
-                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, exposure.bearing, exposure.width)
+                            val ld = exposure?.landDistances
+                            val correctedHt = if (ld != null && !usedBuoy) {
+                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, ld)
                             } else null
                             
                             // Secondary swell from Open-Meteo (always model data)
@@ -238,8 +242,8 @@ class DataPrefetchJobs(
                             val secPeriod = ocean.secondarySwellPeriod
                             val secDirDeg = ocean.secondarySwellDirection?.toDouble()
                             val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
-                            val secCorrHt = if (exposure != null && secHtRaw != null && secDirDeg != null) {
-                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, exposure.bearing, exposure.width)
+                            val secCorrHt = if (ld != null && secHtRaw != null && secDirDeg != null) {
+                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, ld)
                             } else null
                             
                             val swellInfo = SpotDataCache.SwellInfo(

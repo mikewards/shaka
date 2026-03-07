@@ -104,8 +104,19 @@ object SpotDataCache {
     data class ExposureInfo(
         val bearing: Int,       // Direction of open water (0-360 degrees)
         val width: Int,         // Angular spread of open water arc
-        val depthM: Double?     // Bathymetry depth at spot (positive = underwater depth in meters)
-    )
+        val depthM: Double?,    // Bathymetry depth at spot (positive = underwater depth in meters)
+        val landDistances: DoubleArray? = null  // 16 values: km to land per compass direction, -1 = open
+    ) {
+        companion object {
+            const val NUM_DIRECTIONS = 16
+            const val OPEN = -1.0
+            val DIRECTION_LABELS = arrayOf(
+                "n", "nne", "ne", "ene", "e", "ese", "se", "sse",
+                "s", "ssw", "sw", "wsw", "w", "wnw", "nw", "nnw"
+            )
+            val DB_COLUMNS = DIRECTION_LABELS.map { "land_km_$it" }
+        }
+    }
     
     /**
      * Structured wind information for caching.
@@ -827,6 +838,29 @@ object SpotDataCache {
                     stmt.setString(4, spotId)
                     stmt.executeUpdate()
                 }
+
+                val ld = exposure.landDistances
+                if (ld != null && ld.size == 16) {
+                    val cols = ExposureInfo.DB_COLUMNS
+                    val setClauses = cols.joinToString(", ") { "$it = ?" }
+                    conn.prepareStatement("""
+                        INSERT INTO spot_exposure (spot_id, ${cols.joinToString()}, depth_m, bearing, width)
+                        VALUES (?, ${cols.joinToString { "?" }}, ?, ?, ?)
+                        ON CONFLICT (spot_id) DO UPDATE SET $setClauses, depth_m = ?, bearing = ?, width = ?
+                    """.trimIndent()).use { stmt ->
+                        var idx = 1
+                        stmt.setString(idx++, spotId)
+                        for (i in 0 until 16) stmt.setDouble(idx++, ld[i])
+                        stmt.setObject(idx++, exposure.depthM)
+                        stmt.setInt(idx++, exposure.bearing)
+                        stmt.setInt(idx++, exposure.width)
+                        for (i in 0 until 16) stmt.setDouble(idx++, ld[i])
+                        stmt.setObject(idx++, exposure.depthM)
+                        stmt.setInt(idx++, exposure.bearing)
+                        stmt.setInt(idx++, exposure.width)
+                        stmt.executeUpdate()
+                    }
+                }
             }
         } catch (e: Exception) {
             logger.warn("Failed to update exposure for $spotId: ${e.message}")
@@ -1072,11 +1106,11 @@ object SpotDataCache {
     fun metersToFeet(meters: Double): Double = meters * 3.28084
 
     /**
-     * Directional swell attenuation based on Wiegel/Penny-Price diffraction.
+     * Directional swell attenuation using per-direction land distances.
      *
-     * Smooth model: full height within exposure arc, linear taper through
-     * transition zone (1.0 → 0.5 over 15°), then gradual decay to 20% floor.
-     * Physics: US Army Corps Coastal Engineering Manual.
+     * Interpolates between the two nearest compass directions to find
+     * the effective land distance for the swell's arrival direction,
+     * then maps distance to an attenuation factor.
      *
      * Only called for Open-Meteo (model) data. When a buoy is within 1.5nm,
      * the buoy reading is used directly without attenuation since it already
@@ -1085,38 +1119,41 @@ object SpotDataCache {
     fun attenuateSwell(
         swellHeightFt: Double,
         swellDirectionDeg: Double,
-        exposureBearing: Int,
-        exposureWidth: Int
+        landDistances: DoubleArray
     ): Double {
-        if (exposureWidth >= 355) return swellHeightFt
+        if (landDistances.size != 16) return swellHeightFt
+        if (landDistances.all { it < 0 }) return swellHeightFt // fully open
 
-        val angle = kotlin.math.abs(angleDifference(swellDirectionDeg, exposureBearing.toDouble()))
-        val halfWidth = exposureWidth / 2.0
+        val stepDeg = 360.0 / 16
+        val normalizedDir = ((swellDirectionDeg % 360) + 360) % 360
+        val exactIndex = normalizedDir / stepDeg
+        val lowerIdx = exactIndex.toInt() % 16
+        val upperIdx = (lowerIdx + 1) % 16
+        val fraction = exactIndex - exactIndex.toInt()
 
-        val directionalFactor = when {
-            angle <= halfWidth -> 1.0
-            angle <= halfWidth + 15 -> {
-                val fraction = (angle - halfWidth) / 15.0
-                1.0 - (fraction * 0.5)
-            }
-            angle <= halfWidth + 45 -> {
-                val fraction = (angle - halfWidth - 15) / 30.0
-                0.5 - (fraction * 0.2)
-            }
-            angle <= halfWidth + 90 -> {
-                val fraction = (angle - halfWidth - 45) / 45.0
-                0.3 - (fraction * 0.1)
-            }
-            else -> 0.2
-        }
+        val lowerFactor = landDistToFactor(landDistances[lowerIdx])
+        val upperFactor = landDistToFactor(landDistances[upperIdx])
+        val factor = lowerFactor * (1.0 - fraction) + upperFactor * fraction
 
-        return swellHeightFt * directionalFactor
+        return swellHeightFt * factor
     }
 
-    private fun angleDifference(a: Double, b: Double): Double {
-        var diff = ((a - b) % 360 + 360) % 360
-        if (diff > 180) diff = 360 - diff
-        return diff
+    /**
+     * Maps land distance (km) to a swell transmission factor [0..1].
+     *
+     * -1 (open)  → 1.00  no land detected within 5km
+     *  5 km      → 0.85  land far away, mild sheltering
+     *  2 km      → 0.45  moderate sheltering
+     *  1 km      → 0.15  heavy sheltering (mostly diffraction)
+     */
+    private fun landDistToFactor(distKm: Double): Double {
+        if (distKm < 0) return 1.0
+        return when {
+            distKm <= 1.0 -> 0.15
+            distKm <= 2.0 -> 0.15 + 0.30 * ((distKm - 1.0) / 1.0)
+            distKm <= 5.0 -> 0.45 + 0.40 * ((distKm - 2.0) / 3.0)
+            else -> 0.85
+        }
     }
     
     // ==================== Database Persistence ====================
@@ -1389,6 +1426,39 @@ object SpotDataCache {
                     logger.info("Option D migration: cleared weather_fetched_at for $migrated spots — will re-fetch with wave_height + 1.5nm buoy rule")
                 } else {
                     logger.info("Swell data already at version 1, no migration needed")
+                }
+
+                // Create spot_exposure table for 16-direction land distances
+                val cols = ExposureInfo.DB_COLUMNS.joinToString(",\n") { "    $it DOUBLE PRECISION DEFAULT -1" }
+                conn.createStatement().use { stmt ->
+                    stmt.execute("""
+                        CREATE TABLE IF NOT EXISTS spot_exposure (
+                            spot_id VARCHAR(100) PRIMARY KEY,
+                        $cols,
+                            depth_m DOUBLE PRECISION,
+                            bearing INT,
+                            width INT,
+                            computed_at TIMESTAMP DEFAULT NOW()
+                        )
+                    """.trimIndent())
+                }
+                logger.info("spot_exposure table ready")
+
+                // Version 2 migration: multi-ring exposure recomputation
+                if (minVersion < 2) {
+                    val cleared = conn.createStatement().executeUpdate("""
+                        UPDATE spot_cache SET
+                            exposure_bearing = NULL,
+                            exposure_width = NULL,
+                            bathymetry_depth_m = NULL,
+                            swell_corrected_height_ft = NULL,
+                            secondary_swell_corrected_height_ft = NULL,
+                            swell_data_version = 2
+                    """.trimIndent())
+                    conn.createStatement().executeUpdate("DELETE FROM spot_exposure")
+                    logger.info("V2 migration: cleared exposure for $cleared spots — will recompute with multi-ring sampling")
+                } else {
+                    logger.info("Swell data already at version 2, no migration needed")
                 }
             }
             logger.info("spot_cache table ready")
@@ -1920,6 +1990,35 @@ object SpotDataCache {
             }
             
             logger.info("Loaded $loadedCount spots from database into cache")
+
+            // Load directional land distances from spot_exposure table
+            try {
+                transaction {
+                    val expConn = this.connection.connection as java.sql.Connection
+                    val cols = ExposureInfo.DB_COLUMNS.joinToString()
+                    expConn.prepareStatement("SELECT spot_id, $cols, depth_m, bearing, width FROM spot_exposure").use { stmt ->
+                        val rs = stmt.executeQuery()
+                        var enriched = 0
+                        while (rs.next()) {
+                            val sid = rs.getString("spot_id")
+                            val ld = DoubleArray(16) { i ->
+                                rs.getDouble(ExposureInfo.DB_COLUMNS[i]).let { if (rs.wasNull()) ExposureInfo.OPEN else it }
+                            }
+                            val depth = rs.getDouble("depth_m").takeIf { !rs.wasNull() }
+                            val bearing = rs.getInt("bearing").takeIf { !rs.wasNull() } ?: 0
+                            val width = rs.getInt("width").takeIf { !rs.wasNull() } ?: 360
+                            cache.compute(sid) { _, existing ->
+                                val current = existing ?: SpotData()
+                                current.copy(exposure = ExposureInfo(bearing, width, depth, ld))
+                            }
+                            enriched++
+                        }
+                        logger.info("Loaded directional exposure for $enriched spots from spot_exposure table")
+                    }
+                }
+            } catch (e: Exception) {
+                logger.debug("spot_exposure table not loaded (may not exist yet): ${e.message}")
+            }
         } catch (e: Exception) {
             logger.warn("Failed to load cache from database: ${e.message}")
         }

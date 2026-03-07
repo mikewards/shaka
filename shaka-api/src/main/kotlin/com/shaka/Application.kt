@@ -93,7 +93,8 @@ fun Application.module() {
  */
 private fun Application.configureScheduledJobs() {
     val ndbcClient = NDBCBuoyClient()
-    val bathymetryClient = BathymetryClient()
+    val landWaterClient = LandWaterClient()
+    val bathymetryClient = BathymetryClient(landWaterClient)
     val prefetchJobs = DataPrefetchJobs(
         SpotDatabase,
         NOAATidesClient(),
