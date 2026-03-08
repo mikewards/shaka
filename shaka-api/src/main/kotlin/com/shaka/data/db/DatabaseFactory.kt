@@ -79,8 +79,8 @@ object DatabaseFactory {
             driverClassName = "org.postgresql.Driver"
             username = dbUser
             this.password = dbPassword
-            maximumPoolSize = 5
-            minimumIdle = 1
+            maximumPoolSize = 15
+            minimumIdle = 2
             connectionTimeout = 30000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"

@@ -182,39 +182,34 @@ class DataPrefetchJobs(
             val results = batch.map { spot ->
                 async {
                     try {
-                        // Compute exposure OUTSIDE the weather timeout (one-time, needs up to 60s for 48 land/water API calls)
-                        val cached = SpotDataCache.get(spot.cacheId)
-                        var exposure = cached?.exposure
-                        if (exposure == null || exposure.landDistances == null) {
-                            try {
-                                val result = withTimeoutOrNull(60_000) {
-                                    bathymetryClient.computeExposure(spot.lat, spot.lon)
-                                }
-                                if (result != null) {
-                                    exposure = SpotDataCache.ExposureInfo(
-                                        result.bearing, result.width, result.depthM,
-                                        result.directional.landDistanceKm
-                                    )
-                                    SpotDataCache.updateExposure(spot.cacheId, exposure)
-                                }
-                            } catch (e: Exception) {
-                                logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
-                            }
-                        } else if (exposure.depthM == null) {
-                            try {
-                                val depth = withTimeoutOrNull(15_000) {
-                                    bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
-                                }
-                                if (depth != null) {
-                                    exposure = exposure.copy(depthM = depth)
-                                    SpotDataCache.updateExposure(spot.cacheId, exposure)
-                                }
-                            } catch (e: Exception) {
-                                logger.debug("Depth-only refresh failed for ${spot.name}: ${e.message}")
-                            }
-                        }
-
                         withTimeout(SPOT_TIMEOUT_MS) {
+                            val cached = SpotDataCache.get(spot.cacheId)
+                            var exposure = cached?.exposure
+                            if (exposure == null || exposure.landDistances == null) {
+                                try {
+                                    val result = bathymetryClient.computeExposure(spot.lat, spot.lon)
+                                    if (result != null) {
+                                        exposure = SpotDataCache.ExposureInfo(
+                                            result.bearing, result.width, result.depthM,
+                                            result.directional.landDistanceKm
+                                        )
+                                        SpotDataCache.updateExposure(spot.cacheId, exposure)
+                                    }
+                                } catch (e: Exception) {
+                                    logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
+                                }
+                            } else if (exposure.depthM == null) {
+                                try {
+                                    val depth = bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
+                                    if (depth != null) {
+                                        exposure = exposure.copy(depthM = depth)
+                                        SpotDataCache.updateExposure(spot.cacheId, exposure)
+                                    }
+                                } catch (e: Exception) {
+                                    logger.debug("Depth-only refresh failed for ${spot.name}: ${e.message}")
+                                }
+                            }
+
                             val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
                             val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
                             
