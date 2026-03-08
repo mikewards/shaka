@@ -47,7 +47,7 @@ class ForecastService {
             
             // Extract only the values the scorer uses
             val windSpeedKmh = cached.wind.value.speedKnots / 0.539957
-            val waveHeightM = cached.swell.value.heightFt / 3.28084
+            val waveHeightM = (cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt) / 3.28084
             
             val score = ShakaScorer.generateScore(
                 targetDate = today.toString(),

@@ -165,7 +165,7 @@ class SpotService {
             }
             
             val ocean = if (cached?.swell != null) {
-                val htM = cached.swell.value.heightFt / 3.28084
+                val htM = (cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt) / 3.28084
                 OceanData(
                     waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
@@ -339,7 +339,7 @@ class SpotService {
             }
             
             ocean = if (cached.swell != null) {
-                val htM = cached.swell.value.heightFt / 3.28084
+                val htM = (cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt) / 3.28084
                 OceanData(
                     waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
@@ -588,7 +588,7 @@ class SpotService {
                 // Calculate score using cached data if available
                 val score = if (cached != null) {
                     val visM = cached.visibility?.value ?: 15.0
-                    val swellHeightFt = cached.swell?.value?.heightFt ?: 2.0
+                    val swellHeightFt = cached.swell?.value?.correctedHeightFt ?: cached.swell?.value?.heightFt ?: 2.0
                     val windKts = cached.wind?.value?.speedKnots ?: 5.0
                     
                     // Simple weighted score from key factors
@@ -670,11 +670,14 @@ class SpotService {
                     waterQuality?.chlorophyllA, spotCache?.chlorophyll?.value, spotCache?.gibsChlorophyll?.value
                 )
                 
-                // Calculate score
+                // Calculate score — prefer at-spot corrected swell over open-ocean
+                val scoringWaveHeightM = spotCache?.swell?.value?.let {
+                    (it.correctedHeightFt ?: it.heightFt) / 3.28084
+                } ?: ocean.waveHeight
                 val score = ShakaScorer.generateScore(
                     targetDate = date,
                     windSpeedKmh = weather.windSpeed,
-                    waveHeightM = ocean.waveHeight,
+                    waveHeightM = scoringWaveHeightM,
                     chlorophyllMgM3 = effectiveChl,
                     solunarDayRating = cachedSolunar?.dayRating,
                     moonPhase = cachedSolunar?.moonPhase
@@ -1379,7 +1382,7 @@ class SpotService {
             visibility = 10000.0
         )
         
-        val htM = cached.swell!!.value.heightFt / 3.28084
+        val htM = (cached.swell!!.value.correctedHeightFt ?: cached.swell!!.value.heightFt) / 3.28084
         val ocean = OceanData(
             waveHeight = htM,
             wavePeriod = cached.swell!!.value.periodSec,
@@ -1531,7 +1534,7 @@ class SpotService {
         if (cached.tide == null || cached.swell == null || cached.wind == null) return null
         
         val windSpeedKmh = cached.wind.value.speedKnots / 0.539957
-        val waveHeightM = cached.swell.value.heightFt / 3.28084
+        val waveHeightM = (cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt) / 3.28084
         
         val effectiveChl = resolveChlorophyll(null, cached.chlorophyll?.value, cached.gibsChlorophyll?.value)
         
