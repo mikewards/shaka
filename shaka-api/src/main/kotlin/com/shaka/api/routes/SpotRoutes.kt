@@ -307,6 +307,41 @@ fun Application.configureRouting() {
                 )
             }
             
+            post("/admin/depth/refetch") {
+                val bathymetryClient = com.shaka.data.client.BathymetryClient()
+                val allSpots = SpotDatabase.getAllSpots()
+                val spotsNeedingDepth = allSpots.filter { spot ->
+                    val cached = com.shaka.data.cache.SpotDataCache.get(spot.id.toString())
+                    cached?.exposure != null && cached.exposure.depthM == null
+                }
+                val total = spotsNeedingDepth.size
+
+                GlobalScope.launch {
+                    val logger = org.slf4j.LoggerFactory.getLogger("DepthRefetch")
+                    var success = 0
+                    var failed = 0
+                    for (spot in spotsNeedingDepth) {
+                        try {
+                            val depth = bathymetryClient.fetchDepthOnly(spot.coordinates.lat, spot.coordinates.lon) ?: continue
+                            val cacheId = spot.id.toString()
+                            val existing = com.shaka.data.cache.SpotDataCache.get(cacheId)?.exposure ?: continue
+                            val updated = existing.copy(depthM = depth)
+                            com.shaka.data.cache.SpotDataCache.updateExposure(cacheId, updated)
+                            success++
+                            if (success % 50 == 0) logger.info("Depth refetch progress: $success/$total")
+                        } catch (e: Exception) {
+                            failed++
+                        }
+                    }
+                    logger.info("Depth refetch complete: $success success, $failed failed out of $total")
+                }
+
+                call.respondText(
+                    """{"status":"started","spotsToFetch":$total,"message":"Depth refetch started in background."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+
             // Identify fake climatology chlorophyll values
             get("/admin/chlorophyll/identify-fake") {
                 val fakeSpots = com.shaka.data.cache.SpotDataCache.identifyFakeChlorophyll(SpotDatabase)
