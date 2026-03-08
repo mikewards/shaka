@@ -309,24 +309,31 @@ fun Application.configureRouting() {
             
             post("/admin/depth/refetch") {
                 val bathymetryClient = com.shaka.data.client.BathymetryClient()
-                val allSpots = SpotDatabase.getAllSpots()
-                val spotsNeedingDepth = allSpots.filter { spot ->
-                    val cached = com.shaka.data.cache.SpotDataCache.get(spot.id.toString())
+
+                data class DepthTarget(val cacheId: String, val lat: Double, val lon: Double)
+
+                val curatedTargets = SpotDatabase.getAllSpots().map {
+                    DepthTarget(it.id.toString(), it.coordinates.lat, it.coordinates.lon)
+                }
+                val userTargets = com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
+                    DepthTarget("user-${it.id}", it.coordinates.lat, it.coordinates.lon)
+                }
+                val needingDepth = (curatedTargets + userTargets).filter { target ->
+                    val cached = com.shaka.data.cache.SpotDataCache.get(target.cacheId)
                     cached?.exposure != null && cached.exposure.depthM == null
                 }
-                val total = spotsNeedingDepth.size
+                val total = needingDepth.size
 
                 GlobalScope.launch {
                     val logger = org.slf4j.LoggerFactory.getLogger("DepthRefetch")
                     var success = 0
                     var failed = 0
-                    for (spot in spotsNeedingDepth) {
+                    for (target in needingDepth) {
                         try {
-                            val depth = bathymetryClient.fetchDepthOnly(spot.coordinates.lat, spot.coordinates.lon) ?: continue
-                            val cacheId = spot.id.toString()
-                            val existing = com.shaka.data.cache.SpotDataCache.get(cacheId)?.exposure ?: continue
+                            val depth = bathymetryClient.fetchDepthOnly(target.lat, target.lon) ?: continue
+                            val existing = com.shaka.data.cache.SpotDataCache.get(target.cacheId)?.exposure ?: continue
                             val updated = existing.copy(depthM = depth)
-                            com.shaka.data.cache.SpotDataCache.updateExposure(cacheId, updated)
+                            com.shaka.data.cache.SpotDataCache.updateExposure(target.cacheId, updated)
                             success++
                             if (success % 50 == 0) logger.info("Depth refetch progress: $success/$total")
                         } catch (e: Exception) {
@@ -337,7 +344,7 @@ fun Application.configureRouting() {
                 }
 
                 call.respondText(
-                    """{"status":"started","spotsToFetch":$total,"message":"Depth refetch started in background."}""",
+                    """{"status":"started","spotsToFetch":$total,"message":"Depth refetch started in background (curated + user spots)."}""",
                     io.ktor.http.ContentType.Application.Json
                 )
             }
