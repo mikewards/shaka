@@ -248,6 +248,26 @@ object RateLimiters {
         requestsPerSecond = 10.0,
         burstSize = 20
     )
+
+    /**
+     * NOAA NCEI DEM_all ImageServer (bathymetry mosaic).
+     * Government API — no published rate limit, keep conservative.
+     */
+    val nceiDem = RateLimiter(
+        name = "ncei-dem",
+        requestsPerSecond = 2.0,
+        burstSize = 5
+    )
+
+    /**
+     * GEBCO WMS (GetFeatureInfo for depth values).
+     * Public WMS, no published rate limit — be respectful.
+     */
+    val gebcoWms = RateLimiter(
+        name = "gebco-wms",
+        requestsPerSecond = 1.0,
+        burstSize = 2
+    )
     
     /**
      * Get stats for all rate limiters.
@@ -262,7 +282,9 @@ object RateLimiters {
         "socalFishReports" to socalFishReports.getStats(),
         "sanDiegoFishReports" to sanDiegoFishReports.getStats(),
         "tuna976" to tuna976.getStats(),
-        "landWater" to landWater.getStats()
+        "landWater" to landWater.getStats(),
+        "nceiDem" to nceiDem.getStats(),
+        "gebcoWms" to gebcoWms.getStats()
     )
     
     /**

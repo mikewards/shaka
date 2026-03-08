@@ -9,8 +9,8 @@ import kotlin.math.*
 
 /**
  * Computes coastal exposure profiles for spots using multi-ring land/water
- * sampling via LandWaterClient (is-on-water API) and optional depth from
- * Open Topo Data.
+ * sampling via LandWaterClient (is-on-water API) and depth from NCEI DEM_all
+ * (NOAA's multi-resolution bathymetry mosaic) with GEBCO Latest WMS fallback.
  *
  * For each of 16 compass directions, samples at 1km, 2km, and 5km to
  * determine distance to nearest land. This produces a per-direction
@@ -25,7 +25,8 @@ class BathymetryClient(
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     companion object {
-        private const val TOPO_BASE_URL = "https://api.opentopodata.org/v1/mapzen"
+        private const val NCEI_DEM_URL = "https://gis.ngdc.noaa.gov/arcgis/rest/services/DEM_mosaics/DEM_all/ImageServer/identify"
+        private const val GEBCO_WMS_URL = "https://wms.gebco.net/mapserv"
         private const val NUM_DIRECTIONS = 16
         private const val EARTH_RADIUS_KM = 6371.0
         val RING_DISTANCES_KM = doubleArrayOf(1.0, 2.0, 5.0)
@@ -33,22 +34,8 @@ class BathymetryClient(
     }
 
     @Serializable
-    data class TopoResponse(
-        val results: List<TopoResult>? = null,
-        val status: String? = null,
-        val error: String? = null
-    )
-
-    @Serializable
-    data class TopoResult(
-        val elevation: Double? = null,
-        val location: TopoLocation? = null
-    )
-
-    @Serializable
-    data class TopoLocation(
-        val lat: Double,
-        val lng: Double
+    data class NceiIdentifyResponse(
+        val value: String? = null
     )
 
     /**
@@ -147,21 +134,73 @@ class BathymetryClient(
     }
 
     /**
-     * Fetch depth at a single point from Open Topo Data. Returns positive meters
-     * for underwater depth, 0 for land, null on failure.
+     * Fetch depth independently of exposure computation. Use when exposure
+     * geometry (land distances) is already cached but depth needs refreshing.
+     */
+    suspend fun fetchDepthOnly(lat: Double, lon: Double): Double? = fetchDepth(lat, lon)
+
+    /**
+     * Fetch depth using NCEI DEM_all (NOAA survey mosaic, ~1-10m resolution
+     * near US coasts, global ETOPO/GEBCO composite elsewhere) with GEBCO
+     * Latest WMS as fallback. Returns positive meters for underwater depth,
+     * null on failure or confirmed land.
      */
     private suspend fun fetchDepth(lat: Double, lon: Double): Double? {
+        val nceiDepth = fetchDepthFromNcei(lat, lon)
+        if (nceiDepth != null) return nceiDepth
+
+        val gebcoDepth = fetchDepthFromGebcoWms(lat, lon)
+        if (gebcoDepth != null) return gebcoDepth
+
+        return null
+    }
+
+    private suspend fun fetchDepthFromNcei(lat: Double, lon: Double): Double? {
         return try {
-            val response = client.get(TOPO_BASE_URL) {
-                parameter("locations", "$lat,$lon")
+            RateLimiters.nceiDem.acquire()
+            val geometryJson = """{"x":$lon,"y":$lat}"""
+            val response = client.get(NCEI_DEM_URL) {
+                parameter("geometry", geometryJson)
+                parameter("geometryType", "esriGeometryPoint")
+                parameter("returnGeometry", "false")
+                parameter("returnCatalogItems", "false")
+                parameter("f", "json")
             }
             val body = response.bodyAsText()
-            val parsed = json.decodeFromString<TopoResponse>(body)
-            if (parsed.status != "OK") return null
-            val elevation = parsed.results?.firstOrNull()?.elevation ?: return null
-            if (elevation < 0) -elevation else 0.0
+            val parsed = json.decodeFromString<NceiIdentifyResponse>(body)
+            val value = parsed.value?.toDoubleOrNull() ?: return null
+            if (value < 0) -value else null
         } catch (e: Exception) {
-            logger.debug("Depth fetch failed for ($lat, $lon): ${e.message}")
+            logger.debug("NCEI depth fetch failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun fetchDepthFromGebcoWms(lat: Double, lon: Double): Double? {
+        return try {
+            RateLimiters.gebcoWms.acquire()
+            val offset = 0.001
+            val bbox = "${lat - offset},${lon - offset},${lat + offset},${lon + offset}"
+            val response = client.get(GEBCO_WMS_URL) {
+                parameter("request", "getfeatureinfo")
+                parameter("service", "wms")
+                parameter("crs", "EPSG:4326")
+                parameter("layers", "gebco_latest_2")
+                parameter("query_layers", "gebco_latest_2")
+                parameter("BBOX", bbox)
+                parameter("info_format", "text/plain")
+                parameter("x", "50")
+                parameter("y", "50")
+                parameter("width", "100")
+                parameter("height", "100")
+                parameter("version", "1.3.0")
+            }
+            val body = response.bodyAsText()
+            val match = Regex("""value_list\s*=\s*'(-?\d+(?:\.\d+)?)'""").find(body)
+            val value = match?.groupValues?.get(1)?.toDoubleOrNull() ?: return null
+            if (value < 0) -value else null
+        } catch (e: Exception) {
+            logger.debug("GEBCO WMS depth fetch failed for ($lat, $lon): ${e.message}")
             null
         }
     }

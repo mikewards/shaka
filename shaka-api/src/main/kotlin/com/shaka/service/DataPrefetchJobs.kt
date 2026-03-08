@@ -200,6 +200,18 @@ class DataPrefetchJobs(
                             } catch (e: Exception) {
                                 logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
                             }
+                        } else if (exposure.depthM == null) {
+                            try {
+                                val depth = withTimeoutOrNull(15_000) {
+                                    bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
+                                }
+                                if (depth != null) {
+                                    exposure = exposure.copy(depthM = depth)
+                                    SpotDataCache.updateExposure(spot.cacheId, exposure)
+                                }
+                            } catch (e: Exception) {
+                                logger.debug("Depth-only refresh failed for ${spot.name}: ${e.message}")
+                            }
                         }
 
                         withTimeout(SPOT_TIMEOUT_MS) {

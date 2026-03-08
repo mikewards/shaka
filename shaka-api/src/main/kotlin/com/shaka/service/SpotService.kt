@@ -1593,7 +1593,21 @@ class SpotService {
         
         val exposureDeferred = async {
             val existing = SpotDataCache.get(spotId)?.exposure
-            if (existing != null && existing.landDistances != null) return@async existing
+            if (existing != null && existing.landDistances != null) {
+                if (existing.depthM == null) {
+                    try {
+                        val depth = withTimeoutOrNull(15000) { bathymetryClient.fetchDepthOnly(lat, lon) }
+                        if (depth != null) {
+                            val updated = existing.copy(depthM = depth)
+                            SpotDataCache.updateExposure(spotId, updated)
+                            return@async updated
+                        }
+                    } catch (e: Exception) {
+                        logger.warn("Depth-only refresh failed for $spotId: ${e.message}")
+                    }
+                }
+                return@async existing
+            }
             try {
                 val result = withTimeoutOrNull(30000) { bathymetryClient.computeExposure(lat, lon) }
                 if (result != null) {

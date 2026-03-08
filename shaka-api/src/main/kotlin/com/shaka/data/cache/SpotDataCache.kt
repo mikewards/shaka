@@ -1474,6 +1474,21 @@ object SpotDataCache {
                 } else {
                     logger.info("Schema already at version >= 2, skipping multi-ring migration")
                 }
+
+                if (schemaVersion < 3) {
+                    val cleared = conn.createStatement().executeUpdate("""
+                        UPDATE spot_cache SET
+                            bathymetry_depth_m = NULL,
+                            swell_data_version = 3
+                    """.trimIndent())
+                    conn.createStatement().executeUpdate(
+                        "UPDATE spot_exposure SET depth_m = NULL"
+                    )
+                    conn.createStatement().executeUpdate("UPDATE schema_migrations SET version = 3")
+                    logger.info("V3 migration: cleared depth for $cleared spots (NCEI DEM_all recomputation)")
+                } else {
+                    logger.info("Schema already at version >= 3, skipping depth source migration")
+                }
             }
             logger.info("spot_cache table ready")
         } catch (e: Exception) {
