@@ -171,10 +171,23 @@ cd shaka-api && ./gradlew run
 
 ## Data Sources
 
-- **Open-Meteo:** Weather and marine forecasts
-- **Copernicus Marine:** Satellite ocean data (chlorophyll, turbidity)
-- **NOAA:** Tides and currents (mentioned in README, not implemented)
-- **Community:** Reddit API works, forum scraping placeholder
+- **Open-Meteo:** Weather (wind) and marine forecasts (swell, water temp)
+- **NDBC Buoys:** Real-time wave height, period, and direction from ~1900 US buoy stations
+- **Copernicus Marine:** Satellite ocean data (chlorophyll → water visibility)
+- **NOAA CO-OPS:** Tide predictions from nearby tide stations
+- **NOAA NCEI DEM + GEBCO:** Bathymetry (seafloor depth)
+- **Land/Water API:** Multi-ring coastal exposure profiling (16 directions × 3 distances)
+- **NASA GIBS / Copernicus WMTS:** Satellite imagery tiles
+
+## Database & Logs (for debugging)
+
+**Query the production database directly** — see `.cursor/rules/database.mdc`.
+Connection string is in `.env` (gitignored). Use `psql` to run queries.
+
+**Access Railway deploy/runtime logs** — see `.cursor/rules/railway.mdc`.
+Railway CLI is installed; use `railway logs` from `shaka-api/`.
+
+Do NOT ask the user to paste database results or logs — query them yourself.
 
 ## Flutter App Architecture
 

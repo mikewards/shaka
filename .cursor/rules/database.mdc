@@ -1,0 +1,94 @@
+---
+description: How to query the Shaka production database. Use when debugging data issues, verifying deploys, or investigating spot/swell/exposure problems.
+globs:
+  - shaka-api/**/*.kt
+  - shaka-app/**/*.dart
+---
+
+# Production Database Access
+
+psql is installed locally. The connection string is in `.env` at the repo root (gitignored).
+
+## Connecting
+
+```bash
+# Load DATABASE_URL from .env and connect
+source .env && psql "$DATABASE_URL"
+```
+
+Or for one-off queries:
+
+```bash
+source .env && psql "$DATABASE_URL" -c "YOUR QUERY HERE"
+```
+
+## Tables
+
+| Table | Purpose |
+|-------|---------|
+| `spot_cache` | Cached conditions for all spots (swell, wind, tide, exposure, corrected swell, etc.) |
+| `spot_exposure` | 16-direction land distance profiles + depth/bearing/width per spot |
+| `user_spots` | User-created spots (id, name, lat, lon, user_id) |
+| `spots` | Built-in spot catalog |
+| `buoy_stations` | NDBC buoy station registry (id, lat, lon, name, active) |
+| `buoy_readings` | Hourly buoy wave readings (station_id, wave_height, period, direction) |
+| `fishing_intel_*` | Fishing report tables (reports, sources, landings, claims, etc.) |
+| `schema_migrations` | Migration tracking |
+
+## Common Queries
+
+### Spot conditions
+```sql
+-- Check a specific spot's cached data
+SELECT spot_id, swell_height_ft, swell_corrected_height_ft, swell_direction,
+       swell_source, secondary_swell_height_ft, secondary_swell_corrected_height_ft,
+       wind_speed_mph, wind_direction, exposure_bearing, exposure_width,
+       bathymetry_depth_m, weather_fetched_at
+FROM spot_cache WHERE spot_id ILIKE '%NAME%';
+
+-- Overall cache health
+SELECT COUNT(*) as total,
+       COUNT(swell_height_ft) as has_swell,
+       COUNT(swell_corrected_height_ft) as has_corrected,
+       COUNT(exposure_bearing) as has_exposure
+FROM spot_cache;
+
+-- User spots only
+SELECT COUNT(*) as total,
+       COUNT(swell_corrected_height_ft) as has_corrected,
+       COUNT(exposure_bearing) as has_exposure
+FROM spot_cache WHERE spot_id LIKE 'user-%';
+```
+
+### User spots
+```sql
+-- Find a user spot by name
+SELECT id, name, latitude, longitude FROM user_spots WHERE name ILIKE '%NAME%';
+```
+
+### Buoy data
+```sql
+-- Recent buoy readings
+SELECT station_id, wave_height_m, dominant_period_s, mean_direction, observed_at
+FROM buoy_readings ORDER BY observed_at DESC LIMIT 20;
+
+-- Active buoy stations
+SELECT station_id, name, lat, lon FROM buoy_stations WHERE active = true LIMIT 20;
+
+-- Count stations and readings
+SELECT (SELECT COUNT(*) FROM buoy_stations WHERE active = true) as active_stations,
+       (SELECT COUNT(*) FROM buoy_readings) as total_readings;
+```
+
+### Exposure data
+```sql
+-- Check a spot's 16-direction land distances
+SELECT * FROM spot_exposure WHERE spot_id ILIKE '%NAME%';
+```
+
+## Rules
+
+- **Read-only by default.** Only run SELECT queries unless the user explicitly asks for writes.
+- **Never DROP, TRUNCATE, or DELETE** without explicit user approval.
+- **Use LIMIT** when exploring unfamiliar tables.
+- **Don't share credentials** in chat responses — just say "queried the database" with results.

@@ -30,9 +30,19 @@ const _conditionSources = {
     description: 'Sea surface temperature from ocean weather models. Affects fish behavior and wetsuit requirements.',
   ),
   'swell': _ConditionSource(
+    source: 'Open-Meteo Marine + NDBC Buoys',
+    updateFrequency: 'Hourly',
+    description: 'Open-ocean significant wave height from NOAA wave models. When an NDBC buoy is nearby, real-time buoy readings are used instead for higher accuracy.',
+  ),
+  'swell_corrected': _ConditionSource(
+    source: 'Exposure-attenuated swell model',
+    updateFrequency: 'Every 3 hours',
+    description: 'Open-ocean swell adjusted for this spot\'s coastal exposure. Accounts for headlands, coves, and shoreline orientation so sheltered spots show reduced wave heights.',
+  ),
+  'secondary_swell': _ConditionSource(
     source: 'Open-Meteo Marine API',
     updateFrequency: 'Hourly',
-    description: 'Wave height and period from NOAA wave models. Affects underwater visibility and entry/exit safety.',
+    description: 'Secondary swell system traveling from a different direction than the primary swell. Also corrected for this spot\'s exposure when available.',
   ),
   'wind': _ConditionSource(
     source: 'Open-Meteo Weather API',
@@ -43,6 +53,16 @@ const _conditionSources = {
     source: 'NOAA CO-OPS Tide Stations',
     updateFrequency: 'Predicted',
     description: 'Tide predictions for nearby stations. Tidal movement affects current strength and fish activity.',
+  ),
+  'exposure': _ConditionSource(
+    source: 'Multi-ring land/water analysis',
+    updateFrequency: 'Computed once',
+    description: 'Which direction this spot faces the open ocean and how wide the exposure arc is. Sampled at 1km, 2km, and 5km across 16 compass directions to detect sheltering headlands and coves.',
+  ),
+  'depth': _ConditionSource(
+    source: 'NOAA NCEI DEM + GEBCO',
+    updateFrequency: 'Computed once',
+    description: 'Seafloor depth at this spot from high-resolution NOAA bathymetry surveys with global GEBCO data as fallback.',
   ),
 };
 
@@ -106,7 +126,7 @@ class ConditionsCard extends StatelessWidget {
           _ConditionRow(
             label: conditions.swellCorrected != null ? 'Swell (at spot)' : 'Swell',
             value: conditions.swellCorrected ?? conditions.swell,
-            sourceKey: 'swell',
+            sourceKey: conditions.swellCorrected != null ? 'swell_corrected' : 'swell',
           ),
           if (conditions.swellCorrected != null && conditions.swellCorrected != conditions.swell)
             _ConditionRow(
@@ -118,13 +138,13 @@ class ConditionsCard extends StatelessWidget {
             _ConditionRow(
               label: conditions.secondarySwellCorrected != null ? '2nd swell (at spot)' : '2nd swell',
               value: conditions.secondarySwellCorrected ?? conditions.secondarySwell!,
-              sourceKey: 'swell',
+              sourceKey: 'secondary_swell',
             ),
           if (conditions.secondarySwell != null && conditions.secondarySwellCorrected != null && conditions.secondarySwellCorrected != conditions.secondarySwell)
             _ConditionRow(
               label: '2nd swell (open ocean)',
               value: conditions.secondarySwell!,
-              sourceKey: 'swell',
+              sourceKey: 'secondary_swell',
             ),
           _ConditionRow(
             label: 'Wind',
@@ -153,14 +173,14 @@ class ConditionsCard extends StatelessWidget {
             _ConditionRow(
               label: 'Exposure',
               value: 'Faces ${_bearingToCardinal(conditions.exposureBearing!)} (${conditions.exposureWidth ?? 0}°)',
-              sourceKey: 'swell',
+              sourceKey: 'exposure',
               isLast: conditions.bathymetryDepthM == null,
             ),
           if (conditions.bathymetryDepthM != null)
             _ConditionRow(
               label: 'Depth',
               value: '${conditions.bathymetryDepthM!.toStringAsFixed(1)}m / ${(conditions.bathymetryDepthM! * 3.28084).toStringAsFixed(0)}ft',
-              sourceKey: 'swell',
+              sourceKey: 'depth',
               isLast: true,
             ),
         ],
@@ -292,9 +312,13 @@ class ConditionsCard extends StatelessWidget {
     switch (key) {
       case 'visibility': return 'Visibility';
       case 'water': return 'Water Temperature';
-      case 'swell': return 'Swell';
+      case 'swell': return 'Swell (Open Ocean)';
+      case 'swell_corrected': return 'Swell (At Spot)';
+      case 'secondary_swell': return 'Secondary Swell';
       case 'wind': return 'Wind';
       case 'tide': return 'Tide';
+      case 'exposure': return 'Exposure';
+      case 'depth': return 'Depth';
       default: return key;
     }
   }

@@ -1,0 +1,49 @@
+---
+description: How to access Railway deploy logs and service status for debugging. Use when investigating server errors, deploy failures, or runtime issues.
+globs:
+  - shaka-api/**/*.kt
+---
+
+# Railway Access
+
+The Railway CLI is installed at `/opt/homebrew/bin/railway`. Auth tokens are stored in `~/.railway/` (not in the repo).
+
+**SETUP (one-time, must be done by user in an interactive terminal):**
+```bash
+railway login
+cd /Users/ed/Desktop/shaka/shaka-api && railway link
+```
+
+## View Runtime Logs
+
+```bash
+cd /Users/ed/Desktop/shaka/shaka-api && railway logs --tail 100
+```
+
+To search for errors:
+```bash
+cd /Users/ed/Desktop/shaka/shaka-api && railway logs --tail 500 2>&1 | grep -i "error\|failed\|timeout\|exception"
+```
+
+## View Service Status
+
+```bash
+cd /Users/ed/Desktop/shaka/shaka-api && railway status
+```
+
+## Deploy (server-side)
+
+Shaka API deploys automatically on push to `main`. Railway watches the GitHub repo.
+
+```bash
+git push origin main
+```
+
+To check if a deploy is in progress or just finished, use `railway logs`.
+
+## Rules
+
+- **Check logs FIRST** when debugging server issues — don't ask the user to paste them.
+- When investigating errors, search logs for keywords like "ERROR", "failed", "timeout", "exception".
+- **Never trigger a redeploy** without explicit user approval.
+- If `railway` commands fail with "Unauthorized", tell the user to run `railway login` in their terminal (it requires browser-based auth).
