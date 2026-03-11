@@ -821,6 +821,22 @@ object SpotDataCache {
         }
     }
     
+    fun ensureRowExists(spotId: String) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("INSERT INTO spot_cache (spot_id) VALUES (?) ON CONFLICT DO NOTHING")
+                    .use { stmt ->
+                        stmt.setString(1, spotId)
+                        stmt.executeUpdate()
+                    }
+            }
+        } catch (e: Exception) {
+            logger.debug("ensureRowExists failed for $spotId: ${e.message}")
+        }
+    }
+
     fun updateExposure(spotId: String, exposure: ExposureInfo) {
         if (!DatabaseFactory.isConnected()) return
         cache.compute(spotId) { _, existing ->

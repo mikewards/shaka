@@ -1352,7 +1352,7 @@ class SpotService {
         // Check prefetched cache first (instant!)
         var cached = SpotDataCache.get(cacheId)
         
-        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
+        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null || cached.exposure == null) {
             // Cache incomplete — run full prefetch to populate it with real data.
             // The background prefetch from spot creation may already be running;
             // duplicate API calls are idempotent and harmless.
@@ -1571,6 +1571,8 @@ class SpotService {
         val now = Instant.now()
         
         logger.info("Prefetching data for spot $spotId at ($lat, $lon)")
+        
+        SpotDataCache.ensureRowExists(spotId)
         
         // Launch all fetches in parallel, writing to SpotDataCache as each completes.
         // This lets getUserSpotScore() return a score as soon as tide arrives (~2s)
