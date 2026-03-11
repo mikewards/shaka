@@ -124,28 +124,10 @@ class ConditionsCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ConditionRow(
-            label: conditions.swellCorrected != null ? 'Swell (at spot)' : 'Swell',
+            label: 'Swell',
             value: conditions.swellCorrected ?? conditions.swell,
             sourceKey: conditions.swellCorrected != null ? 'swell_corrected' : 'swell',
           ),
-          if (conditions.swellCorrected != null && conditions.swellCorrected != conditions.swell)
-            _ConditionRow(
-              label: 'Swell (open ocean)',
-              value: conditions.swell,
-              sourceKey: 'swell',
-            ),
-          if (conditions.secondarySwell != null)
-            _ConditionRow(
-              label: conditions.secondarySwellCorrected != null ? '2nd swell (at spot)' : '2nd swell',
-              value: conditions.secondarySwellCorrected ?? conditions.secondarySwell!,
-              sourceKey: 'secondary_swell',
-            ),
-          if (conditions.secondarySwell != null && conditions.secondarySwellCorrected != null && conditions.secondarySwellCorrected != conditions.secondarySwell)
-            _ConditionRow(
-              label: '2nd swell (open ocean)',
-              value: conditions.secondarySwell!,
-              sourceKey: 'secondary_swell',
-            ),
           _ConditionRow(
             label: 'Wind',
             value: conditions.wind,
@@ -160,20 +142,13 @@ class ConditionsCard extends StatelessWidget {
             label: 'Visibility',
             value: _resolveVisibility(),
             sourceKey: 'visibility',
-            isLast: !(conditions.tideState.isNotEmpty && conditions.tideState != 'unknown'),
+            isLast: !(conditions.tideState.isNotEmpty && conditions.tideState != 'unknown') && conditions.bathymetryDepthM == null,
           ),
           if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
             _ConditionRow(
               label: 'Tide',
               value: conditions.tideState,
               sourceKey: 'tide',
-              isLast: conditions.exposureBearing == null && conditions.bathymetryDepthM == null,
-            ),
-          if (conditions.exposureBearing != null)
-            _ConditionRow(
-              label: 'Exposure',
-              value: 'Faces ${_bearingToCardinal(conditions.exposureBearing!)} (${conditions.exposureWidth ?? 0}°)',
-              sourceKey: 'exposure',
               isLast: conditions.bathymetryDepthM == null,
             ),
           if (conditions.bathymetryDepthM != null)

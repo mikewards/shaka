@@ -9,6 +9,7 @@ import '../../../data/models/spot_models.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
+import '../../widgets/swell_details_card.dart';
 import '../../widgets/score_tier_pill.dart';
 
 class SpotDetailScreen extends StatefulWidget {
@@ -310,6 +311,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         const SizedBox(height: 10),
         _buildScoreBreakdown(spot.score.breakdown),
 
+        const SizedBox(height: 20),
+
+        // Swell details (expandable)
+        _buildSectionHeader('SWELL'),
+        const SizedBox(height: 10),
+        SwellDetailsCard(conditions: spot.conditions),
         const SizedBox(height: 20),
 
         // Satellite Visibility (collapsed label, expandable details)
@@ -1074,8 +1081,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               const SizedBox(height: 10),
               ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
               const SizedBox(height: 20),
+              // Swell details (expandable)
+              _buildSectionHeader('SWELL'),
+              const SizedBox(height: 10),
+              SwellDetailsCard(conditions: spot.conditions),
+              const SizedBox(height: 20),
               // Satellite Visibility (collapsed label, expandable details)
               if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[
+                _buildSectionHeader('VISIBILITY'),
+                const SizedBox(height: 10),
                 SatelliteReadingsCard(readings: spot.satelliteReadings),
                 const SizedBox(height: 20),
               ],
