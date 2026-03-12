@@ -1352,7 +1352,7 @@ class SpotService {
         // Check prefetched cache first (instant!)
         var cached = SpotDataCache.get(cacheId)
         
-        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null || cached.exposure == null) {
+        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
             // Cache incomplete — run full prefetch to populate it with real data.
             // The background prefetch from spot creation may already be running;
             // duplicate API calls are idempotent and harmless.
