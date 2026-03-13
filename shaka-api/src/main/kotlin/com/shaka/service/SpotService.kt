@@ -1729,7 +1729,7 @@ class SpotService {
         }
         
         val sstDeferred = async {
-            val data = withTimeoutOrNull(10000) {
+            val data = withTimeoutOrNull(3000) {
                 try { noaaClient.getSeaSurfaceTemperature(lat, lon, today) }
                 catch (e: Exception) { logger.warn("NOAA SST fetch failed for $spotId: ${e.message}"); null }
             }
@@ -1775,48 +1775,48 @@ class SpotService {
             data
         }
         
+        val mpaDeferred = async {
+            withTimeoutOrNull(8000) {
+                val exactMPA = try {
+                    protectedSeasClient.getMPAStatusExact(lat, lon)
+                } catch (e: Exception) {
+                    logger.warn("Exact MPA check failed for $spotId: ${e.message}")
+                    null
+                }
+                
+                val bufferMPA = if (exactMPA == null) {
+                    try {
+                        protectedSeasClient.getMPAStatus(lat, lon)
+                    } catch (e: Exception) {
+                        logger.warn("Buffer MPA check failed for $spotId: ${e.message}")
+                        null
+                    }
+                } else null
+                
+                val isInsideMPA = exactMPA != null
+                val mpaData = exactMPA ?: bufferMPA
+                
+                val mpaCacheInfo = mpaData?.let {
+                    SpotDataCache.MPACacheInfo(
+                        siteName = it.siteName, designation = it.designation,
+                        spearfishingStatus = it.spearfishingStatus, protectionLevel = it.protectionLevel,
+                        speciesOfConcern = it.speciesOfConcern, purpose = it.purpose,
+                        detailsUrl = it.detailsUrl, isInsideMPA = isInsideMPA
+                    )
+                }
+                SpotDataCache.updateMPA(spotId, SpotDataCache.CachedValue(value = mpaCacheInfo, fetchedAt = now))
+                mpaData
+            }
+        }
+        
         // Await all results (cache writes already happened inside each async block)
         val tideData = tideDeferred.await()
         val weatherData = weatherDeferred.await()
         val satelliteData = satelliteDeferred.await()
         val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
+        val mpaData = mpaDeferred.await()
         
-        // Persist core data (tide/swell/wind/SST) so score is available even if
-        // MPA check is slow or server restarts mid-prefetch
-        SpotDataCache.saveToDatabase(spotId)
-        
-        // MPA check: exact first, then buffer (sequential — depends on exact result)
-        val exactMPA = try {
-            protectedSeasClient.getMPAStatusExact(lat, lon)
-        } catch (e: Exception) {
-            logger.warn("Exact MPA check failed for $spotId: ${e.message}")
-            null
-        }
-        
-        val bufferMPA = if (exactMPA == null) {
-            try {
-                protectedSeasClient.getMPAStatus(lat, lon)
-            } catch (e: Exception) {
-                logger.warn("Buffer MPA check failed for $spotId: ${e.message}")
-                null
-            }
-        } else null
-        
-        val isInsideMPA = exactMPA != null
-        val mpaData = exactMPA ?: bufferMPA
-        
-        val mpaCacheInfo = mpaData?.let {
-            SpotDataCache.MPACacheInfo(
-                siteName = it.siteName, designation = it.designation,
-                spearfishingStatus = it.spearfishingStatus, protectionLevel = it.protectionLevel,
-                speciesOfConcern = it.speciesOfConcern, purpose = it.purpose,
-                detailsUrl = it.detailsUrl, isInsideMPA = isInsideMPA
-            )
-        }
-        SpotDataCache.updateMPA(spotId, SpotDataCache.CachedValue(value = mpaCacheInfo, fetchedAt = now))
-        
-        // Persist to database
         SpotDataCache.saveToDatabase(spotId)
         
         logger.info("Prefetch complete for spot $spotId - tide:${tideData != null}, weather:${weatherData != null}, satellite:${satelliteData != null}, gibs:${gibsData != null}, mpa:${mpaData != null}")
