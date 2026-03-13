@@ -42,7 +42,7 @@ object DatabaseFactory {
             connectionTimeout = 30000
             maxLifetime = 1800000
             isAutoCommit = false
-            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+            transactionIsolation = "TRANSACTION_READ_COMMITTED"
             validate()
         }
 
@@ -83,7 +83,7 @@ object DatabaseFactory {
             minimumIdle = 2
             connectionTimeout = 30000
             isAutoCommit = false
-            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+            transactionIsolation = "TRANSACTION_READ_COMMITTED"
             validate()
         }
 

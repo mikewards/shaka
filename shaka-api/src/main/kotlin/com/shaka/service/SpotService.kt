@@ -1614,7 +1614,7 @@ class SpotService {
                 return@async existing
             }
             try {
-                val result = withTimeoutOrNull(46000) { bathymetryClient.computeExposure(lat, lon) }
+                val result = withTimeoutOrNull(30000) { bathymetryClient.computeExposure(lat, lon) }
                 if (result != null) {
                     val info = SpotDataCache.ExposureInfo(
                         result.bearing, result.width, result.depthM,
