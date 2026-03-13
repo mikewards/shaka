@@ -198,17 +198,9 @@ class DataPrefetchJobs(
                                 } catch (e: Exception) {
                                     logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
                                 }
-                            } else if (exposure.depthM == null || exposure.depthSource != "ncei") {
-                                try {
-                                    val dr = bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
-                                    if (dr != null) {
-                                        exposure = exposure.copy(depthM = dr.depthM, depthSource = dr.source)
-                                        SpotDataCache.updateExposure(spot.cacheId, exposure)
-                                    }
-                                } catch (e: Exception) {
-                                    logger.debug("Depth-only refresh failed for ${spot.name}: ${e.message}")
-                                }
                             }
+                            // Depth retry disabled — NCEI ArcGIS returning 503 (2026-03-07).
+                            // Re-enable when service recovers.
 
                             val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
                             val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
