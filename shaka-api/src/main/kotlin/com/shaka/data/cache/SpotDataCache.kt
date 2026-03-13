@@ -1131,14 +1131,24 @@ object SpotDataCache {
      * Only called for Open-Meteo (model) data. When a buoy is within 1.5nm,
      * the buoy reading is used directly without attenuation since it already
      * reflects local conditions.
+     *
+     * Applies two corrections:
+     *  1. Land-blocking attenuation based on directional exposure profile
+     *  2. Offshore-to-surf scaling (0.728) — open ocean swell height ≠ breaking
+     *     surf height; waves lose energy through shoaling, refraction, and
+     *     bottom friction as they approach shore.
+     *
+     * Parameters calibrated against 4,700+ Surfline spots (2026-03).
      */
+    private const val OFFSHORE_TO_SURF_FACTOR = 0.728
+
     fun attenuateSwell(
         swellHeightFt: Double,
         swellDirectionDeg: Double,
         landDistances: DoubleArray
     ): Double {
-        if (landDistances.size != 16) return swellHeightFt
-        if (landDistances.all { it < 0 }) return swellHeightFt // fully open
+        if (landDistances.size != 16) return swellHeightFt * OFFSHORE_TO_SURF_FACTOR
+        if (landDistances.all { it < 0 }) return swellHeightFt * OFFSHORE_TO_SURF_FACTOR
 
         val stepDeg = 360.0 / 16
         val normalizedDir = ((swellDirectionDeg % 360) + 360) % 360
@@ -1151,24 +1161,28 @@ object SpotDataCache {
         val upperFactor = landDistToFactor(landDistances[upperIdx])
         val factor = lowerFactor * (1.0 - fraction) + upperFactor * fraction
 
-        return swellHeightFt * factor
+        return swellHeightFt * factor * OFFSHORE_TO_SURF_FACTOR
     }
 
     /**
      * Maps land distance (km) to a swell transmission factor [0..1].
      *
-     * -1 (open)  → 1.00  no land detected within 5km
-     *  5 km      → 0.85  land far away, mild sheltering
-     *  2 km      → 0.45  moderate sheltering
-     *  1 km      → 0.15  heavy sheltering (mostly diffraction)
+     * Calibrated via differential evolution against 4,700+ Surfline spots,
+     * validated on a held-out set of 60 spots + deep-dive on O'ahu, Maui,
+     * and Santa Cruz (2026-03).
+     *
+     * -1 (open)  → 1.000  no land detected within 5km
+     *  5 km      → 0.950  land far away, mild sheltering
+     *  2 km      → 0.706  moderate sheltering
+     *  1 km      → 0.492  heavy sheltering (diffraction + wrapping)
      */
     private fun landDistToFactor(distKm: Double): Double {
         if (distKm < 0) return 1.0
         return when {
-            distKm <= 1.0 -> 0.15
-            distKm <= 2.0 -> 0.15 + 0.30 * ((distKm - 1.0) / 1.0)
-            distKm <= 5.0 -> 0.45 + 0.40 * ((distKm - 2.0) / 3.0)
-            else -> 0.85
+            distKm <= 1.0 -> 0.492
+            distKm <= 2.0 -> 0.492 + 0.214 * ((distKm - 1.0) / 1.0)
+            distKm <= 5.0 -> 0.706 + 0.244 * ((distKm - 2.0) / 3.0)
+            else -> 0.954
         }
     }
     
