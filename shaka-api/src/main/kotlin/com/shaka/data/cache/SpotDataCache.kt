@@ -105,7 +105,8 @@ object SpotDataCache {
         val bearing: Int,       // Direction of open water (0-360 degrees)
         val width: Int,         // Angular spread of open water arc
         val depthM: Double?,    // Bathymetry depth at spot (positive = underwater depth in meters)
-        val landDistances: DoubleArray? = null  // 16 values: km to land per compass direction, -1 = open
+        val landDistances: DoubleArray? = null, // 16 values: km to land per compass direction, -1 = open
+        val depthSource: String? = null  // "ncei" or "gebco" — retry if not ncei
     ) {
         companion object {
             const val NUM_DIRECTIONS = 16
@@ -860,18 +861,20 @@ object SpotDataCache {
                     val cols = ExposureInfo.DB_COLUMNS
                     val setClauses = cols.joinToString(", ") { "$it = ?" }
                     conn.prepareStatement("""
-                        INSERT INTO spot_exposure (spot_id, ${cols.joinToString()}, depth_m, bearing, width)
-                        VALUES (?, ${cols.joinToString { "?" }}, ?, ?, ?)
-                        ON CONFLICT (spot_id) DO UPDATE SET $setClauses, depth_m = ?, bearing = ?, width = ?
+                        INSERT INTO spot_exposure (spot_id, ${cols.joinToString()}, depth_m, depth_source, bearing, width)
+                        VALUES (?, ${cols.joinToString { "?" }}, ?, ?, ?, ?)
+                        ON CONFLICT (spot_id) DO UPDATE SET $setClauses, depth_m = ?, depth_source = ?, bearing = ?, width = ?
                     """.trimIndent()).use { stmt ->
                         var idx = 1
                         stmt.setString(idx++, spotId)
                         for (i in 0 until 16) stmt.setDouble(idx++, ld[i])
                         stmt.setObject(idx++, exposure.depthM)
+                        stmt.setString(idx++, exposure.depthSource)
                         stmt.setInt(idx++, exposure.bearing)
                         stmt.setInt(idx++, exposure.width)
                         for (i in 0 until 16) stmt.setDouble(idx++, ld[i])
                         stmt.setObject(idx++, exposure.depthM)
+                        stmt.setString(idx++, exposure.depthSource)
                         stmt.setInt(idx++, exposure.bearing)
                         stmt.setInt(idx++, exposure.width)
                         stmt.executeUpdate()
@@ -1480,6 +1483,7 @@ object SpotDataCache {
                             spot_id VARCHAR(100) PRIMARY KEY,
                         $cols,
                             depth_m DOUBLE PRECISION,
+                            depth_source VARCHAR(20),
                             bearing INT,
                             width INT,
                             computed_at TIMESTAMP DEFAULT NOW()
@@ -1517,7 +1521,17 @@ object SpotDataCache {
                     conn.createStatement().executeUpdate("UPDATE schema_migrations SET version = 3")
                     logger.info("V3 migration: cleared depth for $cleared spots (NCEI DEM_all recomputation)")
                 } else {
-                    logger.info("Schema already at version >= 3, skipping depth source migration")
+                    logger.info("Schema already at version >= 3, skipping depth clear migration")
+                }
+
+                if (schemaVersion < 4) {
+                    conn.createStatement().executeUpdate(
+                        "ALTER TABLE spot_exposure ADD COLUMN IF NOT EXISTS depth_source VARCHAR(20)"
+                    )
+                    conn.createStatement().executeUpdate("UPDATE schema_migrations SET version = 4")
+                    logger.info("V4 migration: added depth_source column to spot_exposure")
+                } else {
+                    logger.info("Schema already at version >= 4, skipping depth source migration")
                 }
             }
             logger.info("spot_cache table ready")
@@ -2055,7 +2069,7 @@ object SpotDataCache {
                 transaction {
                     val expConn = this.connection.connection as java.sql.Connection
                     val cols = ExposureInfo.DB_COLUMNS.joinToString()
-                    expConn.prepareStatement("SELECT spot_id, $cols, depth_m, bearing, width FROM spot_exposure").use { stmt ->
+                    expConn.prepareStatement("SELECT spot_id, $cols, depth_m, depth_source, bearing, width FROM spot_exposure").use { stmt ->
                         val rs = stmt.executeQuery()
                         var enriched = 0
                         while (rs.next()) {
@@ -2064,11 +2078,12 @@ object SpotDataCache {
                                 rs.getDouble(ExposureInfo.DB_COLUMNS[i]).let { if (rs.wasNull()) ExposureInfo.OPEN else it }
                             }
                             val depth = rs.getDouble("depth_m").takeIf { !rs.wasNull() }
+                            val dSource = rs.getString("depth_source")
                             val bearing = rs.getInt("bearing").takeIf { !rs.wasNull() } ?: 0
                             val width = rs.getInt("width").takeIf { !rs.wasNull() } ?: 360
                             cache.compute(sid) { _, existing ->
                                 val current = existing ?: SpotData()
-                                current.copy(exposure = ExposureInfo(bearing, width, depth, ld))
+                                current.copy(exposure = ExposureInfo(bearing, width, depth, ld, dSource))
                             }
                             enriched++
                         }

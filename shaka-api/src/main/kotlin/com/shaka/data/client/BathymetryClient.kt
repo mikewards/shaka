@@ -2,6 +2,7 @@ package com.shaka.data.client
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -27,11 +28,14 @@ class BathymetryClient(
     companion object {
         private const val NCEI_DEM_URL = "https://gis.ngdc.noaa.gov/arcgis/rest/services/DEM_mosaics/DEM_all/ImageServer/identify"
         private const val GEBCO_WMS_URL = "https://wms.gebco.net/mapserv"
+        private const val DEPTH_TIMEOUT_MS = 5000L
         private const val NUM_DIRECTIONS = 16
         private const val EARTH_RADIUS_KM = 6371.0
         val RING_DISTANCES_KM = doubleArrayOf(1.0, 2.0, 5.0)
         const val DIRECTION_STEP_DEG = 360.0 / NUM_DIRECTIONS // 22.5°
     }
+
+    data class DepthResult(val depthM: Double, val source: String)
 
     @Serializable
     data class NceiIdentifyResponse(
@@ -54,6 +58,7 @@ class BathymetryClient(
         val bearing: Int,
         val width: Int,
         val depthM: Double?,
+        val depthSource: String?,
         val directional: DirectionalExposure
     )
 
@@ -96,10 +101,12 @@ class BathymetryClient(
 
         if (openCount == 0) {
             logger.info("No open water detected around ($lat, $lon)")
-            return ExposureResult(bearing = 0, width = 0, depthM = fetchDepth(lat, lon), directional = directional)
+            val dr = fetchDepth(lat, lon)
+            return ExposureResult(bearing = 0, width = 0, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
         }
         if (openCount == NUM_DIRECTIONS) {
-            return ExposureResult(bearing = 0, width = 360, depthM = fetchDepth(lat, lon), directional = directional)
+            val dr = fetchDepth(lat, lon)
+            return ExposureResult(bearing = 0, width = 360, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
         }
 
         // Find largest contiguous open-water arc (wrap-around safe)
@@ -127,30 +134,29 @@ class BathymetryClient(
         val arcCenterIdx = (bestStart + bestLength / 2.0) % NUM_DIRECTIONS
         val bearing = ((arcCenterIdx * DIRECTION_STEP_DEG) % 360).toInt()
 
-        val depthM = fetchDepth(lat, lon)
+        val dr = fetchDepth(lat, lon)
 
-        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${depthM}m, open=$openCount/16")
-        return ExposureResult(bearing = bearing, width = width, depthM = depthM, directional = directional)
+        logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${dr?.depthM}m (${dr?.source ?: "none"}), open=$openCount/16")
+        return ExposureResult(bearing = bearing, width = width, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
     }
 
     /**
      * Fetch depth independently of exposure computation. Use when exposure
      * geometry (land distances) is already cached but depth needs refreshing.
      */
-    suspend fun fetchDepthOnly(lat: Double, lon: Double): Double? = fetchDepth(lat, lon)
+    suspend fun fetchDepthOnly(lat: Double, lon: Double): DepthResult? = fetchDepth(lat, lon)
 
     /**
-     * Fetch depth using NCEI DEM_all (NOAA survey mosaic, ~1-10m resolution
-     * near US coasts, global ETOPO/GEBCO composite elsewhere) with GEBCO
-     * Latest WMS as fallback. Returns positive meters for underwater depth,
-     * null on failure or confirmed land.
+     * Fetch depth using NCEI DEM_all (primary) with GEBCO WMS fallback.
+     * Each source gets a tight 5s timeout — if NCEI is down we fall through
+     * fast instead of burning the caller's timeout budget.
      */
-    private suspend fun fetchDepth(lat: Double, lon: Double): Double? {
-        val nceiDepth = fetchDepthFromNcei(lat, lon)
-        if (nceiDepth != null) return nceiDepth
+    private suspend fun fetchDepth(lat: Double, lon: Double): DepthResult? {
+        val nceiDepth = withTimeoutOrNull(DEPTH_TIMEOUT_MS) { fetchDepthFromNcei(lat, lon) }
+        if (nceiDepth != null) return DepthResult(nceiDepth, "ncei")
 
-        val gebcoDepth = fetchDepthFromGebcoWms(lat, lon)
-        if (gebcoDepth != null) return gebcoDepth
+        val gebcoDepth = withTimeoutOrNull(DEPTH_TIMEOUT_MS) { fetchDepthFromGebcoWms(lat, lon) }
+        if (gebcoDepth != null) return DepthResult(gebcoDepth, "gebco")
 
         return null
     }

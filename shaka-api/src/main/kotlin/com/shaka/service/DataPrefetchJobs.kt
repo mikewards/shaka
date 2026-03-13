@@ -191,18 +191,18 @@ class DataPrefetchJobs(
                                     if (result != null) {
                                         exposure = SpotDataCache.ExposureInfo(
                                             result.bearing, result.width, result.depthM,
-                                            result.directional.landDistanceKm
+                                            result.directional.landDistanceKm, result.depthSource
                                         )
                                         SpotDataCache.updateExposure(spot.cacheId, exposure)
                                     }
                                 } catch (e: Exception) {
                                     logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
                                 }
-                            } else if (exposure.depthM == null) {
+                            } else if (exposure.depthM == null || exposure.depthSource != "ncei") {
                                 try {
-                                    val depth = bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
-                                    if (depth != null) {
-                                        exposure = exposure.copy(depthM = depth)
+                                    val dr = bathymetryClient.fetchDepthOnly(spot.lat, spot.lon)
+                                    if (dr != null) {
+                                        exposure = exposure.copy(depthM = dr.depthM, depthSource = dr.source)
                                         SpotDataCache.updateExposure(spot.cacheId, exposure)
                                     }
                                 } catch (e: Exception) {

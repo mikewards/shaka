@@ -1599,11 +1599,11 @@ class SpotService {
         val exposureDeferred = async {
             val existing = SpotDataCache.get(spotId)?.exposure
             if (existing != null && existing.landDistances != null) {
-                if (existing.depthM == null) {
+                if (existing.depthM == null || existing.depthSource != "ncei") {
                     try {
-                        val depth = withTimeoutOrNull(15000) { bathymetryClient.fetchDepthOnly(lat, lon) }
-                        if (depth != null) {
-                            val updated = existing.copy(depthM = depth)
+                        val dr = withTimeoutOrNull(15000) { bathymetryClient.fetchDepthOnly(lat, lon) }
+                        if (dr != null) {
+                            val updated = existing.copy(depthM = dr.depthM, depthSource = dr.source)
                             SpotDataCache.updateExposure(spotId, updated)
                             return@async updated
                         }
@@ -1618,7 +1618,7 @@ class SpotService {
                 if (result != null) {
                     val info = SpotDataCache.ExposureInfo(
                         result.bearing, result.width, result.depthM,
-                        result.directional.landDistanceKm
+                        result.directional.landDistanceKm, result.depthSource
                     )
                     SpotDataCache.updateExposure(spotId, info)
                     info
