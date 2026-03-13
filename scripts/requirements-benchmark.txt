@@ -1,0 +1,4 @@
+apify-client
+requests
+numpy
+scipy

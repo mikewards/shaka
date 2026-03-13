@@ -1,0 +1,92 @@
+======================================================================
+SURFLINE vs SHAKA SWELL BENCHMARK -- PHASE A REPORT
+Generated: 2026-03-07 03:28 UTC
+======================================================================
+
+Total spots analyzed: 199
+  Training set: 139
+  Holdout set:  60
+
+--- ALL SPOTS (199 spots) ---
+  MAE (vs range):     0.97 ft
+  RMSE (vs range):    1.61 ft
+  Bias:               +0.35 ft (over-predicts)
+  Scatter Index:      0.463
+  Within SL range:    59/199 (30%)
+  Mean Surfline mid:  3.5 ft
+  Mean Shaka:         4.0 ft
+  Mean OpenMeteo raw: 4.6 ft
+
+--- TRAINING SET (139 spots) ---
+  MAE (vs range):     0.95 ft
+  RMSE (vs range):    1.60 ft
+  Bias:               +0.34 ft (over-predicts)
+  Scatter Index:      0.478
+  Within SL range:    39/139 (28%)
+  Mean Surfline mid:  3.3 ft
+  Mean Shaka:         3.9 ft
+  Mean OpenMeteo raw: 4.5 ft
+
+--- HOLDOUT SET (60 spots) ---
+  MAE (vs range):     1.03 ft
+  RMSE (vs range):    1.62 ft
+  Bias:               +0.39 ft (over-predicts)
+  Scatter Index:      0.433
+  Within SL range:    20/60 (33%)
+  Mean Surfline mid:  3.7 ft
+  Mean Shaka:         4.3 ft
+  Mean OpenMeteo raw: 4.9 ft
+
+--- ERROR BY EXPOSURE TYPE ---
+  open            : n=158  MAE=0.97ft  Bias=+0.66ft
+  semi-sheltered  : n= 10  MAE=0.80ft  Bias=-0.16ft
+  sheltered       : n= 31  MAE=1.04ft  Bias=-1.02ft
+
+--- ERROR BY WAVE SIZE ---
+  flat    : n= 55  MAE=0.70ft  Bias=+0.64ft
+  small   : n= 94  MAE=0.94ft  Bias=+0.59ft
+  medium  : n= 20  MAE=1.77ft  Bias=-0.72ft
+  large   : n= 30  MAE=1.04ft  Bias=-0.20ft
+
+--- UPSTREAM (OpenMeteo) vs ATTENUATION ERROR ---
+  Exposed (factor>0.95):    n=156  MAE=0.94ft  Bias=+0.68ft
+    -> This error is from OpenMeteo raw data, NOT attenuation
+  Attenuated (factor<=0.95): n= 43  MAE=1.09ft  Bias=-0.81ft
+    -> This error includes both OpenMeteo + attenuation model
+
+--- TOP 15 WORST DISCREPANCIES ---
+  Spot                             SL Range   Shaka     Raw     Err  Factor Type
+  ------------------------------ ---------- ------- ------- ------- ------- ---------------
+  Lauderdale Point                   8-12ft    0.2f    1.4f   -7.8f   0.15 sheltered
+  Mae Hama                            0-1ft    6.4f    6.4f   +5.4f   1.00 open
+  Shinga                              2-3ft    7.5f    7.5f   +4.5f   1.00 open
+  Matsube                             2-3ft    7.5f    7.5f   +4.5f   1.00 open
+  Praia Da Areia Branca               6-8ft   12.5f   12.5f   +4.5f   1.00 open
+  L'Estacade                          4-5ft    9.4f    9.4f   +4.4f   1.00 open
+  Boknesstrand                        2-3ft    7.3f    7.3f   +4.3f   1.00 open
+  Dunree Bay                         6-10ft    1.8f    1.9f   -4.2f   0.93 open
+  Leenan Beach                       6-10ft    1.9f    1.9f   -4.1f   1.00 open
+  Armadale Bay                        5-7ft    1.0f    6.5f   -4.0f   0.15 sheltered
+  Wada                                4-6ft    0.0f    0.0f   -4.0f   1.00 open
+  Grassy Beach                        4-5ft    0.0f    0.0f   -4.0f   1.00 open
+  Jyunkame                            3-4ft    7.5f    7.5f   +3.5f   1.00 open
+  Santa Iria                          4-5ft    0.6f    3.8f   -3.4f   0.15 sheltered
+  Surfies Point                       2-3ft    6.4f    6.4f   +3.4f   1.00 open
+
+--- TOP 10 BEST MATCHES (within Surfline range) ---
+  Spot                             SL Range   Shaka  Factor Type
+  Cape Sorell                       10-15ft   13.1f   1.00 open
+  Maze                              10-15ft   10.4f   1.00 open
+  Urahama                           10-15ft   11.3f   1.00 open
+  Teradomari                        10-15ft   11.2f   1.00 open
+  Kleinmond                          8-12ft   11.3f   1.00 open
+  Figueira da Foz                    8-12ft    9.7f   0.98 open
+  Dungeons                           8-12ft   11.2f   1.00 open
+  Birsay Bay                         8-12ft    9.2f   1.00 open
+  Middle Beach                       8-12ft   11.5f   1.00 open
+  Nagahama                           8-10ft    9.1f   1.00 open
+
+======================================================================
+END OF PHASE A REPORT
+Review these results before proceeding to Phase B (model tuning).
+======================================================================

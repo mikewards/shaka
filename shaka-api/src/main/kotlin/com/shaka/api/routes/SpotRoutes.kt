@@ -330,9 +330,9 @@ fun Application.configureRouting() {
                     var failed = 0
                     for (target in needingDepth) {
                         try {
-                            val depth = bathymetryClient.fetchDepthOnly(target.lat, target.lon) ?: continue
+                            val dr = bathymetryClient.fetchDepthOnly(target.lat, target.lon) ?: continue
                             val existing = com.shaka.data.cache.SpotDataCache.get(target.cacheId)?.exposure ?: continue
-                            val updated = existing.copy(depthM = depth)
+                            val updated = existing.copy(depthM = dr.depthM, depthSource = dr.source)
                             com.shaka.data.cache.SpotDataCache.updateExposure(target.cacheId, updated)
                             success++
                             if (success % 50 == 0) logger.info("Depth refetch progress: $success/$total")
