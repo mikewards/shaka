@@ -320,7 +320,7 @@ fun Application.configureRouting() {
                 }
                 val needingDepth = (curatedTargets + userTargets).filter { target ->
                     val cached = com.shaka.data.cache.SpotDataCache.get(target.cacheId)
-                    cached?.exposure != null && cached.exposure.depthM == null
+                    cached?.exposure != null && (cached.exposure.depthM == null || cached.exposure.depthSource != "ncei")
                 }
                 val total = needingDepth.size
 
