@@ -2,10 +2,14 @@ package com.shaka.data.client
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.*
 
 /**
@@ -28,7 +32,7 @@ class BathymetryClient(
     companion object {
         private const val NCEI_DEM_URL = "https://gis.ngdc.noaa.gov/arcgis/rest/services/DEM_mosaics/DEM_all/ImageServer/identify"
         private const val GEBCO_WMS_URL = "https://wms.gebco.net/mapserv"
-        private const val DEPTH_TIMEOUT_MS = 5000L
+        private const val DEPTH_TIMEOUT_MS = 3000L
         private const val NUM_DIRECTIONS = 16
         private const val EARTH_RADIUS_KM = 6371.0
         val RING_DISTANCES_KM = doubleArrayOf(1.0, 2.0, 5.0)
@@ -68,29 +72,39 @@ class BathymetryClient(
      * For each of 16 directions, checks at 1km, 2km, 5km for land.
      * Stores the nearest land distance per direction (-1 = fully open).
      * Also derives legacy bearing/width from the largest contiguous water arc.
+     *
+     * Direction checks run in parallel (16 coroutines), and depth fetch runs
+     * concurrently with them so it doesn't add to the serial path.
      */
-    suspend fun computeExposure(lat: Double, lon: Double): ExposureResult? {
+    suspend fun computeExposure(lat: Double, lon: Double): ExposureResult? = coroutineScope {
         val landDist = DoubleArray(NUM_DIRECTIONS) { DirectionalExposure.OPEN }
-        var anyResult = false
+        val anyResult = AtomicBoolean(false)
 
-        for (i in 0 until NUM_DIRECTIONS) {
-            val bearingDeg = i * DIRECTION_STEP_DEG
-            for (ringKm in RING_DISTANCES_KM) {
-                val (sLat, sLon) = offsetPoint(lat, lon, bearingDeg, ringKm)
-                val isWater = landWaterClient.isWater(sLat, sLon)
-                if (isWater != null) anyResult = true
-                if (isWater == false) {
-                    landDist[i] = ringKm
-                    break // land found at this ring, no need to check farther
+        // Depth only needs lat/lon — start it concurrently with direction checks
+        val depthDeferred = async { fetchDepth(lat, lon) }
+
+        // Probe all 16 directions in parallel; each direction checks rings sequentially
+        val directionResults = (0 until NUM_DIRECTIONS).map { i ->
+            async {
+                val bearingDeg = i * DIRECTION_STEP_DEG
+                for (ringKm in RING_DISTANCES_KM) {
+                    val (sLat, sLon) = offsetPoint(lat, lon, bearingDeg, ringKm)
+                    val isWater = landWaterClient.isWater(sLat, sLon)
+                    if (isWater != null) anyResult.set(true)
+                    if (isWater == false) {
+                        return@async ringKm
+                    }
                 }
-                // isWater == true → keep checking farther rings
-                // isWater == null → unknown, treat as open (conservative)
+                DirectionalExposure.OPEN
             }
         }
 
-        if (!anyResult) {
+        directionResults.awaitAll().forEachIndexed { i, dist -> landDist[i] = dist }
+
+        if (!anyResult.get()) {
             logger.warn("Land/water API returned no results for ($lat, $lon)")
-            return null
+            depthDeferred.cancel()
+            return@coroutineScope null
         }
 
         val directional = DirectionalExposure(landDist)
@@ -99,14 +113,15 @@ class BathymetryClient(
         val isOpen = BooleanArray(NUM_DIRECTIONS) { landDist[it] == DirectionalExposure.OPEN }
         val openCount = isOpen.count { it }
 
+        // Await depth (already running concurrently, likely done by now)
+        val dr = depthDeferred.await()
+
         if (openCount == 0) {
             logger.info("No open water detected around ($lat, $lon)")
-            val dr = fetchDepth(lat, lon)
-            return ExposureResult(bearing = 0, width = 0, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
+            return@coroutineScope ExposureResult(bearing = 0, width = 0, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
         }
         if (openCount == NUM_DIRECTIONS) {
-            val dr = fetchDepth(lat, lon)
-            return ExposureResult(bearing = 0, width = 360, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
+            return@coroutineScope ExposureResult(bearing = 0, width = 360, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
         }
 
         // Find largest contiguous open-water arc (wrap-around safe)
@@ -134,10 +149,8 @@ class BathymetryClient(
         val arcCenterIdx = (bestStart + bestLength / 2.0) % NUM_DIRECTIONS
         val bearing = ((arcCenterIdx * DIRECTION_STEP_DEG) % 360).toInt()
 
-        val dr = fetchDepth(lat, lon)
-
         logger.info("Exposure for ($lat, $lon): bearing=$bearing, width=$width, depth=${dr?.depthM}m (${dr?.source ?: "none"}), open=$openCount/16")
-        return ExposureResult(bearing = bearing, width = width, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
+        ExposureResult(bearing = bearing, width = width, depthM = dr?.depthM, depthSource = dr?.source, directional = directional)
     }
 
     /**
@@ -148,7 +161,7 @@ class BathymetryClient(
 
     /**
      * Fetch depth using NCEI DEM_all (primary) with GEBCO WMS fallback.
-     * Each source gets a tight 5s timeout — if NCEI is down we fall through
+     * Each source gets a tight 3s timeout — if NCEI is down we fall through
      * fast instead of burning the caller's timeout budget.
      */
     private suspend fun fetchDepth(lat: Double, lon: Double): DepthResult? {

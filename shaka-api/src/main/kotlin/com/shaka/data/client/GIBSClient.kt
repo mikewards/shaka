@@ -3,7 +3,9 @@ package com.shaka.data.client
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
@@ -82,29 +84,21 @@ object GIBSClient {
      * @param lon Longitude in decimal degrees
      * @return GIBSSatelliteColors with hex colors from all satellites (nulls where no data)
      */
-    suspend fun getAllSatelliteColors(lat: Double, lon: Double): GIBSSatelliteColors {
+    suspend fun getAllSatelliteColors(lat: Double, lon: Double): GIBSSatelliteColors = coroutineScope {
         val today = LocalDate.now()
         val yesterday = today.minusDays(1)
         val todayStr = today.format(dateFormatter)
         val yesterdayStr = yesterday.format(dateFormatter)
         
-        val colors = mutableMapOf<String, String?>()
-        
-        // Fetch from each satellite for today and yesterday
-        for ((satName, layerId) in SATELLITES) {
-            // Today
-            val todayKey = "${satName}_today"
-            colors[todayKey] = fetchColorFromSatellite(lat, lon, todayStr, satName, layerId)
-            
-            // Small delay between requests to not overwhelm GIBS
-            delay(50)
-            
-            // Yesterday
-            val yesterdayKey = "${satName}_yesterday"
-            colors[yesterdayKey] = fetchColorFromSatellite(lat, lon, yesterdayStr, satName, layerId)
-            
-            delay(50)
+        // Fetch all 10 satellite images in parallel (5 satellites x 2 days)
+        val colorDeferreds = SATELLITES.flatMap { (satName, layerId) ->
+            listOf(
+                async { "${satName}_today" to fetchColorFromSatellite(lat, lon, todayStr, satName, layerId) },
+                async { "${satName}_yesterday" to fetchColorFromSatellite(lat, lon, yesterdayStr, satName, layerId) }
+            )
         }
+        
+        val colors = colorDeferreds.awaitAll().toMap()
         
         // Fetch observation timestamps from NASA CMR (for yesterday's data)
         val observationTimes = try {
@@ -114,7 +108,7 @@ object GIBSClient {
             emptyMap()
         }
         
-        return GIBSSatelliteColors(
+        GIBSSatelliteColors(
             paceTodayColor = colors["PACE_today"],
             paceYesterdayColor = colors["PACE_yesterday"],
             noaa20TodayColor = colors["NOAA-20_today"],

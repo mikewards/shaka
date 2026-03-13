@@ -15,9 +15,11 @@ import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -53,6 +55,9 @@ class SpotService {
     private val spotDb = SpotDatabase
     // Note: GlobalFishingWatchClient and SolunarClient are used by DataPrefetchJobs
     // SpotService reads the cached data from SpotDataCache
+    
+    // Tracks in-flight prefetches to prevent duplicate concurrent runs for the same spot
+    private val inFlightPrefetches = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
     
     // Lazy-load regulatory links from JSON resource
     private val regulatoryLinks: JsonElement? by lazy {
@@ -1555,18 +1560,37 @@ class SpotService {
      * Prefetch all data for a single spot and save to cache.
      * Used after creating a new user spot to immediately populate the cache.
      * 
-     * Fetches:
-     * - Tide data (NOAA)
-     * - Weather/swell data (Open-Meteo)
-     * - Satellite SST/visibility/chlorophyll (Copernicus)
-     * - GIBS chlorophyll from all satellites
-     * - MPA status (ProtectedSeas)
+     * If a prefetch for this spot is already in flight, awaits the existing
+     * one instead of starting a duplicate. This prevents the background
+     * GlobalScope.launch prefetch and getUserSpotDetail from both running
+     * the same expensive external API calls simultaneously.
      * 
      * @param spotId The cache ID for the spot
      * @param lat Latitude
      * @param lon Longitude
      */
-    suspend fun prefetchSingleSpot(spotId: String, lat: Double, lon: Double) = coroutineScope {
+    suspend fun prefetchSingleSpot(spotId: String, lat: Double, lon: Double) {
+        val existing = inFlightPrefetches[spotId]
+        if (existing != null && existing.isActive) {
+            logger.info("Prefetch already in flight for $spotId, awaiting existing")
+            existing.await()
+            return
+        }
+
+        val deferred = CompletableDeferred<Unit>()
+        inFlightPrefetches[spotId] = deferred
+        try {
+            doPrefetchSingleSpot(spotId, lat, lon)
+            deferred.complete(Unit)
+        } catch (e: Exception) {
+            deferred.completeExceptionally(e)
+            throw e
+        } finally {
+            inFlightPrefetches.remove(spotId)
+        }
+    }
+
+    private suspend fun doPrefetchSingleSpot(spotId: String, lat: Double, lon: Double) = coroutineScope {
         val today = LocalDate.now().toString()
         val now = Instant.now()
         
@@ -1757,6 +1781,10 @@ class SpotService {
         val satelliteData = satelliteDeferred.await()
         val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
+        
+        // Persist core data (tide/swell/wind/SST) so score is available even if
+        // MPA check is slow or server restarts mid-prefetch
+        SpotDataCache.saveToDatabase(spotId)
         
         // MPA check: exact first, then buffer (sequential — depends on exact result)
         val exactMPA = try {

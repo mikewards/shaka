@@ -491,6 +491,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   /// Fetch full detail for user spots missing score or conditions.
   /// Retries up to 3 times with backoff for spots that fail to fetch.
+  /// Backoff intervals (seconds) between retry attempts.
+  /// First attempt fires after a 3s initial delay to let the server-side
+  /// background prefetch populate tide + weather + swell (~5-7s total).
+  static const _pollBackoffSeconds = [2, 3, 5, 8];
+
   Future<void> _fetchMissingScores() async {
     final spotsNeedingData = _userSpots.where(
       (s) => s.shakaScore == null || s.swell == null,
@@ -503,9 +508,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     if (_showSpotsOnMap) _startPulseTimer();
 
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // Give the server-side background prefetch a head start before first poll
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
 
-    for (int attempt = 0; attempt < 3; attempt++) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final maxAttempts = _pollBackoffSeconds.length + 1;
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
       if (!mounted) return;
 
       final pending = _userSpots.where(
@@ -514,8 +524,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (pending.isEmpty) break;
 
       if (attempt > 0) {
-        debugPrint('📍 Explore: Retry ${attempt + 1}/3 for ${pending.length} spots...');
-        await Future.delayed(Duration(seconds: 3 * attempt));
+        final delaySec = _pollBackoffSeconds[attempt - 1];
+        debugPrint('📍 Explore: Retry ${attempt + 1}/$maxAttempts for ${pending.length} spots (wait ${delaySec}s)...');
+        await Future.delayed(Duration(seconds: delaySec));
         if (!mounted) return;
       } else {
         debugPrint('📍 Explore: Fetching data for ${pending.length} spots...');
