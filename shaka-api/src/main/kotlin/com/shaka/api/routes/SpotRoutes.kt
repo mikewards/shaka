@@ -344,7 +344,7 @@ fun Application.configureRouting() {
                         } catch (e: Exception) {
                             failed++
                         }
-                        delay(5000)
+                        delay(15000)
                     }
                     logger.info("Depth refetch complete: $success success, $failed failed out of $total")
                 }
