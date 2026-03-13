@@ -139,51 +139,6 @@ private fun Application.configureScheduledJobs() {
         logger.info("Startup complete — scheduled jobs will refresh stale data on cadence")
     }
     
-    // ONE-TIME STARTUP: Backfill missing NCEI depth data (conservative pacing)
-    // Resumes automatically after deploy — only processes spots still missing depth
-    backgroundScope.launch {
-        delay(600_000)  // 10 minute delay — let other prefetch jobs start first
-        try {
-            logger.info("Starting depth backfill job")
-            val depthClient = BathymetryClient(landWaterClient)
-            val curatedTargets = SpotDatabase.getAllSpots().map {
-                Triple(it.id.toString(), it.coordinates.lat, it.coordinates.lon)
-            }
-            val userTargets = com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
-                Triple("user-${it.id}", it.coordinates.lat, it.coordinates.lon)
-            }
-            val needingDepth = (curatedTargets + userTargets).filter { (cacheId, _, _) ->
-                val cached = SpotDataCache.get(cacheId)
-                cached?.exposure != null && (cached.exposure.depthM == null || cached.exposure.depthSource != "ncei")
-            }
-            
-            if (needingDepth.isEmpty()) {
-                logger.info("Depth backfill: all spots have NCEI depth, nothing to do")
-            } else {
-                logger.info("Depth backfill: ${needingDepth.size} spots need NCEI depth")
-                var success = 0
-                var failed = 0
-                for ((cacheId, lat, lon) in needingDepth) {
-                    try {
-                        val dr = depthClient.fetchDepthOnly(lat, lon) ?: run { failed++; continue }
-                        val existing = SpotDataCache.get(cacheId)?.exposure ?: continue
-                        val updated = existing.copy(depthM = dr.depthM, depthSource = dr.source)
-                        SpotDataCache.updateExposure(cacheId, updated)
-                        SpotDataCache.saveToDatabase(cacheId)
-                        success++
-                        if (success % 50 == 0) logger.info("Depth backfill progress: $success/${needingDepth.size}")
-                    } catch (e: Exception) {
-                        failed++
-                    }
-                    delay(15_000)
-                }
-                logger.info("Depth backfill complete: $success success, $failed failed out of ${needingDepth.size}")
-            }
-        } catch (e: Exception) {
-            logger.error("Depth backfill job failed: ${e.message}", e)
-        }
-    }
-    
     // HOURLY: Tide refresh
     backgroundScope.launch {
         delay(60_000)  // Initial 1 minute delay (after startup prefetch starts)
