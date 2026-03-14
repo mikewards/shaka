@@ -26,7 +26,6 @@ def _compress_existing_nc_files(data_dir: str) -> int:
         logger.info("Compressing %s -> %s", nc_file.name, gz_file.name)
         with open(nc_file, "rb") as f_in, gzip.open(gz_file, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-        nc_file.unlink()
         count += 1
     return count
 
