@@ -13,7 +13,7 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 # System deps + Python with scientific packages (single layer, build deps cleaned)
-RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf-c && \
+RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf && \
     apk add --no-cache --virtual .build-deps \
         gcc g++ musl-dev python3-dev hdf5-dev netcdf-dev && \
     pip3 install --no-cache-dir --break-system-packages \
