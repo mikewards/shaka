@@ -1956,11 +1956,13 @@ object SpotDataCache {
                         }
                         
                         val sst = rs.getDouble("sst_celsius")
-                        if (!rs.wasNull() && satelliteFetchedAt != null) {
+                        if (!rs.wasNull()) {
                             spotData = spotData.copy(
                                 sst = CachedValue(
                                     value = sst,
-                                    fetchedAt = satelliteFetchedAt.toInstant()
+                                    fetchedAt = satelliteFetchedAt?.toInstant()
+                                        ?: weatherFetchedAt?.toInstant()
+                                        ?: Instant.now()
                                 )
                             )
                         }
