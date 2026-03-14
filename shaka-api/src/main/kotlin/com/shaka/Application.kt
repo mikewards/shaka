@@ -269,7 +269,7 @@ private fun Application.configureScheduledJobs() {
     // ==================== WEATHER TILES (Ocean Forecast) ====================
     // Runs the Copernicus CMEMS pipeline every 6 hours to generate PNG tiles
     backgroundScope.launch {
-        delay(600_000)  // 10 minute initial delay
+        delay(30_000)  // 30 second initial delay
         while (true) {
             try {
                 logger.info("Running scheduled WEATHER TILE pipeline")

@@ -21,10 +21,6 @@ RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf && \
     apk del .build-deps && \
     rm -rf /root/.cache /tmp/*
 
-# Create non-root user for security
-RUN addgroup -g 1001 shaka && \
-    adduser -u 1001 -G shaka -D shaka
-
 # Copy the built jar
 COPY --from=build /app/build/libs/*-all.jar app.jar
 
@@ -32,9 +28,7 @@ COPY --from=build /app/build/libs/*-all.jar app.jar
 COPY scripts/weather_pipeline.py /app/scripts/weather_pipeline.py
 
 # Create weather data directory
-RUN mkdir -p /data/weather && chown -R shaka:shaka /app /data/weather
-
-USER shaka
+RUN mkdir -p /data/weather
 
 # Expose port
 EXPOSE 8080
@@ -43,12 +37,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/v1/health || exit 1
 
-# Environment variables with defaults
+# Non-sensitive env defaults only (secrets injected by Railway at runtime)
 ENV PORT=8080 \
-    DATABASE_URL="" \
-    DATABASE_USER="" \
-    DATABASE_PASSWORD="" \
-    REDIS_URL="" \
     WEATHER_DATA_DIR="/data/weather" \
     WEATHER_PIPELINE_SCRIPT="/app/scripts/weather_pipeline.py"
 
