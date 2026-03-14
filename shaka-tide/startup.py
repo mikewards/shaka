@@ -15,20 +15,13 @@ logger = logging.getLogger("startup")
 
 
 def fes_data_ready(data_dir: str) -> bool:
-    """Check if FES2022 constituent NetCDF files are present."""
+    """Check if FES2022 extrapolated constituent NetCDF files are present."""
     p = pathlib.Path(data_dir)
-    # pyTMD downloads to {dir}/fes2022b/ocean_tide_extrapolated/
-    candidates = [
-        p / "fes2022b" / "ocean_tide_extrapolated",
-        p / "fes2022b" / "ocean_tide_20241025",
-        p / "ocean_tide_extrapolated",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            nc_files = list(candidate.glob("*.nc"))
-            if len(nc_files) >= 8:
-                return True
-    return False
+    extrapolated = p / "fes2022b" / "ocean_tide_extrapolated"
+    if not extrapolated.exists():
+        return False
+    nc_files = list(extrapolated.glob("*.nc"))
+    return len(nc_files) >= 34
 
 
 def download_fes2022(data_dir: str, user: str, password: str) -> None:
