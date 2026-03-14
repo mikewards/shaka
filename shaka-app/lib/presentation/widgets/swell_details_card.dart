@@ -200,26 +200,26 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   Widget _buildExpandedContent() {
     final c = widget.conditions;
 
-    // (label, value, parsedSwell, badgeColor)
-    final items = <(String, String, _ParsedSwell?, Color?)>[];
+    // (label, value, parsedSwell, badgeColor, exposureBearing)
+    final items = <(String, String, _ParsedSwell?, Color?, double?)>[];
 
     if (c.swellCorrected != null) {
-      items.add(('Swell (at spot)', c.swellCorrected!, _parseSwell(c.swellCorrected!), _primaryColor));
+      items.add(('Swell (at spot)', c.swellCorrected!, _parseSwell(c.swellCorrected!), _primaryColor, null));
       if (c.swellCorrected != c.swell) {
-        items.add(('Swell (open ocean)', c.swell, _parseSwell(c.swell), _primaryColor));
+        items.add(('Swell (open ocean)', c.swell, _parseSwell(c.swell), _primaryColor, null));
       }
     } else {
-      items.add(('Swell', c.swell, _parseSwell(c.swell), _primaryColor));
+      items.add(('Swell', c.swell, _parseSwell(c.swell), _primaryColor, null));
     }
 
     if (c.secondarySwell != null) {
       if (c.secondarySwellCorrected != null) {
-        items.add(('2nd Swell (at spot)', c.secondarySwellCorrected!, _parseSwell(c.secondarySwellCorrected!), _secondaryColor));
+        items.add(('2nd Swell (at spot)', c.secondarySwellCorrected!, _parseSwell(c.secondarySwellCorrected!), _secondaryColor, null));
         if (c.secondarySwellCorrected != c.secondarySwell) {
-          items.add(('2nd Swell (open ocean)', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor));
+          items.add(('2nd Swell (open ocean)', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor, null));
         }
       } else {
-        items.add(('2nd Swell', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor));
+        items.add(('2nd Swell', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor, null));
       }
     }
 
@@ -229,6 +229,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         'Faces ${_bearingToCardinal(c.exposureBearing!)} (${c.exposureWidth ?? 0}°)',
         null,
         null,
+        c.exposureBearing!.toDouble(),
       ));
     }
 
@@ -258,6 +259,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
               items[i].$2,
               parsedSwell: items[i].$3,
               swellColor: items[i].$4,
+              exposureBearing: items[i].$5,
               isLast: i == items.length - 1,
             ),
           if (compassSwells.isNotEmpty) ...[
@@ -329,8 +331,16 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     String value, {
     _ParsedSwell? parsedSwell,
     Color? swellColor,
+    double? exposureBearing,
     bool isLast = false,
   }) {
+    Widget? badge;
+    if (parsedSwell != null && swellColor != null) {
+      badge = _SwellDirectionBadge(degrees: parsedSwell.degrees, color: swellColor);
+    } else if (exposureBearing != null) {
+      badge = _ExposureBadge(degrees: exposureBearing);
+    }
+
     return Container(
       padding: EdgeInsets.only(top: 10, bottom: isLast ? 4 : 10),
       decoration: BoxDecoration(
@@ -340,13 +350,8 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       ),
       child: Row(
         children: [
-          if (parsedSwell != null && swellColor != null) ...[
-            _SwellDirectionBadge(
-              degrees: parsedSwell.degrees,
-              color: swellColor,
-            ),
-            const SizedBox(width: 8),
-          ],
+          SizedBox(width: 22, child: badge),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
@@ -397,6 +402,30 @@ class _SwellDirectionBadge extends StatelessWidget {
       child: Transform.rotate(
         angle: (degrees + 180) * pi / 180,
         child: Icon(Icons.navigation, size: 13, color: color),
+      ),
+    );
+  }
+}
+
+/// Small circular badge showing the direction a spot faces (exposure).
+class _ExposureBadge extends StatelessWidget {
+  final double degrees;
+  static const _color = Color(0xFFD4A037);
+
+  const _ExposureBadge({required this.degrees});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+      ),
+      child: Transform.rotate(
+        angle: degrees * pi / 180,
+        child: Icon(Icons.navigation, size: 13, color: _color),
       ),
     );
   }
