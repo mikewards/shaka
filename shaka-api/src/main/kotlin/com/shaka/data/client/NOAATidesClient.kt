@@ -1,6 +1,9 @@
 package com.shaka.data.client
 
+import com.shaka.model.TideChartData
 import com.shaka.model.TideData
+import com.shaka.model.TideExtreme
+import com.shaka.model.TidePoint
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -59,16 +62,21 @@ class NOAATidesClient {
         val name: String,
         val lat: Double,
         val lon: Double,
-        val timezoneCorrHours: Int  // UTC offset in hours (e.g., -10 for Hawaii, -5 for EST)
+        val timezoneCorrHours: Int,  // UTC offset in hours (e.g., -10 for Hawaii, -5 for EST)
+        val type: String = "R"       // "R" = reference, "S" = subordinate
     )
 
     companion object {
         private const val COOPS_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
         private const val METADATA_URL = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions&units=english"
         
-        // Maximum distance (km) to consider a station relevant for a spot.
-        // With ~3,400 stations covering all US coasts, most spots will be much closer.
+        // Maximum distance (km) to consider a station relevant for a spot (summary tide).
         private const val MAX_STATION_DISTANCE_KM = 200.0
+        
+        // Tide chart eligibility: 5 miles for any station, 10 miles for subordinate
+        private const val CHART_MAX_MILES_ANY = 5.0
+        private const val CHART_MAX_MILES_SUBORDINATE = 10.0
+        private const val KM_PER_MILE = 1.60934
         
         // Cached station list -- loaded once from NOAA Metadata API, persists for app lifetime.
         @Volatile
@@ -146,8 +154,9 @@ class NOAATidesClient {
                 val lat = obj["lat"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: continue
                 val lon = obj["lng"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: continue
                 val tzCorr = obj["timezonecorr"]?.jsonPrimitive?.content?.toIntOrNull() ?: continue
+                val stationType = obj["type"]?.jsonPrimitive?.content ?: "R"
                 
-                stations.add(StationInfo(id, name, lat, lon, tzCorr))
+                stations.add(StationInfo(id, name, lat, lon, tzCorr, stationType))
             } catch (e: Exception) {
                 // Skip malformed station entries
                 logger.debug("Skipping malformed station entry: ${e.message}")
@@ -207,6 +216,145 @@ class NOAATidesClient {
         return findNearestInList(lat, lon, stations)
     }
     
+    /**
+     * Result of a nearest-station search including computed distance.
+     */
+    data class StationWithDistance(
+        val station: StationInfo,
+        val distanceKm: Double
+    ) {
+        val distanceMi: Double get() = distanceKm / KM_PER_MILE
+    }
+
+    /**
+     * Fetch structured tide chart data for a single day.
+     * Applies the v1 eligibility rule (5 mi any station, 10 mi subordinate).
+     * Returns null if the spot is ineligible or NOAA fails.
+     */
+    suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
+        return try {
+            val stations = getStations()
+            val result = findNearestWithDistance(lat, lon, stations) ?: return null
+
+            val eligible = result.distanceMi <= CHART_MAX_MILES_ANY ||
+                    (result.distanceMi <= CHART_MAX_MILES_SUBORDINATE && result.station.type == "S")
+            if (!eligible) {
+                logger.debug("Station ${result.station.id} is ${String.format("%.1f", result.distanceMi)} mi away (type=${result.station.type}), not eligible for chart")
+                return null
+            }
+
+            val startDate = LocalDate.parse(date)
+            val endDate = startDate.plusDays(1)
+            val beginFmt = startDate.format(DateTimeFormatter.BASIC_ISO_DATE)
+            val endFmt = endDate.format(DateTimeFormatter.BASIC_ISO_DATE)
+            val stationOffset = ZoneOffset.ofHours(result.station.timezoneCorrHours)
+
+            val hourlyUrl = buildString {
+                append(COOPS_URL)
+                append("?station=${result.station.id}")
+                append("&begin_date=$beginFmt")
+                append("&end_date=$beginFmt")
+                append("&product=predictions")
+                append("&datum=MLLW")
+                append("&time_zone=lst_ldt")
+                append("&units=english")
+                append("&interval=h")
+                append("&format=json")
+            }
+
+            val hiloUrl = buildString {
+                append(COOPS_URL)
+                append("?station=${result.station.id}")
+                append("&begin_date=$beginFmt")
+                append("&end_date=$endFmt")
+                append("&product=predictions")
+                append("&datum=MLLW")
+                append("&time_zone=lst_ldt")
+                append("&units=english")
+                append("&interval=hilo")
+                append("&format=json")
+            }
+
+            val hourlyResponse: String = client.get(hourlyUrl).bodyAsText()
+            val hiloResponse: String = client.get(hiloUrl).bodyAsText()
+
+            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+
+            val points = parsePoints(hourlyResponse, stationOffset, formatter)
+            val extremes = parseExtremes(hiloResponse, stationOffset, formatter)
+
+            if (points.isEmpty()) {
+                logger.warn("No hourly points returned for station ${result.station.id} on $date")
+                return null
+            }
+
+            val timezoneId = "Etc/GMT${if (result.station.timezoneCorrHours >= 0) "-" else "+"}${abs(result.station.timezoneCorrHours)}"
+
+            TideChartData(
+                provider = "noaa",
+                stationId = result.station.id,
+                stationName = result.station.name,
+                stationDistanceMi = (result.distanceMi * 10).roundToInt() / 10.0,
+                datum = "MLLW",
+                timezoneId = timezoneId,
+                points = points,
+                extremes = extremes
+            )
+        } catch (e: Exception) {
+            logger.warn("Tide chart fetch failed for ($lat, $lon) on $date: ${e.message}")
+            null
+        }
+    }
+
+    private fun parsePoints(json: String, offset: ZoneOffset, formatter: DateTimeFormatter): List<TidePoint> {
+        val results = mutableListOf<TidePoint>()
+        val regex = """\{\s*"t"\s*:\s*"([^"]+)"\s*,\s*"v"\s*:\s*"([^"]+)"\s*\}""".toRegex()
+        for (match in regex.findAll(json)) {
+            try {
+                val time = LocalDateTime.parse(match.groupValues[1], formatter)
+                val height = match.groupValues[2].toDouble()
+                results.add(TidePoint(
+                    epochMs = time.atZone(offset).toInstant().toEpochMilli(),
+                    heightFt = (height * 100).roundToInt() / 100.0
+                ))
+            } catch (_: Exception) {}
+        }
+        return results
+    }
+
+    private fun parseExtremes(json: String, offset: ZoneOffset, formatter: DateTimeFormatter): List<TideExtreme> {
+        val results = mutableListOf<TideExtreme>()
+        val regex = """\{\s*"t"\s*:\s*"([^"]+)"\s*,\s*"v"\s*:\s*"([^"]+)"\s*,\s*"type"\s*:\s*"([^"]+)"\s*\}""".toRegex()
+        for (match in regex.findAll(json)) {
+            try {
+                val time = LocalDateTime.parse(match.groupValues[1], formatter)
+                val height = match.groupValues[2].toDouble()
+                val type = match.groupValues[3]
+                results.add(TideExtreme(
+                    epochMs = time.atZone(offset).toInstant().toEpochMilli(),
+                    heightFt = (height * 100).roundToInt() / 100.0,
+                    type = type
+                ))
+            } catch (_: Exception) {}
+        }
+        return results
+    }
+
+    private fun findNearestWithDistance(lat: Double, lon: Double, stations: List<StationInfo>): StationWithDistance? {
+        var nearest: StationInfo? = null
+        var minDistance = Double.MAX_VALUE
+        for (station in stations) {
+            val distance = haversineDistance(lat, lon, station.lat, station.lon)
+            if (distance < minDistance) {
+                minDistance = distance
+                nearest = station
+            }
+        }
+        return if (nearest != null && minDistance <= MAX_STATION_DISTANCE_KM) {
+            StationWithDistance(nearest, minDistance)
+        } else null
+    }
+
     /**
      * Find the nearest station in a given list within MAX_STATION_DISTANCE_KM.
      */

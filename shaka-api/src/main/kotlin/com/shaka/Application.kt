@@ -225,6 +225,46 @@ private fun Application.configureScheduledJobs() {
         }
     }
     
+    // EVERY 6 HOURS: Tide chart materialization (today + tomorrow)
+    backgroundScope.launch {
+        delay(420_000)  // Initial 7 minute delay
+        while (true) {
+            try {
+                logger.info("Running scheduled TIDE CHART materialization")
+                prefetchJobs.materializeTideCharts()
+            } catch (e: Exception) {
+                logger.error("Scheduled tide chart materialization failed: ${e.message}", e)
+            }
+            delay(21_600_000)  // 6 hours
+        }
+    }
+
+    // EVERY 10 MINUTES: Tide chart catch-up (missing spots)
+    backgroundScope.launch {
+        delay(480_000)  // Initial 8 minute delay
+        while (true) {
+            try {
+                prefetchJobs.catchUpMissingTideCharts()
+            } catch (e: Exception) {
+                logger.error("Tide chart catch-up failed: ${e.message}", e)
+            }
+            delay(600_000)  // 10 minutes
+        }
+    }
+
+    // NIGHTLY: Tide chart cleanup (old rows)
+    backgroundScope.launch {
+        delay(600_000)  // Initial 10 minute delay
+        while (true) {
+            try {
+                prefetchJobs.cleanupOldTideDays()
+            } catch (e: Exception) {
+                logger.error("Tide chart cleanup failed: ${e.message}", e)
+            }
+            delay(86_400_000)  // 24 hours
+        }
+    }
+
     // ==================== FISHING INTEL (ISOLATED) ====================
     // Scrapes SoCal fishing reports every 2 hours
     // Fully isolated - can be disabled without affecting other features

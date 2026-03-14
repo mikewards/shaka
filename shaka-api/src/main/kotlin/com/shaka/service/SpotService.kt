@@ -21,6 +21,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -501,7 +502,10 @@ class SpotService {
 
         // Build water context with chlorophyll trend and SST nearby readings
         val waterContext = buildWaterContext(cached, waterQuality, lat, lon)
-        
+
+        // Load structured tide chart data from spot_tide_days
+        val tideChart = loadTideChartData(spotId)
+
         SpotDetail(
             id = spot.id,
             name = spot.name,
@@ -552,10 +556,77 @@ class SpotService {
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,
             regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId)),
-            // NEW: Fishing intel data
             vessels = vesselActivity,
             solunar = solunarData,
-            waterContext = waterContext
+            waterContext = waterContext,
+            tide = tideChart
+        )
+    }
+
+    private fun loadTideChartData(spotId: String): TideChartData? {
+        return try {
+            val today = java.time.LocalDate.now().toString()
+            val row = SpotDataCache.getTideDay(spotId, today) ?: return null
+
+            val json = Json { ignoreUnknownKeys = true }
+            val points: List<TidePoint> = row.pointsJson?.let {
+                json.decodeFromString<List<TidePoint>>(it)
+            } ?: return null
+            val extremes: List<TideExtreme> = row.extremesJson?.let {
+                json.decodeFromString<List<TideExtreme>>(it)
+            } ?: emptyList()
+
+            if (points.isEmpty()) return null
+
+            val nowMs = System.currentTimeMillis()
+            val (currentHeight, currentStage) = interpolateTide(points, extremes, nowMs)
+
+            TideChartData(
+                provider = row.provider,
+                stationId = row.stationId ?: "",
+                stationName = row.stationName ?: "",
+                stationDistanceMi = row.stationDistanceMi ?: 0.0,
+                datum = row.datum ?: "MLLW",
+                timezoneId = row.timezoneId ?: "",
+                points = points,
+                extremes = extremes,
+                currentHeightFt = currentHeight,
+                currentStage = currentStage
+            )
+        } catch (e: Exception) {
+            logger.debug("Failed to load tide chart for $spotId: ${e.message}")
+            null
+        }
+    }
+
+    private fun interpolateTide(
+        points: List<TidePoint>,
+        extremes: List<TideExtreme>,
+        nowMs: Long
+    ): Pair<Double?, String?> {
+        if (points.size < 2) return Pair(null, null)
+
+        var before: TidePoint? = null
+        var after: TidePoint? = null
+        for (p in points) {
+            if (p.epochMs <= nowMs) before = p
+            if (p.epochMs > nowMs && after == null) after = p
+        }
+
+        val height = if (before != null && after != null) {
+            val fraction = (nowMs - before.epochMs).toDouble() / (after.epochMs - before.epochMs)
+            before.heightFt + fraction * (after.heightFt - before.heightFt)
+        } else {
+            (before ?: after)?.heightFt
+        }
+
+        val stage = extremes.filter { it.epochMs > nowMs }.minByOrNull { it.epochMs }?.let {
+            if (it.type == "H") "rising" else "falling"
+        }
+
+        return Pair(
+            height?.let { (it * 100).toInt() / 100.0 },
+            stage
         )
     }
 
@@ -1475,8 +1546,10 @@ class SpotService {
             )
         }
 
+        val tideChart = loadTideChartData(cacheId)
+
         SpotDetail(
-            id = cacheId, // Use cache ID which includes "user-" prefix
+            id = cacheId,
             name = userSpot.name,
             description = "Custom saved spot in ${userSpot.region}",
             coordinates = userSpot.coordinates,
@@ -1514,7 +1587,7 @@ class SpotService {
             risks = generateRisks(weather, ocean).map { risk ->
                 RiskInfo(risk = risk, severity = "moderate", mitigation = "Check conditions before entry")
             },
-            communityReports = emptyList(), // No community data for user spots
+            communityReports = emptyList(),
             bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
             imageUrl = null,
             satelliteReadings = gibsReadings,
@@ -1523,7 +1596,8 @@ class SpotService {
                 regulationsUrl = "https://navigatormap.org/",
                 mpaStatus = mpaStatus,
                 mpaChecked = cached?.mpa != null
-            )
+            ),
+            tide = tideChart
         )
     }
     
@@ -1620,7 +1694,34 @@ class SpotService {
             }
             data
         }
-        
+
+        val tideChartDeferred = async {
+            withTimeoutOrNull(15000) {
+                try {
+                    val chartData = tidesClient.getTideChartData(lat, lon, today)
+                    if (chartData != null) {
+                        val jsonEncoder = Json { ignoreUnknownKeys = true }
+                        SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                            spotId = spotId,
+                            localDate = today,
+                            provider = chartData.provider,
+                            stationId = chartData.stationId,
+                            stationName = chartData.stationName,
+                            stationDistanceMi = chartData.stationDistanceMi,
+                            timezoneId = chartData.timezoneId,
+                            datum = chartData.datum,
+                            pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                            extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                            fetchedAt = now
+                        ))
+                        logger.info("Tide chart persisted for $spotId (station ${chartData.stationId}, ${chartData.stationDistanceMi} mi)")
+                    }
+                } catch (e: Exception) {
+                    logger.warn("Tide chart fetch failed for $spotId: ${e.message}")
+                }
+            }
+        }
+
         val exposureDeferred = async {
             val existing = SpotDataCache.get(spotId)?.exposure
             if (existing != null && existing.landDistances != null) {
@@ -1824,6 +1925,7 @@ class SpotService {
         val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
         val mpaData = mpaDeferred.await()
+        tideChartDeferred.await()
         
         SpotDataCache.saveToDatabase(spotId)
         

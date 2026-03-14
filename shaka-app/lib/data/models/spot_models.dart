@@ -593,6 +593,105 @@ class WaterContext {
   }
 }
 
+class TidePoint {
+  final int epochMs;
+  final double heightFt;
+
+  const TidePoint({required this.epochMs, required this.heightFt});
+
+  factory TidePoint.fromJson(Map<String, dynamic> json) {
+    return TidePoint(
+      epochMs: json['epochMs'] ?? 0,
+      heightFt: (json['heightFt'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  DateTime get time => DateTime.fromMillisecondsSinceEpoch(epochMs);
+}
+
+class TideExtreme {
+  final int epochMs;
+  final double heightFt;
+  final String type; // "H" or "L"
+
+  const TideExtreme({
+    required this.epochMs,
+    required this.heightFt,
+    required this.type,
+  });
+
+  factory TideExtreme.fromJson(Map<String, dynamic> json) {
+    return TideExtreme(
+      epochMs: json['epochMs'] ?? 0,
+      heightFt: (json['heightFt'] as num?)?.toDouble() ?? 0.0,
+      type: json['type'] ?? 'H',
+    );
+  }
+
+  bool get isHigh => type == 'H';
+  DateTime get time => DateTime.fromMillisecondsSinceEpoch(epochMs);
+}
+
+class TideChartData {
+  final String provider;
+  final String stationId;
+  final String stationName;
+  final double stationDistanceMi;
+  final String datum;
+  final String timezoneId;
+  final List<TidePoint> points;
+  final List<TideExtreme> extremes;
+  final double? currentHeightFt;
+  final String? currentStage;
+  final bool available;
+
+  const TideChartData({
+    required this.provider,
+    required this.stationId,
+    required this.stationName,
+    required this.stationDistanceMi,
+    required this.datum,
+    required this.timezoneId,
+    required this.points,
+    required this.extremes,
+    this.currentHeightFt,
+    this.currentStage,
+    this.available = true,
+  });
+
+  factory TideChartData.fromJson(Map<String, dynamic> json) {
+    return TideChartData(
+      provider: json['provider'] ?? 'noaa',
+      stationId: json['stationId'] ?? '',
+      stationName: json['stationName'] ?? '',
+      stationDistanceMi: (json['stationDistanceMi'] as num?)?.toDouble() ?? 0.0,
+      datum: json['datum'] ?? 'MLLW',
+      timezoneId: json['timezoneId'] ?? '',
+      points: (json['points'] as List? ?? [])
+          .map((e) => TidePoint.fromJson(e))
+          .toList(),
+      extremes: (json['extremes'] as List? ?? [])
+          .map((e) => TideExtreme.fromJson(e))
+          .toList(),
+      currentHeightFt: (json['currentHeightFt'] as num?)?.toDouble(),
+      currentStage: json['currentStage'],
+      available: json['available'] ?? true,
+    );
+  }
+
+  TideExtreme? get nextHigh {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final future = extremes.where((e) => e.isHigh && e.epochMs > now);
+    return future.isEmpty ? null : future.first;
+  }
+
+  TideExtreme? get nextLow {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final future = extremes.where((e) => !e.isHigh && e.epochMs > now);
+    return future.isEmpty ? null : future.first;
+  }
+}
+
 class SpotDetail {
   final String id;
   final String name;
@@ -610,10 +709,10 @@ class SpotDetail {
   final String? imageUrl;
   final GibsSatelliteReadings? satelliteReadings;
   final RegulationInfo? regulations;
-  // NEW: Fishing intel data
   final VesselActivity? vessels;
   final SolunarData? solunar;
   final WaterContext? waterContext;
+  final TideChartData? tide;
 
   const SpotDetail({
     required this.id,
@@ -635,6 +734,7 @@ class SpotDetail {
     this.vessels,
     this.solunar,
     this.waterContext,
+    this.tide,
   });
 
   factory SpotDetail.fromJson(Map<String, dynamic> json) {
@@ -677,6 +777,9 @@ class SpotDetail {
           : null,
       waterContext: json['waterContext'] != null
           ? WaterContext.fromJson(json['waterContext'])
+          : null,
+      tide: json['tide'] != null
+          ? TideChartData.fromJson(json['tide'])
           : null,
     );
   }

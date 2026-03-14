@@ -10,6 +10,7 @@ import '../../bloc/search_bloc.dart';
 import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
 import '../../widgets/swell_details_card.dart';
+import '../../widgets/tide_chart_card.dart';
 import '../../widgets/score_tier_pill.dart';
 
 class SpotDetailScreen extends StatefulWidget {
@@ -313,6 +314,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
 
         const SizedBox(height: 20),
+
+        // Tide chart
+        if (spot.tide != null && spot.tide!.available && spot.tide!.points.isNotEmpty) ...[
+          _buildSectionHeader('TIDES'),
+          const SizedBox(height: 10),
+          TideChartCard(tide: spot.tide!),
+          const SizedBox(height: 20),
+        ],
 
         // Score Breakdown
         _buildSectionHeader('SCORE BREAKDOWN'),

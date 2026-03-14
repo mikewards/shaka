@@ -4,6 +4,7 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.*
 import com.shaka.model.*
 import kotlinx.coroutines.*
+import kotlinx.serialization.builtins.ListSerializer
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
@@ -133,7 +134,123 @@ class DataPrefetchJobs(
         logger.info("TIDE prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
         logRateLimiterStats()
     }
-    
+
+    // ==================== EVERY 6 HOURS: Tide Chart Materialization ====================
+
+    suspend fun materializeTideCharts() = withContext(Dispatchers.IO) {
+        val allSpots = spotDb.getAllSpots()
+        val today = LocalDate.now().toString()
+        val tomorrow = LocalDate.now().plusDays(1).toString()
+
+        logger.info("TIDE CHART materialization: processing ${allSpots.size} catalog spots for $today + $tomorrow")
+
+        val startTime = System.currentTimeMillis()
+        var persisted = 0
+        var skipped = 0
+        var errors = 0
+
+        for (day in listOf(today, tomorrow)) {
+            allSpots.chunked(BATCH_SIZE).forEach { batch ->
+                val results = batch.map { spot ->
+                    async {
+                        try {
+                            val existing = SpotDataCache.getTideDay(spot.id, day)
+                            if (existing != null) return@async "skip"
+
+                            withTimeout(SPOT_TIMEOUT_MS) {
+                                val chartData = tidesClient.getTideChartData(
+                                    spot.coordinates.lat, spot.coordinates.lon, day
+                                ) ?: return@withTimeout "skip"
+
+                                val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                                SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                                    spotId = spot.id,
+                                    localDate = day,
+                                    provider = chartData.provider,
+                                    stationId = chartData.stationId,
+                                    stationName = chartData.stationName,
+                                    stationDistanceMi = chartData.stationDistanceMi,
+                                    timezoneId = chartData.timezoneId,
+                                    datum = chartData.datum,
+                                    pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                                    extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                                    fetchedAt = Instant.now()
+                                ))
+                                "ok"
+                            }
+                        } catch (e: Exception) {
+                            logger.debug("Tide chart failed for ${spot.name}/$day: ${e.message}")
+                            "error"
+                        }
+                    }
+                }.awaitAll()
+
+                persisted += results.count { it == "ok" }
+                skipped += results.count { it == "skip" }
+                errors += results.count { it == "error" }
+                delay(BATCH_DELAY_MS)
+            }
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        logger.info("TIDE CHART materialization complete: $persisted persisted, $skipped skipped, $errors errors in ${elapsed}ms")
+    }
+
+    // ==================== EVERY 10 MIN: Tide Chart Catch-Up ====================
+
+    suspend fun catchUpMissingTideCharts() = withContext(Dispatchers.IO) {
+        val today = LocalDate.now().toString()
+        val missing = SpotDataCache.spotsMissingTideDay(today)
+        if (missing.isEmpty()) return@withContext
+
+        logger.info("TIDE CHART catch-up: ${missing.size} spots missing today's chart")
+
+        var persisted = 0
+        var errors = 0
+
+        missing.chunked(BATCH_SIZE).forEach { batch ->
+            val results = batch.map { (spotId, coords) ->
+                async {
+                    try {
+                        withTimeout(SPOT_TIMEOUT_MS) {
+                            val chartData = tidesClient.getTideChartData(coords.first, coords.second, today)
+                                ?: return@withTimeout false
+
+                            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                            SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                                spotId = spotId,
+                                localDate = today,
+                                provider = chartData.provider,
+                                stationId = chartData.stationId,
+                                stationName = chartData.stationName,
+                                stationDistanceMi = chartData.stationDistanceMi,
+                                timezoneId = chartData.timezoneId,
+                                datum = chartData.datum,
+                                pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                                extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                                fetchedAt = Instant.now()
+                            ))
+                            true
+                        }
+                    } catch (e: Exception) {
+                        logger.debug("Tide chart catch-up failed for $spotId: ${e.message}")
+                        false
+                    }
+                }
+            }.awaitAll()
+
+            persisted += results.count { it }
+            errors += results.count { !it }
+            delay(BATCH_DELAY_MS)
+        }
+
+        logger.info("TIDE CHART catch-up complete: $persisted persisted, $errors errors")
+    }
+
+    fun cleanupOldTideDays() {
+        SpotDataCache.cleanupOldTideDays()
+    }
+
     // ==================== EVERY 3 HOURS: Weather Prefetch ====================
     
     /**

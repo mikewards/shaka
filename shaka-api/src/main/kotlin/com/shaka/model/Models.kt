@@ -77,7 +77,8 @@ data class SpotDetail(
     // NEW: Raw intel data for fishermen to interpret
     val vessels: VesselActivity? = null,      // Boats nearby from Global Fishing Watch
     val solunar: SolunarData? = null,         // Moon phase + feeding periods
-    val waterContext: WaterContext? = null    // Chlorophyll trend + SST breaks
+    val waterContext: WaterContext? = null,   // Chlorophyll trend + SST breaks
+    val tide: TideChartData? = null           // Structured tide chart data for today
 )
 
 @Serializable
@@ -254,6 +255,34 @@ data class TideData(
     val tideState: String,
     val nextHighTideTime: Long? = null,  // Epoch millis for next high tide
     val nextLowTideTime: Long? = null    // Epoch millis for next low tide
+)
+
+@Serializable
+data class TidePoint(
+    val epochMs: Long,
+    val heightFt: Double
+)
+
+@Serializable
+data class TideExtreme(
+    val epochMs: Long,
+    val heightFt: Double,
+    val type: String  // "H" or "L"
+)
+
+@Serializable
+data class TideChartData(
+    val provider: String,
+    val stationId: String,
+    val stationName: String,
+    val stationDistanceMi: Double,
+    val datum: String,
+    val timezoneId: String,
+    val points: List<TidePoint>,
+    val extremes: List<TideExtreme>,
+    val currentHeightFt: Double? = null,
+    val currentStage: String? = null,
+    val available: Boolean = true
 )
 
 @Serializable

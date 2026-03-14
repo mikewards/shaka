@@ -1632,6 +1632,37 @@ object SpotDataCache {
                 }
             }
             logger.info("spot_cache table ready")
+
+            // Tide chart day-level table
+            try {
+                val tideDaysTable = """
+                    CREATE TABLE IF NOT EXISTS spot_tide_days (
+                        id SERIAL PRIMARY KEY,
+                        spot_id VARCHAR(100) NOT NULL,
+                        local_date DATE NOT NULL,
+                        provider VARCHAR(20) NOT NULL DEFAULT 'noaa',
+                        station_id VARCHAR(20),
+                        station_name VARCHAR(200),
+                        station_distance_mi DOUBLE PRECISION,
+                        timezone_id VARCHAR(50),
+                        datum VARCHAR(20) DEFAULT 'MLLW',
+                        points_json TEXT,
+                        extremes_json TEXT,
+                        fetched_at TIMESTAMP DEFAULT NOW(),
+                        UNIQUE (spot_id, local_date, provider)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_spot_tide_days_spot_date
+                        ON spot_tide_days (spot_id, local_date);
+                """.trimIndent()
+                conn.createStatement().use { stmt ->
+                    tideDaysTable.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                        stmt.execute(sql.trim())
+                    }
+                }
+                logger.info("spot_tide_days table ready")
+            } catch (e: Exception) {
+                logger.warn("Failed to create spot_tide_days table: ${e.message}")
+            }
         } catch (e: Exception) {
             logger.error("Failed to create spot_cache table: ${e.message}")
         }
@@ -2206,5 +2237,143 @@ object SpotDataCache {
         val data = cache[spotId] ?: return true
         val oldest = data.oldestFetch() ?: return true
         return Duration.between(oldest, Instant.now()).toHours() >= maxAgeHours
+    }
+
+    // ==================== Tide Chart Day Persistence ====================
+
+    data class TideDayRow(
+        val spotId: String,
+        val localDate: String,
+        val provider: String,
+        val stationId: String?,
+        val stationName: String?,
+        val stationDistanceMi: Double?,
+        val timezoneId: String?,
+        val datum: String?,
+        val pointsJson: String?,
+        val extremesJson: String?,
+        val fetchedAt: Instant
+    )
+
+    fun upsertTideDay(row: TideDayRow) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    INSERT INTO spot_tide_days
+                        (spot_id, local_date, provider, station_id, station_name,
+                         station_distance_mi, timezone_id, datum, points_json, extremes_json, fetched_at)
+                    VALUES (?, ?::date, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (spot_id, local_date, provider) DO UPDATE SET
+                        station_id = EXCLUDED.station_id,
+                        station_name = EXCLUDED.station_name,
+                        station_distance_mi = EXCLUDED.station_distance_mi,
+                        timezone_id = EXCLUDED.timezone_id,
+                        datum = EXCLUDED.datum,
+                        points_json = EXCLUDED.points_json,
+                        extremes_json = EXCLUDED.extremes_json,
+                        fetched_at = EXCLUDED.fetched_at
+                """).use { stmt ->
+                    stmt.setString(1, row.spotId)
+                    stmt.setString(2, row.localDate)
+                    stmt.setString(3, row.provider)
+                    stmt.setString(4, row.stationId)
+                    stmt.setString(5, row.stationName)
+                    if (row.stationDistanceMi != null) stmt.setDouble(6, row.stationDistanceMi) else stmt.setNull(6, java.sql.Types.DOUBLE)
+                    stmt.setString(7, row.timezoneId)
+                    stmt.setString(8, row.datum)
+                    stmt.setString(9, row.pointsJson)
+                    stmt.setString(10, row.extremesJson)
+                    stmt.setTimestamp(11, Timestamp.from(row.fetchedAt))
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to upsert tide day for ${row.spotId}/${row.localDate}: ${e.message}")
+        }
+    }
+
+    fun getTideDay(spotId: String, localDate: String, provider: String = "noaa"): TideDayRow? {
+        if (!DatabaseFactory.isConnected()) return null
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    "SELECT * FROM spot_tide_days WHERE spot_id = ? AND local_date = ?::date AND provider = ?"
+                ).use { stmt ->
+                    stmt.setString(1, spotId)
+                    stmt.setString(2, localDate)
+                    stmt.setString(3, provider)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        TideDayRow(
+                            spotId = rs.getString("spot_id"),
+                            localDate = rs.getDate("local_date").toString(),
+                            provider = rs.getString("provider"),
+                            stationId = rs.getString("station_id"),
+                            stationName = rs.getString("station_name"),
+                            stationDistanceMi = rs.getDouble("station_distance_mi").takeIf { !rs.wasNull() },
+                            timezoneId = rs.getString("timezone_id"),
+                            datum = rs.getString("datum"),
+                            pointsJson = rs.getString("points_json"),
+                            extremesJson = rs.getString("extremes_json"),
+                            fetchedAt = rs.getTimestamp("fetched_at").toInstant()
+                        )
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Failed to read tide day for $spotId/$localDate: ${e.message}")
+            null
+        }
+    }
+
+    fun cleanupOldTideDays() {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val deleted = conn.createStatement().executeUpdate(
+                    "DELETE FROM spot_tide_days WHERE local_date < CURRENT_DATE - INTERVAL '1 day'"
+                )
+                if (deleted > 0) {
+                    logger.info("Cleaned up $deleted old tide day rows")
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to cleanup old tide days: ${e.message}")
+        }
+    }
+
+    fun spotsMissingTideDay(localDate: String): List<Pair<String, Pair<Double, Double>>> {
+        if (!DatabaseFactory.isConnected()) return emptyList()
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val results = mutableListOf<Pair<String, Pair<Double, Double>>>()
+                conn.prepareStatement("""
+                    SELECT sc.spot_id FROM spot_cache sc
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM spot_tide_days std
+                        WHERE std.spot_id = sc.spot_id AND std.local_date = ?::date
+                    )
+                """).use { stmt ->
+                    stmt.setString(1, localDate)
+                    val rs = stmt.executeQuery()
+                    while (rs.next()) {
+                        val sid = rs.getString("spot_id")
+                        val coords = spotCoordinates[sid]
+                        if (coords != null) {
+                            results.add(sid to coords)
+                        }
+                    }
+                }
+                results
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to query spots missing tide days: ${e.message}")
+            emptyList()
+        }
     }
 }
