@@ -349,6 +349,11 @@ class DataPrefetchJobs(
             return@withContext
         }
         
+        // Register coordinates for all spots (enables in-memory nearest-SST lookups)
+        for (spot in allSpots) {
+            SpotDataCache.registerSpotCoordinates(spot.id, spot.coordinates.lat, spot.coordinates.lon)
+        }
+
         // Process sequentially - Copernicus doesn't handle concurrency well
         for ((index, spot) in spotsToUpdate.withIndex()) {
             try {
@@ -357,9 +362,9 @@ class DataPrefetchJobs(
                 val now = Instant.now()
                 var gotData = false
                 
-                // SST from NOAA satellite (date-2 internally for processing lag)
+                // SST from NOAA satellite with progressive bbox expansion
                 try {
-                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
+                    val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, today)
                     SpotDataCache.updateSST(
                         spot.id,
                         if (sst != null) SpotDataCache.CachedValue(
@@ -461,6 +466,46 @@ class DataPrefetchJobs(
         
         val elapsed = System.currentTimeMillis() - startTime
         logger.info("SATELLITE prefetch complete: $successCount success, $errorCount errors, $skippedCount skipped in ${elapsed}ms")
+
+        // SST backfill pass: fill spots still missing SST from buoys and neighbors
+        val allSpotIds = allSpots.map { it.id }
+        val missingSSTSpots = allSpotIds.filter { SpotDataCache.get(it)?.sst == null }
+        if (missingSSTSpots.isNotEmpty()) {
+            var buoyFills = 0
+            var neighborFills = 0
+            val now = Instant.now()
+            for (spotId in missingSSTSpots) {
+                val coords = allSpots.find { it.id == spotId }?.coordinates ?: continue
+                val lat = coords.lat
+                val lon = coords.lon
+
+                // Try nearest buoy water temp
+                val buoyTemp = SpotDataCache.findNearestBuoyWaterTemp(lat, lon)
+                if (buoyTemp != null) {
+                    SpotDataCache.updateSST(spotId, SpotDataCache.CachedValue(
+                        value = buoyTemp, fetchedAt = now, dataValidAt = now
+                    ))
+                    SpotDataCache.saveToDatabase(spotId)
+                    buoyFills++
+                    continue
+                }
+
+                // Try nearest cached spot SST
+                val nearbySST = SpotDataCache.findNearestSST(lat, lon)
+                if (nearbySST != null) {
+                    SpotDataCache.updateSST(spotId, SpotDataCache.CachedValue(
+                        value = nearbySST, fetchedAt = now, dataValidAt = now
+                    ))
+                    SpotDataCache.saveToDatabase(spotId)
+                    neighborFills++
+                }
+            }
+            val stillMissing = allSpotIds.count { SpotDataCache.get(it)?.sst == null }
+            logger.info("SST backfill: ${buoyFills} from buoys, ${neighborFills} from neighbors. Coverage: ${allSpotIds.size - stillMissing}/${allSpotIds.size} spots have SST")
+        } else {
+            logger.info("SST coverage: ${allSpotIds.size}/${allSpotIds.size} spots have SST (no backfill needed)")
+        }
+
         logRateLimiterStats()
     }
     
@@ -703,6 +748,11 @@ class DataPrefetchJobs(
         var errorCount = 0
         val today = LocalDate.now().toString()
         
+        // Register coordinates for user spots (enables in-memory nearest-SST lookups)
+        for (spot in userSpots) {
+            SpotDataCache.registerSpotCoordinates("user-${spot.id}", spot.coordinates.lat, spot.coordinates.lon)
+        }
+
         for (spot in userSpots) {
             val cacheId = "user-${spot.id}"
             
@@ -745,9 +795,9 @@ class DataPrefetchJobs(
                 
                 // Weather/swell handled by prefetchWeather() which covers all spots
                 
-                // SST from NOAA satellite
+                // SST from NOAA satellite with progressive bbox expansion
                 try {
-                    val sst = noaaClient.getSeaSurfaceTemperature(lat, lon, today)
+                    val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, today)
                     SpotDataCache.updateSST(
                         cacheId,
                         if (sst != null) SpotDataCache.CachedValue(
@@ -887,6 +937,37 @@ class DataPrefetchJobs(
             }
         }
         
+        // SST backfill pass for user spots still missing SST
+        val userSpotIds = userSpots.map { "user-${it.id}" }
+        val missingSST = userSpotIds.filter { SpotDataCache.get(it)?.sst == null }
+        if (missingSST.isNotEmpty()) {
+            var buoyFills = 0
+            var neighborFills = 0
+            val now = Instant.now()
+            for (cacheId in missingSST) {
+                val spot = userSpots.find { "user-${it.id}" == cacheId } ?: continue
+                val lat = spot.coordinates.lat
+                val lon = spot.coordinates.lon
+
+                val buoyTemp = SpotDataCache.findNearestBuoyWaterTemp(lat, lon)
+                if (buoyTemp != null) {
+                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = buoyTemp, fetchedAt = now, dataValidAt = now))
+                    SpotDataCache.saveToDatabase(cacheId)
+                    buoyFills++
+                    continue
+                }
+
+                val nearbySST = SpotDataCache.findNearestSST(lat, lon)
+                if (nearbySST != null) {
+                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = nearbySST, fetchedAt = now, dataValidAt = now))
+                    SpotDataCache.saveToDatabase(cacheId)
+                    neighborFills++
+                }
+            }
+            val stillMissing = userSpotIds.count { SpotDataCache.get(it)?.sst == null }
+            logger.info("User spots SST backfill: ${buoyFills} from buoys, ${neighborFills} from neighbors. Coverage: ${userSpotIds.size - stillMissing}/${userSpotIds.size}")
+        }
+
         val elapsed = System.currentTimeMillis() - startTime
         logger.info("USER SPOTS prefetch complete: $successCount updated, $skippedCount skipped (fresh), $errorCount errors out of ${userSpots.size} total in ${elapsed}ms")
     }

@@ -244,6 +244,9 @@ object SpotDataCache {
     // Main cache: spotId -> SpotData
     private val cache = ConcurrentHashMap<String, SpotData>()
     
+    // Spot coordinate registry for in-memory nearest-SST lookups
+    private val spotCoordinates = ConcurrentHashMap<String, Pair<Double, Double>>()
+    
     // Statistics
     private var hits = 0L
     private var misses = 0L
@@ -690,7 +693,8 @@ object SpotDataCache {
         val observedAt: java.time.Instant,
         val waveHeightM: Double?,
         val dominantPeriodSec: Double?,
-        val meanDirection: Int?
+        val meanDirection: Int?,
+        val waterTempC: Double? = null
     )
     
     fun saveBuoyStations(stations: List<BuoyStation>) {
@@ -758,12 +762,13 @@ object SpotDataCache {
             transaction {
                 val conn = this.connection.connection as java.sql.Connection
                 conn.prepareStatement("""
-                    INSERT INTO buoy_readings (station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO buoy_readings (station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction, water_temp_c)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT (station_id, observed_at) DO UPDATE SET
                         wave_height_m = EXCLUDED.wave_height_m,
                         dominant_period_sec = EXCLUDED.dominant_period_sec,
                         mean_direction = EXCLUDED.mean_direction,
+                        water_temp_c = EXCLUDED.water_temp_c,
                         fetched_at = NOW()
                 """.trimIndent()).use { stmt ->
                     stmt.setString(1, reading.stationId)
@@ -771,6 +776,7 @@ object SpotDataCache {
                     stmt.setObject(3, reading.waveHeightM)
                     stmt.setObject(4, reading.dominantPeriodSec)
                     stmt.setObject(5, reading.meanDirection)
+                    stmt.setObject(6, reading.waterTempC)
                     stmt.executeUpdate()
                 }
             }
@@ -785,7 +791,7 @@ object SpotDataCache {
             return transaction {
                 val conn = this.connection.connection as java.sql.Connection
                 conn.prepareStatement("""
-                    SELECT station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction
+                    SELECT station_id, observed_at, wave_height_m, dominant_period_sec, mean_direction, water_temp_c
                     FROM buoy_readings WHERE station_id = ? ORDER BY observed_at DESC LIMIT 1
                 """.trimIndent()).use { stmt ->
                     stmt.setString(1, stationId)
@@ -795,7 +801,8 @@ object SpotDataCache {
                             observedAt = rs.getTimestamp("observed_at").toInstant(),
                             waveHeightM = rs.getDouble("wave_height_m").takeIf { !rs.wasNull() },
                             dominantPeriodSec = rs.getDouble("dominant_period_sec").takeIf { !rs.wasNull() },
-                            meanDirection = rs.getInt("mean_direction").takeIf { !rs.wasNull() }
+                            meanDirection = rs.getInt("mean_direction").takeIf { !rs.wasNull() },
+                            waterTempC = rs.getDouble("water_temp_c").takeIf { !rs.wasNull() }
                         ) else null
                     }
                 }
@@ -986,6 +993,66 @@ object SpotDataCache {
         return null
     }
     
+    /**
+     * Register coordinates for a spot so findNearestSST can locate it.
+     * Called during prefetch when we already have lat/lon.
+     */
+    fun registerSpotCoordinates(spotId: String, lat: Double, lon: Double) {
+        spotCoordinates[spotId] = Pair(lat, lon)
+    }
+
+    /**
+     * Find SST from the nearest cached spot within maxKm kilometers.
+     * Pure in-memory scan -- no DB or network calls. Safe for the read path.
+     */
+    fun findNearestSST(lat: Double, lon: Double, maxKm: Double = 25.0): Double? {
+        val maxNm = maxKm / 1.852
+        var bestDist = Double.MAX_VALUE
+        var bestSST: Double? = null
+
+        for ((spotId, coords) in spotCoordinates) {
+            val cached = cache[spotId] ?: continue
+            val sst = cached.sst?.value ?: continue
+            val dist = haversineNm(lat, lon, coords.first, coords.second)
+            if (dist <= maxNm && dist < bestDist) {
+                bestDist = dist
+                bestSST = sst
+            }
+        }
+
+        if (bestSST != null) {
+            logger.debug("Found nearby SST ${String.format("%.1f", bestSST)}°C at ${String.format("%.1f", bestDist)}nm")
+        }
+        return bestSST
+    }
+
+    /**
+     * Find water temperature from the nearest NDBC buoy within maxNm nautical miles.
+     * Involves DB reads per candidate station -- use ONLY in background prefetch, not on read path.
+     */
+    fun findNearestBuoyWaterTemp(lat: Double, lon: Double, maxNm: Double = 25.0): Double? {
+        ensureBuoyStationsLoaded()
+
+        val candidates = buoyStationsMemCache
+            .map { station -> station to haversineNm(lat, lon, station.lat, station.lon) }
+            .filter { it.second <= maxNm }
+            .sortedBy { it.second }
+
+        val now = java.time.Instant.now()
+        for ((station, dist) in candidates) {
+            val reading = getLatestBuoyReading(station.stationId) ?: continue
+            val ageHours = java.time.Duration.between(reading.observedAt, now).toHours()
+            if (ageHours > 6) continue
+            val temp = reading.waterTempC ?: continue
+            if (temp in -2.0..45.0) {
+                logger.debug("Found buoy water temp ${String.format("%.1f", temp)}°C from ${station.stationId} at ${String.format("%.1f", dist)}nm")
+                return temp
+            }
+        }
+
+        return null
+    }
+
     /**
      * Get chlorophyll stats as JSON string (avoids serialization issues).
      */
@@ -1381,10 +1448,12 @@ object SpotDataCache {
                         wave_height_m DOUBLE PRECISION,
                         dominant_period_sec DOUBLE PRECISION,
                         mean_direction INTEGER,
+                        water_temp_c DOUBLE PRECISION,
                         fetched_at TIMESTAMP DEFAULT NOW(),
                         PRIMARY KEY (station_id, observed_at)
                     );
                     CREATE INDEX IF NOT EXISTS buoy_readings_station_idx ON buoy_readings (station_id, observed_at DESC);
+                    ALTER TABLE buoy_readings ADD COLUMN IF NOT EXISTS water_temp_c DOUBLE PRECISION;
                 """.trimIndent()
                 conn.createStatement().use { stmt ->
                     buoyReadingsTable.split(";").filter { it.isNotBlank() }.forEach { sql ->

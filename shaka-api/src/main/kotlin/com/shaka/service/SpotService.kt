@@ -229,7 +229,7 @@ class SpotService {
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
 
-            val sst = resolveSST(cached?.sst?.value, ocean.rawSST, spot.coordinates.lat, spot.coordinates.lon, date)
+            val sst = resolveSST(cached?.sst?.value, spot.coordinates.lat, spot.coordinates.lon, date)
             
             // Data freshness from cache
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -467,7 +467,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val sst = resolveSST(cached?.sst?.value, ocean.rawSST, lat, lon, date)
+        val sst = resolveSST(cached?.sst?.value, lat, lon, date)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -688,7 +688,7 @@ class SpotService {
                     moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val sst = resolveSST(spotCache?.sst?.value, ocean.rawSST, lat, lon, date)
+                val sst = resolveSST(spotCache?.sst?.value, lat, lon, date)
                 
                 SpotSummary(
                     id = spot.id,
@@ -1203,11 +1203,10 @@ class SpotService {
 
     private fun resolveSST(
         cachedSST: Double?,
-        openMeteoSST: Double?,
         lat: Double, lon: Double, date: String
     ): ResolvedSST {
         cachedSST?.let { return ResolvedSST(it, false) }
-        openMeteoSST?.let { return ResolvedSST(it, false) }
+        SpotDataCache.findNearestSST(lat, lon)?.let { return ResolvedSST(it, false) }
         return ResolvedSST(noaaClient.getRegionalSSTEstimate(lat, lon, date), true)
     }
 
@@ -1430,7 +1429,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val sst = resolveSST(cached?.sst?.value, ocean.rawSST, lat, lon, date)
+        val sst = resolveSST(cached?.sst?.value, lat, lon, date)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -1570,6 +1569,8 @@ class SpotService {
      * @param lon Longitude
      */
     suspend fun prefetchSingleSpot(spotId: String, lat: Double, lon: Double) {
+        SpotDataCache.registerSpotCoordinates(spotId, lat, lon)
+
         val existing = inFlightPrefetches[spotId]
         if (existing != null && existing.isActive) {
             logger.info("Prefetch already in flight for $spotId, awaiting existing")

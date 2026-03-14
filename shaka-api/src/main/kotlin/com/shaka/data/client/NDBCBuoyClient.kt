@@ -115,6 +115,7 @@ class NDBCBuoyClient {
             val wvht = col("WVHT")?.toDoubleOrNull() ?: return null
             val dpd = col("DPD")?.toDoubleOrNull()
             val mwd = col("MWD")?.toIntOrNull()
+            val wtmp = col("WTMP")?.toDoubleOrNull()
 
             // Parse timestamp — "MM" column name collides with missing-data sentinel,
             // so read month by index directly to avoid the sentinel check
@@ -139,7 +140,8 @@ class NDBCBuoyClient {
                 observedAt = observedAt,
                 waveHeightM = wvht,
                 dominantPeriodSec = dpd,
-                meanDirection = mwd
+                meanDirection = mwd,
+                waterTempC = wtmp
             )
         } catch (e: Exception) {
             logger.debug("Failed to fetch reading for buoy $stationId: ${e.message}")

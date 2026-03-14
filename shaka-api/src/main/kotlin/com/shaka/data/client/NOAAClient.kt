@@ -167,24 +167,63 @@ class NOAAClient {
     }
 
     /**
+     * Progressive SST fetch for background prefetch -- tries increasingly wider
+     * bounding boxes to work around near-shore land masking.
+     * NOT for the hot path (use getSeaSurfaceTemperature for that).
+     */
+    suspend fun getSeaSurfaceTemperatureProgressive(lat: Double, lon: Double, date: String): Double? {
+        return try {
+            val murRadii = listOf(0.05, 0.15, 0.25)
+            for (radius in murRadii) {
+                RateLimiters.noaa.acquire()
+                val sst = getMURSSTWithRadius(lat, lon, date, radius)
+                if (sst != null) {
+                    if (radius > 0.05) logger.info("MUR SST found at expanded radius ±$radius for ($lat, $lon): ${String.format("%.1f", sst)}°C")
+                    return sst
+                }
+            }
+
+            val ghrsstRadii = listOf(0.1, 0.25, 0.5)
+            for (radius in ghrsstRadii) {
+                RateLimiters.noaa.acquire()
+                val sst = getGHRSSTWithRadius(lat, lon, date, radius)
+                if (sst != null) {
+                    logger.info("GHRSST found at radius ±$radius for ($lat, $lon): ${String.format("%.1f", sst)}°C")
+                    return sst
+                }
+            }
+
+            logger.info("SST unavailable at all radii for ($lat, $lon) on $date")
+            null
+        } catch (e: Exception) {
+            logger.warn("Progressive SST fetch failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Query MUR SST dataset - Multi-scale Ultra-high Resolution SST.
      */
     private suspend fun getMURSST(lat: Double, lon: Double, date: String): Double? {
+        return getMURSSTWithRadius(lat, lon, date, 0.05)
+    }
+
+    private suspend fun getMURSSTWithRadius(lat: Double, lon: Double, date: String, radius: Double): Double? {
         return try {
             val queryDate = LocalDate.parse(date).minusDays(2).toString()
             val dateTime = "${queryDate}T12:00:00Z"
             
-            val latMin = lat - 0.05
-            val latMax = lat + 0.05
-            val lonMin = lon - 0.05
-            val lonMax = lon + 0.05
+            val latMin = lat - radius
+            val latMax = lat + radius
+            val lonMin = lon - radius
+            val lonMax = lon + radius
             
             val url = "$MUR_SST_URL?analysed_sst[($dateTime)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             val response: String = client.get(url).bodyAsText()
             parseSSTFromERDDAP(response)
         } catch (e: Exception) {
-            logger.debug("MUR SST unavailable: ${e.message}")
+            logger.info("MUR SST unavailable at ±$radius for ($lat, $lon): ${e.message}")
             null
         }
     }
@@ -193,47 +232,51 @@ class NOAAClient {
      * Query GHRSST dataset - Global High Resolution SST.
      */
     private suspend fun getGHRSST(lat: Double, lon: Double, date: String): Double? {
+        return getGHRSSTWithRadius(lat, lon, date, 0.1)
+    }
+
+    private suspend fun getGHRSSTWithRadius(lat: Double, lon: Double, date: String, radius: Double): Double? {
         return try {
             RateLimiters.noaa.acquire()
             
             val queryDate = LocalDate.parse(date).minusDays(2).toString()
-            val latMin = lat - 0.1
-            val latMax = lat + 0.1
-            val lonMin = lon - 0.1
-            val lonMax = lon + 0.1
+            val latMin = lat - radius
+            val latMax = lat + radius
+            val lonMin = lon - radius
+            val lonMax = lon + radius
             
             val url = "$GHRSST_URL?sea_surface_temperature[($queryDate)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             val response: String = client.get(url).bodyAsText()
             parseSSTFromERDDAP(response)
         } catch (e: Exception) {
-            logger.debug("GHRSST unavailable: ${e.message}")
+            logger.info("GHRSST unavailable at ±$radius for ($lat, $lon): ${e.message}")
             null
         }
     }
 
     /**
-     * Parse SST value from ERDDAP JSON response.
+     * Parse SST from ERDDAP JSON response. Averages all non-null values across
+     * all rows in the bounding box for a more robust reading.
      */
     private fun parseSSTFromERDDAP(jsonResponse: String): Double? {
         return try {
-            val regex = """"rows"\s*:\s*\[\s*\[([^\]]+)\]""".toRegex()
-            val match = regex.find(jsonResponse)
-            
-            if (match != null) {
-                val rowData = match.groupValues[1]
-                val values = rowData.split(",").map { it.trim() }
-                val sstValue = values.lastOrNull()?.toDoubleOrNull()
-                
-                if (sstValue != null) {
-                    // MUR SST is in Kelvin, convert to Celsius
-                    if (sstValue > 200) {
-                        return sstValue - 273.15
-                    }
-                    return sstValue
-                }
+            val rowsRegex = """"rows"\s*:\s*\[([^\]]*(?:\[[^\]]*\][^\]]*)*)\]""".toRegex()
+            val rowsMatch = rowsRegex.find(jsonResponse) ?: return null
+            val rowsBlock = rowsMatch.groupValues[1]
+
+            val rowRegex = """\[([^\]]+)\]""".toRegex()
+            val sstValues = mutableListOf<Double>()
+
+            for (row in rowRegex.findAll(rowsBlock)) {
+                val values = row.groupValues[1].split(",").map { it.trim() }
+                val raw = values.lastOrNull()?.toDoubleOrNull() ?: continue
+                val celsius = if (raw > 200) raw - 273.15 else raw
+                if (celsius in -2.0..45.0) sstValues += celsius
             }
-            null
+
+            if (sstValues.isEmpty()) return null
+            sstValues.average()
         } catch (e: Exception) {
             logger.debug("SST parsing failed: ${e.message}")
             null
