@@ -8,22 +8,22 @@ COPY shaka-api/ .
 # Build the application
 RUN gradle shadowJar --no-daemon
 
-# Runtime stage — Debian-based for Python/NumPy support
-FROM eclipse-temurin:17-jre
+# Runtime stage
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Install system deps: curl (healthcheck), Python 3 + pip (weather pipeline)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl python3 python3-pip && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Python packages for weather pipeline
-RUN pip3 install --no-cache-dir --break-system-packages \
-    copernicusmarine xarray netCDF4 numpy Pillow
+# System deps + Python with scientific packages (single layer, build deps cleaned)
+RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf-c && \
+    apk add --no-cache --virtual .build-deps \
+        gcc g++ musl-dev python3-dev hdf5-dev netcdf-dev && \
+    pip3 install --no-cache-dir --break-system-packages \
+        copernicusmarine xarray netCDF4 numpy Pillow && \
+    apk del .build-deps && \
+    rm -rf /root/.cache /tmp/*
 
 # Create non-root user for security
-RUN groupadd -g 1001 shaka && \
-    useradd -u 1001 -g shaka -m shaka
+RUN addgroup -g 1001 shaka && \
+    adduser -u 1001 -G shaka -D shaka
 
 # Copy the built jar
 COPY --from=build /app/build/libs/*-all.jar app.jar

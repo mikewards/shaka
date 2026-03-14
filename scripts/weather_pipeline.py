@@ -11,9 +11,9 @@ Scalar data (SST, etc): R=value, G=0, B=0, A=mask    →  imageType: SCALAR
 Usage:
   python weather_pipeline.py [--output-dir /data/weather] [--days 5]
 
-Env vars:
-  COPERNICUSMARINE_SERVICE_USERNAME  (or COPERNICUS_USERNAME)
-  COPERNICUSMARINE_SERVICE_PASSWORD  (or COPERNICUS_PASSWORD)
+Env vars (copernicusmarine CLI reads these automatically):
+  COPERNICUSMARINE_SERVICE_USERNAME
+  COPERNICUSMARINE_SERVICE_PASSWORD
 """
 
 import argparse
@@ -28,6 +28,19 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 from PIL import Image
+
+
+def _ensure_cmems_credentials():
+    """Map Railway env vars to what copernicusmarine CLI expects, if needed."""
+    u = os.environ.get("COPERNICUSMARINE_SERVICE_USERNAME")
+    p = os.environ.get("COPERNICUSMARINE_SERVICE_PASSWORD")
+    if u and p:
+        return
+    print("ERROR: COPERNICUSMARINE_SERVICE_USERNAME and "
+          "COPERNICUSMARINE_SERVICE_PASSWORD must be set.\n"
+          "Register at https://marine.copernicus.eu and add these to Railway.",
+          file=sys.stderr)
+    sys.exit(1)
 
 
 DATASETS = {
@@ -230,6 +243,7 @@ def _to_iso(np_time):
 
 
 if __name__ == "__main__":
+    _ensure_cmems_credentials()
     parser = argparse.ArgumentParser(description="Weather data pipeline")
     parser.add_argument("--output-dir", default="/data/weather",
                         help="Output directory for PNGs and catalog")
