@@ -64,11 +64,11 @@ object WeatherTileService {
                 val elapsed = (System.currentTimeMillis() - startTime) / 1000
 
                 if (exitCode == 0) {
-                    logger.info("Weather pipeline completed in ${elapsed}s")
+                    logger.info("Weather pipeline completed in ${elapsed}s:\n$output")
                     lastRun = Instant.now()
                     reloadCatalog()
                 } else {
-                    logger.error("Weather pipeline failed (exit=$exitCode, ${elapsed}s): $output")
+                    logger.error("Weather pipeline failed (exit=$exitCode, ${elapsed}s):\n$output")
                 }
             } catch (e: Exception) {
                 logger.error("Weather pipeline exception: ${e.message}", e)

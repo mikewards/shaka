@@ -88,7 +88,7 @@ def download_dataset(dataset_id, variables, start_dt, end_dt, depth, output_path
         "--maximum-latitude", "90",
         "--output-directory", str(output_path.parent),
         "--output-filename", output_path.name,
-        "--force-download",
+        "--overwrite",
     ]
     for var in variables:
         cmd.extend(["--variable", var])
@@ -98,7 +98,9 @@ def download_dataset(dataset_id, variables, start_dt, end_dt, depth, output_path
     print(f"  Downloading {dataset_id} → {output_path.name}")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     if result.returncode != 0:
-        print(f"  ERROR: {result.stderr[:500]}")
+        print(f"  DOWNLOAD FAILED ({dataset_id}):")
+        print(f"  stdout: {result.stdout[-500:]}")
+        print(f"  stderr: {result.stderr[-500:]}")
         return False
     return True
 
@@ -225,7 +227,12 @@ def run_pipeline(output_dir, days):
     print(f"Catalog written: {catalog_path}")
 
     shutil.rmtree(tmp, ignore_errors=True)
-    print("Pipeline complete.")
+
+    total_frames = sum(len(v) for v in catalog.values())
+    if total_frames == 0:
+        print("PIPELINE FAILED: no data was produced", file=sys.stderr)
+        sys.exit(1)
+    print(f"Pipeline complete: {total_frames} total frames across {len(catalog)} variables.")
 
 
 def _time_step_hours(times):
