@@ -7,6 +7,8 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -67,30 +69,34 @@ class CopernicusClient(
         // SST is handled separately via the NOAA satellite path in SpotService/DataPrefetchJobs.
         // Copernicus only provides visibility and chlorophyll.
         
-        // Get REAL visibility from Copernicus L3 NRT (Secchi disk depth)
-        val visibilityResult = try {
-            wmtsClient.getLatestVisibility(lat, lon)
-        } catch (e: Exception) {
-            logger.warn("Copernicus visibility fetch failed: ${e.message}")
-            CopernicusWMTSClient.VisibilityResult(
-                visibilityM = null,
-                date = date,
-                dataSource = "Error: ${e.message}",
-                isActualMeasurement = false
-            )
-        }
-        
-        // Get REAL chlorophyll from Copernicus L3 NRT
-        val chlorophyllResult = try {
-            wmtsClient.getLatestChlorophyll(lat, lon)
-        } catch (e: Exception) {
-            logger.warn("Copernicus chlorophyll fetch failed: ${e.message}")
-            CopernicusWMTSClient.ChlorophyllResult(
-                chlorophyllMgM3 = null,
-                date = date,
-                dataSource = "Error: ${e.message}",
-                isActualMeasurement = false
-            )
+        val (visibilityResult, chlorophyllResult) = coroutineScope {
+            val visDeferred = async {
+                try {
+                    wmtsClient.getLatestVisibility(lat, lon)
+                } catch (e: Exception) {
+                    logger.warn("Copernicus visibility fetch failed: ${e.message}")
+                    CopernicusWMTSClient.VisibilityResult(
+                        visibilityM = null,
+                        date = date,
+                        dataSource = "Error: ${e.message}",
+                        isActualMeasurement = false
+                    )
+                }
+            }
+            val chlDeferred = async {
+                try {
+                    wmtsClient.getLatestChlorophyll(lat, lon)
+                } catch (e: Exception) {
+                    logger.warn("Copernicus chlorophyll fetch failed: ${e.message}")
+                    CopernicusWMTSClient.ChlorophyllResult(
+                        chlorophyllMgM3 = null,
+                        date = date,
+                        dataSource = "Error: ${e.message}",
+                        isActualMeasurement = false
+                    )
+                }
+            }
+            visDeferred.await() to chlDeferred.await()
         }
         
         val visibility = visibilityResult.visibilityM

@@ -1739,7 +1739,7 @@ class SpotService {
         }
         
         val satelliteDeferred = async {
-            val data = withTimeoutOrNull(15000) {
+            val data = withTimeoutOrNull(5000) {
                 try { copernicus.getWaterQuality(lat, lon, today) }
                 catch (e: Exception) { logger.warn("Satellite fetch failed for $spotId: ${e.message}"); null }
             }

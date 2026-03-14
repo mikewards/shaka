@@ -2,6 +2,9 @@ package com.shaka.data.client
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
@@ -149,12 +152,12 @@ class CopernicusWMTSClient {
 
     /**
      * Get visibility for the most recent available satellite data.
-     * Uses smart retry with exponential backoff instead of naive loop.
+     * Fires day -1 and day -2 in parallel, picks the most recent hit.
      * 
      * Copernicus L3 NRT has 1-2 day latency depending on time of day/processing.
+     * DB analysis: 86.5% of spots get data within 2 days.
      */
     suspend fun getLatestVisibility(lat: Double, lon: Double): VisibilityResult {
-        // Check circuit breaker before starting
         if (!circuitBreaker.allowsRequests()) {
             logger.debug("Circuit breaker open - returning no data")
             return VisibilityResult(
@@ -165,50 +168,30 @@ class CopernicusWMTSClient {
             )
         }
         
-        // Try yesterday first (most common success case)
-        val yesterday = LocalDate.now().minusDays(1).toString()
-        var visibility = getVisibility(lat, lon, yesterday)
+        val dates = listOf(
+            LocalDate.now().minusDays(1).toString(),
+            LocalDate.now().minusDays(2).toString()
+        )
         
-        if (visibility != null) {
+        val results = coroutineScope {
+            dates.map { date ->
+                async { date to getVisibility(lat, lon, date) }
+            }.awaitAll()
+        }
+        
+        val best = results.firstOrNull { it.second != null }
+        if (best != null) {
             return VisibilityResult(
-                visibilityM = visibility,
-                date = yesterday,
+                visibilityM = best.second,
+                date = best.first,
                 dataSource = "Copernicus L3 NRT satellite",
                 isActualMeasurement = true
             )
         }
         
-        // If yesterday failed, try 2 days ago with backoff
-        // Only try a few more days, not 7 (that was excessive)
-        for (daysBack in 2..4) {
-            // Exponential backoff between retries
-            val backoffMs = INITIAL_BACKOFF_MS * (1 shl (daysBack - 2)) + Random.nextLong(500)
-            delay(backoffMs.coerceAtMost(MAX_BACKOFF_MS))
-            
-            // Check circuit breaker again
-            if (!circuitBreaker.allowsRequests()) {
-                logger.debug("Circuit breaker opened during retry - stopping")
-                break
-            }
-            
-            val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
-            visibility = getVisibility(lat, lon, date)
-            
-            if (visibility != null) {
-                logger.debug("Found visibility data from $date (${daysBack} days ago)")
-                return VisibilityResult(
-                    visibilityM = visibility,
-                    date = date,
-                    dataSource = "Copernicus L3 NRT satellite",
-                    isActualMeasurement = true
-                )
-            }
-        }
-        
-        // No data found
         return VisibilityResult(
             visibilityM = null,
-            date = yesterday,
+            date = dates.first(),
             dataSource = "No satellite data available",
             isActualMeasurement = false
         )
@@ -279,10 +262,9 @@ class CopernicusWMTSClient {
 
     /**
      * Get chlorophyll for the most recent available satellite data.
-     * Uses smart retry with exponential backoff.
+     * Fires day -1 and day -2 in parallel, picks the most recent hit.
      */
     suspend fun getLatestChlorophyll(lat: Double, lon: Double): ChlorophyllResult {
-        // Check circuit breaker before starting
         if (!circuitBreaker.allowsRequests()) {
             logger.debug("Circuit breaker open - returning no chlorophyll data")
             return ChlorophyllResult(
@@ -293,46 +275,30 @@ class CopernicusWMTSClient {
             )
         }
         
-        // Try yesterday first (most common success case)
-        val yesterday = LocalDate.now().minusDays(1).toString()
-        var chl = getChlorophyll(lat, lon, yesterday)
+        val dates = listOf(
+            LocalDate.now().minusDays(1).toString(),
+            LocalDate.now().minusDays(2).toString()
+        )
         
-        if (chl != null) {
+        val results = coroutineScope {
+            dates.map { date ->
+                async { date to getChlorophyll(lat, lon, date) }
+            }.awaitAll()
+        }
+        
+        val best = results.firstOrNull { it.second != null }
+        if (best != null) {
             return ChlorophyllResult(
-                chlorophyllMgM3 = chl,
-                date = yesterday,
+                chlorophyllMgM3 = best.second,
+                date = best.first,
                 dataSource = "Copernicus L3 NRT satellite",
                 isActualMeasurement = true
             )
         }
         
-        // Try 2-4 days ago with backoff
-        for (daysBack in 2..4) {
-            val backoffMs = INITIAL_BACKOFF_MS * (1 shl (daysBack - 2)) + Random.nextLong(500)
-            delay(backoffMs.coerceAtMost(MAX_BACKOFF_MS))
-            
-            if (!circuitBreaker.allowsRequests()) {
-                logger.debug("Circuit breaker opened during chlorophyll retry - stopping")
-                break
-            }
-            
-            val date = LocalDate.now().minusDays(daysBack.toLong()).toString()
-            chl = getChlorophyll(lat, lon, date)
-            
-            if (chl != null) {
-                logger.debug("Found chlorophyll data from $date (${daysBack} days ago)")
-                return ChlorophyllResult(
-                    chlorophyllMgM3 = chl,
-                    date = date,
-                    dataSource = "Copernicus L3 NRT satellite",
-                    isActualMeasurement = true
-                )
-            }
-        }
-        
         return ChlorophyllResult(
             chlorophyllMgM3 = null,
-            date = yesterday,
+            date = dates.first(),
             dataSource = "No satellite data available",
             isActualMeasurement = false
         )
