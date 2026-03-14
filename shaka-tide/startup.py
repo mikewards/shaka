@@ -20,7 +20,7 @@ def fes_data_ready(data_dir: str) -> bool:
     extrapolated = p / "fes2022b" / "ocean_tide_extrapolated"
     if not extrapolated.exists():
         return False
-    nc_files = list(extrapolated.glob("*.nc"))
+    nc_files = list(extrapolated.glob("*.nc.gz"))
     return len(nc_files) >= 34
 
 
@@ -39,7 +39,7 @@ def download_fes2022(data_dir: str, user: str, password: str) -> None:
             user=user,
             password=password,
             extrapolated=True,
-            compressed=False,
+            compressed=True,
             timeout=360,
         )
         elapsed = time.time() - start
