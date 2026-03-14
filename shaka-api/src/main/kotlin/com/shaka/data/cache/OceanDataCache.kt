@@ -4,6 +4,7 @@ import com.shaka.model.TideData
 import com.shaka.model.WaterQuality
 import com.shaka.model.WeatherData
 import com.shaka.model.OceanData
+import com.shaka.model.OceanCacheStats
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
@@ -168,18 +169,18 @@ object OceanDataCache {
     /**
      * Get cache statistics.
      */
-    fun getStats(): Map<String, Any> {
+    fun getStats(): OceanCacheStats {
         val total = hits + misses
         val hitRate = if (total > 0) (hits.toDouble() / total * 100) else 0.0
         
-        return mapOf(
-            "hits" to hits,
-            "misses" to misses,
-            "hitRate" to "%.1f%%".format(hitRate),
-            "waterQualityEntries" to waterQualityCache.size,
-            "tideEntries" to tideCache.size,
-            "weatherEntries" to weatherCache.size,
-            "oceanEntries" to oceanCache.size
+        return OceanCacheStats(
+            hits = hits,
+            misses = misses,
+            hitRate = "%.1f%%".format(hitRate),
+            waterQualityEntries = waterQualityCache.size,
+            tideEntries = tideCache.size,
+            weatherEntries = weatherCache.size,
+            oceanEntries = oceanCache.size
         )
     }
     

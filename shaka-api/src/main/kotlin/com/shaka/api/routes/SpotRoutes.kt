@@ -61,13 +61,13 @@ fun Application.configureRouting() {
             get("/health/detailed") {
                 val serviceHealth = healthService.checkHealth()
                 val cacheStats = OceanDataCache.getStats()
-                call.respond(mapOf(
-                    "status" to serviceHealth.status,
-                    "service" to "shaka-api",
-                    "services" to serviceHealth.services,
-                    "realtimeSatelliteAvailable" to copernicusClient.isDirectAccessAvailable(),
-                    "cache" to cacheStats,
-                    "timestamp" to serviceHealth.timestamp
+                call.respond(DetailedHealthResponse(
+                    status = serviceHealth.status,
+                    service = "shaka-api",
+                    services = serviceHealth.services,
+                    realtimeSatelliteAvailable = copernicusClient.isDirectAccessAvailable(),
+                    cache = cacheStats,
+                    timestamp = serviceHealth.timestamp
                 ))
             }
 
@@ -215,27 +215,26 @@ fun Application.configureRouting() {
                         date
                     )
 
-                    call.respond(mapOf(
-                        "spotId" to spotId,
-                        "spotName" to spot.name,
-                        "date" to date,
-                        "dataSource" to waterQuality.dataSource,
-                        "waterClarity" to mapOf(
-                            "visibility" to mapOf(
-                                "meters" to waterQuality.visibility,
-                                "category" to waterQuality.visibilityCategory
+                    call.respond(RealtimeWaterQualityResponse(
+                        spotId = spotId,
+                        spotName = spot.name,
+                        date = date,
+                        dataSource = waterQuality.dataSource,
+                        waterClarity = WaterClarityData(
+                            visibility = WaterClarityVisibility(
+                                meters = waterQuality.visibility,
+                                category = waterQuality.visibilityCategory
                             ),
-                            "chlorophyll" to mapOf(
-                                "value" to waterQuality.chlorophyllA,
-                                "unit" to "mg/m³",
-                                "category" to waterQuality.chlorophyllCategory
+                            chlorophyll = WaterClarityChlorophyll(
+                                value = waterQuality.chlorophyllA,
+                                category = waterQuality.chlorophyllCategory
                             ),
-                            "seaSurfaceTemp" to mapOf(
-                                "celsius" to waterQuality.seaSurfaceTemp,
-                                "fahrenheit" to waterQuality.seaSurfaceTemp?.let { (it * 9/5) + 32 }
+                            seaSurfaceTemp = WaterClaritySST(
+                                celsius = waterQuality.seaSurfaceTemp,
+                                fahrenheit = waterQuality.seaSurfaceTemp?.let { (it * 9/5) + 32 }
                             )
                         ),
-                        "note" to "Real-time Sentinel-3 satellite data. Updated from latest available pass."
+                        note = "Real-time Sentinel-3 satellite data. Updated from latest available pass."
                     ))
                 } catch (e: Exception) {
                     call.respond(

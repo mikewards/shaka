@@ -1,0 +1,44 @@
+---
+description: Ktor response serialization rules. Prevents LinkedHashMap SerializationException crashes. Apply when writing or modifying API route handlers in shaka-api.
+globs:
+  - shaka-api/**/*.kt
+---
+
+# Ktor Response Serialization
+
+kotlinx.serialization **cannot** serialize `Map<String, Any>`. Ktor's `call.respond(mapOf(...))` with mixed value types will crash at runtime with:
+
+```
+SerializationException: Serializer for subclass 'LinkedHashMap' is not found in the polymorphic scope of 'Map'
+```
+
+This has caused production crashes three times (Feb 6, Mar 6, Mar 7 2026).
+
+## Rules
+
+1. **NEVER** use `call.respond(mapOf(...))` when values are mixed types (String + Boolean, String + Int, String + nested Map, etc.). Use a `@Serializable data class` instead.
+
+2. `call.respond(mapOf("key" to "value"))` is **fine** when ALL values are `String` — this creates `Map<String, String>` which serializes correctly.
+
+3. Any function returning `Map<String, Any>` that feeds into `call.respond()` must be converted to return a `@Serializable data class`.
+
+4. `Map<String, Any>` is acceptable for **logging only** (toString()), never for HTTP responses.
+
+## Examples
+
+```kotlin
+// BAD — will crash at runtime
+call.respond(mapOf(
+    "status" to "ok",
+    "count" to 42,           // Int mixed with String = Map<String, Any>
+    "data" to someObject      // nested object = Map<String, Any>
+))
+
+// GOOD — typed response
+@Serializable
+data class MyResponse(val status: String, val count: Int, val data: SomeObject)
+call.respond(MyResponse(status = "ok", count = 42, data = someObject))
+
+// ALSO FINE — all String values
+call.respond(mapOf("status" to "ok", "message" to "Done"))
+```

@@ -427,3 +427,65 @@ data class AllSpotsResponse(
     val spots: List<SpotMapMarker>,
     val count: Int
 )
+
+// ============================================
+// HEALTH / ADMIN RESPONSE MODELS
+// Typed responses to avoid Map<String, Any> serialization failures
+// ============================================
+
+@Serializable
+data class OceanCacheStats(
+    val hits: Long,
+    val misses: Long,
+    val hitRate: String,
+    val waterQualityEntries: Int,
+    val tideEntries: Int,
+    val weatherEntries: Int,
+    val oceanEntries: Int
+)
+
+@Serializable
+data class DetailedHealthResponse(
+    val status: String,
+    val service: String,
+    val services: Map<String, com.shaka.service.HealthService.ServiceStatus>,
+    val realtimeSatelliteAvailable: Boolean,
+    val cache: OceanCacheStats,
+    val timestamp: String
+)
+
+@Serializable
+data class WaterClarityVisibility(
+    val meters: Double?,
+    val category: String?
+)
+
+@Serializable
+data class WaterClarityChlorophyll(
+    val value: Double?,
+    val unit: String = "mg/m³",
+    val category: String?
+)
+
+@Serializable
+data class WaterClaritySST(
+    val celsius: Double?,
+    val fahrenheit: Double?
+)
+
+@Serializable
+data class WaterClarityData(
+    val visibility: WaterClarityVisibility,
+    val chlorophyll: WaterClarityChlorophyll,
+    val seaSurfaceTemp: WaterClaritySST
+)
+
+@Serializable
+data class RealtimeWaterQualityResponse(
+    val spotId: String,
+    val spotName: String,
+    val date: String,
+    val dataSource: String,
+    val waterClarity: WaterClarityData,
+    val note: String
+)
