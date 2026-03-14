@@ -1635,28 +1635,31 @@ object SpotDataCache {
 
             // Tide chart day-level table
             try {
-                val tideDaysTable = """
-                    CREATE TABLE IF NOT EXISTS spot_tide_days (
-                        id SERIAL PRIMARY KEY,
-                        spot_id VARCHAR(100) NOT NULL,
-                        local_date DATE NOT NULL,
-                        provider VARCHAR(20) NOT NULL DEFAULT 'noaa',
-                        station_id VARCHAR(20),
-                        station_name VARCHAR(200),
-                        station_distance_mi DOUBLE PRECISION,
-                        timezone_id VARCHAR(50),
-                        datum VARCHAR(20) DEFAULT 'MLLW',
-                        points_json TEXT,
-                        extremes_json TEXT,
-                        fetched_at TIMESTAMP DEFAULT NOW(),
-                        UNIQUE (spot_id, local_date, provider)
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_spot_tide_days_spot_date
-                        ON spot_tide_days (spot_id, local_date);
-                """.trimIndent()
-                conn.createStatement().use { stmt ->
-                    tideDaysTable.split(";").filter { it.isNotBlank() }.forEach { sql ->
-                        stmt.execute(sql.trim())
+                transaction {
+                    val tideConn = this.connection.connection as java.sql.Connection
+                    val tideDaysTable = """
+                        CREATE TABLE IF NOT EXISTS spot_tide_days (
+                            id SERIAL PRIMARY KEY,
+                            spot_id VARCHAR(100) NOT NULL,
+                            local_date DATE NOT NULL,
+                            provider VARCHAR(20) NOT NULL DEFAULT 'noaa',
+                            station_id VARCHAR(20),
+                            station_name VARCHAR(200),
+                            station_distance_mi DOUBLE PRECISION,
+                            timezone_id VARCHAR(50),
+                            datum VARCHAR(20) DEFAULT 'MLLW',
+                            points_json TEXT,
+                            extremes_json TEXT,
+                            fetched_at TIMESTAMP DEFAULT NOW(),
+                            UNIQUE (spot_id, local_date, provider)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_spot_tide_days_spot_date
+                            ON spot_tide_days (spot_id, local_date);
+                    """.trimIndent()
+                    tideConn.createStatement().use { stmt ->
+                        tideDaysTable.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                            stmt.execute(sql.trim())
+                        }
                     }
                 }
                 logger.info("spot_tide_days table ready")
