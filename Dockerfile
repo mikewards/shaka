@@ -8,22 +8,31 @@ COPY shaka-api/ .
 # Build the application
 RUN gradle shadowJar --no-daemon
 
-# Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+# Runtime stage — Debian-based for Python/NumPy support
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Install curl for healthchecks
-RUN apk add --no-cache curl
+# Install system deps: curl (healthcheck), Python 3 + pip (weather pipeline)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python packages for weather pipeline
+RUN pip3 install --no-cache-dir --break-system-packages \
+    copernicusmarine xarray netCDF4 numpy Pillow
 
 # Create non-root user for security
-RUN addgroup -g 1001 shaka && \
-    adduser -u 1001 -G shaka -D shaka
+RUN groupadd -g 1001 shaka && \
+    useradd -u 1001 -g shaka -m shaka
 
 # Copy the built jar
 COPY --from=build /app/build/libs/*-all.jar app.jar
 
-# Set ownership
-RUN chown -R shaka:shaka /app
+# Copy weather pipeline script
+COPY scripts/weather_pipeline.py /app/scripts/weather_pipeline.py
+
+# Create weather data directory
+RUN mkdir -p /data/weather && chown -R shaka:shaka /app /data/weather
 
 USER shaka
 
@@ -39,7 +48,9 @@ ENV PORT=8080 \
     DATABASE_URL="" \
     DATABASE_USER="" \
     DATABASE_PASSWORD="" \
-    REDIS_URL=""
+    REDIS_URL="" \
+    WEATHER_DATA_DIR="/data/weather" \
+    WEATHER_PIPELINE_SCRIPT="/app/scripts/weather_pipeline.py"
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]

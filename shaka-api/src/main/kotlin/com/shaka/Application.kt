@@ -5,6 +5,7 @@ import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.*
 import com.shaka.data.db.DatabaseFactory
 import com.shaka.service.DataPrefetchJobs
+import com.shaka.service.WeatherTileService
 import com.shaka.fishing_intel.db.FishingIntelDb
 import com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob
 import io.ktor.serialization.kotlinx.json.*
@@ -262,6 +263,21 @@ private fun Application.configureScheduledJobs() {
                 logger.error("Tide chart cleanup failed: ${e.message}", e)
             }
             delay(86_400_000)  // 24 hours
+        }
+    }
+
+    // ==================== WEATHER TILES (Ocean Forecast) ====================
+    // Runs the Copernicus CMEMS pipeline every 6 hours to generate PNG tiles
+    backgroundScope.launch {
+        delay(600_000)  // 10 minute initial delay
+        while (true) {
+            try {
+                logger.info("Running scheduled WEATHER TILE pipeline")
+                WeatherTileService.runPipeline()
+            } catch (e: Exception) {
+                logger.error("Weather tile pipeline failed: ${e.message}", e)
+            }
+            delay(21_600_000)  // 6 hours
         }
     }
 

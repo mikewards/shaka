@@ -21,6 +21,7 @@ import com.shaka.fishing_intel.models.*
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
+import com.shaka.service.WeatherTileService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -1349,6 +1350,28 @@ fun Application.configureRouting() {
                             errors = listOf(e.message ?: "Unknown error")
                         )
                     )
+                }
+            }
+
+            // ==================== WEATHER TILES (Ocean Forecast) ====================
+
+            get("/weather/catalog.json") {
+                val catalog = WeatherTileService.getCatalog()
+                call.respond(catalog)
+            }
+
+            get("/weather/{variable}/{file}") {
+                val variable = call.parameters["variable"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "variable required"))
+                val timestamp = call.parameters["file"]?.removeSuffix(".png")
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "timestamp required"))
+
+                val file = WeatherTileService.getTileFile(variable, timestamp)
+                if (file != null) {
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=3600")
+                    call.respondFile(file)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "tile not found"))
                 }
             }
             

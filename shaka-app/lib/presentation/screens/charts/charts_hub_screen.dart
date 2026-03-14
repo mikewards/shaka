@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/services/health_service.dart';
 import 'ocean_charts_webview.dart';
+import 'ocean_forecast_screen.dart';
 import 'gibs_imagery_screen.dart';
 
 /// Charts Hub - Selection screen for ocean data sources
@@ -56,7 +57,40 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                   ] else
                     const SizedBox(height: 8),
                   
-                  // Satellite Card (GIBS) - TOP
+                  // Ocean Forecast Card (WeatherLayers GL)
+                  Expanded(
+                    child: _DataSourceCard(
+                      title: 'Ocean Forecast',
+                      subtitle: 'Animated wind, currents, waves, SST with 5-day forecast',
+                      source: 'Copernicus CMEMS Forecast',
+                      badge: '5-DAY',
+                      badgeColor: const Color(0xFF00BCD4),
+                      icon: Icons.air,
+                      imagePath: 'assets/images/ocean_forecast_preview.png',
+                      fallbackColors: const [
+                        Color(0xFF0D3B66),
+                        Color(0xFF0E4D64),
+                        Color(0xFF00BCD4),
+                      ],
+                      isAvailable: true,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute(
+                            builder: (context) => OceanForecastScreen(
+                              initialLat: widget.initialLat,
+                              initialLon: widget.initialLon,
+                              spotName: widget.spotName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Satellite Card (GIBS)
                   Expanded(
                     child: _DataSourceCard(
                       title: 'Satellite Imagery',

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ocean Forecast</title>
+  <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d0d; }
+    #map { width: 100%; height: 100%; }
+    .maplibregl-ctrl-attrib { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@luma.gl/engine@9.2.0/dist/dist.min.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.2.0/dist.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/weatherlayers-gl@2026.2.0/dist/weatherlayers-deck.umd.min.js"></script>
+
+  <script>
+    // Verify libraries loaded
+    if (typeof maplibregl === 'undefined' || typeof deck === 'undefined' || typeof WeatherLayers === 'undefined') {
+      document.body.innerHTML = '<div style="color:#ff6b6b;padding:20px;font-family:sans-serif">' +
+        'Failed to load map libraries. Check network connection.</div>';
+    }
+
+    var map = null;
+    var overlay = null;
+    var activeLayerKey = null;
+    var currentImage = null;
+    var nextImage = null;
+    var animFrameId = null;
+    var playing = false;
+    var catalog = null;
+    var timeIndex = 0;
+    var baseUrl = '';
+
+    var LAYERS = {
+      wind: {
+        type: 'particle', label: 'Wind', unit: 'm/s',
+        imageType: 'VECTOR', imageUnscale: [-75, 75],
+        numParticles: 4000, maxAge: 60, speedFactor: 0.5, width: 1.5,
+        palette: [[0,'#ffffff'],[3,'#c8f7ff'],[6,'#70d6ff'],[10,'#ffd670'],[15,'#ff6b6b'],[25,'#d62828']],
+      },
+      currents: {
+        type: 'particle', label: 'Currents', unit: 'm/s',
+        imageType: 'VECTOR', imageUnscale: [-3, 3],
+        numParticles: 6000, maxAge: 80, speedFactor: 0.8, width: 1.2,
+        palette: [[0,'#e0f7ff'],[0.2,'#70d6ff'],[0.5,'#0077b6'],[1.0,'#5e60ce'],[2.0,'#7400b8']],
+      },
+      waves: {
+        type: 'raster', label: 'Wave Height', unit: 'm',
+        imageType: 'SCALAR', imageUnscale: [0, 15],
+        palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']],
+      },
+      sst: {
+        type: 'raster', label: 'Sea Surface Temp', unit: '°C',
+        imageType: 'SCALAR', imageUnscale: [-2, 35],
+        palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']],
+      },
+      salinity: {
+        type: 'raster', label: 'Salinity', unit: 'PSU',
+        imageType: 'SCALAR', imageUnscale: [20, 40],
+        palette: [[20,'#7400b8'],[25,'#5e60ce'],[30,'#5390d9'],[33,'#48bfe3'],[35,'#56cfe1'],[36,'#64dfdf'],[37,'#72efdd'],[38,'#80ffdb'],[40,'#f0fff0']],
+      },
+      chlorophyll: {
+        type: 'raster', label: 'Chlorophyll-a', unit: 'mg/m³',
+        imageType: 'SCALAR', imageUnscale: [0, 20],
+        palette: [[0,'#0d1b2a'],[0.05,'#1b263b'],[0.1,'#003566'],[0.3,'#006d77'],[0.5,'#40916c'],[1,'#74c69d'],[3,'#e9c46a'],[5,'#f4a261'],[10,'#e76f51'],[20,'#9b2226']],
+      },
+      phytoplankton: {
+        type: 'raster', label: 'Phytoplankton', unit: 'mmol/m³',
+        imageType: 'SCALAR', imageUnscale: [0, 10],
+        palette: [[0,'#0d1b2a'],[0.1,'#003566'],[0.5,'#006d77'],[1,'#40916c'],[2,'#74c69d'],[3,'#b5e48c'],[5,'#e9c46a'],[10,'#e76f51']],
+      },
+      zooplankton: {
+        type: 'raster', label: 'Zooplankton', unit: 'mmol/m³',
+        imageType: 'SCALAR', imageUnscale: [0, 5],
+        palette: [[0,'#10002b'],[0.1,'#3c096c'],[0.3,'#5a189a'],[0.5,'#7b2cbf'],[1,'#c77dff'],[2,'#e0aaff'],[3,'#ffd6ff'],[5,'#fff0f5']],
+      },
+    };
+
+    function initMap(config) {
+      baseUrl = config.baseUrl || '';
+      var lat = config.lat || 23;
+      var lng = config.lng || -108;
+      var zoom = config.zoom || 4;
+
+      map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [lng, lat],
+        zoom: zoom,
+        antialias: true,
+        attributionControl: false,
+      });
+
+      overlay = new deck.MapboxOverlay({
+        interleaved: false,
+        layers: [],
+      });
+
+      map.addControl(overlay);
+
+      map.on('load', function() {
+        _post('ReadyChannel', { status: 'ready' });
+      });
+
+      map.on('click', function(e) {
+        _post('TapChannel', { lat: e.lngLat.lat, lng: e.lngLat.lng });
+      });
+    }
+
+    function loadCatalog(catalogData) {
+      catalog = catalogData.variables || catalogData;
+      _post('CatalogChannel', {
+        variables: Object.keys(catalog),
+        timestamps: catalog[Object.keys(catalog)[0]] || [],
+      });
+    }
+
+    async function setLayer(key) {
+      if (!LAYERS[key]) return;
+      activeLayerKey = key;
+      timeIndex = 0;
+      currentImage = null;
+      nextImage = null;
+
+      if (catalog && catalog[key] && catalog[key].length > 0) {
+        await _loadFrame(key, 0);
+        _renderLayer();
+        _post('LayerChannel', {
+          layer: key,
+          label: LAYERS[key].label,
+          unit: LAYERS[key].unit,
+          type: LAYERS[key].type,
+          timestamps: catalog[key],
+          timeIndex: 0,
+        });
+      } else {
+        overlay.setProps({ layers: [] });
+        _post('LayerChannel', {
+          layer: key,
+          label: LAYERS[key].label,
+          unit: LAYERS[key].unit,
+          type: LAYERS[key].type,
+          timestamps: [],
+          timeIndex: 0,
+        });
+      }
+    }
+
+    async function setTimeIndex(idx) {
+      if (!activeLayerKey || !catalog || !catalog[activeLayerKey]) return;
+      var timestamps = catalog[activeLayerKey];
+      if (idx < 0 || idx >= timestamps.length) return;
+      timeIndex = idx;
+      await _loadFrame(activeLayerKey, idx);
+      _renderLayer();
+      _post('TimeChannel', { timeIndex: idx, timestamp: timestamps[idx] });
+    }
+
+    function play() {
+      if (playing) return;
+      playing = true;
+      _post('PlaybackChannel', { playing: true });
+      _animLoop();
+    }
+
+    function pause() {
+      playing = false;
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      _post('PlaybackChannel', { playing: false });
+    }
+
+    function setBaseUrl(url) {
+      baseUrl = url;
+    }
+
+    async function _loadFrame(key, idx) {
+      var timestamps = catalog[key];
+      if (!timestamps || idx >= timestamps.length) return;
+      var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx] + '.png';
+      try {
+        currentImage = await WeatherLayers.loadTextureData(url);
+      } catch (e) {
+        console.error('Failed to load frame:', url, e);
+        currentImage = null;
+      }
+      if (idx + 1 < timestamps.length) {
+        var nextUrl = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx + 1] + '.png';
+        try {
+          nextImage = await WeatherLayers.loadTextureData(nextUrl);
+        } catch (e) {
+          nextImage = null;
+        }
+      } else {
+        nextImage = null;
+      }
+    }
+
+    function _renderLayer() {
+      if (!activeLayerKey || !currentImage) {
+        overlay.setProps({ layers: [] });
+        return;
+      }
+      var cfg = LAYERS[activeLayerKey];
+      var layerProps = {
+        id: 'weather-layer',
+        image: currentImage,
+        bounds: [-180, -90, 180, 90],
+        imageType: cfg.imageType === 'VECTOR'
+          ? WeatherLayers.ImageType.VECTOR
+          : WeatherLayers.ImageType.SCALAR,
+        imageUnscale: cfg.imageUnscale,
+        extensions: [new deck.ClipExtension()],
+        clipBounds: [-181, -85.051129, 181, 85.051129],
+        pickable: true,
+        opacity: 0.85,
+      };
+
+      if (nextImage) {
+        layerProps.image2 = nextImage;
+        layerProps.imageWeight = 0;
+      }
+
+      var layer;
+      if (cfg.type === 'particle') {
+        layer = new WeatherLayers.ParticleLayer({
+          ...layerProps,
+          numParticles: cfg.numParticles || 5000,
+          maxAge: cfg.maxAge || 100,
+          speedFactor: cfg.speedFactor || 1,
+          width: cfg.width || 1,
+          color: [255, 255, 255, 200],
+          palette: cfg.palette,
+        });
+      } else {
+        layer = new WeatherLayers.RasterLayer({
+          ...layerProps,
+          palette: cfg.palette,
+        });
+      }
+
+      overlay.setProps({ layers: [layer] });
+    }
+
+    var _animStartTime = 0;
+    var _animDurationMs = 3000;
+
+    function _animLoop() {
+      if (!playing || !activeLayerKey || !catalog) return;
+      var timestamps = catalog[activeLayerKey];
+      if (!timestamps || timestamps.length < 2) return;
+
+      if (!_animStartTime) _animStartTime = performance.now();
+      var elapsed = performance.now() - _animStartTime;
+      var progress = (elapsed % _animDurationMs) / _animDurationMs;
+      var totalSteps = timestamps.length - 1;
+      var floatIndex = progress * totalSteps;
+      var newIdx = Math.floor(floatIndex);
+      var weight = floatIndex - newIdx;
+
+      if (newIdx !== timeIndex) {
+        timeIndex = newIdx;
+        _loadFrame(activeLayerKey, newIdx).then(function() {
+          _updateWeight(weight);
+        });
+        _post('TimeChannel', { timeIndex: newIdx, timestamp: timestamps[newIdx] });
+      } else {
+        _updateWeight(weight);
+      }
+
+      animFrameId = requestAnimationFrame(_animLoop);
+    }
+
+    function _updateWeight(w) {
+      if (!currentImage) return;
+      var cfg = LAYERS[activeLayerKey];
+      var layerProps = {
+        id: 'weather-layer',
+        image: currentImage,
+        bounds: [-180, -90, 180, 90],
+        imageType: cfg.imageType === 'VECTOR'
+          ? WeatherLayers.ImageType.VECTOR
+          : WeatherLayers.ImageType.SCALAR,
+        imageUnscale: cfg.imageUnscale,
+        extensions: [new deck.ClipExtension()],
+        clipBounds: [-181, -85.051129, 181, 85.051129],
+        opacity: 0.85,
+      };
+
+      if (nextImage) {
+        layerProps.image2 = nextImage;
+        layerProps.imageWeight = w;
+      }
+
+      var layer;
+      if (cfg.type === 'particle') {
+        layer = new WeatherLayers.ParticleLayer({
+          ...layerProps,
+          numParticles: cfg.numParticles || 5000,
+          maxAge: cfg.maxAge || 100,
+          speedFactor: cfg.speedFactor || 1,
+          width: cfg.width || 1,
+          color: [255, 255, 255, 200],
+          palette: cfg.palette,
+        });
+      } else {
+        layer = new WeatherLayers.RasterLayer({
+          ...layerProps,
+          palette: cfg.palette,
+        });
+      }
+
+      overlay.setProps({ layers: [layer] });
+    }
+
+    function _post(channel, data) {
+      try {
+        if (window[channel]) {
+          window[channel].postMessage(JSON.stringify(data));
+        }
+      } catch (e) {
+        console.error('Post to ' + channel + ' failed:', e);
+      }
+    }
+  </script>
+</body>
+</html>
