@@ -97,7 +97,7 @@ private fun Application.configureScheduledJobs() {
     val bathymetryClient = BathymetryClient(landWaterClient)
     val prefetchJobs = DataPrefetchJobs(
         SpotDatabase,
-        NOAATidesClient(),
+        TideClient.create(),
         OpenMeteoClient(),
         CopernicusClient(),
         NOAAClient(),

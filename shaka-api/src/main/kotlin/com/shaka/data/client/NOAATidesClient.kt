@@ -38,7 +38,9 @@ import kotlin.math.roundToInt
  * API: https://api.tidesandcurrents.noaa.gov/api/prod/
  * Metadata API: https://api.tidesandcurrents.noaa.gov/mdapi/prod/
  */
-class NOAATidesClient {
+class NOAATidesClient : TideClient {
+    
+    override val provider = "noaa"
     
     private val logger = LoggerFactory.getLogger(NOAATidesClient::class.java)
     
@@ -179,7 +181,7 @@ class NOAATidesClient {
      * @param date Date in YYYY-MM-DD format
      * @return TideData with real predictions, or null-valued data if no nearby station
      */
-    suspend fun getTideData(lat: Double, lon: Double, date: String): TideData {
+    override suspend fun getTideData(lat: Double, lon: Double, date: String): TideData {
         return try {
             val station = findNearestStationInfo(lat, lon)
             if (station != null) {
@@ -231,7 +233,7 @@ class NOAATidesClient {
      * Applies the v1 eligibility rule (5 mi any station, 10 mi subordinate).
      * Returns null if the spot is ineligible or NOAA fails.
      */
-    suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
+    override suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
         return try {
             val stations = getStations()
             val result = findNearestWithDistance(lat, lon, stations) ?: return null

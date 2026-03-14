@@ -50,9 +50,9 @@ const _conditionSources = {
     description: 'Surface wind speed and direction. High winds create surface chop and reduce visibility.',
   ),
   'tide': _ConditionSource(
-    source: 'NOAA CO-OPS Tide Stations',
+    source: 'FES2022 Global Tide Model',
     updateFrequency: 'Predicted',
-    description: 'Tide predictions for nearby stations. Tidal movement affects current strength and fish activity.',
+    description: 'Astronomical tide predictions from the FES2022 global ocean model. Tidal movement affects current strength and fish activity.',
   ),
   'exposure': _ConditionSource(
     source: 'Multi-ring land/water analysis',

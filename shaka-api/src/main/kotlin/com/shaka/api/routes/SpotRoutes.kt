@@ -485,7 +485,7 @@ fun Application.configureRouting() {
                 val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutTide()
                 val total = spotsToFetch.size
                 
-                val tidesClient = com.shaka.data.client.NOAATidesClient()
+                val tidesClient = com.shaka.data.client.TideClient.create()
                 val today = java.time.LocalDate.now().toString()
                 
                 kotlinx.coroutines.GlobalScope.launch {
@@ -499,10 +499,6 @@ fun Application.configureRouting() {
                                 spot.coordinates.lon,
                                 today
                             )
-                            val stationId = tidesClient.findNearestStation(
-                                spot.coordinates.lat,
-                                spot.coordinates.lon
-                            )
                             com.shaka.data.cache.SpotDataCache.updateTide(
                                 spotId,
                                 com.shaka.data.cache.SpotDataCache.CachedValue(
@@ -511,7 +507,7 @@ fun Application.configureRouting() {
                                         nextHighTide = tideData.nextHighTide,
                                         nextLowTide = tideData.nextLowTide,
                                         currentHeight = tideData.currentHeight,
-                                        stationId = stationId,
+                                        stationId = null,
                                         nextHighTideTime = tideData.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
                                         nextLowTideTime = tideData.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
                                     ),

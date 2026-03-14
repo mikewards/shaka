@@ -7,7 +7,7 @@ import kotlin.math.roundToInt
 import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.GIBSClient
 import com.shaka.data.client.NOAAClient
-import com.shaka.data.client.NOAATidesClient
+import com.shaka.data.client.TideClient
 import com.shaka.data.client.OpenMeteoClient
 import com.shaka.data.client.ProtectedSeasClient
 import com.shaka.data.client.SpotDatabase
@@ -47,7 +47,7 @@ class SpotService {
     private val logger = LoggerFactory.getLogger(SpotService::class.java)
     private val openMeteo = OpenMeteoClient()
     private val copernicus = CopernicusClient()
-    private val tidesClient = NOAATidesClient()
+    private val tidesClient = TideClient.create()
     private val noaaClient = NOAAClient()
     private val community = CommunityClient()
     private val forecastService = ForecastService()
@@ -566,7 +566,7 @@ class SpotService {
     private fun loadTideChartData(spotId: String): TideChartData? {
         return try {
             val today = java.time.LocalDate.now().toString()
-            val row = SpotDataCache.getTideDay(spotId, today) ?: return null
+            val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
 
             val json = Json { ignoreUnknownKeys = true }
             val points: List<TidePoint> = row.pointsJson?.let {
@@ -1714,7 +1714,7 @@ class SpotService {
                             extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
                             fetchedAt = now
                         ))
-                        logger.info("Tide chart persisted for $spotId (station ${chartData.stationId}, ${chartData.stationDistanceMi} mi)")
+                        logger.info("Tide chart persisted for $spotId (provider=${chartData.provider})")
                     }
                 } catch (e: Exception) {
                     logger.warn("Tide chart fetch failed for $spotId: ${e.message}")

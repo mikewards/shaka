@@ -25,7 +25,7 @@ import java.time.LocalDate
  */
 class DataPrefetchJobs(
     private val spotDb: SpotDatabase,
-    private val tidesClient: NOAATidesClient,
+    private val tidesClient: TideClient,
     private val openMeteo: OpenMeteoClient,
     private val copernicus: CopernicusClient,
     private val noaaClient: NOAAClient,
@@ -91,11 +91,6 @@ class DataPrefetchJobs(
                                 today
                             )
                             
-                            val stationId = tidesClient.findNearestStation(
-                                spot.coordinates.lat,
-                                spot.coordinates.lon
-                            )
-                            
                             SpotDataCache.updateTide(
                                 spot.id,
                                 SpotDataCache.CachedValue(
@@ -104,7 +99,7 @@ class DataPrefetchJobs(
                                         nextHighTide = tideData.nextHighTide,
                                         nextLowTide = tideData.nextLowTide,
                                         currentHeight = tideData.currentHeight,
-                                        stationId = stationId,
+                                        stationId = null,
                                         nextHighTideTime = tideData.nextHighTideTime?.let { Instant.ofEpochMilli(it) },
                                         nextLowTideTime = tideData.nextLowTideTime?.let { Instant.ofEpochMilli(it) }
                                     ),
@@ -154,7 +149,7 @@ class DataPrefetchJobs(
                 val results = batch.map { spot ->
                     async {
                         try {
-                            val existing = SpotDataCache.getTideDay(spot.id, day)
+                            val existing = SpotDataCache.getTideDay(spot.id, day, tidesClient.provider)
                             if (existing != null) return@async "skip"
 
                             withTimeout(SPOT_TIMEOUT_MS) {

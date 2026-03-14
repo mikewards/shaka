@@ -119,7 +119,9 @@ class TideChartCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${tide.stationName} · ${tide.stationDistanceMi.toStringAsFixed(1)} mi · ${tide.datum}',
+            tide.provider == 'fes2022'
+                ? 'FES2022 Global Tide Model · ${tide.datum}'
+                : '${tide.stationName} · ${tide.stationDistanceMi.toStringAsFixed(1)} mi · ${tide.datum}',
             style: TextStyle(color: _dimText, fontSize: 11),
             overflow: TextOverflow.ellipsis,
           ),
