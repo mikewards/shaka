@@ -12,10 +12,8 @@ from functools import lru_cache
 from typing import Optional
 
 import numpy as np
+import pyTMD.compute
 import pyTMD.io
-import pyTMD.predict
-import pyTMD.tools
-import pyTMD.utilities
 from timezonefinder import TimezoneFinder
 
 from config import COORD_PRECISION, FES_DATA_DIR, METERS_TO_FEET
@@ -23,7 +21,7 @@ from config import COORD_PRECISION, FES_DATA_DIR, METERS_TO_FEET
 logger = logging.getLogger("tide_engine")
 
 _tz_finder: Optional[TimezoneFinder] = None
-_model = None
+MODEL_NAME = "FES2022_extrapolated"
 
 
 def _get_tz_finder() -> TimezoneFinder:
@@ -43,50 +41,33 @@ def get_timezone(lat: float, lon: float) -> str:
 
 
 def load_model(data_dir: str = FES_DATA_DIR) -> None:
-    """Load FES2022 constituent data into memory. Called once at startup."""
-    global _model
-    logger.info("Loading FES2022 model from %s ...", data_dir)
-
-    _model = pyTMD.io.model(data_dir).elevation("FES2022")
-
-    logger.info("FES2022 model loaded successfully")
+    """Validate FES2022 constituent files are loadable. Called once at startup."""
+    logger.info("Validating FES2022 model from %s ...", data_dir)
+    m = pyTMD.io.model(data_dir).from_database(MODEL_NAME)
+    n_files = len(m.z.model_file) if isinstance(m.z.model_file, list) else 1
+    logger.info("FES2022 model validated: %d constituent files found", n_files)
 
 
 def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
     """
     Predict tide heights (meters, MSL) for an array of datetime64 times.
-    Returns numpy array of heights in meters.
+    Uses pyTMD.compute.tide_elevations (pyTMD 3.0 high-level API).
     """
-    if _model is None:
-        raise RuntimeError("FES2022 model not loaded. Call load_model() first.")
-
-    amp, ph = pyTMD.io.FES.extract_constants(
+    tide = pyTMD.compute.tide_elevations(
         np.atleast_1d(lon),
         np.atleast_1d(lat),
-        _model,
-        type=_model.type,
-        version=_model.version,
-        method="spline",
+        times,
+        directory=FES_DATA_DIR,
+        model=MODEL_NAME,
+        crs=4326,
+        type="time series",
+        standard="datetime",
+        method="linear",
         extrapolate=True,
         cutoff=10.0,
     )
-
-    delta_file = pyTMD.utilities.get_data_path(["data", "merged_deltat.data"])
-    deltat = pyTMD.predict.time_series.interpolate_delta_time(delta_file, times)
-
-    tide = pyTMD.predict.time_series.predict_tide(
-        times,
-        amp,
-        ph,
-        deltat=deltat,
-        corrections=_model.format,
-    )
-
-    # pyTMD may return masked array; fill masked values with 0
-    if hasattr(tide, "filled"):
-        tide = tide.filled(0.0)
-
-    return tide.flatten()
+    result = np.asarray(tide).flatten()
+    return result
 
 
 def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
@@ -136,7 +117,6 @@ def _do_predict(
     start_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
     end_dt = start_dt + datetime.timedelta(days=days)
 
-    # Build time array at the requested step
     total_minutes = int((end_dt - start_dt).total_seconds() / 60)
     minute_offsets = np.arange(0, total_minutes + 1, step_minutes)
     times_dt = np.array(
@@ -152,7 +132,6 @@ def _do_predict(
 
     points = [{"epoch_ms": t, "height_ft": h} for t, h in zip(times_ms, heights_ft)]
 
-    # Find extremes using finer resolution for better accuracy
     if step_minutes > 6:
         fine_offsets = np.arange(0, total_minutes + 1, 6)
         fine_times = np.array(
@@ -211,7 +190,6 @@ def predict_summary(lat: float, lon: float) -> dict:
 
     now_ms = int(now.timestamp() * 1000)
 
-    # Interpolate current height
     current_height = 0.0
     points = result["points"]
     for i in range(len(points) - 1):
@@ -222,7 +200,6 @@ def predict_summary(lat: float, lon: float) -> dict:
             current_height = round(h0 + frac * (h1 - h0), 2)
             break
 
-    # Find next high and low from extremes
     next_high = None
     next_low = None
     for ext in result["extremes"]:
@@ -235,7 +212,6 @@ def predict_summary(lat: float, lon: float) -> dict:
         if next_high and next_low:
             break
 
-    # Determine tide state from the nearest upcoming extreme
     tide_state = "unknown"
     if next_high and next_low:
         tide_state = "rising" if next_high["epoch_ms"] < next_low["epoch_ms"] else "falling"
