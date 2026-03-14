@@ -48,7 +48,7 @@ app = FastAPI(title="Shaka Tide Service", version="1.0.0", lifespan=lifespan)
 @app.get("/health")
 async def health():
     if not _ready.is_set():
-        raise HTTPException(status_code=503, detail="Loading FES2022 data...")
+        return {"status": "loading", "detail": "Downloading FES2022 data..."}
     return {"status": "ok", "model": "FES2022"}
 
 
