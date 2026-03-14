@@ -6,12 +6,29 @@ If missing, downloads ocean_tide_extrapolated from AVISO FTP.
 This only runs once -- subsequent deployments find data already present.
 """
 
+import gzip
 import logging
 import os
 import pathlib
+import shutil
 import time
 
 logger = logging.getLogger("startup")
+
+
+def _compress_existing_nc_files(data_dir: str) -> int:
+    """Gzip any uncompressed .nc files left from a previous compressed=False download."""
+    count = 0
+    for nc_file in pathlib.Path(data_dir).rglob("*.nc"):
+        gz_file = nc_file.with_suffix(".nc.gz")
+        if gz_file.exists():
+            continue
+        logger.info("Compressing %s -> %s", nc_file.name, gz_file.name)
+        with open(nc_file, "rb") as f_in, gzip.open(gz_file, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        nc_file.unlink()
+        count += 1
+    return count
 
 
 def fes_data_ready(data_dir: str) -> bool:
@@ -51,6 +68,10 @@ def download_fes2022(data_dir: str, user: str, password: str) -> None:
 
 def ensure_fes_data(data_dir: str, user: str, password: str) -> None:
     """Ensure FES2022 data is available, downloading if necessary."""
+    compressed = _compress_existing_nc_files(data_dir)
+    if compressed:
+        logger.info("Compressed %d existing .nc files to .nc.gz", compressed)
+
     if fes_data_ready(data_dir):
         logger.info("FES2022 data found at %s", data_dir)
         return
