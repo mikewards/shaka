@@ -49,6 +49,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   // Lazy-loaded forecast
   List<DayForecast>? _forecast;
   bool _forecastLoading = false;
+  bool _tilesPrecached = false;
 
   @override
   void initState() {
@@ -200,8 +201,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return _buildLoadingState();
   }
 
+  void _precacheSatelliteTiles(Coordinates coords) {
+    if (_tilesPrecached) return;
+    _tilesPrecached = true;
+    SwellDetailsCard.precacheTiles(context, coords.lat, coords.lon);
+  }
+
   /// Full tabbed content when SpotDetail is loaded
   Widget _buildTabbedContent(SpotDetail spot) {
+    _precacheSatelliteTiles(spot.coordinates);
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [
@@ -316,7 +324,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         // Swell details (expandable)
         _buildSectionHeader('SWELL'),
         const SizedBox(height: 10),
-        SwellDetailsCard(conditions: spot.conditions),
+        SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
         const SizedBox(height: 20),
 
         // Satellite Visibility (collapsed label, expandable details)
@@ -1046,6 +1054,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   // ============ PRELOADED & LOADING STATES ============
 
   Widget _buildPreloadedContent(SpotSummary spot) {
+    _precacheSatelliteTiles(spot.coordinates);
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [
@@ -1084,7 +1093,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               // Swell details (expandable)
               _buildSectionHeader('SWELL'),
               const SizedBox(height: 10),
-              SwellDetailsCard(conditions: spot.conditions),
+              SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
               const SizedBox(height: 20),
               // Satellite Visibility (collapsed label, expandable details)
               if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[

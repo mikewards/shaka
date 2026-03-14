@@ -26,6 +26,66 @@ const _cardinalToDegrees = <String, double>{
 
 final _swellRegex = RegExp(r'([\d.]+)ft\s*@\s*(\d+)s\s+(\w+)');
 
+// ── Satellite tile helpers ──────────────────────────────────────────────────
+
+const _tileZoom = 14;
+const _tileSize = 256.0;
+const _arcgisBase =
+    'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile';
+
+int _lonToTileX(double lon, int z) =>
+    ((lon + 180) / 360 * (1 << z)).floor();
+
+int _latToTileY(double lat, int z) =>
+    ((1 - log(tan(lat * pi / 180) + 1 / cos(lat * pi / 180)) / pi) / 2 *
+            (1 << z))
+        .floor();
+
+double _lonToPixelX(double lon, int z) =>
+    (lon + 180) / 360 * (1 << z) * 256;
+
+double _latToPixelY(double lat, int z) =>
+    (1 - log(tan(lat * pi / 180) + 1 / cos(lat * pi / 180)) / pi) / 2 *
+    (1 << z) *
+    256;
+
+/// Returns 4 ArcGIS tile URLs forming a 2x2 grid centered on the spot.
+List<String> _satelliteTileUrls(double lat, double lon) {
+  const z = _tileZoom;
+  final tx = _lonToTileX(lon, z);
+  final ty = _latToTileY(lat, z);
+  final localX = _lonToPixelX(lon, z) - tx * 256;
+  final localY = _latToPixelY(lat, z) - ty * 256;
+
+  // Pick the 2x2 quadrant that keeps the spot near the center
+  final startTx = localX >= 128 ? tx : tx - 1;
+  final startTy = localY >= 128 ? ty : ty - 1;
+
+  return [
+    '$_arcgisBase/$z/$startTy/$startTx',
+    '$_arcgisBase/$z/$startTy/${startTx + 1}',
+    '$_arcgisBase/$z/${startTy + 1}/$startTx',
+    '$_arcgisBase/$z/${startTy + 1}/${startTx + 1}',
+  ];
+}
+
+/// Pixel offset to translate the 2x2 grid so the spot is view-centered.
+Offset _satelliteTileOffset(double lat, double lon, double viewWidth, double viewHeight) {
+  const z = _tileZoom;
+  final tx = _lonToTileX(lon, z);
+  final ty = _latToTileY(lat, z);
+  final localX = _lonToPixelX(lon, z) - tx * 256;
+  final localY = _latToPixelY(lat, z) - ty * 256;
+
+  final startTx = localX >= 128 ? tx : tx - 1;
+  final startTy = localY >= 128 ? ty : ty - 1;
+
+  final spotInGridX = _lonToPixelX(lon, z) - startTx * 256;
+  final spotInGridY = _latToPixelY(lat, z) - startTy * 256;
+
+  return Offset(viewWidth / 2 - spotInGridX, viewHeight / 2 - spotInGridY);
+}
+
 _ParsedSwell? _parseSwell(String s) {
   final m = _swellRegex.firstMatch(s);
   if (m == null) return null;
@@ -47,8 +107,20 @@ _ParsedSwell? _parseSwell(String s) {
 /// all swell vectors and the spot's exposure arc.
 class SwellDetailsCard extends StatefulWidget {
   final SpotConditions conditions;
+  final Coordinates? coordinates;
 
-  const SwellDetailsCard({super.key, required this.conditions});
+  const SwellDetailsCard({
+    super.key,
+    required this.conditions,
+    this.coordinates,
+  });
+
+  /// Pre-warm satellite tiles into Flutter's image cache (fire-and-forget).
+  static void precacheTiles(BuildContext context, double lat, double lon) {
+    for (final url in _satelliteTileUrls(lat, lon)) {
+      precacheImage(NetworkImage(url), context);
+    }
+  }
 
   @override
   State<SwellDetailsCard> createState() => _SwellDetailsCardState();
@@ -160,11 +232,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       ));
     }
 
-    // Deduplicate by direction for the compass (first per-direction wins = corrected)
+    // Deduplicate by (direction, swell category) so corrected/uncorrected
+    // collapse but primary + secondary always both appear on the compass.
     final compassSwells = <(_ParsedSwell, Color)>[];
     for (final item in items) {
       if (item.$3 != null && item.$4 != null) {
-        final alreadyAdded = compassSwells.any((s) => s.$1.degrees == item.$3!.degrees);
+        final alreadyAdded = compassSwells.any(
+          (s) => s.$1.degrees == item.$3!.degrees && s.$2 == item.$4!,
+        );
         if (!alreadyAdded) {
           compassSwells.add((item.$3!, item.$4!));
         }
@@ -191,12 +266,56 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
             const SizedBox(height: 12),
             AspectRatio(
               aspectRatio: 1.0,
-              child: CustomPaint(
-                painter: _SwellCompassPainter(
-                  swells: compassSwells,
-                  exposureBearing: c.exposureBearing?.toDouble(),
-                  exposureWidth: c.exposureWidth?.toDouble(),
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final viewWidth = constraints.maxWidth;
+                  final viewHeight = constraints.maxHeight;
+                  final coords = widget.coordinates;
+                  final tileUrls = coords != null
+                      ? _satelliteTileUrls(coords.lat, coords.lon)
+                      : null;
+                  final tileOffset = coords != null
+                      ? _satelliteTileOffset(coords.lat, coords.lon, viewWidth, viewHeight)
+                      : null;
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: viewWidth,
+                      height: viewHeight,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Satellite imagery tiles
+                          if (tileUrls != null && tileOffset != null)
+                            for (int i = 0; i < 4; i++)
+                              Positioned(
+                                left: tileOffset.dx + (i % 2) * _tileSize,
+                                top: tileOffset.dy + (i ~/ 2) * _tileSize,
+                                child: Image.network(
+                                  tileUrls[i],
+                                  width: _tileSize,
+                                  height: _tileSize,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      SizedBox(width: _tileSize, height: _tileSize),
+                                ),
+                              ),
+                          // Compass rose
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: _SwellCompassPainter(
+                                swells: compassSwells,
+                                exposureBearing: c.exposureBearing?.toDouble(),
+                                exposureWidth: c.exposureWidth?.toDouble(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -284,7 +403,7 @@ class _SwellDirectionBadge extends StatelessWidget {
 }
 
 /// Compass rose showing swell arrows and exposure arc via CustomPainter.
-/// Only repaints when swell data or exposure changes.
+/// All structural lines use the crosshair pattern: white border + black center.
 class _SwellCompassPainter extends CustomPainter {
   final List<(_ParsedSwell, Color)> swells;
   final double? exposureBearing;
@@ -296,30 +415,71 @@ class _SwellCompassPainter extends CustomPainter {
     this.exposureWidth,
   });
 
+  static const _shadowStyle = [
+    Shadow(color: Color(0xFF000000), blurRadius: 4),
+    Shadow(color: Color(0xCC000000), blurRadius: 8),
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width, size.height) / 2 - 16;
+    final radius = min(size.width, size.height) / 2 - 24;
 
-    // Exposure behind everything so it never clips arrows
     if (exposureBearing != null && exposureWidth != null && exposureWidth! > 0) {
       _drawExposureArc(canvas, center, radius);
     }
 
     _drawReferenceRings(canvas, center, radius);
+    _drawCenterCrosshair(canvas, center);
     _drawCardinalLabels(canvas, center, radius);
     _drawSwellArrows(canvas, center, radius);
   }
 
+  /// White border + black center — same pattern as the crosshair.
   void _drawReferenceRings(Canvas canvas, Offset center, double radius) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.15)
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = 2.5;
+
+    final centerPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
 
     for (int i = 1; i <= 3; i++) {
-      canvas.drawCircle(center, radius * i / 3, paint);
+      final r = radius * i / 3;
+      canvas.drawCircle(center, r, borderPaint);
+      canvas.drawCircle(center, r, centerPaint);
     }
+  }
+
+  void _drawCenterCrosshair(Canvas canvas, Offset center) {
+    const gap = 8.0;
+    const lineLen = 18.0;
+
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final centerPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.6)
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+
+    for (final paint in [borderPaint, centerPaint]) {
+      canvas.drawLine(Offset(center.dx, center.dy - gap),
+          Offset(center.dx, center.dy - gap - lineLen), paint);
+      canvas.drawLine(Offset(center.dx, center.dy + gap),
+          Offset(center.dx, center.dy + gap + lineLen), paint);
+      canvas.drawLine(Offset(center.dx - gap, center.dy),
+          Offset(center.dx - gap - lineLen, center.dy), paint);
+      canvas.drawLine(Offset(center.dx + gap, center.dy),
+          Offset(center.dx + gap + lineLen, center.dy), paint);
+    }
+
+    canvas.drawCircle(center, 3, Paint()..color = Colors.red);
   }
 
   void _drawCardinalLabels(Canvas canvas, Offset center, double radius) {
@@ -329,17 +489,18 @@ class _SwellCompassPainter extends CustomPainter {
     for (int i = 0; i < labels.length; i++) {
       final b = bearings[i] * pi / 180;
       final offset = Offset(
-        center.dx + (radius + 10) * sin(b),
-        center.dy - (radius + 10) * cos(b),
+        center.dx + (radius + 14) * sin(b),
+        center.dy - (radius + 14) * cos(b),
       );
 
       final tp = TextPainter(
         text: TextSpan(
           text: labels[i],
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
+            color: Colors.white,
             fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
+            shadows: _shadowStyle,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -353,7 +514,6 @@ class _SwellCompassPainter extends CustomPainter {
     final bearing = exposureBearing!;
     final width = exposureWidth!;
 
-    // Convert compass bearing to Canvas arc angles (0 = east, clockwise)
     final startAngle = (bearing - width / 2 - 90) * pi / 180;
     final sweepAngle = width * pi / 180;
 
@@ -373,18 +533,18 @@ class _SwellCompassPainter extends CustomPainter {
 
     canvas.drawPath(sectorPath, fillPaint);
 
-    final outlinePaint = Paint()
-      ..color = const Color(0xFFD4A037).withValues(alpha: 0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepAngle,
-      false,
-      outlinePaint,
-    );
+    // White border + black center pattern (matching crosshair/rings)
+    canvas.drawArc(rect, startAngle, sweepAngle, false, Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5);
+
+    canvas.drawArc(rect, startAngle, sweepAngle, false, Paint()
+      ..color = const Color(0xFFD4A037).withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2);
   }
 
   void _drawSwellArrows(Canvas canvas, Offset center, double radius) {
@@ -393,67 +553,108 @@ class _SwellCompassPainter extends CustomPainter {
     final maxHeight = swells.map((s) => s.$1.heightFt).reduce(max);
     if (maxHeight <= 0) return;
 
-    // Primary first (background), secondary on top so it's always visible
+    final primaryNorm = (swells[0].$1.heightFt / maxHeight).clamp(0.6, 1.0);
+    final primaryTipR = radius * 0.93 - radius * 0.85 * primaryNorm;
+
     for (int idx = 0; idx < swells.length; idx++) {
       final (swell, color) = swells[idx];
       final isPrimary = idx == 0;
       final b = swell.degrees * pi / 180;
 
-      final scaleFactor = isPrimary ? 1.0 : 0.65;
-      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.4, 1.0);
-      final arrowLen = radius * 0.75 * normalizedLen * scaleFactor;
-      final baseWidth = isPrimary ? 26.0 : 17.0;
-      final notchDepth = isPrimary ? 10.0 : 6.0;
+      final barWidth = isPrimary ? 26.0 : 16.0;
+      final halfW = barWidth / 2;
+
+      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.6, 1.0);
+      final arrowLen = radius * 0.85 * normalizedLen * (isPrimary ? 1.0 : 0.85);
+      final outerR = isPrimary ? radius * 0.93 : primaryTipR + arrowLen;
 
       final startPt = Offset(
-        center.dx + radius * 0.93 * sin(b),
-        center.dy - radius * 0.93 * cos(b),
+        center.dx + outerR * sin(b),
+        center.dy - outerR * cos(b),
       );
       final endPt = Offset(
-        center.dx + (radius * 0.93 - arrowLen) * sin(b),
-        center.dy - (radius * 0.93 - arrowLen) * cos(b),
+        center.dx + (outerR - arrowLen) * sin(b),
+        center.dy - (outerR - arrowLen) * cos(b),
       );
 
       final arrowAngle = atan2(endPt.dy - startPt.dy, endPt.dx - startPt.dx);
       final perpAngle = arrowAngle + pi / 2;
 
-      // Navigation-style kite: pointed tip → wide base with V-notch
+      final baseR = Offset(
+        startPt.dx + halfW * cos(perpAngle),
+        startPt.dy + halfW * sin(perpAngle),
+      );
+      final baseL = Offset(
+        startPt.dx - halfW * cos(perpAngle),
+        startPt.dy - halfW * sin(perpAngle),
+      );
+
+      final ctrl1R = Offset(
+        endPt.dx + (startPt.dx - endPt.dx) * 0.25 + halfW * 0.8 * cos(perpAngle),
+        endPt.dy + (startPt.dy - endPt.dy) * 0.25 + halfW * 0.8 * sin(perpAngle),
+      );
+      final ctrl2R = Offset(
+        endPt.dx + (startPt.dx - endPt.dx) * 0.50 + halfW * cos(perpAngle),
+        endPt.dy + (startPt.dy - endPt.dy) * 0.50 + halfW * sin(perpAngle),
+      );
+      final ctrl2L = Offset(
+        endPt.dx + (startPt.dx - endPt.dx) * 0.50 - halfW * cos(perpAngle),
+        endPt.dy + (startPt.dy - endPt.dy) * 0.50 - halfW * sin(perpAngle),
+      );
+      final ctrl1L = Offset(
+        endPt.dx + (startPt.dx - endPt.dx) * 0.25 - halfW * 0.8 * cos(perpAngle),
+        endPt.dy + (startPt.dy - endPt.dy) * 0.25 - halfW * 0.8 * sin(perpAngle),
+      );
+
+      // C1-continuous base cap: control points along the backward tangent
+      // so the curve is smooth where sides meet the rounded cap.
+      final capDepth = halfW * 0.55;
+      final backDx = -cos(arrowAngle);
+      final backDy = -sin(arrowAngle);
+      final baseCapCtrlR = Offset(
+        baseR.dx + capDepth * backDx,
+        baseR.dy + capDepth * backDy,
+      );
+      final baseCapCtrlL = Offset(
+        baseL.dx + capDepth * backDx,
+        baseL.dy + capDepth * backDy,
+      );
+
       final arrowPath = Path()
         ..moveTo(endPt.dx, endPt.dy)
-        ..lineTo(
-          startPt.dx + baseWidth / 2 * cos(perpAngle),
-          startPt.dy + baseWidth / 2 * sin(perpAngle),
-        )
-        ..lineTo(
-          startPt.dx + notchDepth * cos(arrowAngle),
-          startPt.dy + notchDepth * sin(arrowAngle),
-        )
-        ..lineTo(
-          startPt.dx - baseWidth / 2 * cos(perpAngle),
-          startPt.dy - baseWidth / 2 * sin(perpAngle),
-        )
-        ..close();
+        ..cubicTo(ctrl1R.dx, ctrl1R.dy, ctrl2R.dx, ctrl2R.dy,
+            baseR.dx, baseR.dy)
+        ..cubicTo(baseCapCtrlR.dx, baseCapCtrlR.dy,
+            baseCapCtrlL.dx, baseCapCtrlL.dy, baseL.dx, baseL.dy)
+        ..cubicTo(ctrl2L.dx, ctrl2L.dy, ctrl1L.dx, ctrl1L.dy,
+            endPt.dx, endPt.dy);
 
-      canvas.drawPath(arrowPath, Paint()..color = color.withValues(alpha: 0.85));
+      canvas.drawPath(arrowPath, Paint()
+        ..color = Colors.white.withValues(alpha: isPrimary ? 0.5 : 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isPrimary ? 3.0 : 2.5
+        ..strokeJoin = StrokeJoin.round);
+
+      canvas.drawPath(arrowPath, Paint()..color = color.withValues(alpha: 0.9));
     }
 
     // Labels in second pass, always on top of all arrow shapes
     for (int idx = 0; idx < swells.length; idx++) {
-      final (swell, color) = swells[idx];
+      final (swell, _) = swells[idx];
       final isPrimary = idx == 0;
       final b = swell.degrees * pi / 180;
 
-      final scaleFactor = isPrimary ? 1.0 : 0.65;
-      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.4, 1.0);
-      final arrowLen = radius * 0.75 * normalizedLen * scaleFactor;
+      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.6, 1.0);
+      final arrowLen = radius * 0.85 * normalizedLen * (isPrimary ? 1.0 : 0.85);
+      final outerR = isPrimary ? radius * 0.93 : primaryTipR + arrowLen;
 
       final startPt = Offset(
-        center.dx + radius * 0.93 * sin(b),
-        center.dy - radius * 0.93 * cos(b),
+        center.dx + outerR * sin(b),
+        center.dy - outerR * cos(b),
       );
       final endPt = Offset(
-        center.dx + (radius * 0.93 - arrowLen) * sin(b),
-        center.dy - (radius * 0.93 - arrowLen) * cos(b),
+        center.dx + (outerR - arrowLen) * sin(b),
+        center.dy - (outerR - arrowLen) * cos(b),
       );
 
       final ht = swell.heightFt;
@@ -466,23 +667,23 @@ class _SwellCompassPainter extends CustomPainter {
         text: TextSpan(
           text: label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.95),
-            fontSize: isPrimary ? 12 : 10,
-            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            fontSize: isPrimary ? 13.0 : 10.0,
+            fontWeight: FontWeight.w500,
+            shadows: _shadowStyle,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      // Place label at ~30% from base (widest part of the kite)
+      final labelT = isPrimary ? 0.25 : 0.25;
       final labelCenter = Offset(
-        startPt.dx + (endPt.dx - startPt.dx) * 0.3,
-        startPt.dy + (endPt.dy - startPt.dy) * 0.3,
+        startPt.dx + (endPt.dx - startPt.dx) * labelT,
+        startPt.dy + (endPt.dy - startPt.dy) * labelT,
       );
 
       final arrowAngle = atan2(endPt.dy - startPt.dy, endPt.dx - startPt.dx);
 
-      // Rotate text to align with arrow, keeping it readable (never upside-down)
       var textAngle = arrowAngle;
       if (textAngle > pi / 2) textAngle -= pi;
       if (textAngle < -pi / 2) textAngle += pi;
