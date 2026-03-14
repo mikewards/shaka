@@ -1681,9 +1681,9 @@ class SpotService {
                     usedBuoy = true
                     logger.info("Using buoy ${buoyMatch.station.stationId} data for spot $spotId (${buoyMatch.reading.waveHeightM}m, ${buoyMatch.distanceNm.toInt()}nm away)")
                 } else {
-                    rawHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight)
-                    periodSec = ocean.wavePeriod
-                    rawDirectionDeg = ocean.waveDirection.toDouble()
+                    rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                    periodSec = if (ocean.swellPeriod > 0) ocean.swellPeriod else ocean.wavePeriod
+                    rawDirectionDeg = ocean.swellDirection.toDouble()
                     directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                     swellSource = "open-meteo"
                     usedBuoy = false
@@ -1692,7 +1692,14 @@ class SpotService {
                 // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
                 val ld = exposure?.landDistances
                 val correctedHt = if (ld != null && !usedBuoy) {
-                    SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, ld)
+                    SpotDataCache.attenuateSwell(
+                        rawHeightFt, rawDirectionDeg, ld,
+                        swellPeriodSec = periodSec,
+                        totalWaveHeightM = ocean.waveHeight,
+                        swellHeightM = ocean.swellHeight,
+                        windSpeedKmh = weather.windSpeed,
+                        windDirectionDeg = weather.windDirection.toDouble()
+                    )
                 } else null
                 
                 val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }

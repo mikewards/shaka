@@ -224,9 +224,9 @@ class DataPrefetchJobs(
                                 swellSource = "ndbc-${buoyMatch.station.stationId}"
                                 usedBuoy = true
                             } else {
-                                rawHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight)
-                                periodSec = ocean.wavePeriod
-                                rawDirectionDeg = ocean.waveDirection.toDouble()
+                                rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
+                                periodSec = if (ocean.swellPeriod > 0) ocean.swellPeriod else ocean.wavePeriod
+                                rawDirectionDeg = ocean.swellDirection.toDouble()
                                 directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
                                 swellSource = "open-meteo"
                                 usedBuoy = false
@@ -235,7 +235,14 @@ class DataPrefetchJobs(
                             // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
                             val ld = exposure?.landDistances
                             val correctedHt = if (ld != null && !usedBuoy) {
-                                SpotDataCache.attenuateSwell(rawHeightFt, rawDirectionDeg, ld)
+                                SpotDataCache.attenuateSwell(
+                                    rawHeightFt, rawDirectionDeg, ld,
+                                    swellPeriodSec = periodSec,
+                                    totalWaveHeightM = ocean.waveHeight,
+                                    swellHeightM = ocean.swellHeight,
+                                    windSpeedKmh = weather.windSpeed,
+                                    windDirectionDeg = weather.windDirection.toDouble()
+                                )
                             } else null
                             
                             // Secondary swell from Open-Meteo (always model data)

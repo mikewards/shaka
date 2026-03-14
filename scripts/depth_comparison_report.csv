@@ -1,0 +1,337 @@
+spot_id,name,lat,lon,ncei_depth_m,google_depth_m,google_raw_elev,google_resolution_m,diff_m,pct_diff
+oahu-chinaman-hat,Chinaman's Hat (Mokoli'i),21.505,-157.84,1.36,0.88,-0.88,76.35,0.49,43.3
+oahu-punaluu,Punaluu,21.58441,-157.884,2.01,0.92,-0.92,76.35,1.09,74.6
+oahu-hauula,Hauula Beach,21.612646,-157.905776,12.78,8.02,-8.02,76.35,4.76,45.7
+oahu-goat-island,Goat Island (Moku'auia),21.67,-157.929,8.14,7.57,-7.57,76.35,0.57,7.2
+oahu-kahuku-point,Kahuku Point,21.714518,-157.974,10.89,9.38,-9.38,76.35,1.51,14.9
+eleuthera-rock-sound-blue-hole,Rock Sound Blue Hole,24.8833,-76.188081,76.0,0,0,610.81,76.0,200.0
+bigisland-honokohau-harbor,Honokohau Harbor,19.67,-156.033663,98.46,63.24,-63.24,152.7,35.22,43.6
+bigisland-kikaua-point,Kikaua Point,19.81,-156.011,13.1,5.6,-5.6,76.35,7.5,80.2
+bigisland-makalawena,Makalawena Beach,19.83941,-155.986,21.3,15.92,-15.92,76.35,5.38,28.9
+bigisland-kawaihae-harbor,Kawaihae Harbor,20.035,-155.83,10.94,2.33,-2.33,76.35,8.61,129.7
+nassau-goulding-cay,Goulding Cay,25.0333,-77.5667,14.68,1.59,-1.59,610.81,13.09,160.8
+oahu-malaekahana,Malaekahana Bay,21.665,-157.934,2.71,0.06,-0.06,76.35,2.66,191.8
+bigisland-two-step,Two Step (Honaunau),19.42117,-155.915061,27.28,0.91,-0.91,76.35,26.37,187.1
+bigisland-wawaloli,Wawaloli Beach,19.715,-156.051,16.31,1.25,-1.25,76.35,15.06,171.5
+abaco-walkers-cay,Walker's Cay,27.2667,-78.4,9.0,7.14,-7.14,152.7,1.86,23.1
+oahu-kahana-bay,Kahana Bay,21.560417,-157.874,1.39,0.23,-0.23,76.35,1.16,142.5
+bigisland-hapuna,Hapuna Beach,19.977354,-155.834135,7.07,1.99,-1.99,76.35,5.08,112.2
+cali-catalina-casino-point,Casino Point (Catalina),33.35,-118.325,20.41,8.38,-8.38,19.09,12.03,83.6
+sardinia-maddalena,La Maddalena Archipelago,41.211695,9.4167,4.0,0,0,610.81,4.0,200.0
+italy-elba-north,Elba Island - North,42.817117,10.2667,35.0,0,0,610.81,35.0,200.0
+spain-mallorca-dragonera-west,Dragonera - West,39.5883,2.3017,42.0,2.78,-2.78,610.81,39.22,175.2
+sardinia-capo-caccia,Capo Caccia,40.56,8.16,49.0,0,0,610.81,49.0,200.0
+cali-santa-barbara-island-west,Santa Barbara Island - West,33.4867,-119.0275,5.75,9.99,-9.99,4.77,-4.24,-53.9
+keys-davis-reef,Davis Reef,24.9244,-80.5028,12.3,7.33,-7.33,152.7,4.97,50.7
+keys-carysfort-reef,Carysfort Reef,25.2228,-80.2114,4.02,1.72,-1.72,610.81,2.3,80.3
+keys-spiegel-grove,USS Spiegel Grove,25.0628,-80.3086,39.4,40.91,-40.91,152.7,-1.51,-3.8
+maui-kahului-harbor,Kahului Harbor,20.9,-156.47,6.12,-0.27,0.27,76.35,6.39,218.8
+keys-pickles-reef,Pickles Reef,24.9858,-80.4131,6.9,11.98,-11.98,76.35,-5.08,-53.8
+maldives-hanifaru-bay,Hanifaru Bay,5.25,73.0833,47.0,8.47,-8.47,610.81,38.53,138.9
+keys-duane-wreck,USCGC Duane Wreck,24.9867,-80.3822,41.48,38.94,-38.94,76.35,2.53,6.3
+maui-hana-bay,Hana Bay,20.759518,-155.984,2.34,2.1,-2.1,76.35,0.24,10.7
+keys-coffins-patch,Coffins Patch,24.6833,-81.05,9.26,8.49,-8.49,76.35,0.76,8.6
+keys-american-shoal,American Shoal,24.5161,-81.5231,30.93,30.0,-30.0,76.35,0.92,3.0
+keys-bahia-honda-bridge,Bahia Honda Bridge,24.6553,-81.2842,5.42,0.19,-0.19,76.35,5.23,186.3
+keys-newfound-harbor,Newfound Harbor Keys,24.61,-81.39,7.97,7.31,-7.31,76.35,0.66,8.7
+keys-marquesas,Marquesas Keys,24.55,-82.1,4.03,2.0,-2.0,76.35,2.03,67.3
+keys-dry-tortugas-north,Dry Tortugas - North,24.6433,-82.8781,11.0,5.38,-5.38,76.35,5.62,68.5
+keys-dry-tortugas-east,Dry Tortugas - East,24.6283,-82.8531,7.0,4.54,-4.54,76.35,2.46,42.6
+keys-alligator-reef,Alligator Reef,24.8481,-80.6186,5.85,8.64,-8.64,76.35,-2.79,-38.5
+keys-conch-reef,Conch Reef,24.9533,-80.4564,12.74,13.78,-13.78,152.7,-1.04,-7.8
+keys-french-reef,French Reef,25.0344,-80.3508,3.5,4.18,-4.18,76.35,-0.68,-17.8
+egypt-brothers,Brothers Islands,26.3167,34.85,696.0,0,0,610.81,696.0,200.0
+keys-dry-tortugas-west,Dry Tortugas - West,24.6283,-82.8931,5.0,5.18,-5.18,76.35,-0.18,-3.5
+keys-molasses-reef,Molasses Reef,25.0092,-80.3739,7.42,19.34,-19.34,76.35,-11.92,-89.1
+keys-vandenberg-wreck,USNS Vandenberg,24.4569,-81.8019,35.0,37.25,-37.25,610.81,-2.25,-6.2
+maui-hookipa,Hookipa Beach,20.9358,-156.36,4.69,1.86,-1.86,76.35,2.83,86.4
+keys-sombrero-reef,Sombrero Reef,24.6261,-81.1108,4.16,10.23,-10.23,76.35,-6.07,-84.3
+keys-looe-key,Looe Key,24.5456,-81.4075,5.4,6.35,-6.35,76.35,-0.95,-16.2
+keys-thunderbolt-wreck,Thunderbolt Wreck,24.6564,-81.0333,7.13,6.12,-6.12,76.35,1.01,15.2
+rum-dynamite-wall,Dynamite Wall,23.645095,-74.85,5.0,0,0,610.81,5.0,200.0
+rum-hms-conqueror,HMS Conqueror Wreck,23.625,-74.825,1.0,1.97,-1.97,610.81,-0.97,-65.4
+crooked-french-wells,French Wells,22.677109,-74.2,0.21,0,0,610.81,0.21,200.0
+cat-white-hole-reef,White Hole Reef,24.2333,-75.4333,309.0,260.83,-260.83,610.81,48.17,16.9
+cat-hawks-nest-reef,Hawk's Nest Reef,24.0833,-75.5167,3.0,7.81,-7.81,610.81,-4.81,-89.0
+long-cape-santa-maria,Cape Santa Maria Reef,23.6833,-75.2833,3.0,6.42,-6.42,610.81,-3.42,-72.7
+long-salt-pond,Salt Pond Reef,23.3,-75.05,459.0,328.77,-328.77,610.81,130.23,33.1
+rum-pinder-reef,Pinder Reef,23.7,-74.8833,241.0,0,0,610.81,241.0,200.0
+rum-seagarden,Seagarden,23.6167,-74.8,55.0,105.09,-105.09,610.81,-50.09,-62.6
+eleuthera-cape-eleuthera,Cape Eleuthera,24.7667,-76.3333,579.0,71.42,-71.42,610.81,507.58,156.1
+cat-dry-heads,Dry Heads,24.35,-75.3667,731.0,236.35,-236.35,610.81,494.65,102.3
+long-hamilton-caves,Hamilton's Cave Reef,23.45,-75.15,2.0,5.28,-5.28,610.81,-3.28,-90.0
+eleuthera-black-shoals,Black Shoals,25.45,-76.7833,14.0,4.48,-4.48,610.81,9.52,103.1
+rum-hyperspace,Hyperspace,23.6333,-74.8167,8.0,0,0,610.81,8.0,200.0
+tahiti-teahupoo,Teahupoo Outer Reef,-17.86441,-149.25,110.32,2.81,-2.81,610.81,107.51,190.1
+sardinia-tavolara-north,Tavolara - North,40.9133,9.71,42.0,0,0,610.81,42.0,200.0
+tikehau-manta-point,Manta Point (Tikehau),-14.99,-148.22,26.0,0.43,-0.43,610.81,25.57,193.5
+grand-bahama-west-end-wall,West End Wall,26.6833,-79.0,150.0,28.68,-28.68,76.35,121.32,135.8
+rangiroa-canyons,The Canyons,-14.965,-147.63,85.0,1.6,-1.6,610.81,83.4,192.6
+rangiroa-reef-island,Reef Island (Les Sables Roses),-15.05,-147.5,823.0,332.17,-332.17,610.81,490.83,85.0
+moorea-tiki,Tiki (Moorea),-17.4667,-149.9333,1215.25,1328.0,-1328.0,610.81,-112.75,-8.9
+moorea-vaiare,Vaiare,-17.5167,-149.7667,37.09,0,0,610.81,37.09,200.0
+moorea-taotoi,Taotoi,-17.499999,-149.822653,18.18,0,0,610.81,18.18,200.0
+moorea-stingray-world,Stingray World,-17.480409,-149.83,1.62,2.75,-2.75,610.81,-1.13,-51.9
+bora-bora-tapu,Tapu,-16.45,-151.75,3.94,0,0,610.81,3.94,200.0
+bora-bora-anau,Anau,-16.5,-151.705,3.03,-0.21,0.21,610.81,3.24,229.9
+tikehau-tuheiava,Tuheiava Pass,-15.0,-148.2333,31.0,0.2,-0.2,610.81,30.8,197.4
+grand-bahama-gold-rock,Gold Rock Beach Reef,26.55,-78.0,602.0,602.8,-602.8,610.81,-0.8,-0.1
+bora-bora-outer-reef,Bora Bora Outer Reef,-16.4833,-151.7833,2.82,0,0,610.81,2.82,200.0
+manihi-tairapa,Tairapa Pass,-14.4333,-146.0717,193.0,0,0,610.81,193.0,200.0
+nassau-athol-island-east,Athol Island - East,25.104518,-77.2683,8.54,0,0,610.81,8.54,200.0
+tikehau-shark-pit,Shark Pit,-15.01,-148.24,79.0,0.25,-0.25,610.81,78.75,198.7
+tahiti-papeete-pass,Papeete Pass,-17.52,-149.55,36.28,4.48,-4.48,610.81,31.8,156.1
+grand-bahama-peterson-cay,Peterson Cay National Park,26.4333,-78.5667,842.0,834.14,-834.14,152.7,7.86,0.9
+rangiroa-tiputa,Tiputa Pass,-14.9683,-147.6383,20.0,0,0,610.81,20.0,200.0
+rangiroa-avatoru,Avatoru Pass,-14.95,-147.7,16.0,0.06,-0.06,610.81,15.94,198.4
+rangiroa-blue-lagoon,Blue Lagoon,-15.0,-147.55,277.0,153.13,-153.13,610.81,123.87,57.6
+moorea-opunohu,Opunohu Pass,-17.4833,-149.85,5.32,0.13,-0.13,610.81,5.19,190.2
+bora-bora-muri-muri,Muri Muri,-16.46,-151.76,1.95,0,0,610.81,1.95,200.0
+cali-horseshoe-kelp,Horseshoe Kelp,33.64,-118.2333,42.45,40.91,-40.91,76.35,1.54,3.7
+cali-60-mile-bank,60-Mile Bank,32.0611,-118.219,442.55,459.04,-459.04,610.81,-16.48,-3.7
+cali-avalon-bank,Avalon Bank (228 Spot),33.4097,-118.2217,417.45,448.3,-448.3,152.7,-30.85,-7.1
+mexico-espiritu-santo-north,Espiritu Santo - North,24.5283,-110.3333,69.0,1.66,-1.66,610.81,67.34,190.6
+mexico-espiritu-santo-west,Espiritu Santo - West,24.4833,-110.3983,25.0,0,0,152.7,25.0,200.0
+mexico-gordo-banks,Gordo Banks,23.05,-109.4167,294.0,383.73,-383.73,610.81,-89.74,-26.5
+raja-ampat-sardines,Sardines Reef,-0.56,130.65,62.0,10.45,-10.45,610.81,51.55,142.3
+raja-ampat-misool,Misool,-1.744783,129.9833,16.0,0.84,-0.84,610.81,15.16,180.0
+bigisland-anaehoomalu,A-Bay (Anaehoomalu),19.914999,-155.891327,2.26,1.87,-1.87,76.35,0.39,19.0
+cali-potters-reef,Potter's Reef (Horseshoe Drop-off),33.6465,-118.2718,112.4,82.82,-82.82,76.35,29.59,30.3
+mexico-la-reina,La Reina,24.55,-110.3167,337.0,345.34,-345.34,610.81,-8.34,-2.4
+mexico-cabo-pulmo,Cabo Pulmo National Park,23.4333,-109.4167,13.0,1.41,-1.41,152.7,11.59,160.7
+fiji-kadavu-astrolabe-west,Astrolabe Reef - West,-19.05,178.235,16.0,0,0,610.81,16.0,200.0
+fiji-taveuni-rainbow-north,Taveuni Rainbow - North,-16.885,179.9,534.0,387.06,-387.06,610.81,146.94,31.9
+fiji-namena-marine,Namena Marine Reserve,-17.1,179.1,51.0,4.12,-4.12,610.81,46.88,170.1
+maldives-maaya-thila,Maaya Thila,3.8833,72.9,19.0,0,0,610.81,19.0,200.0
+egypt-daedalus,Daedalus Reef,24.9167,35.85,3.0,9.99,-9.99,610.81,-6.99,-107.7
+spain-mallorca-dragonera-east,Dragonera - East,39.5883,2.3417,14.0,0,0,610.81,14.0,200.0
+cali-oceanside-artificial-reef,Oceanside Artificial Reef,33.2097,-117.43,16.62,16.2,-16.2,76.35,0.42,2.6
+mexico-cerralvo,Isla Cerralvo,24.140599,-109.85,42.0,10.56,-10.56,610.81,31.44,119.6
+mexico-lands-end,Land's End (Cabo),22.875,-109.8917,52.0,0.11,-0.11,152.7,51.89,199.2
+aus-montague-island-north,Montague Island - North,-36.235,150.2333,67.0,20.0,-20.0,610.81,47.0,108.0
+phil-malapascua,Malapascua,11.335,124.12,6.0,0,0,610.81,6.0,200.0
+fiji-taveuni-rainbow-east,Taveuni Rainbow - East,-16.9,179.915,302.0,45.55,-45.55,610.81,256.45,147.6
+sa-sodwana-two-mile,Two Mile Reef (Sodwana),-27.5333,32.6833,9.0,0.21,-0.21,9.54,8.79,190.8
+keys-dry-tortugas-south,Dry Tortugas - South,24.6133,-82.8781,6.0,6.7,-6.7,76.35,-0.7,-11.0
+cali-channel-islands-san-miguel-north,San Miguel Island - North,34.0883,-120.3667,50.34,48.8,-48.8,76.35,1.54,3.1
+cali-monterey-breakwater,Monterey Breakwater,36.6167,-121.8917,30.01,30.02,-30.02,2.39,-0.01,-0.0
+cali-huntington-flats,Huntington Flats,33.6412,-118.0547,24.7,22.19,-22.19,4.77,2.51,10.7
+mexico-espiritu-santo-south,Espiritu Santo - South,24.3983,-110.3333,18.0,0,0,152.7,18.0,200.0
+abaco-whale-cay,Whale Cay,26.6833,-77.2,4.0,1.88,-1.88,610.81,2.12,72.3
+raja-ampat-cape-kri,Cape Kri,-0.55,130.6667,46.0,19.98,-19.98,610.81,26.02,78.9
+raja-ampat-passage,The Passage,-0.4333,130.55,17.0,0,0,610.81,17.0,200.0
+aus-cairns-outer-reef,Cairns Outer Reef,-16.75,146.0,28.9,22.2,-22.2,610.81,6.7,26.2
+aus-montague-island-east,Montague Island - East,-36.25,150.2483,95.0,10.4,-10.4,610.81,84.6,160.5
+egypt-thistlegorm,SS Thistlegorm,27.8167,33.9167,3.0,5.3,-5.3,610.81,-2.3,-55.5
+aus-montague-island-west,Montague Island - West,-36.25,150.2183,39.0,0,0,610.81,39.0,200.0
+mexico-espiritu-santo-east,Espiritu Santo - East,24.4833,-110.2883,121.0,2.43,-2.43,610.81,118.58,192.1
+mexico-el-bajo,El Bajo Seamount,24.5833,-110.2833,749.44,730.85,-730.85,610.81,18.59,2.5
+raja-ampat-blue-magic,Blue Magic,-0.5333,130.6833,47.0,35.47,-35.47,610.81,11.53,28.0
+fiji-beqa-east,Beqa Lagoon - East,-18.3833,178.0083,3.0,0,0,610.81,3.0,200.0
+maldives-manta-point,Manta Point (Lankanfinolhu),4.25,72.95,6.0,9.76,-9.76,610.81,-3.76,-47.7
+oahu-chuns-reef,Chun's Reef,21.6208,-158.09,8.19,5.91,-5.91,76.35,2.28,32.4
+oahu-three-tables,Three Tables,21.6464,-158.0681,17.9,11.14,-11.14,76.35,6.76,46.6
+oahu-waimea-bay,Waimea Bay,21.643,-158.0667,8.62,2.89,-2.89,76.35,5.73,99.7
+oahu-sharks-cove,Shark's Cove,21.6502,-158.0678,21.11,14.56,-14.56,76.35,6.55,36.7
+oahu-sunset-point,Sunset Point,21.6686,-158.0492,3.15,0.29,-0.29,76.35,2.86,166.1
+oahu-haleiwa-harbor,Haleiwa Harbor Reef,21.5966,-158.1056,5.77,1.09,-1.09,76.35,4.68,136.5
+oahu-laniakea,Laniakea (Turtle Beach),21.6208,-158.09,8.19,5.91,-5.91,76.35,2.28,32.4
+oahu-papailoa,Papailoa Beach,21.6108,-158.1,4.24,1.43,-1.43,76.35,2.81,99.0
+oahu-kawela-bay,Kawela Bay,21.701076,-158.011442,1.81,0.74,-0.74,76.35,1.06,83.3
+oahu-makua-beach,Makua Beach,21.5272,-158.2366,31.96,32.31,-32.31,76.35,-0.35,-1.1
+oahu-kaneohe-bay,Kaneohe Bay,21.45,-157.8,13.44,13.1,-13.1,76.35,0.35,2.6
+oahu-spitting-caves,Spitting Caves,21.2542,-157.715,33.46,41.06,-41.06,76.35,-7.6,-20.4
+oahu-kahala-reef,Kahala Reef,21.27,-157.77,0.61,0.73,-0.73,76.35,-0.13,-19.3
+oahu-ala-moana-bowls,Ala Moana Bowls,21.2842,-157.85,3.8,0.43,-0.43,0.6,3.37,159.0
+oahu-kewalo-basin,Kewalo Basin,21.2892,-157.86,1.66,0.68,-0.68,0.6,0.97,83.2
+oahu-diamond-head-cliffs,Diamond Head Cliffs,21.255,-157.805,0.9,-0.42,0.42,0.6,1.32,552.8
+oahu-black-point,Black Point,21.2592,-157.79,0.69,-0.4,0.4,0.6,1.09,733.3
+oahu-waikiki-reef,Waikiki Reef,21.27,-157.83,5.91,5.68,-5.68,76.35,0.23,4.0
+oahu-waimanalo-bay,Waimanalo Bay,21.335,-157.694,2.85,0.42,-0.42,76.35,2.42,148.1
+oahu-bellows-beach,Bellows Beach,21.355,-157.703184,6.06,4.53,-4.53,76.35,1.53,28.9
+oahu-flat-island,Flat Island (Popoia),21.41,-157.74,2.59,0.83,-0.83,76.35,1.76,102.7
+oahu-yokohama-bay,Yokohama Bay (Keawaula),21.5533,-158.2535,10.28,7.06,-7.06,76.35,3.22,37.2
+oahu-puaena-point,Puaena Point,21.598,-158.10916,10.13,5.39,-5.39,76.35,4.74,61.1
+oahu-coconut-island,Coconut Island (Moku o Loe),21.435,-157.79,0.21,-0.25,0.25,76.35,0.46,-2796.0
+oahu-laie-point,Laie Point,21.645,-157.91414,2.68,2.17,-2.17,76.35,0.51,21.2
+bigisland-kolekole,Kolekole Beach,19.88941,-155.119,7.03,0,0,76.35,7.03,200.0
+bigisland-laupahoehoe,Laupahoehoe Point,19.990417,-155.234,30.23,2.7,-2.7,152.7,27.53,167.2
+bigisland-keokea,Keokea Beach,20.209995,-155.913189,80.97,70.15,-70.15,76.35,10.82,14.3
+bigisland-honolii,Honolii Beach,19.768194,-155.085606,24.32,21.13,-21.13,76.35,3.19,14.0
+oahu-maunalua-bay-reef,Maunalua Bay Artificial Reef,21.2498,-157.764,34.85,26.34,-26.34,76.35,8.5,27.8
+maui-keawakapu-reef,Keawakapu Artificial Reef,20.7,-156.4566,31.37,19.7,-19.7,76.35,11.67,45.7
+oahu-kualoa-artificial-reef,Kualoa Artificial Reef,21.5525,-157.8255,16.57,15.18,-15.18,76.35,1.39,8.8
+oahu-makapuu-tidepools,Makapuu Tidepools,21.3108,-157.649,13.05,-1.34,1.34,152.7,14.38,245.6
+bigisland-fad-milolii,Milolii FAD (Buoy B),19.1983,-155.9483,1635.9,1654.12,-1654.12,76.35,-18.22,-1.1
+oahu-mokulua-islands,Mokulua Islands,21.385,-157.7,2.62,1.47,-1.47,76.35,1.16,56.6
+bigisland-fad-kahaluu,Kahaluu FAD (Buoy VV),19.585,-156.0317,1183.47,1209.85,-1209.85,152.7,-26.38,-2.2
+maui-molokini,Molokini Crater,20.6335,-156.4917,52.55,116.64,-116.64,76.35,-64.09,-75.8
+maui-black-rock,Black Rock (Puu Kekaa),20.925,-156.696,8.78,0.08,-0.08,76.35,8.69,196.3
+maui-la-perouse,La Perouse Bay,20.5942,-156.42,14.42,11.01,-11.01,76.35,3.41,26.8
+maui-makena-landing,Makena Landing,20.6542,-156.445,3.05,3.36,-3.36,76.35,-0.31,-9.7
+bigisland-keahole-point,Keahole Point,19.73,-156.061,21.78,-0.01,0.01,76.35,21.78,200.2
+keys-tennessee-reef,Tennessee Reef,24.7619,-80.7489,11.48,12.97,-12.97,152.7,-1.49,-12.2
+keys-eastern-sambo,Eastern Sambo Reef,24.4897,-81.6661,7.0,11.63,-11.63,76.35,-4.63,-49.7
+keys-bibb-wreck,USCGC Bibb Wreck,24.9875,-80.3819,39.02,37.7,-37.7,76.35,1.32,3.4
+keys-rock-key,Rock Key,24.4517,-81.8578,32.0,21.95,-21.95,76.35,10.05,37.2
+andros-ocean-hole-north,Ocean Hole (North Andros),25.161292,-78.00237,288.0,198.15,-198.15,610.81,89.85,37.0
+keys-western-sambo,Western Sambo Reef,24.4792,-81.7147,8.0,16.96,-16.96,76.35,-8.96,-71.8
+keys-sand-key,Sand Key,24.4528,-81.8775,23.0,25.55,-25.55,76.35,-2.55,-10.5
+andros-south-bight,South Bight,23.855,-77.65,0.1,-3.99,3.99,610.81,4.09,-210.3
+andros-wall-fresh-creek,The Wall at Fresh Creek,24.7167,-77.7667,3.0,0.0,-0.0,610.81,3.0,200.0
+exuma-compass-cay,Compass Cay,24.2667,-76.5,10.0,0.47,-0.47,610.81,9.53,181.9
+andros-mangrove-cay-reef,Mangrove Cay Reef,24.4,-77.7833,51.0,0,0,610.81,51.0,200.0
+exuma-normans-plane-wreck,Norman's Cay Drug Plane,24.5833,-76.8167,4.42,0.02,-0.02,610.81,4.41,198.5
+exuma-shroud-cay,Shroud Cay,24.6,-76.5667,1562.0,1619.75,-1619.75,610.81,-57.75,-3.6
+exuma-little-exuma-reef,Little Exuma Reef,23.3167,-75.85,1.0,9.05,-9.05,610.81,-8.05,-160.2
+exuma-highborne-cay,Highborne Cay,24.7167,-76.8167,1.0,0,0,610.81,1.0,200.0
+exuma-great-exuma-wall,Great Exuma Wall,23.5,-75.8333,46.0,0,0,610.81,46.0,200.0
+exuma-pipe-creek,Pipe Creek,24.25,-76.55,5.0,1.21,-1.21,610.81,3.79,122.1
+eleuthera-devils-backbone,Devil's Backbone,25.4167,-76.7333,12.0,11.83,-11.83,610.81,0.17,1.5
+eleuthera-train-wreck,Train Wreck,25.42,-76.73,12.0,13.72,-13.72,610.81,-1.72,-13.3
+eleuthera-split-reef,Split Reef,25.5,-76.75,1.0,0,0,610.81,1.0,200.0
+maui-ukumehame,Ukumehame,20.795,-156.591,11.21,7.87,-7.87,76.35,3.34,35.0
+maui-five-caves,Five Caves (Five Graves),20.6692,-156.445,0.74,2.32,-2.32,76.35,-1.58,-103.3
+eleuthera-high-head,High Head,25.4833,-76.7667,8.0,0,0,610.81,8.0,200.0
+cat-the-tunnels,The Tunnels,24.3167,-75.4,1.0,-0.73,0.73,610.81,1.73,1262.3
+cat-first-basin-wall,First Basin Wall,24.2667,-75.4167,1123.0,4.59,-4.59,610.81,1118.41,198.4
+cat-third-basin-reef,Third Basin Reef,24.1833,-75.4717,8.0,0,0,610.81,8.0,200.0
+bimini-north-reef,North Bimini Reef,25.75,-79.237995,3.0,0.01,-0.01,152.7,2.99,198.3
+salvador-frascate-wreck,Frascate Wreck,24.0333,-74.55,198.0,121.25,-121.25,610.81,76.75,48.1
+nassau-athol-island-south,Athol Island - South,25.085,-77.2833,3.27,0,0,610.81,3.27,200.0
+nassau-athol-island-north,Athol Island - North,25.115,-77.2833,19.46,9.94,-9.94,610.81,9.52,64.8
+berry-toto-edge,Berry Islands TOTO Edge,25.2833,-77.8667,2510.0,2482.68,-2482.68,610.81,27.32,1.1
+berry-bird-cay,Bird Cay,25.3167,-77.8833,2306.0,2193.08,-2193.08,610.81,112.92,5.0
+berry-hoffman-cay,Hoffman's Cay Blue Hole,25.65,-77.755,39.0,0,0,610.81,39.0,200.0
+bimini-road-atlantis,Bimini Road,25.7667,-79.2833,29.5,29.59,-29.59,152.7,-0.09,-0.3
+bimini-bull-run,Bull Run,25.7833,-79.3,149.83,183.95,-183.95,152.7,-34.13,-20.4
+bimini-nodules,The Nodules,25.7,-79.35,481.08,487.86,-487.86,152.7,-6.77,-1.4
+bimini-flats,Bimini Flats,25.6833,-79.2333,7.0,0.1,-0.1,152.7,6.9,194.4
+bimini-three-sisters,Three Sisters,25.72,-79.32,184.6,200.57,-200.57,152.7,-15.97,-8.3
+abaco-grand-cay-north,Grand Cay,27.2167,-78.3167,1.0,0,0,152.7,1.0,200.0
+abaco-pelican-cays,Pelican Cays Land & Sea Park,26.35651,-77.021928,36.0,-0.31,0.31,610.81,36.31,203.5
+abaco-hole-in-wall,Hole in the Wall,25.85,-77.1833,19.0,0.0,-0.0,610.81,19.0,200.0
+nassau-shark-wall,Shark Wall (Stuart Cove's),25.0167,-77.555,5.47,0,0,610.81,5.47,200.0
+abaco-man-o-war,Man-O-War Cay,26.5833,-76.9833,3.0,0,0,610.81,3.0,200.0
+abaco-sandy-point,Sandy Point,26.0167,-77.3833,52.0,0,0,610.81,52.0,200.0
+nassau-tongue-dropoff,Tongue of the Ocean,24.25,-77.5,1473.0,783.89,-783.89,610.81,689.11,61.1
+nassau-rose-island,Rose Island Reef,25.1,-77.35,270.0,77.59,-77.59,610.81,192.41,110.7
+crooked-wall,Crooked Island Wall,22.78435,-74.196038,6.17,2.97,-2.97,610.81,3.2,70.1
+acklins-atoll-rim,Acklins Atoll Rim,22.5,-74.0,3.89,5.49,-5.49,610.81,-1.6,-34.0
+cat-blue-hole,Cat Island Blue Hole,24.2,-75.45,76.0,18.93,-18.93,610.81,57.07,120.2
+sardinia-tavolara-south,Tavolara - South,40.8833,9.71,45.0,0,0,152.7,45.0,200.0
+sardinia-tavolara-west,Tavolara - West,40.8983,9.675,14.0,0,0,152.7,14.0,200.0
+greece-gavdos,Gavdos,34.816192,24.0833,38.0,0,0,9.54,38.0,200.0
+greece-santorini-caldera,Santorini Caldera,36.4,25.4283,224.0,-3.12,3.12,9.54,227.12,205.7
+croatia-kornati,Kornati National Park,43.8,15.3,22.0,0,0,610.81,22.0,200.0
+sardinia-tavolara-east,Tavolara - East,40.8983,9.725,74.0,0,0,152.7,74.0,200.0
+croatia-vis-blue-cave,Vis Island (Blue Cave),43.062096,16.199858,5.0,-2.69,2.69,610.81,7.69,664.8
+croatia-hvar-north,Hvar Island - North,43.2317,16.65,58.0,14.83,-14.83,610.81,43.17,118.6
+croatia-hvar-south,Hvar Island - South,43.1117,16.65,34.0,4.2,-4.2,610.81,29.8,156.1
+croatia-hvar-east,Hvar Island - East,43.1667,16.705,12.0,0,0,610.81,12.0,200.0
+turkey-fethiye,Fethiye (Oludeniz),36.545,29.1167,4.0,0,0,610.81,4.0,200.0
+cali-carmel-point-lobos,Point Lobos Reserve,36.524345,-121.942814,31.74,32.26,-32.26,4.77,-0.52,-1.6
+cali-la-jolla-shores,La Jolla Shores,32.8589,-117.2606,3.57,0.18,-0.18,4.77,3.39,180.7
+cali-point-loma-kelp,Point Loma Kelp Beds,32.7,-117.2717,16.55,15.89,-15.89,76.35,0.67,4.1
+grand-bahama-unexso,UNEXSO Reef (Freeport),26.50651,-78.638614,26.0,17.1,-17.1,152.7,8.9,41.3
+cali-la-jolla-cove,La Jolla Cove,32.85,-117.2772,5.29,-0.01,0.01,76.35,5.3,200.9
+cali-channel-islands-santa-rosa-north,Santa Rosa Island - North,34.035,-120.1,23.39,24.99,-24.99,76.35,-1.6,-6.6
+cali-channel-islands-santa-rosa-west,Santa Rosa Island - West,33.95,-120.205,14.06,12.92,-12.92,76.35,1.14,8.4
+cali-channel-islands-san-miguel-south,San Miguel Island - South,34.0083,-120.3667,51.52,44.49,-44.49,76.35,7.03,14.6
+cali-channel-islands-san-miguel-east,San Miguel Island - East,34.0333,-120.3017,24.48,32.48,-32.48,76.35,-8.0,-28.1
+cali-channel-islands-san-miguel-west,San Miguel Island - West,34.0333,-120.4617,23.24,15.08,-15.08,76.35,8.16,42.6
+cali-hermosa-artificial,Hermosa Beach Artificial Reef,33.85,-118.405,12.48,11.21,-11.21,76.35,1.27,10.7
+cali-redondo-horseshoe,Horseshoe Kelp (Redondo),33.8,-118.45,66.87,72.71,-72.71,9.54,-5.85,-8.4
+cali-laguna-shaw-cove,Shaw's Cove (Laguna),33.5433,-117.7967,7.47,6.18,-6.18,19.09,1.29,18.9
+cali-laguna-divers-cove,Diver's Cove (Laguna),33.5383,-117.7933,15.48,19.37,-19.37,76.35,-3.89,-22.3
+cali-san-clemente-island-north,San Clemente - North,32.945,-118.5,35.51,29.01,-29.01,76.35,6.49,20.1
+cali-san-clemente-island-east,San Clemente - East,32.9,-118.445,97.42,25.57,-25.57,76.35,71.86,116.8
+cali-santa-barbara-island-east,Santa Barbara Island - East,33.4867,-118.9975,85.44,84.41,-84.41,152.7,1.03,1.2
+cali-channel-islands-anacapa,Anacapa Island - West End,34.0167,-119.45,56.62,40.18,-40.18,76.35,16.44,34.0
+france-antibes,Cap d'Antibes,43.549999,7.148219,51.0,0,0,610.81,51.0,200.0
+spain-ibiza-es-vedra,Es Vedra (Ibiza),38.8717,1.2,62.0,0,0,152.7,62.0,200.0
+cali-malibu-leo-carrillo,Leo Carrillo Beach,34.0433,-118.9333,5.1,0,0,76.35,5.1,200.0
+cali-san-clemente-island-south,San Clemente - South,32.845,-118.5,45.93,34.76,-34.76,76.35,11.18,27.7
+spain-tenerife-abades,Abades (Tenerife),28.1333,-16.4333,8.0,0,0,9.54,8.0,200.0
+spain-el-hierro,El Hierro,27.777992,-18.031642,225.24,0.47,-0.47,610.81,224.77,199.2
+greece-crete-chania,Chania Coast (Crete),35.5217,24.0167,19.0,0,0,152.7,19.0,200.0
+greece-rhodes,Rhodes,36.433298,28.195436,53.0,0,0,152.7,53.0,200.0
+croatia-hvar-west,Hvar Island - West,43.1667,16.245,89.0,89,-89,610.81,0.0,0.0
+cali-santa-barbara-island-north,Santa Barbara Island - North,33.5017,-119.0125,72.86,81.0,-81.0,76.35,-8.14,-10.6
+turkey-kas,Kas,36.195,29.6333,64.0,0,0,610.81,64.0,200.0
+turkey-bodrum,Bodrum Peninsula,37.0333,27.4333,10.0,-4.83,4.83,610.81,14.83,573.8
+cali-bird-rock,Bird Rock (La Jolla),32.815,-117.275,5.14,-0.46,0.46,76.35,5.6,239.3
+cali-santa-barbara-island-south,Santa Barbara Island - South,33.4717,-119.0125,53.74,62.47,-62.47,2.39,-8.74,-15.0
+cali-avila-port-san-luis,Port San Luis,35.1717,-120.7533,6.0,5.2,-5.2,38.18,0.8,14.2
+cali-channel-islands-santa-rosa-south,Santa Rosa Island - South,33.895,-120.1,24.51,17.99,-17.99,76.35,6.52,30.7
+cali-channel-islands-santa-rosa-east,Santa Rosa Island - East,33.95,-119.945,67.52,66.56,-66.56,76.35,0.96,1.4
+sicily-favignana,Favignana (Egadi),37.9383,12.3333,28.0,0,0,152.7,28.0,200.0
+cali-palos-verdes-point,Palos Verdes Point,33.75,-118.4167,12.0,7.04,-7.04,9.54,4.96,52.1
+croatia-dubrovnik-elafiti,Elafiti Islands (Dubrovnik),42.6833,17.9333,51.0,-11.78,11.78,610.81,62.78,320.1
+cali-san-clemente-island-west,San Clemente - West,32.9,-118.535,35.27,23.83,-23.83,76.35,11.45,38.7
+cali-catalina-isthmus,Isthmus Cove (Catalina),33.4467,-118.4883,26.55,36.12,-36.12,76.35,-9.56,-30.5
+cali-big-sur-jade-cove,Jade Cove (Big Sur),35.905,-121.47,8.18,3.45,-3.45,76.35,4.72,81.2
+cali-morro-bay-rock,Morro Rock,35.37,-120.875,20.0,14.07,-14.07,76.35,5.93,34.8
+cali-cortez-bank,Cortez Bank,32.4444,-119.1108,19.59,21.76,-21.76,76.35,-2.17,-10.5
+cali-channel-islands-santa-cruz,Santa Cruz Island - Smuggler's Cove,34.0223,-119.5373,2.89,0.15,-0.15,76.35,2.75,180.8
+cali-tanner-bank,Tanner Bank,32.7058,-119.1335,52.23,37.28,-37.28,76.35,14.96,33.4
+cali-nine-mile-bank-north,9-Mile Bank (North),32.6067,-117.4025,137.4,134.88,-134.88,76.35,2.52,1.9
+cali-14-mile-bank,14-Mile Bank,33.3987,-118.0003,125.04,133.12,-133.12,152.7,-8.08,-6.3
+sicily-ustica-west,Ustica - West,38.7217,13.1683,78.0,0,0,610.81,78.0,200.0
+sardinia-costa-smeralda,Costa Smeralda,41.068021,9.536963,9.0,0,0,152.7,9.0,200.0
+sardinia-orosei-gulf,Gulf of Orosei,40.1667,9.6833,101.0,85.45,-85.45,610.81,15.55,16.7
+sardinia-carloforte,Carloforte (San Pietro),39.160189,8.313141,3.0,0,0,152.7,3.0,200.0
+sicily-ustica-north,Ustica - North,38.7367,13.1833,305.0,15.44,-15.44,610.81,289.56,180.7
+sicily-ustica-south,Ustica - South,38.6867,13.1833,170.0,0,0,610.81,170.0,200.0
+sicily-ustica-east,Ustica - East,38.7217,13.1983,188.0,0,0,610.81,188.0,200.0
+sicily-aeolian-islands,Aeolian Islands,38.5667,14.95,723.0,698.39,-698.39,610.81,24.61,3.5
+italy-elba-south,Elba Island - South,42.7317,10.2667,17.0,0.51,-0.51,152.7,16.49,188.4
+sicily-capo-passero,Capo Passero,36.678198,15.139662,3.0,0,0,610.81,3.0,200.0
+italy-portofino,Portofino MPA,44.3,9.2117,85.0,0,0,9.54,85.0,200.0
+italy-elba-east,Elba Island - East,42.7667,10.4217,51.0,0,0,610.81,51.0,200.0
+italy-elba-west,Elba Island - West,42.7667,10.0617,94.0,88.97,-88.97,610.81,5.03,5.5
+italy-ponza-south,Ponza - South,40.885,12.9667,18.0,0,0,610.81,18.0,200.0
+italy-ponza-west,Ponza - West,40.9,12.9317,30.0,7.14,-7.14,610.81,22.86,123.1
+corsica-lavezzi,Lavezzi Islands,41.3333,9.25,38.0,0,0,610.81,38.0,200.0
+france-hyeres,Hyeres Islands,43.0167,6.2167,18.0,0,0,9.54,18.0,200.0
+spain-tossa-de-mar,Tossa de Mar,41.7117,2.9333,20.0,0,0,19.09,20.0,200.0
+spain-formentera,Formentera,38.678395,1.45,10.0,0,0,19.09,10.0,200.0
+cali-la-jolla-kelp-offshore,La Jolla Kelp (Offshore),32.8217,-117.2883,18.6,16.52,-16.52,76.35,2.08,11.8
+cali-osborne-bank,Osborne Bank,33.36,-119.04,58.55,65.6,-65.6,152.7,-7.05,-11.4
+cali-mackerel-bank,Mackerel Bank,33.0405,-118.5419,803.45,927.68,-927.68,152.7,-124.23,-14.4
+cali-hermosa-artificial-reef,Hermosa Beach Artificial Reef,33.8537,-118.4133,17.37,16.83,-16.83,76.35,0.54,3.2
+cali-torrey-pines-reef,Torrey Pines Artificial Reef,32.893,-117.2639,14.23,17.31,-17.31,76.35,-3.09,-19.6
+sardinia-neptune-grotto,Neptune's Grotto Area,40.565,8.155,33.0,0,0,152.7,33.0,200.0
+spain-lanzarote-papagayo,Papagayo (Lanzarote),28.85,-13.8,6.0,-0.72,0.72,610.81,6.72,254.6
+aus-ningaloo-exmouth,Exmouth (Ningaloo),-21.9333,114.144957,3.0,1.25,-1.25,610.81,1.75,82.1
+phil-tubbataha-north,Tubbataha Reef - North,8.9483,119.9,812.0,842.64,-842.64,610.81,-30.64,-3.7
+greece-mykonos,Mykonos,37.449997,25.322786,13.0,-1.62,1.62,9.54,14.62,257.0
+phil-tubbataha-south,Tubbataha Reef - South,8.9183,119.9,472.0,535.25,-535.25,610.81,-63.25,-12.6
+fiji-kadavu-astrolabe-east,Astrolabe Reef - East,-19.05,178.265,8.0,13.87,-13.87,610.81,-5.87,-53.7
+phil-tubbataha-east,Tubbataha Reef - East,8.9333,119.915,463.0,534.24,-534.24,610.81,-71.24,-14.3
+phil-tubbataha-west,Tubbataha Reef - West,8.9333,119.885,768.0,810.91,-810.91,610.81,-42.91,-5.4
+phil-apo-reef,Apo Reef,12.65,120.45,27.0,20.04,-20.04,610.81,6.96,29.6
+phil-balicasag-north,Balicasag - North,9.5317,123.6783,577.0,90.03,-90.03,610.81,486.97,146.0
+phil-balicasag-south,Balicasag - South,9.5017,123.6783,506.0,75.09,-75.09,610.81,430.91,148.3
+phil-balicasag-east,Balicasag - East,9.5167,123.6933,303.0,3.21,-3.21,610.81,299.79,195.8
+phil-balicasag-west,Balicasag - West,9.5167,123.6633,744.0,304.11,-304.11,610.81,439.89,83.9
+fiji-kadavu-astrolabe-north,Astrolabe Reef - North,-19.035,178.25,23.0,0,0,610.81,23.0,200.0
+fiji-kadavu-astrolabe-south,Astrolabe Reef - South,-19.065,178.25,10.0,19.48,-19.48,610.81,-9.48,-64.3
+aus-montague-island-south,Montague Island - South,-36.265,150.2333,6.0,0,0,610.81,6.0,200.0
+fiji-taveuni-rainbow-south,Taveuni Rainbow - South,-16.915,179.9,203.0,63.83,-63.83,610.81,139.17,104.3
+maldives-fish-head,Fish Head,3.9,72.9167,27.0,4.44,-4.44,610.81,22.56,143.5
+egypt-jackson-reef,Jackson Reef,27.95,34.4667,1395.0,1443.61,-1443.61,610.81,-48.61,-3.4
+sa-cape-town-simons,Simon's Town,-34.1833,18.4333,8.0,0,0,610.81,8.0,200.0
+nz-goat-island-east,Goat Island - East,-36.2667,174.815,24.0,0,0,610.81,24.0,200.0
+nz-goat-island-north,Goat Island - North,-36.2517,174.8,32.0,5.41,-5.41,610.81,26.59,142.2
+nz-bay-of-islands,Bay of Islands,-35.25,174.1,12.0,1.44,-1.44,19.09,10.56,157.2
+belize-glovers-reef,Glover's Reef,16.75,-87.8,38.0,17.3,-17.3,610.81,20.7,74.9
+belize-turneffe-elbow,The Elbow (Turneffe),17.1833,-87.8,702.0,371.15,-371.15,610.81,330.85,61.7
+pr-desecheo,Desecheo Island,18.3833,-67.4883,39.4,-0.34,0.34,76.35,39.74,203.5
+sa-aliwal-shoal,Aliwal Shoal,-30.2667,30.8333,33.0,24.4,-24.4,610.81,8.6,30.0
+sa-protea-banks,Protea Banks,-30.7,30.55,51.0,51.87,-51.87,610.81,-0.87,-1.7
+nz-goat-island-south,Goat Island - South,-36.3117,174.8,4.0,0,0,19.09,4.0,200.0
+nz-great-barrier-south,Great Barrier - South,-36.275,175.4,39.0,0.13,-0.13,610.81,38.87,198.7
+nz-great-barrier-west,Great Barrier - West,-36.2,175.345,39.0,0,0,19.09,39.0,200.0
+nz-fiordland,Fiordland,-45.435153,167.123698,56.0,0,0,19.09,56.0,200.0
+nz-great-barrier-east,Great Barrier - East,-36.2,175.495,25.0,0.62,-0.62,610.81,24.38,190.3

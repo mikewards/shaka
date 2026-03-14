@@ -322,7 +322,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         const SizedBox(height: 20),
 
         // Swell details (expandable)
-        _buildSectionHeader('SWELL'),
+        _buildSectionHeader('SWELL & WIND'),
         const SizedBox(height: 10),
         SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
         const SizedBox(height: 20),
@@ -618,43 +618,55 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       ),
       margin: EdgeInsets.only(bottom: isLast ? 0 : 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          Row(
-            children: [
-              Container(
-                width: 80,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white12,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: score / 100,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Expanded(
                   child: Container(
+                    height: 6,
                     decoration: BoxDecoration(
-                      color: _getScoreColor(score),
-                      borderRadius: BorderRadius.circular(2),
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: score / 100,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _getScoreColor(score),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 30,
-                child: Text(
-                  '$score',
-                  style: TextStyle(
-                    color: _getScoreColor(score),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    '$score',
+                    style: TextStyle(
+                      color: _getScoreColor(score),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    textAlign: TextAlign.right,
                   ),
-                  textAlign: TextAlign.right,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1091,7 +1103,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
               const SizedBox(height: 20),
               // Swell details (expandable)
-              _buildSectionHeader('SWELL'),
+              _buildSectionHeader('SWELL & WIND'),
               const SizedBox(height: 10),
               SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
               const SizedBox(height: 20),

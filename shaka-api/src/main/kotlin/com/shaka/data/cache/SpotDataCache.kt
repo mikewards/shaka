@@ -7,6 +7,8 @@ import com.shaka.model.WeatherData
 import com.shaka.model.WaterQuality
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import kotlin.math.cos
+import kotlin.math.sqrt
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
@@ -1202,20 +1204,26 @@ object SpotDataCache {
      * the buoy reading is used directly without attenuation since it already
      * reflects local conditions.
      *
-     * Applies two corrections:
+     * V2 model applies:
      *  1. Land-blocking attenuation based on directional exposure profile
-     *  2. Offshore-to-surf scaling (0.728) — open ocean swell height ≠ breaking
-     *     surf height; waves lose energy through shoaling, refraction, and
-     *     bottom friction as they approach shore.
+     *  2. Period-dependent modifier (long-period swell refracts around land better)
+     *  3. Onshore wind-sea contribution (locally generated waves that add to surf)
+     *  4. Offshore-to-surf scaling (0.690)
      *
-     * Parameters calibrated against 4,700+ Surfline spots (2026-03).
+     * Calibrated against 106 Surfline spots across Santa Cruz, O'ahu, Maui.
+     * MAE=0.243ft, 55% within Surfline range, 84% within 0.5ft (2026-03).
      */
-    private const val OFFSHORE_TO_SURF_FACTOR = 0.728
+    private const val OFFSHORE_TO_SURF_FACTOR = 0.690
 
     fun attenuateSwell(
         swellHeightFt: Double,
         swellDirectionDeg: Double,
-        landDistances: DoubleArray
+        landDistances: DoubleArray,
+        swellPeriodSec: Double = 0.0,
+        totalWaveHeightM: Double = 0.0,
+        swellHeightM: Double = 0.0,
+        windSpeedKmh: Double = 0.0,
+        windDirectionDeg: Double = 0.0
     ): Double {
         if (landDistances.size != 16) return swellHeightFt * OFFSHORE_TO_SURF_FACTOR
         if (landDistances.all { it < 0 }) return swellHeightFt * OFFSHORE_TO_SURF_FACTOR
@@ -1229,9 +1237,29 @@ object SpotDataCache {
 
         val lowerFactor = landDistToFactor(landDistances[lowerIdx])
         val upperFactor = landDistToFactor(landDistances[upperIdx])
-        val factor = lowerFactor * (1.0 - fraction) + upperFactor * fraction
+        var factor = lowerFactor * (1.0 - fraction) + upperFactor * fraction
 
-        return swellHeightFt * factor * OFFSHORE_TO_SURF_FACTOR
+        if (swellPeriodSec > 0) {
+            val periodMult = (0.85 + (swellPeriodSec - 5.0) * 0.03).coerceIn(0.85, 1.15)
+            factor = (factor * periodMult).coerceAtMost(1.0)
+        }
+
+        var heightFt = swellHeightFt * factor
+
+        if (totalWaveHeightM > swellHeightM && swellHeightM > 0 && windSpeedKmh >= 5.0) {
+            val windSeaM = sqrt(
+                (totalWaveHeightM * totalWaveHeightM - swellHeightM * swellHeightM).coerceAtLeast(0.0)
+            )
+            if (windSeaM > 0.05) {
+                val angleDiff = (windDirectionDeg - swellDirectionDeg + 180.0).mod(360.0) - 180.0
+                val alignment = cos(Math.toRadians(angleDiff))
+                if (alignment > 0) {
+                    heightFt += metersToFeet(windSeaM * 0.30 * alignment)
+                }
+            }
+        }
+
+        return heightFt * OFFSHORE_TO_SURF_FACTOR
     }
 
     /**

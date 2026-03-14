@@ -200,51 +200,64 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   Widget _buildExpandedContent() {
     final c = widget.conditions;
 
-    // (label, value, parsedSwell, badgeColor, exposureBearing)
-    final items = <(String, String, _ParsedSwell?, Color?, double?)>[];
+    // ── Compass swell data (deduped by direction+category) ──
+    final compassSwells = <(_ParsedSwell, Color)>[];
+    void addCompass(_ParsedSwell? ps, Color color) {
+      if (ps == null) return;
+      if (!compassSwells.any((s) => s.$1.degrees == ps.degrees && s.$2 == color)) {
+        compassSwells.add((ps, color));
+      }
+    }
+
+    // ── Row items: (label, value, badge) ──
+    final items = <(String, String, Widget?)>[];
 
     if (c.swellCorrected != null) {
-      items.add(('Swell (at spot)', c.swellCorrected!, _parseSwell(c.swellCorrected!), _primaryColor, null));
+      final ps = _parseSwell(c.swellCorrected!);
+      addCompass(ps, _primaryColor);
+      items.add(('Swell (at spot)', c.swellCorrected!,
+          ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _primaryColor) : null));
       if (c.swellCorrected != c.swell) {
-        items.add(('Swell (open ocean)', c.swell, _parseSwell(c.swell), _primaryColor, null));
+        final ps2 = _parseSwell(c.swell);
+        addCompass(ps2, _primaryColor);
+        items.add(('Swell (open ocean)', c.swell,
+            ps2 != null ? _SwellDirectionBadge(degrees: ps2.degrees, color: _primaryColor) : null));
       }
     } else {
-      items.add(('Swell', c.swell, _parseSwell(c.swell), _primaryColor, null));
+      final ps = _parseSwell(c.swell);
+      addCompass(ps, _primaryColor);
+      items.add(('Swell', c.swell,
+          ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _primaryColor) : null));
     }
 
     if (c.secondarySwell != null) {
       if (c.secondarySwellCorrected != null) {
-        items.add(('2nd Swell (at spot)', c.secondarySwellCorrected!, _parseSwell(c.secondarySwellCorrected!), _secondaryColor, null));
+        final ps = _parseSwell(c.secondarySwellCorrected!);
+        addCompass(ps, _secondaryColor);
+        items.add(('2nd Swell (at spot)', c.secondarySwellCorrected!,
+            ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _secondaryColor) : null));
         if (c.secondarySwellCorrected != c.secondarySwell) {
-          items.add(('2nd Swell (open ocean)', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor, null));
+          final ps2 = _parseSwell(c.secondarySwell!);
+          addCompass(ps2, _secondaryColor);
+          items.add(('2nd Swell (open ocean)', c.secondarySwell!,
+              ps2 != null ? _SwellDirectionBadge(degrees: ps2.degrees, color: _secondaryColor) : null));
         }
       } else {
-        items.add(('2nd Swell', c.secondarySwell!, _parseSwell(c.secondarySwell!), _secondaryColor, null));
+        final ps = _parseSwell(c.secondarySwell!);
+        addCompass(ps, _secondaryColor);
+        items.add(('2nd Swell', c.secondarySwell!,
+            ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _secondaryColor) : null));
       }
     }
+
+    final windDir = _parseWindDirection(c.wind);
+    items.add(('Wind', c.wind,
+        windDir != null ? _WindBadge(degrees: windDir) : null));
 
     if (c.exposureBearing != null) {
-      items.add((
-        'Exposure',
-        'Faces ${_bearingToCardinal(c.exposureBearing!)} (${c.exposureWidth ?? 0}°)',
-        null,
-        null,
-        c.exposureBearing!.toDouble(),
-      ));
-    }
-
-    // Deduplicate by (direction, swell category) so corrected/uncorrected
-    // collapse but primary + secondary always both appear on the compass.
-    final compassSwells = <(_ParsedSwell, Color)>[];
-    for (final item in items) {
-      if (item.$3 != null && item.$4 != null) {
-        final alreadyAdded = compassSwells.any(
-          (s) => s.$1.degrees == item.$3!.degrees && s.$2 == item.$4!,
-        );
-        if (!alreadyAdded) {
-          compassSwells.add((item.$3!, item.$4!));
-        }
-      }
+      items.add(('Exposure',
+          'Faces ${_bearingToCardinal(c.exposureBearing!)} (${c.exposureWidth ?? 0}°)',
+          _ExposureBadge(degrees: c.exposureBearing!.toDouble())));
     }
 
     return Padding(
@@ -257,9 +270,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
             _buildRow(
               items[i].$1,
               items[i].$2,
-              parsedSwell: items[i].$3,
-              swellColor: items[i].$4,
-              exposureBearing: items[i].$5,
+              badge: items[i].$3,
               isLast: i == items.length - 1,
             ),
           if (compassSwells.isNotEmpty) ...[
@@ -310,6 +321,8 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                                 swells: compassSwells,
                                 exposureBearing: c.exposureBearing?.toDouble(),
                                 exposureWidth: c.exposureWidth?.toDouble(),
+                                windDirection: _parseWindDirection(c.wind),
+                                windLabel: _formatWindLabel(c.wind),
                               ),
                             ),
                           ),
@@ -329,18 +342,9 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   Widget _buildRow(
     String label,
     String value, {
-    _ParsedSwell? parsedSwell,
-    Color? swellColor,
-    double? exposureBearing,
+    Widget? badge,
     bool isLast = false,
   }) {
-    Widget? badge;
-    if (parsedSwell != null && swellColor != null) {
-      badge = _SwellDirectionBadge(degrees: parsedSwell.degrees, color: swellColor);
-    } else if (exposureBearing != null) {
-      badge = _ExposureBadge(degrees: exposureBearing);
-    }
-
     return Container(
       padding: EdgeInsets.only(top: 10, bottom: isLast ? 4 : 10),
       decoration: BoxDecoration(
@@ -353,20 +357,28 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
           SizedBox(width: 22, child: badge),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.right,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -380,6 +392,20 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
     ];
     return dirs[((degrees % 360) / 22.5).round() % 16];
+  }
+
+  static double? _parseWindDirection(String wind) {
+    final parts = wind.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return _cardinalToDegrees[parts.last.toUpperCase()];
+    }
+    return null;
+  }
+
+  static String? _formatWindLabel(String wind) {
+    final m = RegExp(r'(\d+)\s*(kts?|mph)', caseSensitive: false).firstMatch(wind);
+    if (m != null) return '${m.group(1)}${m.group(2)}';
+    return null;
   }
 }
 
@@ -402,6 +428,30 @@ class _SwellDirectionBadge extends StatelessWidget {
       child: Transform.rotate(
         angle: (degrees + 180) * pi / 180,
         child: Icon(Icons.navigation, size: 13, color: color),
+      ),
+    );
+  }
+}
+
+/// Small circular badge with a rotated wind icon showing wind source direction.
+class _WindBadge extends StatelessWidget {
+  final double degrees;
+  static const _color = Color(0xFF607D8B);
+
+  const _WindBadge({required this.degrees});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+      ),
+      child: Transform.rotate(
+        angle: (degrees + 90) * pi / 180,
+        child: Icon(Icons.air, size: 13, color: _color),
       ),
     );
   }
@@ -433,15 +483,43 @@ class _ExposureBadge extends StatelessWidget {
 
 /// Compass rose showing swell arrows and exposure arc via CustomPainter.
 /// All structural lines use the crosshair pattern: white border + black center.
+class _SwellArrowGeometry {
+  final _ParsedSwell swell;
+  final Color color;
+  final bool isPrimary;
+  final double arrowLen;
+  final Offset startPt;
+  final Offset endPt;
+  final double arrowAngle;
+  final Offset rearBorderPt;
+  final Path arrowPath;
+
+  const _SwellArrowGeometry({
+    required this.swell,
+    required this.color,
+    required this.isPrimary,
+    required this.arrowLen,
+    required this.startPt,
+    required this.endPt,
+    required this.arrowAngle,
+    required this.rearBorderPt,
+    required this.arrowPath,
+  });
+}
+
 class _SwellCompassPainter extends CustomPainter {
   final List<(_ParsedSwell, Color)> swells;
   final double? exposureBearing;
   final double? exposureWidth;
+  final double? windDirection;
+  final String? windLabel;
 
   _SwellCompassPainter({
     required this.swells,
     this.exposureBearing,
     this.exposureWidth,
+    this.windDirection,
+    this.windLabel,
   });
 
   static const _shadowStyle = [
@@ -461,6 +539,7 @@ class _SwellCompassPainter extends CustomPainter {
     _drawReferenceRings(canvas, center, radius);
     _drawCenterCrosshair(canvas, center);
     _drawCardinalLabels(canvas, center, radius);
+    _drawWindIndicator(canvas, center, radius);
     _drawSwellArrows(canvas, center, radius);
   }
 
@@ -576,14 +655,126 @@ class _SwellCompassPainter extends CustomPainter {
       ..strokeWidth = 1.2);
   }
 
+  void _drawWindIndicator(Canvas canvas, Offset center, double radius) {
+    if (windDirection == null) return;
+
+    final b = windDirection! * pi / 180;
+    final outerR = radius * 0.93;
+    final pillCenter = Offset(
+      center.dx + outerR * sin(b),
+      center.dy - outerR * cos(b),
+    );
+
+    // Lay out icon + label to measure pill size
+    final iconTp = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(Icons.air.codePoint),
+        style: TextStyle(
+          fontFamily: Icons.air.fontFamily,
+          package: Icons.air.fontPackage,
+          fontSize: 18,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final labelText = windLabel ?? '';
+    final labelTp = TextPainter(
+      text: TextSpan(
+        text: labelText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    const hPad = 6.0;
+    const gap = 3.0;
+    final pillW = hPad + iconTp.width + gap + labelTp.width + hPad;
+    final pillH = 24.0;
+    final pillR = pillH / 2;
+
+    // Radial angle so the pill extends outward from center
+    final radialAngle = atan2(
+      pillCenter.dy - center.dy,
+      pillCenter.dx - center.dx,
+    );
+
+    canvas.save();
+    canvas.translate(pillCenter.dx, pillCenter.dy);
+    canvas.rotate(radialAngle);
+
+    // Pill background + border (drawn in local coords, centered vertically).
+    // The center-facing side gets a shallow point; the outer side stays rounded.
+    final pillLeft = -pillW / 2;
+    final pillRight = pillW / 2;
+    final pointDepth = min(8.0, pillH * 0.5);
+    final bodyLeft = pillLeft + pointDepth;
+    final bodyRight = pillRight - pillR;
+    final pointCtrlX = pillLeft + pointDepth * 0.35;
+    final pointCtrlY = pillH * 0.26;
+    final pillPath = Path()
+      ..moveTo(pillLeft, 0)
+      ..quadraticBezierTo(pointCtrlX, -pointCtrlY, bodyLeft, -pillH / 2)
+      ..lineTo(bodyRight, -pillH / 2)
+      ..arcToPoint(
+        Offset(bodyRight, pillH / 2),
+        radius: Radius.circular(pillR),
+        clockwise: true,
+      )
+      ..lineTo(bodyLeft, pillH / 2)
+      ..quadraticBezierTo(pointCtrlX, pointCtrlY, pillLeft, 0)
+      ..close();
+    canvas.drawPath(pillPath, Paint()
+      ..color = const Color(0xFF607D8B).withValues(alpha: 0.85));
+    canvas.drawPath(pillPath, Paint()
+      ..color = Colors.white.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round);
+
+    // Icon (rotated to face wind direction inside the pill)
+    final iconRotation = (windDirection! + 90) * pi / 180 - radialAngle;
+    final contentWidth = iconTp.width + gap + labelTp.width;
+    final contentStart = pillLeft + (pillW - contentWidth) / 2;
+    final iconX = contentStart + iconTp.width / 2;
+    canvas.save();
+    canvas.translate(iconX, 0);
+    canvas.rotate(iconRotation);
+    iconTp.paint(canvas, Offset(-iconTp.width / 2, -iconTp.height / 2));
+    canvas.restore();
+
+    // Label text (keep readable — flip if upside-down)
+    final labelX = iconX + iconTp.width / 2 + gap;
+    final needsFlip = radialAngle.abs() > pi / 2;
+    if (needsFlip) {
+      canvas.save();
+      canvas.translate(labelX + labelTp.width / 2, 0);
+      canvas.rotate(pi);
+      labelTp.paint(canvas, Offset(-labelTp.width / 2, -labelTp.height / 2));
+      canvas.restore();
+    } else {
+      labelTp.paint(canvas, Offset(labelX, -labelTp.height / 2));
+    }
+
+    canvas.restore();
+  }
+
   void _drawSwellArrows(Canvas canvas, Offset center, double radius) {
     if (swells.isEmpty) return;
 
-    final maxHeight = swells.map((s) => s.$1.heightFt).reduce(max);
-    if (maxHeight <= 0) return;
-
-    final primaryNorm = (swells[0].$1.heightFt / maxHeight).clamp(0.6, 1.0);
-    final primaryTipR = radius * 0.93 - radius * 0.85 * primaryNorm;
+    // FIXED sizes — never change regardless of swell values.
+    const double primaryLenFactor = 0.60;
+    const double secondaryLenFactor = 0.33;
+    final double primaryArrowLen = radius * primaryLenFactor;
+    final double secondaryArrowLen = radius * secondaryLenFactor;
+    final double tipR = radius * 0.10;
+    final geometries = <_SwellArrowGeometry>[];
 
     for (int idx = 0; idx < swells.length; idx++) {
       final (swell, color) = swells[idx];
@@ -593,17 +784,16 @@ class _SwellCompassPainter extends CustomPainter {
       final barWidth = isPrimary ? 26.0 : 16.0;
       final halfW = barWidth / 2;
 
-      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.6, 1.0);
-      final arrowLen = radius * 0.85 * normalizedLen * (isPrimary ? 1.0 : 0.85);
-      final outerR = isPrimary ? radius * 0.93 : primaryTipR + arrowLen;
+      final arrowLen = isPrimary ? primaryArrowLen : secondaryArrowLen;
+      final outerR = tipR + arrowLen;
 
       final startPt = Offset(
         center.dx + outerR * sin(b),
         center.dy - outerR * cos(b),
       );
       final endPt = Offset(
-        center.dx + (outerR - arrowLen) * sin(b),
-        center.dy - (outerR - arrowLen) * cos(b),
+        center.dx + tipR * sin(b),
+        center.dy - tipR * cos(b),
       );
 
       final arrowAngle = atan2(endPt.dy - startPt.dy, endPt.dx - startPt.dx);
@@ -635,8 +825,6 @@ class _SwellCompassPainter extends CustomPainter {
         endPt.dy + (startPt.dy - endPt.dy) * 0.25 - halfW * 0.8 * sin(perpAngle),
       );
 
-      // C1-continuous base cap: control points along the backward tangent
-      // so the curve is smooth where sides meet the rounded cap.
       final capDepth = halfW * 0.55;
       final backDx = -cos(arrowAngle);
       final backDy = -sin(arrowAngle);
@@ -648,6 +836,11 @@ class _SwellCompassPainter extends CustomPainter {
         baseL.dx + capDepth * backDx,
         baseL.dy + capDepth * backDy,
       );
+      final rearBorderDepth = capDepth * 0.75;
+      final rearBorderPt = Offset(
+        startPt.dx + rearBorderDepth * backDx,
+        startPt.dy + rearBorderDepth * backDy,
+      );
 
       final arrowPath = Path()
         ..moveTo(endPt.dx, endPt.dy)
@@ -658,69 +851,104 @@ class _SwellCompassPainter extends CustomPainter {
         ..cubicTo(ctrl2L.dx, ctrl2L.dy, ctrl1L.dx, ctrl1L.dy,
             endPt.dx, endPt.dy);
 
-      canvas.drawPath(arrowPath, Paint()
-        ..color = Colors.white.withValues(alpha: isPrimary ? 0.5 : 0.7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isPrimary ? 3.0 : 2.5
-        ..strokeJoin = StrokeJoin.round);
-
-      canvas.drawPath(arrowPath, Paint()..color = color.withValues(alpha: 0.9));
+      geometries.add(_SwellArrowGeometry(
+        swell: swell,
+        color: color,
+        isPrimary: isPrimary,
+        arrowLen: arrowLen,
+        startPt: startPt,
+        endPt: endPt,
+        arrowAngle: arrowAngle,
+        rearBorderPt: rearBorderPt,
+        arrowPath: arrowPath,
+      ));
     }
 
-    // Labels in second pass, always on top of all arrow shapes
-    for (int idx = 0; idx < swells.length; idx++) {
-      final (swell, _) = swells[idx];
-      final isPrimary = idx == 0;
-      final b = swell.degrees * pi / 180;
+    for (final geometry in geometries) {
+      canvas.drawPath(geometry.arrowPath, Paint()
+        ..color = Colors.white.withValues(alpha: geometry.isPrimary ? 0.5 : 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = geometry.isPrimary ? 3.0 : 2.5
+        ..strokeJoin = StrokeJoin.round);
 
-      final normalizedLen = (swell.heightFt / maxHeight).clamp(0.6, 1.0);
-      final arrowLen = radius * 0.85 * normalizedLen * (isPrimary ? 1.0 : 0.85);
-      final outerR = isPrimary ? radius * 0.93 : primaryTipR + arrowLen;
+      canvas.drawPath(
+          geometry.arrowPath, Paint()..color = geometry.color.withValues(alpha: 0.9));
+    }
 
-      final startPt = Offset(
-        center.dx + outerR * sin(b),
-        center.dy - outerR * cos(b),
-      );
-      final endPt = Offset(
-        center.dx + (outerR - arrowLen) * sin(b),
-        center.dy - (outerR - arrowLen) * cos(b),
-      );
+    final primaryGeometry = geometries.first;
+    final primaryAxis = Offset(
+      cos(primaryGeometry.arrowAngle),
+      sin(primaryGeometry.arrowAngle),
+    );
+    const labelPad = 3.0;
+    final projectedSecondaryRearBorders = geometries
+        .skip(1)
+        .map((geometry) => (geometry.rearBorderPt.dx - primaryGeometry.rearBorderPt.dx) *
+                primaryAxis.dx +
+            (geometry.rearBorderPt.dy - primaryGeometry.rearBorderPt.dy) *
+                primaryAxis.dy)
+        .where((distance) => distance > 0)
+        .toList();
+    final primaryOverlapLimit = projectedSecondaryRearBorders.isEmpty
+        ? null
+        : projectedSecondaryRearBorders.reduce(min) - labelPad;
 
-      final ht = swell.heightFt;
+    for (final geometry in geometries) {
+      // --- Label ---
+      final ht = geometry.swell.heightFt;
       final htStr = ht == ht.roundToDouble()
           ? '${ht.round()}ft'
           : '${ht.toStringAsFixed(1)}ft';
-      final label = '$htStr ${swell.periodSec}s';
+      final label = '$htStr ${geometry.swell.periodSec}s';
+      final axis = Offset(cos(geometry.arrowAngle), sin(geometry.arrowAngle));
+      final rearToFrontSpan = (geometry.endPt.dx - geometry.rearBorderPt.dx) * axis.dx +
+          (geometry.endPt.dy - geometry.rearBorderPt.dy) * axis.dy;
+      final maxLabelSpan = geometry.isPrimary
+          ? max(
+              0.0,
+              min(rearToFrontSpan - labelPad,
+                  primaryOverlapLimit ?? (rearToFrontSpan - labelPad)) -
+                  labelPad,
+            )
+          : max(0.0, rearToFrontSpan - labelPad * 2);
 
-      final tp = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: isPrimary ? 13.0 : 10.0,
-            fontWeight: FontWeight.w500,
-            shadows: _shadowStyle,
+      var fontSize = geometry.isPrimary ? 13.0 : 10.0;
+      late TextPainter tp;
+      for (;;) {
+        tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+          textDirection: TextDirection.ltr,
+        )..layout();
+        if (tp.width <= maxLabelSpan || fontSize <= 0.5) break;
+        fontSize -= 0.5;
+      }
 
-      final labelT = isPrimary ? 0.25 : 0.25;
-      final labelCenter = Offset(
-        startPt.dx + (endPt.dx - startPt.dx) * labelT,
-        startPt.dy + (endPt.dy - startPt.dy) * labelT,
-      );
-
-      final arrowAngle = atan2(endPt.dy - startPt.dy, endPt.dx - startPt.dx);
-
-      var textAngle = arrowAngle;
+      var textAngle = geometry.arrowAngle;
       if (textAngle > pi / 2) textAngle -= pi;
       if (textAngle < -pi / 2) textAngle += pi;
+      final flipped = (geometry.arrowAngle - textAngle).abs() > 0.1;
+
+      const anchorPx = labelPad;
+      final anchorPt = Offset(
+        geometry.rearBorderPt.dx + axis.dx * anchorPx,
+        geometry.rearBorderPt.dy + axis.dy * anchorPx,
+      );
 
       canvas.save();
-      canvas.translate(labelCenter.dx, labelCenter.dy);
+      canvas.translate(anchorPt.dx, anchorPt.dy);
       canvas.rotate(textAngle);
-      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      if (flipped) {
+        tp.paint(canvas, Offset(-tp.width, -tp.height / 2));
+      } else {
+        tp.paint(canvas, Offset(0, -tp.height / 2));
+      }
       canvas.restore();
     }
   }
@@ -729,6 +957,8 @@ class _SwellCompassPainter extends CustomPainter {
   bool shouldRepaint(_SwellCompassPainter oldDelegate) {
     return swells.length != oldDelegate.swells.length ||
         exposureBearing != oldDelegate.exposureBearing ||
-        exposureWidth != oldDelegate.exposureWidth;
+        exposureWidth != oldDelegate.exposureWidth ||
+        windDirection != oldDelegate.windDirection ||
+        windLabel != oldDelegate.windLabel;
   }
 }
