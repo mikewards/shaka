@@ -328,9 +328,11 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
         const SizedBox(height: 20),
 
-        // Tides (expandable)
-        TideChartCard(tide: spot.tide),
-        const SizedBox(height: 20),
+        // Tides (expandable, only when data available)
+        if (spot.tide != null && spot.tide!.points.isNotEmpty) ...[
+          TideChartCard(tide: spot.tide!),
+          const SizedBox(height: 20),
+        ],
 
         // Satellite Visibility (collapsed label, expandable details)
         if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[

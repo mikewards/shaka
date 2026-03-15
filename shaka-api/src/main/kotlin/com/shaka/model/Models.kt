@@ -282,7 +282,8 @@ data class TideChartData(
     val extremes: List<TideExtreme>,
     val currentHeightFt: Double? = null,
     val currentStage: String? = null,
-    val available: Boolean = true
+    val available: Boolean = true,
+    val localDate: String = ""
 )
 
 @Serializable

@@ -2338,7 +2338,7 @@ object SpotDataCache {
             transaction {
                 val conn = this.connection.connection as java.sql.Connection
                 val deleted = conn.createStatement().executeUpdate(
-                    "DELETE FROM spot_tide_days WHERE local_date < CURRENT_DATE - INTERVAL '1 day'"
+                    "DELETE FROM spot_tide_days WHERE local_date < CURRENT_DATE - INTERVAL '3 days'"
                 )
                 if (deleted > 0) {
                     logger.info("Cleaned up $deleted old tide day rows")
@@ -2349,21 +2349,21 @@ object SpotDataCache {
         }
     }
 
-    fun spotsMissingTideDay(localDate: String): List<Pair<String, Pair<Double, Double>>> {
+    fun spotsMissingTideDay(): List<Pair<String, Pair<Double, Double>>> {
         if (!DatabaseFactory.isConnected()) return emptyList()
         return try {
             transaction {
                 val conn = this.connection.connection as java.sql.Connection
                 val results = mutableListOf<Pair<String, Pair<Double, Double>>>()
-                conn.prepareStatement("""
-                    SELECT sc.spot_id FROM spot_cache sc
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM spot_tide_days std
-                        WHERE std.spot_id = sc.spot_id AND std.local_date = ?::date
-                    )
-                """).use { stmt ->
-                    stmt.setString(1, localDate)
-                    val rs = stmt.executeQuery()
+                conn.createStatement().use { stmt ->
+                    val rs = stmt.executeQuery("""
+                        SELECT sc.spot_id FROM spot_cache sc
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM spot_tide_days std
+                            WHERE std.spot_id = sc.spot_id
+                              AND std.local_date BETWEEN (CURRENT_DATE - 1) AND (CURRENT_DATE + 1)
+                        )
+                    """)
                     while (rs.next()) {
                         val sid = rs.getString("spot_id")
                         val coords = spotCoordinates[sid]

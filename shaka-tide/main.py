@@ -61,7 +61,7 @@ async def health():
 async def tide_chart(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
-    date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date: str = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     days: int = Query(1, ge=1, le=14),
     step_minutes: int = Query(30, ge=6, le=60),
 ):

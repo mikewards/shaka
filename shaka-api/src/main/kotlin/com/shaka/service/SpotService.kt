@@ -30,6 +30,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * Service for searching and retrieving spearfishing spots.
@@ -504,7 +505,7 @@ class SpotService {
         val waterContext = buildWaterContext(cached, waterQuality, lat, lon)
 
         // Load structured tide chart data from spot_tide_days
-        val tideChart = loadTideChartData(spotId)
+        val tideChart = loadTideChartData(spotId, lon)
 
         SpotDetail(
             id = spot.id,
@@ -563,9 +564,14 @@ class SpotService {
         )
     }
 
-    private fun loadTideChartData(spotId: String): TideChartData? {
+    private fun spotLocalDate(lon: Double): LocalDate {
+        val offsetHours = (lon / 15).toInt().coerceIn(-12, 14)
+        return Instant.now().atZone(ZoneOffset.ofHours(offsetHours)).toLocalDate()
+    }
+
+    private fun loadTideChartData(spotId: String, lon: Double): TideChartData? {
         return try {
-            val today = java.time.LocalDate.now().toString()
+            val today = spotLocalDate(lon).toString()
             val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
 
             val json = Json { ignoreUnknownKeys = true }
@@ -1546,7 +1552,7 @@ class SpotService {
             )
         }
 
-        val tideChart = loadTideChartData(cacheId)
+        val tideChart = loadTideChartData(cacheId, lon)
 
         SpotDetail(
             id = cacheId,
@@ -1666,10 +1672,12 @@ class SpotService {
     }
 
     private suspend fun doPrefetchSingleSpot(spotId: String, lat: Double, lon: Double) = coroutineScope {
-        val today = LocalDate.now().toString()
+        val localToday = spotLocalDate(lon)
+        val today = localToday.toString()
+        val tomorrow = localToday.plusDays(1).toString()
         val now = Instant.now()
         
-        logger.info("Prefetching data for spot $spotId at ($lat, $lon)")
+        logger.info("Prefetching data for spot $spotId at ($lat, $lon) localDate=$today")
         
         SpotDataCache.ensureRowExists(spotId)
         
@@ -1695,9 +1703,10 @@ class SpotService {
                         ))
 
                         val jsonEncoder = Json { ignoreUnknownKeys = true }
+                        val localDate = chartData.localDate.ifEmpty { today }
                         SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
                             spotId = spotId,
-                            localDate = today,
+                            localDate = localDate,
                             provider = chartData.provider,
                             stationId = chartData.stationId,
                             stationName = chartData.stationName,
@@ -1708,7 +1717,32 @@ class SpotService {
                             extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
                             fetchedAt = now
                         ))
-                        logger.info("Tide chart + summary persisted for $spotId (provider=${chartData.provider})")
+                        logger.info("Tide chart + summary persisted for $spotId (provider=${chartData.provider}, localDate=$localDate)")
+
+                        // Pre-fetch tomorrow for graceful midnight transitions
+                        try {
+                            val tomorrowResult = fesClient.getChartWithSummary(lat, lon, tomorrow)
+                            if (tomorrowResult != null) {
+                                val (tomorrowChart, _) = tomorrowResult
+                                val tomorrowDate = tomorrowChart.localDate.ifEmpty { tomorrow }
+                                SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                                    spotId = spotId,
+                                    localDate = tomorrowDate,
+                                    provider = tomorrowChart.provider,
+                                    stationId = tomorrowChart.stationId,
+                                    stationName = tomorrowChart.stationName,
+                                    stationDistanceMi = tomorrowChart.stationDistanceMi,
+                                    timezoneId = tomorrowChart.timezoneId,
+                                    datum = tomorrowChart.datum,
+                                    pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), tomorrowChart.points),
+                                    extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), tomorrowChart.extremes),
+                                    fetchedAt = now
+                                ))
+                            }
+                        } catch (e: Exception) {
+                            logger.debug("Tomorrow tide prefetch failed for $spotId: ${e.message}")
+                        }
+
                         summaryData
                     } else {
                         tidesClient.getTideData(lat, lon, today)?.also { data ->

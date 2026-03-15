@@ -10,6 +10,7 @@ import datetime
 import logging
 from functools import lru_cache
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pyTMD.io
@@ -130,20 +131,21 @@ _FINE_STEP = 6  # minutes – single resolution for all predictions
 def _do_predict(
     lat: float, lon: float, date_str: str, days: int
 ) -> dict:
-    start_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-    end_dt = start_dt + datetime.timedelta(days=days)
+    tz = ZoneInfo(get_timezone(lat, lon))
+    local_midnight = datetime.datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+    utc_start = local_midnight.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
-    total_minutes = int((end_dt - start_dt).total_seconds() / 60)
+    total_minutes = days * 24 * 60
     fine_offsets = np.arange(0, total_minutes + 1, _FINE_STEP)
     fine_times = np.array(
-        [start_dt + datetime.timedelta(minutes=int(m)) for m in fine_offsets],
+        [utc_start + datetime.timedelta(minutes=int(m)) for m in fine_offsets],
         dtype="datetime64[ms]",
     )
 
     fine_heights_m = _predict_heights(lat, lon, fine_times)
     fine_heights_ft = [round(float(h) * METERS_TO_FEET, 2) for h in fine_heights_m]
 
-    epoch_base = int(start_dt.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
+    epoch_base = int(local_midnight.timestamp() * 1000)
     fine_ms = [epoch_base + int(m) * 60_000 for m in fine_offsets]
 
     extremes = _find_extremes(fine_ms, fine_heights_ft)
@@ -200,18 +202,24 @@ def _derive_summary(points: list[dict], extremes: list[dict]) -> dict:
 def predict_chart(
     lat: float,
     lon: float,
-    date_str: str,
+    date_str: Optional[str] = None,
     days: int = 1,
     step_minutes: int = 30,
 ) -> dict:
     """
     Predict tide chart data for a location and date range.
 
-    Returns chart points, extremes, and inline summary (current height, state, next high/low).
+    If date_str is None, computes today at the spot's local timezone.
+    Returns chart points, extremes, inline summary, and local_date.
     """
+    tz_id = get_timezone(lat, lon)
+
+    if date_str is None:
+        tz = ZoneInfo(tz_id)
+        date_str = datetime.datetime.now(tz).strftime("%Y-%m-%d")
+
     key = _cache_key(lat, lon, date_str, days)
     result = _cached_predict(key)
-    tz_id = get_timezone(lat, lon)
 
     subsample = max(1, step_minutes // _FINE_STEP)
     points = result["points"][::subsample]
@@ -222,6 +230,7 @@ def predict_chart(
         "lat": round(lat, COORD_PRECISION),
         "lon": round(lon, COORD_PRECISION),
         "date": date_str,
+        "local_date": date_str,
         "days": days,
         "datum": "MSL",
         "model": "FES2022",
@@ -235,10 +244,12 @@ def predict_chart(
 def predict_summary(lat: float, lon: float) -> dict:
     """
     Predict current tide state: height, rising/falling, next high and low.
-    Uses a 2-day window centered on now to find upcoming extremes.
+    Uses a 2-day window from today (in the spot's local timezone).
     """
+    tz_id = get_timezone(lat, lon)
+    tz = ZoneInfo(tz_id)
     now = datetime.datetime.now(datetime.timezone.utc)
-    date_str = now.strftime("%Y-%m-%d")
+    date_str = datetime.datetime.now(tz).strftime("%Y-%m-%d")
 
     key = _cache_key(lat, lon, date_str, 2)
     result = _cached_predict(key)
