@@ -29,6 +29,11 @@ def _init():
     try:
         ensure_fes_data(FES_DATA_DIR, AVISO_USER, AVISO_PASS)
         load_model(FES_DATA_DIR)
+        logger.info("Warming up prediction pipeline...")
+        import datetime
+        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+        predict_chart(0.0, -160.0, today, days=1, step_minutes=30)
+        logger.info("Warm-up complete")
         _ready.set()
         logger.info("Tide service ready")
     except Exception:
