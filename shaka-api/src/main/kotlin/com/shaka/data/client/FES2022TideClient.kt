@@ -85,7 +85,11 @@ class FES2022TideClient : TideClient {
         }
     }
 
-    override suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
+    /**
+     * Fetch chart + inline summary in a single HTTP call.
+     * Returns Pair(chartData, summaryTideData) or null on failure.
+     */
+    suspend fun getChartWithSummary(lat: Double, lon: Double, date: String): Pair<TideChartData, TideData>? {
         if (isCircuitOpen()) {
             logger.debug("Circuit open, skipping chart fetch")
             return null
@@ -122,7 +126,7 @@ class FES2022TideClient : TideClient {
 
             val timezoneId = obj["timezoneId"]?.jsonPrimitive?.contentOrNull ?: "Etc/UTC"
 
-            TideChartData(
+            val chart = TideChartData(
                 provider = "fes2022",
                 stationId = "",
                 stationName = "FES2022",
@@ -132,11 +136,31 @@ class FES2022TideClient : TideClient {
                 points = points,
                 extremes = extremes
             )
+
+            val s = obj["summary"]?.jsonObject
+            val summary = if (s != null) {
+                TideData(
+                    currentHeight = s["current_height_ft"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                    nextHighTide = formatTideText(s, "next_high_tide_ft", "next_high_tide_epoch_ms"),
+                    nextLowTide = formatTideText(s, "next_low_tide_ft", "next_low_tide_epoch_ms"),
+                    tideState = s["tide_state"]?.jsonPrimitive?.contentOrNull ?: "unknown",
+                    nextHighTideTime = s["next_high_tide_epoch_ms"]?.jsonPrimitive?.longOrNull,
+                    nextLowTideTime = s["next_low_tide_epoch_ms"]?.jsonPrimitive?.longOrNull
+                )
+            } else {
+                noTideData()
+            }
+
+            Pair(chart, summary)
         } catch (e: Exception) {
             recordFailure()
             logger.warn("FES2022 tide chart failed for ($lat, $lon) on $date: ${e.message}")
             null
         }
+    }
+
+    override suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
+        return getChartWithSummary(lat, lon, date)?.first
     }
 
     private fun formatTideText(obj: JsonObject, ftKey: String, msKey: String): String {

@@ -1678,28 +1678,22 @@ class SpotService {
         // instead of waiting for the slowest fetch (GIBS: up to 30s).
         
         val tideDeferred = async {
-            val data = withTimeoutOrNull(10000) {
-                try { tidesClient.getTideData(lat, lon, today) }
-                catch (e: Exception) { logger.warn("Tide fetch failed for $spotId: ${e.message}"); null }
-            }
-            if (data != null) {
-                SpotDataCache.updateTide(spotId, SpotDataCache.CachedValue(
-                    value = SpotDataCache.TideInfo(
-                        state = data.tideState, nextHighTide = data.nextHighTide,
-                        nextLowTide = data.nextLowTide, currentHeight = data.currentHeight,
-                        nextHighTideTime = data.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
-                        nextLowTideTime = data.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
-                    ), fetchedAt = now
-                ))
-            }
-            data
-        }
-
-        val tideChartDeferred = async {
             withTimeoutOrNull(15000) {
                 try {
-                    val chartData = tidesClient.getTideChartData(lat, lon, today)
-                    if (chartData != null) {
+                    val fesClient = tidesClient as? com.shaka.data.client.FES2022TideClient
+                    val result = fesClient?.getChartWithSummary(lat, lon, today)
+                    if (result != null) {
+                        val (chartData, summaryData) = result
+
+                        SpotDataCache.updateTide(spotId, SpotDataCache.CachedValue(
+                            value = SpotDataCache.TideInfo(
+                                state = summaryData.tideState, nextHighTide = summaryData.nextHighTide,
+                                nextLowTide = summaryData.nextLowTide, currentHeight = summaryData.currentHeight,
+                                nextHighTideTime = summaryData.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
+                                nextLowTideTime = summaryData.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
+                            ), fetchedAt = now
+                        ))
+
                         val jsonEncoder = Json { ignoreUnknownKeys = true }
                         SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
                             spotId = spotId,
@@ -1714,10 +1708,23 @@ class SpotService {
                             extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
                             fetchedAt = now
                         ))
-                        logger.info("Tide chart persisted for $spotId (provider=${chartData.provider})")
+                        logger.info("Tide chart + summary persisted for $spotId (provider=${chartData.provider})")
+                        summaryData
+                    } else {
+                        tidesClient.getTideData(lat, lon, today)?.also { data ->
+                            SpotDataCache.updateTide(spotId, SpotDataCache.CachedValue(
+                                value = SpotDataCache.TideInfo(
+                                    state = data.tideState, nextHighTide = data.nextHighTide,
+                                    nextLowTide = data.nextLowTide, currentHeight = data.currentHeight,
+                                    nextHighTideTime = data.nextHighTideTime?.let { java.time.Instant.ofEpochMilli(it) },
+                                    nextLowTideTime = data.nextLowTideTime?.let { java.time.Instant.ofEpochMilli(it) }
+                                ), fetchedAt = now
+                            ))
+                        }
                     }
                 } catch (e: Exception) {
-                    logger.warn("Tide chart fetch failed for $spotId: ${e.message}")
+                    logger.warn("Tide fetch failed for $spotId: ${e.message}")
+                    null
                 }
             }
         }
@@ -1925,7 +1932,6 @@ class SpotService {
         val sstData = sstDeferred.await()
         val gibsData = gibsDeferred.await()
         val mpaData = mpaDeferred.await()
-        tideChartDeferred.await()
         
         SpotDataCache.saveToDatabase(spotId)
         

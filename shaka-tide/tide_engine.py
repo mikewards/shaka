@@ -141,6 +141,50 @@ def _do_predict(
     return {"points": points, "extremes": extremes}
 
 
+def _derive_summary(points: list[dict], extremes: list[dict]) -> dict:
+    """Derive current height, tide state, and next high/low from chart data."""
+    now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+
+    current_height = 0.0
+    for i in range(len(points) - 1):
+        t0, t1 = points[i]["epoch_ms"], points[i + 1]["epoch_ms"]
+        if t0 <= now_ms <= t1:
+            frac = (now_ms - t0) / (t1 - t0) if t1 != t0 else 0
+            current_height = round(
+                points[i]["height_ft"] + frac * (points[i + 1]["height_ft"] - points[i]["height_ft"]), 2
+            )
+            break
+
+    next_high = next_low = None
+    for ext in extremes:
+        if ext["epoch_ms"] <= now_ms:
+            continue
+        if ext["type"] == "H" and next_high is None:
+            next_high = ext
+        elif ext["type"] == "L" and next_low is None:
+            next_low = ext
+        if next_high and next_low:
+            break
+
+    if next_high and next_low:
+        tide_state = "rising" if next_high["epoch_ms"] < next_low["epoch_ms"] else "falling"
+    elif next_high:
+        tide_state = "rising"
+    elif next_low:
+        tide_state = "falling"
+    else:
+        tide_state = "unknown"
+
+    return {
+        "current_height_ft": current_height,
+        "tide_state": tide_state,
+        "next_high_tide_epoch_ms": next_high["epoch_ms"] if next_high else None,
+        "next_high_tide_ft": next_high["height_ft"] if next_high else None,
+        "next_low_tide_epoch_ms": next_low["epoch_ms"] if next_low else None,
+        "next_low_tide_ft": next_low["height_ft"] if next_low else None,
+    }
+
+
 def predict_chart(
     lat: float,
     lon: float,
@@ -151,15 +195,16 @@ def predict_chart(
     """
     Predict tide chart data for a location and date range.
 
-    Returns dict with points (epoch_ms, height_ft) and extremes (epoch_ms, height_ft, type).
+    Returns chart points, extremes, and inline summary (current height, state, next high/low).
     """
     key = _cache_key(lat, lon, date_str, days)
     result = _cached_predict(key)
     tz_id = get_timezone(lat, lon)
 
-    # Subsample cached fine-resolution data to the requested step
     subsample = max(1, step_minutes // _FINE_STEP)
     points = result["points"][::subsample]
+
+    summary = _derive_summary(result["points"], result["extremes"])
 
     return {
         "lat": round(lat, COORD_PRECISION),
@@ -171,6 +216,7 @@ def predict_chart(
         "timezoneId": tz_id,
         "points": points,
         "extremes": result["extremes"],
+        "summary": summary,
     }
 
 
