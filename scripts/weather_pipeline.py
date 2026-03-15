@@ -44,14 +44,28 @@ def _ensure_cmems_credentials():
 
 
 DATASETS = {
-    "phy": {
-        "dataset_id": "cmems_mod_glo_phy_anfc_0.083deg_PT1H-m",
+    "phy_currents": {
+        "dataset_id": "cmems_mod_glo_phy-cur_anfc_0.083deg_P1D-m",
         "variables": {
             "currents": {"vars": ["uo", "vo"], "type": "vector", "scale": [-3, 3]},
-            "sst":      {"vars": ["thetao"],   "type": "scalar", "scale": [-2, 35]},
-            "salinity": {"vars": ["so"],       "type": "scalar", "scale": [20, 40]},
         },
-        "stride_hours": 3,
+        "stride_hours": 24,
+        "depth": 0.5,
+    },
+    "phy_sst": {
+        "dataset_id": "cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m",
+        "variables": {
+            "sst": {"vars": ["thetao"], "type": "scalar", "scale": [-2, 35]},
+        },
+        "stride_hours": 24,
+        "depth": 0.5,
+    },
+    "phy_salinity": {
+        "dataset_id": "cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m",
+        "variables": {
+            "salinity": {"vars": ["so"], "type": "scalar", "scale": [20, 40]},
+        },
+        "stride_hours": 24,
         "depth": 0.5,
     },
     "wav": {
@@ -62,12 +76,19 @@ DATASETS = {
         "stride_hours": 3,
         "depth": None,
     },
-    "bgc": {
-        "dataset_id": "cmems_mod_glo_bgc_anfc_0.25deg_P1D-m",
+    "bgc_pft": {
+        "dataset_id": "cmems_mod_glo_bgc-pft_anfc_0.25deg_P1D-m",
         "variables": {
             "chlorophyll":   {"vars": ["chl"],  "type": "scalar", "scale": [0, 20]},
             "phytoplankton": {"vars": ["phyc"], "type": "scalar", "scale": [0, 10]},
-            "zooplankton":   {"vars": ["zooc"], "type": "scalar", "scale": [0, 5]},
+        },
+        "stride_hours": 24,
+        "depth": 0.5,
+    },
+    "bgc_zoo": {
+        "dataset_id": "cmems_mod_glo_bgc-plankton_anfc_0.25deg_P1D-m",
+        "variables": {
+            "zooplankton": {"vars": ["zooc"], "type": "scalar", "scale": [0, 5]},
         },
         "stride_hours": 24,
         "depth": 0.5,

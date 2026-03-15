@@ -50,6 +50,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   int _timeIndex = 0;
   List<String> _timestamps = [];
   String? _errorMessage;
+  Set<String> _availableLayers = {};
 
   @override
   void initState() {
@@ -159,9 +160,24 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
       ));
       final response = await dio.get('$_kApiBase/v1/weather/catalog.json');
       if (response.statusCode == 200 && response.data != null) {
-        final catalogJson = jsonEncode(response.data);
+        final data = response.data as Map<String, dynamic>;
+        final vars = data['variables'] as Map<String, dynamic>? ?? {};
+        final available = vars.entries
+            .where((e) => e.value is List && (e.value as List).isNotEmpty)
+            .map((e) => e.key)
+            .toSet();
+
+        setState(() => _availableLayers = available);
+
+        final catalogJson = jsonEncode(data);
         await _controller?.runJavaScript('loadCatalog($catalogJson)');
-        await _controller?.runJavaScript("setLayer('$_activeLayer')");
+
+        final initialLayer = _kLayers.keys.firstWhere(
+          (k) => available.contains(k),
+          orElse: () => _activeLayer,
+        );
+        setState(() => _activeLayer = initialLayer);
+        await _controller?.runJavaScript("setLayer('$initialLayer')");
       } else {
         setState(() {
           _errorMessage = 'Forecast data not yet available';
@@ -179,10 +195,13 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   void _selectLayer(String key) {
     if (key == _activeLayer) return;
+    final hasData = _availableLayers.contains(key);
     setState(() {
-      _isLoading = true;
+      _isLoading = hasData;
       _activeLayer = key;
       _timeIndex = 0;
+      _timestamps = [];
+      _errorMessage = hasData ? null : 'No data available for this layer yet';
     });
     _controller?.runJavaScript("setLayer('$key')");
   }
@@ -380,39 +399,43 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
                         final key = _kLayers.keys.elementAt(index);
                         final meta = _kLayers[key]!;
                         final isActive = key == _activeLayer;
+                        final hasData = _availableLayers.isEmpty || _availableLayers.contains(key);
                         return GestureDetector(
                           onTap: () {
                             HapticFeedback.lightImpact();
                             _selectLayer(key);
                           },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? meta.color.withOpacity(0.3)
-                                  : Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
+                          child: Opacity(
+                            opacity: hasData ? 1.0 : 0.45,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
                                 color: isActive
-                                    ? meta.color.withOpacity(0.6)
-                                    : Colors.white.withOpacity(0.1),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(meta.icon, size: 14,
-                                  color: isActive ? meta.color : Colors.white54),
-                                const SizedBox(width: 5),
-                                Text(
-                                  meta.label,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                                    color: isActive ? Colors.white : Colors.white70,
-                                  ),
+                                    ? meta.color.withOpacity(0.3)
+                                    : Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: isActive
+                                      ? meta.color.withOpacity(0.6)
+                                      : Colors.white.withOpacity(0.1),
                                 ),
-                              ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(meta.icon, size: 14,
+                                    color: isActive ? meta.color : Colors.white54),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    meta.label,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                                      color: isActive ? Colors.white : Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -424,9 +447,11 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
             ),
           ),
 
-          // Loading overlay
+          // Loading overlay (leaves bottom controls accessible)
           if (_isLoading)
-            Positioned.fill(
+            Positioned(
+              top: 0, left: 0, right: 0,
+              bottom: 120 + MediaQuery.of(context).padding.bottom,
               child: Container(
                 color: const Color(0xFF0D0D0D).withOpacity(0.7),
                 child: const Center(
