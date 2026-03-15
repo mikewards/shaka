@@ -67,7 +67,6 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
         cutoff=10.0,
         crop=True,
         buffer=2.0,
-        chunks={},
     )
     result = np.asarray(tide).flatten()
     return result
@@ -98,55 +97,45 @@ def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
     return extremes
 
 
-def _cache_key(lat: float, lon: float, date_str: str, days: int, step: int) -> tuple:
+def _cache_key(lat: float, lon: float, date_str: str, days: int) -> tuple:
     return (
         round(lat, COORD_PRECISION),
         round(lon, COORD_PRECISION),
         date_str,
         days,
-        step,
     )
 
 
 @lru_cache(maxsize=4096)
 def _cached_predict(key: tuple) -> dict:
-    lat_r, lon_r, date_str, days, step_minutes = key
-    return _do_predict(lat_r, lon_r, date_str, days, step_minutes)
+    lat_r, lon_r, date_str, days = key
+    return _do_predict(lat_r, lon_r, date_str, days)
 
+
+_FINE_STEP = 6  # minutes – single resolution for all predictions
 
 def _do_predict(
-    lat: float, lon: float, date_str: str, days: int, step_minutes: int
+    lat: float, lon: float, date_str: str, days: int
 ) -> dict:
     start_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
     end_dt = start_dt + datetime.timedelta(days=days)
 
     total_minutes = int((end_dt - start_dt).total_seconds() / 60)
-    minute_offsets = np.arange(0, total_minutes + 1, step_minutes)
-    times_dt = np.array(
-        [start_dt + datetime.timedelta(minutes=int(m)) for m in minute_offsets],
+    fine_offsets = np.arange(0, total_minutes + 1, _FINE_STEP)
+    fine_times = np.array(
+        [start_dt + datetime.timedelta(minutes=int(m)) for m in fine_offsets],
         dtype="datetime64[ms]",
     )
 
-    heights_m = _predict_heights(lat, lon, times_dt)
-    heights_ft = [round(float(h) * METERS_TO_FEET, 2) for h in heights_m]
+    fine_heights_m = _predict_heights(lat, lon, fine_times)
+    fine_heights_ft = [round(float(h) * METERS_TO_FEET, 2) for h in fine_heights_m]
 
     epoch_base = int(start_dt.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
-    times_ms = [epoch_base + int(m) * 60_000 for m in minute_offsets]
+    fine_ms = [epoch_base + int(m) * 60_000 for m in fine_offsets]
 
-    points = [{"epoch_ms": t, "height_ft": h} for t, h in zip(times_ms, heights_ft)]
+    extremes = _find_extremes(fine_ms, fine_heights_ft)
 
-    if step_minutes > 6:
-        fine_offsets = np.arange(0, total_minutes + 1, 6)
-        fine_times = np.array(
-            [start_dt + datetime.timedelta(minutes=int(m)) for m in fine_offsets],
-            dtype="datetime64[ms]",
-        )
-        fine_heights_m = _predict_heights(lat, lon, fine_times)
-        fine_heights_ft = [round(float(h) * METERS_TO_FEET, 2) for h in fine_heights_m]
-        fine_ms = [epoch_base + int(m) * 60_000 for m in fine_offsets]
-        extremes = _find_extremes(fine_ms, fine_heights_ft)
-    else:
-        extremes = _find_extremes(times_ms, heights_ft)
+    points = [{"epoch_ms": t, "height_ft": h} for t, h in zip(fine_ms, fine_heights_ft)]
 
     return {"points": points, "extremes": extremes}
 
@@ -163,9 +152,13 @@ def predict_chart(
 
     Returns dict with points (epoch_ms, height_ft) and extremes (epoch_ms, height_ft, type).
     """
-    key = _cache_key(lat, lon, date_str, days, step_minutes)
+    key = _cache_key(lat, lon, date_str, days)
     result = _cached_predict(key)
     tz_id = get_timezone(lat, lon)
+
+    # Subsample cached fine-resolution data to the requested step
+    subsample = max(1, step_minutes // _FINE_STEP)
+    points = result["points"][::subsample]
 
     return {
         "lat": round(lat, COORD_PRECISION),
@@ -175,7 +168,7 @@ def predict_chart(
         "datum": "MSL",
         "model": "FES2022",
         "timezoneId": tz_id,
-        "points": result["points"],
+        "points": points,
         "extremes": result["extremes"],
     }
 
@@ -188,7 +181,7 @@ def predict_summary(lat: float, lon: float) -> dict:
     now = datetime.datetime.now(datetime.timezone.utc)
     date_str = now.strftime("%Y-%m-%d")
 
-    key = _cache_key(lat, lon, date_str, 2, 6)
+    key = _cache_key(lat, lon, date_str, 2)
     result = _cached_predict(key)
 
     now_ms = int(now.timestamp() * 1000)
