@@ -12,8 +12,8 @@ from functools import lru_cache
 from typing import Optional
 
 import numpy as np
-import pyTMD.compute
 import pyTMD.io
+import timescale.time
 from timezonefinder import TimezoneFinder
 
 from config import COORD_PRECISION, FES_DATA_DIR, METERS_TO_FEET
@@ -22,6 +22,10 @@ logger = logging.getLogger("tide_engine")
 
 _tz_finder: Optional[TimezoneFinder] = None
 MODEL_NAME = "FES2022_extrapolated"
+
+_dataset = None
+_corrections = None
+_minor = None
 
 
 def _get_tz_finder() -> TimezoneFinder:
@@ -41,36 +45,44 @@ def get_timezone(lat: float, lon: float) -> str:
 
 
 def load_model(data_dir: str = FES_DATA_DIR) -> None:
-    """Validate FES2022 constituent files are loadable. Called once at startup."""
-    logger.info("Validating FES2022 model from %s ...", data_dir)
+    """Load FES2022 model and open the dataset once. Reused across all requests."""
+    global _dataset, _corrections, _minor
+    logger.info("Loading FES2022 model from %s ...", data_dir)
     m = pyTMD.io.model(data_dir).from_database(MODEL_NAME)
     n_files = len(m.z.model_file) if isinstance(m.z.model_file, list) else 1
-    logger.info("FES2022 model validated: %d constituent files found", n_files)
+    logger.info("Opening dataset (%d constituent files)...", n_files)
+    _dataset = m.open_dataset(group="z", chunks={})
+    _corrections = m.corrections
+    _minor = m.minor
+    logger.info("FES2022 dataset opened and ready")
 
 
 def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
     """
     Predict tide heights (meters, MSL) for an array of datetime64 times.
-    Uses pyTMD.compute.tide_elevations (pyTMD 3.0 high-level API).
+    Uses the pre-loaded FES2022 dataset — skips model discovery and file
+    opening that pyTMD.compute.tide_elevations repeats on every call.
     """
-    tide = pyTMD.compute.tide_elevations(
-        np.atleast_1d(lon),
-        np.atleast_1d(lat),
-        times,
-        directory=FES_DATA_DIR,
-        model=MODEL_NAME,
-        crs=4326,
-        type="time series",
-        standard="datetime",
-        method="linear",
-        extrapolate=True,
-        cutoff=10.0,
-        crop=True,
-        buffer=2.0,
-        chunks={},
+    x, y = np.atleast_1d(lon), np.atleast_1d(lat)
+    X, Y = _dataset.tmd.coords_as(x, y, type="time series", crs=4326)
+
+    xmin, xmax = float(np.min(X)), float(np.max(X))
+    ymin, ymax = float(np.min(Y)), float(np.max(Y))
+    ds_crop = _dataset.tmd.crop([xmin, xmax, ymin, ymax], buffer=2.0)
+
+    ts = timescale.time.Timescale.from_datetime(times)
+    if _corrections in ("OTIS", "ATLAS", "TMD3", "netcdf"):
+        deltat = np.zeros_like(ts.tt_ut1)
+    else:
+        deltat = ts.tt_ut1
+
+    local = ds_crop.tmd.interp(X, Y, method="linear", extrapolate=True, cutoff=10.0)
+    tpred = local.tmd.predict(ts.tide, deltat=deltat, corrections=_corrections)
+    tinfer = local.tmd.infer(
+        ts.tide, deltat=deltat, corrections=_corrections, minor=_minor,
     )
-    result = np.asarray(tide).flatten()
-    return result
+    tpred += tinfer
+    return np.asarray(tpred).flatten()
 
 
 def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
