@@ -524,7 +524,7 @@ class SpotService {
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
-                tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
+                tideState = buildTideStateString(tideChart, tideData),
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate,
                 swellSource = cached?.swell?.value?.source,
@@ -631,6 +631,35 @@ class SpotService {
             height?.let { (it * 100).toInt() / 100.0 },
             stage
         )
+    }
+
+    /**
+     * Build the tideState string for the Conditions card from live chart data,
+     * falling back to the cached summary when chart data is unavailable.
+     *
+     * This ensures the Conditions card and the Tides chart header always agree
+     * on rising/falling stage and next-high time.
+     */
+    private fun buildTideStateString(tideChart: TideChartData?, tideData: TideData): String {
+        val nowMs = System.currentTimeMillis()
+
+        val stage = tideChart?.currentStage ?: tideData.tideState
+
+        val nextHighText = tideChart?.extremes
+            ?.filter { it.type == "H" && it.epochMs > nowMs }
+            ?.minByOrNull { it.epochMs }
+            ?.let { ext ->
+                val zoneId = tideChart.timezoneId.takeIf { it.isNotEmpty() }
+                    ?.let { try { java.time.ZoneId.of(it) } catch (_: Exception) { null } }
+                    ?: java.time.ZoneId.systemDefault()
+                val time = java.time.Instant.ofEpochMilli(ext.epochMs)
+                    .atZone(zoneId)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("h:mma"))
+                "$time (${String.format("%.1f", ext.heightFt)}ft)"
+            }
+            ?: tideData.nextHighTide
+
+        return "$stage - Next high: $nextHighText"
     }
 
     /**
@@ -1562,7 +1591,7 @@ class SpotService {
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
-                tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
+                tideState = buildTideStateString(tideChart, tideData),
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
                 satelliteDataDate = satelliteDataDate,
                 swellSource = cached?.swell?.value?.source,
