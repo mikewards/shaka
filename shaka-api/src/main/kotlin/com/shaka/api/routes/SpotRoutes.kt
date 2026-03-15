@@ -1014,13 +1014,6 @@ fun Application.configureRouting() {
                 val cacheId = userSpotRepository.getCacheId(spotId)
                 val spotDetail = spotService.getUserSpotDetail(userSpot, cacheId, date)
                 
-                if (spotDetail == null) {
-                    return@get call.respond(
-                        HttpStatusCode.InternalServerError,
-                        mapOf("error" to "Failed to fetch spot conditions")
-                    )
-                }
-                
                 val response = UserSpotDetailResponse(
                     spot = spotDetail,
                     isUserSpot = true

@@ -1422,69 +1422,60 @@ class SpotService {
         userSpot: UserSpotRepository.UserSpotRecord,
         cacheId: String,
         date: String
-    ): SpotDetail? = coroutineScope {
+    ): SpotDetail = coroutineScope {
         val lat = userSpot.coordinates.lat
         val lon = userSpot.coordinates.lon
         val region = userSpot.region
         
-        // Check prefetched cache first (instant!)
-        var cached = SpotDataCache.get(cacheId)
+        val cached = SpotDataCache.get(cacheId)
+        logger.debug("Building detail from cache for ${userSpot.name} (cache ${if (cached != null) "hit" else "miss"})")
         
-        if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
-            // Cache incomplete — run full prefetch to populate it with real data.
-            // The background prefetch from spot creation may already be running;
-            // duplicate API calls are idempotent and harmless.
-            logger.info("Cache incomplete for user spot ${userSpot.name}, running full prefetch")
-            try {
-                prefetchSingleSpot(cacheId, lat, lon)
-            } catch (e: Exception) {
-                logger.warn("Full prefetch failed for ${userSpot.name}: ${e.message}")
-            }
-            
-            cached = SpotDataCache.get(cacheId)
-            if (cached == null || cached.tide == null || cached.swell == null || cached.wind == null) {
-                logger.warn("Cache still incomplete after prefetch for ${userSpot.name}")
-                return@coroutineScope null
-            }
+        val weather = if (cached?.wind != null) {
+            WeatherData(
+                temperature = 25.0,
+                windSpeed = cached.wind.value.speedKnots / 0.539957,
+                windDirection = 0,
+                precipitation = 0.0,
+                cloudCover = 50,
+                visibility = 10000.0
+            )
+        } else {
+            WeatherData(25.0, 10.0, 0, 0.0, 50, 10000.0)
         }
         
-        // Always build from cache — single code path, consistent formatting
-        logger.debug("Building detail from cache for ${userSpot.name}")
-        
-        val weather = WeatherData(
-            temperature = 25.0,
-            windSpeed = cached.wind!!.value.speedKnots / 0.539957,
-            windDirection = 0,
-            precipitation = 0.0,
-            cloudCover = 50,
-            visibility = 10000.0
-        )
-        
-        val htM = (cached.swell!!.value.correctedHeightFt ?: cached.swell!!.value.heightFt) / 3.28084
-        val ocean = OceanData(
-            waveHeight = htM,
-            wavePeriod = cached.swell!!.value.periodSec,
-            waveDirection = 0,
-            waterTemperature = cached.sst?.value ?: 15.0,
-            swellHeight = htM,
-            swellDirection = 0
-        )
+        val ocean = if (cached?.swell != null) {
+            val htM = (cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt) / 3.28084
+            OceanData(
+                waveHeight = htM,
+                wavePeriod = cached.swell.value.periodSec,
+                waveDirection = 0,
+                waterTemperature = cached.sst?.value ?: 15.0,
+                swellHeight = htM,
+                swellDirection = 0
+            )
+        } else {
+            OceanData(1.0, 8.0, 0, 15.0, 1.0, 0)
+        }
         
         val waterQuality = WaterQuality(
-            chlorophyllA = cached.chlorophyll?.value,
-            visibility = cached.visibility?.value,
-            seaSurfaceTemp = cached.sst?.value,
-            dataSource = "Prefetched (updated ${cached.tide!!.ageString()})"
+            chlorophyllA = cached?.chlorophyll?.value,
+            visibility = cached?.visibility?.value,
+            seaSurfaceTemp = cached?.sst?.value,
+            dataSource = if (cached?.tide != null) "Prefetched (updated ${cached.tide.ageString()})" else "Loading..."
         )
         
-        val tideData = TideData(
-            currentHeight = cached.tide!!.value.currentHeight,
-            nextHighTide = cached.tide!!.value.nextHighTide,
-            nextLowTide = cached.tide!!.value.nextLowTide,
-            tideState = cached.tide!!.value.state,
-            nextHighTideTime = cached.tide!!.value.nextHighTideTime?.toEpochMilli(),
-            nextLowTideTime = cached.tide!!.value.nextLowTideTime?.toEpochMilli()
-        )
+        val tideData = if (cached?.tide != null) {
+            TideData(
+                currentHeight = cached.tide.value.currentHeight,
+                nextHighTide = cached.tide.value.nextHighTide,
+                nextLowTide = cached.tide.value.nextLowTide,
+                tideState = cached.tide.value.state,
+                nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
+            )
+        } else {
+            TideData(0.0, "Loading...", "Loading...", "unknown")
+        }
         
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
 

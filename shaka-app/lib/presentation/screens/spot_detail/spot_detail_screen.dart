@@ -32,7 +32,7 @@ class SpotDetailScreen extends StatefulWidget {
 }
 
 class _SpotDetailScreenState extends State<SpotDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _hasLoaded = false;
   late TabController _tabController;
 
@@ -55,14 +55,23 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
     _loadSpotDetail();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.isUserSpot) {
+      _loadUserSpotDetail();
+    }
   }
 
   void _loadSpotDetail() {
@@ -91,9 +100,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _userSpotDetail = response.spot;
           _userSpotLoading = false;
         });
-        // If MPA hasn't been checked yet, poll in background until it is
-        if (response.spot.regulations?.mpaChecked == false) {
-          _pollForMPA();
+        if (_needsPolling(response.spot)) {
+          _pollForMissingData();
         }
       }
     } catch (e) {
@@ -106,26 +114,28 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     }
   }
 
-  /// Re-fetch spot detail in background until MPA data arrives.
-  /// Same pattern as _fetchMissingScores() on the GIBS map for shaka scores.
-  Future<void> _pollForMPA() async {
-    while (mounted) {
+  bool _needsPolling(SpotDetail spot) {
+    if (spot.regulations?.mpaChecked == false) return true;
+    if (spot.tide == null || spot.tide!.points.isEmpty) return true;
+    return false;
+  }
+
+  Future<void> _pollForMissingData() async {
+    int attempts = 0;
+    while (mounted && attempts < 10) {
       await Future.delayed(const Duration(seconds: 3));
       if (!mounted) return;
+      attempts++;
       try {
         final response = await _apiClient.getUserSpotDetail(
           spotId: widget.spotId,
           date: widget.date,
         );
-        if (response.spot.regulations?.mpaChecked == true) {
-          if (mounted) {
-            setState(() => _userSpotDetail = response.spot);
-          }
-          return; // MPA data arrived, stop polling
+        if (mounted) {
+          setState(() => _userSpotDetail = response.spot);
         }
-      } catch (_) {
-        // Ignore errors, will retry on next poll
-      }
+        if (!_needsPolling(response.spot)) return;
+      } catch (_) {}
     }
   }
 
