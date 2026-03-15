@@ -315,14 +315,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         const SizedBox(height: 20),
 
-        // Tide chart
-        if (spot.tide != null && spot.tide!.available && spot.tide!.points.isNotEmpty) ...[
-          _buildSectionHeader('TIDES'),
-          const SizedBox(height: 10),
-          TideChartCard(tide: spot.tide!),
-          const SizedBox(height: 20),
-        ],
-
         // Score Breakdown
         _buildSectionHeader('SCORE BREAKDOWN'),
         const SizedBox(height: 10),
@@ -334,6 +326,10 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         _buildSectionHeader('SWELL & WIND'),
         const SizedBox(height: 10),
         SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
+        const SizedBox(height: 20),
+
+        // Tides (expandable)
+        TideChartCard(tide: spot.tide),
         const SizedBox(height: 20),
 
         // Satellite Visibility (collapsed label, expandable details)

@@ -1,11 +1,19 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/models/spot_models.dart';
 
-class TideChartCard extends StatelessWidget {
-  final TideChartData tide;
+class TideChartCard extends StatefulWidget {
+  final TideChartData? tide;
 
-  const TideChartCard({super.key, required this.tide});
+  const TideChartCard({super.key, this.tide});
+
+  @override
+  State<TideChartCard> createState() => _TideChartCardState();
+}
+
+class _TideChartCardState extends State<TideChartCard> {
+  bool _expanded = false;
 
   static const _cardColor = Color(0xFF1A1A1A);
   static const _borderColor = Color(0xFF2A2A2A);
@@ -16,6 +24,9 @@ class TideChartCard extends StatelessWidget {
   static const _dimText = Color(0xFF888888);
   static const _lightText = Color(0xFFE5E5E5);
 
+  bool get _hasData =>
+      widget.tide != null && widget.tide!.points.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -25,37 +36,26 @@ class TideChartCard extends StatelessWidget {
         border: Border.all(color: _borderColor),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: SizedBox(
-              height: 160,
-              child: CustomPaint(
-                size: const Size(double.infinity, 160),
-                painter: _TideCurvePainter(
-                  points: tide.points,
-                  extremes: tide.extremes,
-                  tideColor: _tideColor,
-                  highColor: _highColor,
-                  lowColor: _lowColor,
-                  nowColor: _nowColor,
-                  dimText: _dimText,
-                ),
-              ),
-            ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity, height: 0),
+            secondChild: _hasData ? _buildExpandedContent() : const SizedBox.shrink(),
+            crossFadeState:
+                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+            sizeCurve: Curves.easeInOut,
           ),
-          _buildFooter(),
         ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    final stageText = tide.currentStage ?? '';
-    final heightText = tide.currentHeightFt != null
-        ? '${tide.currentHeightFt!.toStringAsFixed(1)} ft'
+    final tide = widget.tide;
+    final stageText = tide?.currentStage ?? '';
+    final heightText = tide?.currentHeightFt != null
+        ? '${tide!.currentHeightFt!.toStringAsFixed(1)} ft'
         : '';
     final stageIcon = stageText == 'rising'
         ? Icons.trending_up
@@ -63,40 +63,101 @@ class TideChartCard extends StatelessWidget {
             ? Icons.trending_down
             : Icons.remove;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        children: [
-          Icon(Icons.waves, size: 18, color: _tideColor),
-          const SizedBox(width: 8),
-          Text(
-            'TIDES',
-            style: TextStyle(
-              color: _lightText,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const Spacer(),
-          if (heightText.isNotEmpty) ...[
-            Icon(stageIcon, size: 16, color: _tideColor),
-            const SizedBox(width: 4),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _hasData
+          ? () {
+              HapticFeedback.lightImpact();
+              setState(() => _expanded = !_expanded);
+            }
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(Icons.waves, size: 18, color: _tideColor),
+            const SizedBox(width: 8),
             Text(
-              '$heightText ${_capitalize(stageText)}',
+              'TIDES',
               style: TextStyle(
-                color: _tideColor,
-                fontSize: 14,
+                color: _lightText,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
               ),
             ),
+            const Spacer(),
+            if (!_hasData) ...[
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _tideColor.withOpacity(0.5),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Loading...',
+                style: TextStyle(color: _dimText, fontSize: 13),
+              ),
+            ] else if (heightText.isNotEmpty) ...[
+              Icon(stageIcon, size: 16, color: _tideColor),
+              const SizedBox(width: 4),
+              Text(
+                '$heightText ${_capitalize(stageText)}',
+                style: TextStyle(
+                  color: _tideColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: _expanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 20,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildExpandedContent() {
+    final tide = widget.tide!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: SizedBox(
+            height: 160,
+            child: CustomPaint(
+              size: const Size(double.infinity, 160),
+              painter: _TideCurvePainter(
+                points: tide.points,
+                extremes: tide.extremes,
+                tideColor: _tideColor,
+                highColor: _highColor,
+                lowColor: _lowColor,
+                nowColor: _nowColor,
+                dimText: _dimText,
+              ),
+            ),
+          ),
+        ),
+        _buildFooter(tide),
+      ],
+    );
+  }
+
+  Widget _buildFooter(TideChartData tide) {
     final nextH = tide.nextHigh;
     final nextL = tide.nextLow;
 
