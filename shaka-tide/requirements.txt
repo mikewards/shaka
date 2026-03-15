@@ -6,3 +6,4 @@ scipy>=1.12.0
 timezonefinder>=6.4.0
 netCDF4>=1.6.0
 timescale>=0.1.1
+dask>=2024.1.0
