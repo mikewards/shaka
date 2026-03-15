@@ -68,7 +68,7 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
 
     xmin, xmax = float(np.min(X)), float(np.max(X))
     ymin, ymax = float(np.min(Y)), float(np.max(Y))
-    ds_crop = _dataset.tmd.crop([xmin, xmax, ymin, ymax], buffer=2.0)
+    ds_crop = _dataset.tmd.crop([xmin, xmax, ymin, ymax], buffer=0.5)
 
     ts = timescale.time.Timescale.from_datetime(times)
     if _corrections in ("OTIS", "ATLAS", "TMD3", "netcdf"):
