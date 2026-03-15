@@ -65,6 +65,8 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
         method="linear",
         extrapolate=True,
         cutoff=10.0,
+        crop=True,
+        buffer=2.0,
     )
     result = np.asarray(tide).flatten()
     return result
