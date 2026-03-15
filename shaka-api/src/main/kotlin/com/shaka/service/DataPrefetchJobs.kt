@@ -141,66 +141,51 @@ class DataPrefetchJobs(
     suspend fun materializeTideCharts() = withContext(Dispatchers.IO) {
         val allSpots = spotDb.getAllSpots()
 
-        logger.info("TIDE CHART materialization: processing ${allSpots.size} catalog spots (per-spot local dates)")
+        logger.info("TIDE CHART materialization: processing ${allSpots.size} catalog spots (serial, per-spot local dates)")
 
         val startTime = System.currentTimeMillis()
         var persisted = 0
         var skipped = 0
         var errors = 0
 
-        allSpots.chunked(BATCH_SIZE).forEach { batch ->
-            val results = batch.map { spot ->
-                async {
-                    try {
-                        val localToday = spotLocalDate(spot.coordinates.lon)
-                        val todayStr = localToday.toString()
-                        val tomorrowStr = localToday.plusDays(1).toString()
-                        var result = "skip"
+        for (spot in allSpots) {
+            val localToday = spotLocalDate(spot.coordinates.lon)
+            val todayStr = localToday.toString()
+            val tomorrowStr = localToday.plusDays(1).toString()
 
-                        for (day in listOf(todayStr, tomorrowStr)) {
-                            val existing = SpotDataCache.getTideDay(spot.id, day, tidesClient.provider)
-                            if (existing != null) continue
+            for (day in listOf(todayStr, tomorrowStr)) {
+                val existing = SpotDataCache.getTideDay(spot.id, day, tidesClient.provider)
+                if (existing != null) { skipped++; continue }
 
-                            try {
-                                withTimeout(SPOT_TIMEOUT_MS) {
-                                    val chartData = tidesClient.getTideChartData(
-                                        spot.coordinates.lat, spot.coordinates.lon, day
-                                    ) ?: return@withTimeout
+                try {
+                    withTimeout(SPOT_TIMEOUT_MS) {
+                        val chartData = tidesClient.getTideChartData(
+                            spot.coordinates.lat, spot.coordinates.lon, day
+                        ) ?: return@withTimeout
 
-                                    val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-                                    val localDate = chartData.localDate.ifEmpty { day }
-                                    SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
-                                        spotId = spot.id,
-                                        localDate = localDate,
-                                        provider = chartData.provider,
-                                        stationId = chartData.stationId,
-                                        stationName = chartData.stationName,
-                                        stationDistanceMi = chartData.stationDistanceMi,
-                                        timezoneId = chartData.timezoneId,
-                                        datum = chartData.datum,
-                                        pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
-                                        extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
-                                        fetchedAt = Instant.now()
-                                    ))
-                                    result = "ok"
-                                }
-                            } catch (e: Exception) {
-                                logger.debug("Tide chart failed for ${spot.name}/$day: ${e.message}")
-                                result = "error"
-                            }
-                        }
-                        result
-                    } catch (e: Exception) {
-                        logger.debug("Tide chart failed for ${spot.name}: ${e.message}")
-                        "error"
+                        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                        val localDate = chartData.localDate.ifEmpty { day }
+                        SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                            spotId = spot.id,
+                            localDate = localDate,
+                            provider = chartData.provider,
+                            stationId = chartData.stationId,
+                            stationName = chartData.stationName,
+                            stationDistanceMi = chartData.stationDistanceMi,
+                            timezoneId = chartData.timezoneId,
+                            datum = chartData.datum,
+                            pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                            extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                            fetchedAt = Instant.now()
+                        ))
+                        persisted++
                     }
+                } catch (e: Exception) {
+                    logger.debug("Tide chart failed for ${spot.name}/$day: ${e.message}")
+                    errors++
                 }
-            }.awaitAll()
-
-            persisted += results.count { it == "ok" }
-            skipped += results.count { it == "skip" }
-            errors += results.count { it == "error" }
-            delay(BATCH_DELAY_MS)
+                delay(5000)
+            }
         }
 
         val elapsed = System.currentTimeMillis() - startTime
@@ -218,43 +203,36 @@ class DataPrefetchJobs(
         var persisted = 0
         var errors = 0
 
-        missing.chunked(BATCH_SIZE).forEach { batch ->
-            val results = batch.map { (spotId, coords) ->
-                async {
-                    try {
-                        withTimeout(SPOT_TIMEOUT_MS) {
-                            val lon = coords.second
-                            val spotToday = spotLocalDate(lon).toString()
-                            val chartData = tidesClient.getTideChartData(coords.first, lon, spotToday)
-                                ?: return@withTimeout false
+        for ((spotId, coords) in missing) {
+            try {
+                withTimeout(SPOT_TIMEOUT_MS) {
+                    val lon = coords.second
+                    val spotToday = spotLocalDate(lon).toString()
+                    val chartData = tidesClient.getTideChartData(coords.first, lon, spotToday)
+                        ?: return@withTimeout
 
-                            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-                            val localDate = chartData.localDate.ifEmpty { spotToday }
-                            SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
-                                spotId = spotId,
-                                localDate = localDate,
-                                provider = chartData.provider,
-                                stationId = chartData.stationId,
-                                stationName = chartData.stationName,
-                                stationDistanceMi = chartData.stationDistanceMi,
-                                timezoneId = chartData.timezoneId,
-                                datum = chartData.datum,
-                                pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
-                                extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
-                                fetchedAt = Instant.now()
-                            ))
-                            true
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Tide chart catch-up failed for $spotId: ${e.message}")
-                        false
-                    }
+                    val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                    val localDate = chartData.localDate.ifEmpty { spotToday }
+                    SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                        spotId = spotId,
+                        localDate = localDate,
+                        provider = chartData.provider,
+                        stationId = chartData.stationId,
+                        stationName = chartData.stationName,
+                        stationDistanceMi = chartData.stationDistanceMi,
+                        timezoneId = chartData.timezoneId,
+                        datum = chartData.datum,
+                        pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                        extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                        fetchedAt = Instant.now()
+                    ))
+                    persisted++
                 }
-            }.awaitAll()
-
-            persisted += results.count { it }
-            errors += results.count { !it }
-            delay(BATCH_DELAY_MS)
+            } catch (e: Exception) {
+                logger.debug("Tide chart catch-up failed for $spotId: ${e.message}")
+                errors++
+            }
+            delay(5000)
         }
 
         logger.info("TIDE CHART catch-up complete: $persisted persisted, $errors errors")
