@@ -15,10 +15,7 @@ import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.builtins.ListSerializer
@@ -1719,28 +1716,30 @@ class SpotService {
                         ))
                         logger.info("Tide chart + summary persisted for $spotId (provider=${chartData.provider}, localDate=$localDate)")
 
-                        // Pre-fetch tomorrow for graceful midnight transitions
-                        try {
-                            val tomorrowResult = fesClient.getChartWithSummary(lat, lon, tomorrow)
-                            if (tomorrowResult != null) {
-                                val (tomorrowChart, _) = tomorrowResult
-                                val tomorrowDate = tomorrowChart.localDate.ifEmpty { tomorrow }
-                                SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
-                                    spotId = spotId,
-                                    localDate = tomorrowDate,
-                                    provider = tomorrowChart.provider,
-                                    stationId = tomorrowChart.stationId,
-                                    stationName = tomorrowChart.stationName,
-                                    stationDistanceMi = tomorrowChart.stationDistanceMi,
-                                    timezoneId = tomorrowChart.timezoneId,
-                                    datum = tomorrowChart.datum,
-                                    pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), tomorrowChart.points),
-                                    extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), tomorrowChart.extremes),
-                                    fetchedAt = now
-                                ))
+                        // Fire-and-forget: pre-warm tomorrow's chart (doesn't block prefetch)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val tomorrowResult = fesClient.getChartWithSummary(lat, lon, tomorrow)
+                                if (tomorrowResult != null) {
+                                    val (tomorrowChart, _) = tomorrowResult
+                                    val tomorrowDate = tomorrowChart.localDate.ifEmpty { tomorrow }
+                                    SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                                        spotId = spotId,
+                                        localDate = tomorrowDate,
+                                        provider = tomorrowChart.provider,
+                                        stationId = tomorrowChart.stationId,
+                                        stationName = tomorrowChart.stationName,
+                                        stationDistanceMi = tomorrowChart.stationDistanceMi,
+                                        timezoneId = tomorrowChart.timezoneId,
+                                        datum = tomorrowChart.datum,
+                                        pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), tomorrowChart.points),
+                                        extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), tomorrowChart.extremes),
+                                        fetchedAt = now
+                                    ))
+                                }
+                            } catch (e: Exception) {
+                                logger.debug("Tomorrow tide prefetch failed for $spotId: ${e.message}")
                             }
-                        } catch (e: Exception) {
-                            logger.debug("Tomorrow tide prefetch failed for $spotId: ${e.message}")
                         }
 
                         summaryData

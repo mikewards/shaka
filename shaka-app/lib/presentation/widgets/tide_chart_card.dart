@@ -315,13 +315,12 @@ class _TideCurvePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // Time axis labels (every 3 hours)
-    final baseHour = DateTime.fromMillisecondsSinceEpoch(points.first.epochMs).hour;
+    // Time axis labels (every 3 hours, DST-safe)
     for (int h = 0; h <= 24; h += 3) {
-      final targetHour = (baseHour + h) % 24;
       final ms = points.first.epochMs + h * 3600000;
       if (ms > points.last.epochMs) break;
       final x = xOf(ms.toDouble());
+      final targetHour = DateTime.fromMillisecondsSinceEpoch(ms).hour;
       final label = targetHour == 0
           ? '12A'
           : targetHour == 12
