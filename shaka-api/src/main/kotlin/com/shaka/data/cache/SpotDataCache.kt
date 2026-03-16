@@ -2197,6 +2197,29 @@ object SpotDataCache {
             
             logger.info("Loaded $loadedCount spots from database into cache")
 
+            // Register user spot coordinates so tide catch-up can find them
+            try {
+                transaction {
+                    val ucConn = this.connection.connection as java.sql.Connection
+                    ucConn.prepareStatement("SELECT id, latitude, longitude FROM user_spots").use { stmt ->
+                        val rs = stmt.executeQuery()
+                        var registered = 0
+                        while (rs.next()) {
+                            val id = rs.getString("id")
+                            val lat = rs.getDouble("latitude")
+                            val lon = rs.getDouble("longitude")
+                            if (!rs.wasNull()) {
+                                spotCoordinates["user-$id"] = Pair(lat, lon)
+                                registered++
+                            }
+                        }
+                        logger.info("Registered coordinates for $registered user spots from user_spots table")
+                    }
+                }
+            } catch (e: Exception) {
+                logger.debug("user_spots coordinates not loaded (may not exist yet): ${e.message}")
+            }
+
             // Load directional land distances from spot_exposure table
             try {
                 transaction {
