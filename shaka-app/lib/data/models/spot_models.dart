@@ -660,6 +660,9 @@ class TideChartData {
   });
 
   factory TideChartData.fromJson(Map<String, dynamic> json) {
+    final rawExtremes = (json['extremes'] as List? ?? [])
+        .map((e) => TideExtreme.fromJson(e))
+        .toList();
     return TideChartData(
       provider: json['provider'] ?? 'noaa',
       stationId: json['stationId'] ?? '',
@@ -670,13 +673,45 @@ class TideChartData {
       points: (json['points'] as List? ?? [])
           .map((e) => TidePoint.fromJson(e))
           .toList(),
-      extremes: (json['extremes'] as List? ?? [])
-          .map((e) => TideExtreme.fromJson(e))
-          .toList(),
+      extremes: _mergeExtremes(rawExtremes),
       currentHeightFt: (json['currentHeightFt'] as num?)?.toDouble(),
       currentStage: json['currentStage'],
       available: json['available'] ?? true,
     );
+  }
+
+  static const _mergeWindowMs = 3 * 3600000; // 3 hours
+
+  static List<TideExtreme> _mergeExtremes(List<TideExtreme> raw) {
+    if (raw.length <= 1) return raw;
+    final sorted = List<TideExtreme>.from(raw)
+      ..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+
+    final merged = <TideExtreme>[];
+    var cluster = <TideExtreme>[sorted.first];
+
+    for (int i = 1; i < sorted.length; i++) {
+      if (sorted[i].epochMs - cluster.first.epochMs <= _mergeWindowMs) {
+        cluster.add(sorted[i]);
+      } else {
+        merged.add(_pickRepresentative(cluster));
+        cluster = [sorted[i]];
+      }
+    }
+    merged.add(_pickRepresentative(cluster));
+    return merged;
+  }
+
+  static TideExtreme _pickRepresentative(List<TideExtreme> cluster) {
+    final hasHigh = cluster.any((e) => e.isHigh);
+    if (hasHigh) {
+      final best = cluster.reduce(
+          (a, b) => a.heightFt >= b.heightFt ? a : b);
+      return TideExtreme(epochMs: best.epochMs, heightFt: best.heightFt, type: 'H');
+    }
+    final best = cluster.reduce(
+        (a, b) => a.heightFt <= b.heightFt ? a : b);
+    return TideExtreme(epochMs: best.epochMs, heightFt: best.heightFt, type: 'L');
   }
 
   TideExtreme? get nextHigh {
@@ -691,11 +726,17 @@ class TideChartData {
     return future.isEmpty ? null : future.first;
   }
 
-  List<TideExtreme> get highs =>
-      extremes.where((e) => e.isHigh).toList()..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+  List<TideExtreme> get highs {
+    final all = extremes.where((e) => e.isHigh).toList()
+      ..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+    return all.length > 2 ? all.sublist(0, 2) : all;
+  }
 
-  List<TideExtreme> get lows =>
-      extremes.where((e) => !e.isHigh).toList()..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+  List<TideExtreme> get lows {
+    final all = extremes.where((e) => !e.isHigh).toList()
+      ..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+    return all.length > 2 ? all.sublist(0, 2) : all;
+  }
 }
 
 class SpotDetail {
