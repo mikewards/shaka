@@ -94,6 +94,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
               _timestamps = ts;
               _timeIndex = (data['timeIndex'] as int?) ?? 0;
               _isLoading = false;
+              if (ts.isNotEmpty) _errorMessage = null;
             });
           } catch (_) {}
         },
@@ -125,6 +126,15 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         },
       )
       ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          final configJson = jsonEncode({
+            'baseUrl': _kApiBase,
+            'lat': widget.initialLat ?? 23.0,
+            'lng': widget.initialLon ?? -108.0,
+            'zoom': widget.initialLat != null ? 6 : 4,
+          });
+          _controller?.runJavaScript('initMap($configJson)');
+        },
         onWebResourceError: (error) {
           debugPrint('WebView error: ${error.description}');
         },
@@ -136,19 +146,6 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   Future<void> _onMapReady() async {
     setState(() => _mapReady = true);
-
-    final lat = widget.initialLat ?? 23.0;
-    final lng = widget.initialLon ?? -108.0;
-    final zoom = widget.initialLat != null ? 6 : 4;
-
-    final configJson = jsonEncode({
-      'baseUrl': _kApiBase,
-      'lat': lat,
-      'lng': lng,
-      'zoom': zoom,
-    });
-    await _controller?.runJavaScript('initMap($configJson)');
-
     _fetchCatalog();
   }
 
@@ -195,7 +192,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   void _selectLayer(String key) {
     if (key == _activeLayer) return;
-    final hasData = _availableLayers.contains(key);
+    final hasData = _availableLayers.isEmpty || _availableLayers.contains(key);
     setState(() {
       _isLoading = hasData;
       _activeLayer = key;

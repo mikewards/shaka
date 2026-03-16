@@ -103,8 +103,7 @@ class HealthService {
     
     private suspend fun checkGibs(): ServiceStatus {
         return try {
-            // Check GIBS WMTS capabilities
-            val response = client.get("https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml")
+            val response = client.head("https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-01-01/250m/0/0/0.jpg")
             if (response.status.value in 200..299) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {
@@ -133,9 +132,8 @@ class HealthService {
     
     private suspend fun checkCopernicus(): ServiceStatus {
         return try {
-            // Check Copernicus WMTS
-            val response = client.get("https://wmts.marine.copernicus.eu/teroWmts?service=WMTS&request=GetCapabilities")
-            if (response.status.value in 200..299) {
+            val response = client.head("https://wmts.marine.copernicus.eu/teroWmts")
+            if (response.status.value in 200..399) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {
                 ServiceStatus("error", "HTTP ${response.status.value}", Instant.now().toString())
