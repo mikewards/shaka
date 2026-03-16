@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Ocean Forecast - Snappy Test</title>
+  <title>Ocean Forecast - Interleaved Test</title>
   <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; background: #0d0d0d; }
+    html, body { width: 100%; height: 100%; background: #0e0e0e; }
     #map { width: 100%; height: 100%; }
     #log { position: fixed; top: 10px; left: 10px; z-index: 999; background: rgba(0,0,0,0.85);
       color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 6px;
@@ -30,23 +30,10 @@
 
   <script>
     var BASE = 'https://shaka-production.up.railway.app';
+    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
+    var LAND_FILL_ID = 'land-fill';
     var logEl = document.getElementById('log');
     function log(m) { console.log(m); logEl.textContent += '\n' + m; }
-
-    function downscale(texData, targetW, targetH) {
-      var c1 = document.createElement('canvas');
-      c1.width = texData.width; c1.height = texData.height;
-      var ctx1 = c1.getContext('2d');
-      var id1 = ctx1.createImageData(texData.width, texData.height);
-      id1.data.set(texData.data);
-      ctx1.putImageData(id1, 0, 0);
-      var c2 = document.createElement('canvas');
-      c2.width = targetW; c2.height = targetH;
-      var ctx2 = c2.getContext('2d');
-      ctx2.drawImage(c1, 0, 0, targetW, targetH);
-      var id2 = ctx2.getImageData(0, 0, targetW, targetH);
-      return { data: new Uint8Array(id2.data), width: targetW, height: targetH };
-    }
 
     var LAYERS = {
       currents: {
@@ -58,7 +45,6 @@
         speedFactor: 1,
         width: 2.5,
         color: [220, 240, 255, 200],
-        downscaleTo: [720, 340],
       },
       waves: {
         type: 'raster',
@@ -91,10 +77,23 @@
         center: [-40, 25], zoom: 3,
         antialias: true, attributionControl: false,
       });
-      overlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
+
+      overlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
       map.addControl(overlay);
-      map.on('load', function() {
-        log('Map ready');
+
+      map.on('load', async function() {
+        log('Map loaded, adding land mask...');
+
+        map.addSource('land-geojson', { type: 'geojson', data: LAND_GEOJSON });
+        map.addLayer({
+          id: LAND_FILL_ID,
+          type: 'fill',
+          source: 'land-geojson',
+          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 },
+        }, 'aeroway-runway');
+
+        log('Land mask added (before aeroway-runway)');
+
         var el = document.getElementById('controls');
         Object.keys(LAYERS).forEach(function(k) {
           if (!_ts(k).length) return;
@@ -103,7 +102,9 @@
           b.onclick = function() { switchLayer(k); };
           el.appendChild(b);
         });
-        switchLayer('currents');
+
+        var first = Object.keys(LAYERS).find(function(k) { return _ts(k).length > 0; });
+        if (first) switchLayer(first);
       });
     }
 
@@ -123,20 +124,16 @@
       var t0 = performance.now();
       var img = await WeatherLayers.loadTextureData(BASE + '/v1/weather/' + key + '/' + ts[0] + '.png');
 
-      if (cfg.downscaleTo) {
-        img = downscale(img, cfg.downscaleTo[0], cfg.downscaleTo[1]);
-        log('Downscaled to ' + img.width + 'x' + img.height);
-      }
-
       var img2 = null;
       if (ts.length > 1 && cfg.type === 'raster') {
         img2 = await WeatherLayers.loadTextureData(BASE + '/v1/weather/' + key + '/' + ts[1] + '.png');
       }
-      log('Loaded in ' + Math.round(performance.now() - t0) + 'ms');
+      log('Loaded in ' + Math.round(performance.now() - t0) + 'ms (' + img.width + 'x' + img.height + ')');
 
       if (cfg.type === 'particle') {
         var layer = new WeatherLayers.ParticleLayer({
           id: 'weather',
+          beforeId: LAND_FILL_ID,
           image: img,
           bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR,
@@ -151,7 +148,7 @@
         overlay.setProps({ layers: [layer] });
         function repaint() { map.triggerRepaint(); window._pRAF = requestAnimationFrame(repaint); }
         repaint();
-        log('Particles active (' + cfg.numParticles + ', maxAge=' + cfg.maxAge + ')');
+        log('Particles active (interleaved, beforeId=' + LAND_FILL_ID + ')');
       } else {
         animating = true;
         var startTime = performance.now();
@@ -161,6 +158,7 @@
           var w = img2 ? ((performance.now() - startTime) % duration) / duration : 0;
           overlay.setProps({ layers: [new WeatherLayers.RasterLayer({
             id: 'weather',
+            beforeId: LAND_FILL_ID,
             image: img,
             image2: img2 || undefined,
             imageWeight: w,
@@ -168,15 +166,13 @@
             imageType: WeatherLayers.ImageType.SCALAR,
             imageUnscale: cfg.imageUnscale,
             palette: cfg.palette,
-            extensions: [new deck.ClipExtension()],
-            clipBounds: [-181, -85.051129, 181, 85.051129],
             opacity: 0.85,
           })] });
           map.triggerRepaint();
           requestAnimationFrame(tick);
         }
         tick();
-        log('Raster active' + (img2 ? ' (animating 2 frames)' : ''));
+        log('Raster active (interleaved, beforeId=' + LAND_FILL_ID + ')');
       }
     }
 

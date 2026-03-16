@@ -30,6 +30,9 @@
       _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
     };
 
+    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
+    var LAND_FILL_ID = 'land-fill';
+
     var map = null;
     var overlay = null;
     var activeLayerKey = null;
@@ -97,21 +100,6 @@
       return catalog[key].bounds;
     }
 
-    function _downscale(texData, targetW, targetH) {
-      var c1 = document.createElement('canvas');
-      c1.width = texData.width; c1.height = texData.height;
-      var ctx1 = c1.getContext('2d');
-      var id1 = ctx1.createImageData(texData.width, texData.height);
-      id1.data.set(texData.data);
-      ctx1.putImageData(id1, 0, 0);
-      var c2 = document.createElement('canvas');
-      c2.width = targetW; c2.height = targetH;
-      var ctx2 = c2.getContext('2d');
-      ctx2.drawImage(c1, 0, 0, targetW, targetH);
-      var id2 = ctx2.getImageData(0, 0, targetW, targetH);
-      return { data: new Uint8Array(id2.data), width: targetW, height: targetH };
-    }
-
     function initMap(config) {
       baseUrl = config.baseUrl || '';
       var lat = config.lat || 23;
@@ -128,13 +116,20 @@
       });
 
       overlay = new deck.MapboxOverlay({
-        interleaved: false,
+        interleaved: true,
         layers: [],
       });
 
       map.addControl(overlay);
 
       map.on('load', function() {
+        map.addSource('land-geojson', { type: 'geojson', data: LAND_GEOJSON });
+        map.addLayer({
+          id: LAND_FILL_ID,
+          type: 'fill',
+          source: 'land-geojson',
+          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 },
+        }, 'aeroway-runway');
         _post('ReadyChannel', { status: 'ready' });
       });
 
@@ -221,12 +216,7 @@
       if (!timestamps.length || idx >= timestamps.length) return;
       var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx] + '.png';
       try {
-        var raw = await WeatherLayers.loadTextureData(url);
-        if (LAYERS[key].type === 'particle') {
-          currentImage = _downscale(raw, 720, 340);
-        } else {
-          currentImage = raw;
-        }
+        currentImage = await WeatherLayers.loadTextureData(url);
       } catch (e) {
         console.error('Failed to load frame:', url, e);
         _post('DebugChannel', { error: 'Load failed: ' + url + ' ' + (e.message || e) });
@@ -235,12 +225,7 @@
       if (idx + 1 < timestamps.length) {
         var nextUrl = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx + 1] + '.png';
         try {
-          var rawNext = await WeatherLayers.loadTextureData(nextUrl);
-          if (LAYERS[key].type === 'particle') {
-            nextImage = _downscale(rawNext, 720, 340);
-          } else {
-            nextImage = rawNext;
-          }
+          nextImage = await WeatherLayers.loadTextureData(nextUrl);
         } catch (e) {
           nextImage = null;
         }
@@ -261,6 +246,7 @@
       if (cfg.type === 'particle') {
         layer = new WeatherLayers.ParticleLayer({
           id: 'weather-layer',
+          beforeId: LAND_FILL_ID,
           image: currentImage,
           bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR,
@@ -278,13 +264,12 @@
         _stopParticleRepaint();
         var layerProps = {
           id: 'weather-layer',
+          beforeId: LAND_FILL_ID,
           image: currentImage,
           bounds: bounds,
           imageType: WeatherLayers.ImageType.SCALAR,
           imageUnscale: cfg.imageUnscale,
           palette: cfg.palette,
-          extensions: [new deck.ClipExtension()],
-          clipBounds: [-181, -85.051129, 181, 85.051129],
           pickable: true,
           opacity: 0.85,
         };
@@ -346,6 +331,7 @@
       if (cfg.type === 'particle') {
         layer = new WeatherLayers.ParticleLayer({
           id: 'weather-layer',
+          beforeId: LAND_FILL_ID,
           image: currentImage,
           bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR,
@@ -361,13 +347,12 @@
       } else {
         var layerProps = {
           id: 'weather-layer',
+          beforeId: LAND_FILL_ID,
           image: currentImage,
           bounds: bounds,
           imageType: WeatherLayers.ImageType.SCALAR,
           imageUnscale: cfg.imageUnscale,
           palette: cfg.palette,
-          extensions: [new deck.ClipExtension()],
-          clipBounds: [-181, -85.051129, 181, 85.051129],
           opacity: 0.85,
         };
         if (nextImage) {
