@@ -158,7 +158,8 @@
 
       var ts = _getTimestamps(key);
       if (ts.length > 0) {
-        await _loadFrame(key, 0);
+        await _loadCurrentFrame(key, 0);
+        await _loadNextFrame(key, 0);
         _renderLayer();
         _post('LayerChannel', {
           layer: key,
@@ -186,7 +187,8 @@
       var timestamps = _getTimestamps(activeLayerKey);
       if (idx < 0 || idx >= timestamps.length) return;
       timeIndex = idx;
-      await _loadFrame(activeLayerKey, idx);
+      await _loadCurrentFrame(activeLayerKey, idx);
+      await _loadNextFrame(activeLayerKey, idx);
       _renderLayer();
       _post('TimeChannel', { timeIndex: idx, timestamp: timestamps[idx] });
     }
@@ -194,6 +196,8 @@
     function play() {
       if (playing) return;
       playing = true;
+      var ts = _getTimestamps(activeLayerKey);
+      if (ts.length > 1) timeIndex = (timeIndex + 1) % ts.length;
       _post('PlaybackChannel', { playing: true });
       _advanceFrame();
     }
@@ -209,7 +213,7 @@
       baseUrl = url;
     }
 
-    async function _loadFrame(key, idx) {
+    async function _loadCurrentFrame(key, idx) {
       var timestamps = _getTimestamps(key);
       if (!timestamps.length || idx >= timestamps.length) return;
       var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx] + '.png';
@@ -220,14 +224,17 @@
         _post('DebugChannel', { error: 'Load failed: ' + url + ' ' + (e.message || e) });
         currentImage = null;
       }
-      if (idx + 1 < timestamps.length) {
-        var nextUrl = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx + 1] + '.png';
-        try {
-          nextImage = await WeatherLayers.loadTextureData(nextUrl);
-        } catch (e) {
-          nextImage = null;
-        }
-      } else {
+      nextImage = null;
+    }
+
+    async function _loadNextFrame(key, idx) {
+      var timestamps = _getTimestamps(key);
+      var nextIdx = idx + 1;
+      if (nextIdx >= timestamps.length) { nextImage = null; return; }
+      var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[nextIdx] + '.png';
+      try {
+        nextImage = await WeatherLayers.loadTextureData(url);
+      } catch (e) {
         nextImage = null;
       }
     }
@@ -279,6 +286,7 @@
       }
 
       overlay.setProps({ layers: [layer] });
+      map.triggerRepaint();
     }
 
     var _particleRAF = null;
@@ -311,25 +319,30 @@
       var ts = _getTimestamps(key);
       if (ts.length < 2) return;
 
-      await _loadFrame(key, timeIndex);
+      await _loadCurrentFrame(key, timeIndex);
       if (!playing || activeLayerKey !== key) return;
 
       _renderLayer();
+      map.triggerRepaint();
       _post('TimeChannel', { timeIndex: timeIndex, timestamp: ts[timeIndex] });
 
       var cfg = LAYERS[key];
       var dwellMs = _getDwellMs(key);
 
-      if (cfg.type === 'raster' && nextImage) {
-        var interpStart = performance.now();
-        function interp() {
-          if (!playing || activeLayerKey !== key) return;
-          var w = Math.min((performance.now() - interpStart) / dwellMs, 1);
-          _setRasterWeight(w);
-          if (w < 1) { _interpRAF = requestAnimationFrame(interp); }
+      _loadNextFrame(key, timeIndex).then(function() {
+        if (!playing || activeLayerKey !== key || !nextImage) return;
+        if (cfg.type === 'raster') {
+          _renderLayer();
+          var interpStart = performance.now();
+          function interp() {
+            if (!playing || activeLayerKey !== key) return;
+            var w = Math.min((performance.now() - interpStart) / dwellMs, 1);
+            _setRasterWeight(w);
+            if (w < 1) { _interpRAF = requestAnimationFrame(interp); }
+          }
+          interp();
         }
-        interp();
-      }
+      });
 
       _dwellTimer = setTimeout(function() {
         if (!playing || activeLayerKey !== key) return;
