@@ -38,7 +38,6 @@
     var activeLayerKey = null;
     var currentImage = null;
     var nextImage = null;
-    var animFrameId = null;
     var playing = false;
     var catalog = null;
     var timeIndex = 0;
@@ -150,6 +149,7 @@
 
     async function setLayer(key) {
       if (!LAYERS[key]) return;
+      if (playing) pause();
       activeLayerKey = key;
       timeIndex = 0;
       currentImage = null;
@@ -195,15 +195,13 @@
       if (playing) return;
       playing = true;
       _post('PlaybackChannel', { playing: true });
-      _animLoop();
+      _advanceFrame();
     }
 
     function pause() {
       playing = false;
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
+      if (_dwellTimer) { clearTimeout(_dwellTimer); _dwellTimer = null; }
+      if (_interpRAF) { cancelAnimationFrame(_interpRAF); _interpRAF = null; }
       _post('PlaybackChannel', { playing: false });
     }
 
@@ -293,76 +291,75 @@
       if (_particleRAF) { cancelAnimationFrame(_particleRAF); _particleRAF = null; }
     }
 
-    var _animStartTime = 0;
-    var _animDurationMs = 3000;
+    var _dwellTimer = null;
+    var _interpRAF = null;
 
-    function _animLoop() {
-      if (!playing || !activeLayerKey || !catalog) return;
-      var timestamps = _getTimestamps(activeLayerKey);
-      if (timestamps.length < 2) return;
-
-      if (!_animStartTime) _animStartTime = performance.now();
-      var elapsed = performance.now() - _animStartTime;
-      var progress = (elapsed % _animDurationMs) / _animDurationMs;
-      var totalSteps = timestamps.length - 1;
-      var floatIndex = progress * totalSteps;
-      var newIdx = Math.floor(floatIndex);
-      var weight = floatIndex - newIdx;
-
-      if (newIdx !== timeIndex) {
-        timeIndex = newIdx;
-        _loadFrame(activeLayerKey, newIdx).then(function() {
-          _updateWeight(weight);
-        });
-        _post('TimeChannel', { timeIndex: newIdx, timestamp: timestamps[newIdx] });
-      } else {
-        _updateWeight(weight);
-      }
-
-      animFrameId = requestAnimationFrame(_animLoop);
+    function _getDwellMs(key) {
+      var ts = _getTimestamps(key);
+      if (ts.length < 2) return 2000;
+      var t0 = new Date(ts[0].replace(/(\d{4}-\d{2}-\d{2}T)(\d{2})(\d{2})(\d{2})Z/, '$1$2:$3:$4Z'));
+      var t1 = new Date(ts[1].replace(/(\d{4}-\d{2}-\d{2}T)(\d{2})(\d{2})(\d{2})Z/, '$1$2:$3:$4Z'));
+      var diffHours = (t1 - t0) / 3600000;
+      if (diffHours <= 3) return 500;
+      if (diffHours <= 6) return 1000;
+      return 2000;
     }
 
-    function _updateWeight(w) {
-      if (!currentImage) return;
-      var cfg = LAYERS[activeLayerKey];
-      var bounds = _getBounds(activeLayerKey);
+    async function _advanceFrame() {
+      if (!playing || !activeLayerKey) return;
+      var key = activeLayerKey;
+      var ts = _getTimestamps(key);
+      if (ts.length < 2) return;
 
-      var layer;
-      if (cfg.type === 'particle') {
-        layer = new WeatherLayers.ParticleLayer({
-          id: 'weather-layer',
-          beforeId: LAND_FILL_ID,
-          image: currentImage,
-          bounds: bounds,
-          imageType: WeatherLayers.ImageType.VECTOR,
-          imageUnscale: cfg.imageUnscale,
-          numParticles: cfg.numParticles || 10000,
-          maxAge: cfg.maxAge || 15,
-          speedFactor: cfg.speedFactor || 1,
-          width: cfg.width || 2.5,
-          color: cfg.color || [255, 255, 255, 200],
-          palette: cfg.palette,
-          opacity: 0.9,
-        });
-      } else {
-        var layerProps = {
-          id: 'weather-layer',
-          beforeId: LAND_FILL_ID,
-          image: currentImage,
-          bounds: bounds,
-          imageType: WeatherLayers.ImageType.SCALAR,
-          imageUnscale: cfg.imageUnscale,
-          palette: cfg.palette,
-          opacity: 0.85,
-        };
-        if (nextImage) {
-          layerProps.image2 = nextImage;
-          layerProps.imageWeight = w;
+      await _loadFrame(key, timeIndex);
+      if (!playing || activeLayerKey !== key) return;
+
+      _renderLayer();
+      _post('TimeChannel', { timeIndex: timeIndex, timestamp: ts[timeIndex] });
+
+      var cfg = LAYERS[key];
+      var dwellMs = _getDwellMs(key);
+
+      if (cfg.type === 'raster' && nextImage) {
+        var interpStart = performance.now();
+        function interp() {
+          if (!playing || activeLayerKey !== key) return;
+          var w = Math.min((performance.now() - interpStart) / dwellMs, 1);
+          _setRasterWeight(w);
+          if (w < 1) { _interpRAF = requestAnimationFrame(interp); }
         }
-        layer = new WeatherLayers.RasterLayer(layerProps);
+        interp();
       }
 
-      overlay.setProps({ layers: [layer] });
+      _dwellTimer = setTimeout(function() {
+        if (!playing || activeLayerKey !== key) return;
+        if (_interpRAF) { cancelAnimationFrame(_interpRAF); _interpRAF = null; }
+        timeIndex = (timeIndex + 1) % ts.length;
+        _advanceFrame();
+      }, dwellMs);
+    }
+
+    function _setRasterWeight(w) {
+      if (!currentImage || !activeLayerKey) return;
+      var cfg = LAYERS[activeLayerKey];
+      if (cfg.type !== 'raster') return;
+      var bounds = _getBounds(activeLayerKey);
+      var layerProps = {
+        id: 'weather-layer',
+        beforeId: LAND_FILL_ID,
+        image: currentImage,
+        bounds: bounds,
+        imageType: WeatherLayers.ImageType.SCALAR,
+        imageUnscale: cfg.imageUnscale,
+        palette: cfg.palette,
+        opacity: 0.85,
+      };
+      if (nextImage) {
+        layerProps.image2 = nextImage;
+        layerProps.imageWeight = w;
+      }
+      overlay.setProps({ layers: [new WeatherLayers.RasterLayer(layerProps)] });
+      map.triggerRepaint();
     }
 
     function _post(channel, data) {
