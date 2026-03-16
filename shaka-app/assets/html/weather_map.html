@@ -223,7 +223,7 @@
       try {
         var raw = await WeatherLayers.loadTextureData(url);
         if (LAYERS[key].type === 'particle') {
-          currentImage = _downscale(raw, 360, 170);
+          currentImage = _downscale(raw, 720, 340);
         } else {
           currentImage = raw;
         }
@@ -237,7 +237,7 @@
         try {
           var rawNext = await WeatherLayers.loadTextureData(nextUrl);
           if (LAYERS[key].type === 'particle') {
-            nextImage = _downscale(rawNext, 360, 170);
+            nextImage = _downscale(rawNext, 720, 340);
           } else {
             nextImage = rawNext;
           }

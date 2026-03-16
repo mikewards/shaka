@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ocean Forecast - Snappy Test</title>
+  <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #0d0d0d; }
+    #map { width: 100%; height: 100%; }
+    #log { position: fixed; top: 10px; left: 10px; z-index: 999; background: rgba(0,0,0,0.85);
+      color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 6px;
+      max-width: 400px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; }
+    #controls { position: fixed; bottom: 20px; left: 10px; z-index: 999; display: flex; gap: 6px; }
+    #controls button { padding: 8px 14px; border: 1px solid #555; border-radius: 6px;
+      background: rgba(0,0,0,0.7); color: #fff; cursor: pointer; font-size: 13px; }
+    #controls button.active { background: rgba(0,100,255,0.5); border-color: #4af; }
+    .maplibregl-ctrl-attrib { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="log">Loading...</div>
+  <div id="controls"></div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@luma.gl/engine@9.2.6/dist/dist.min.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.2.11/dist.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/weatherlayers-gl@2026.2.0/dist/weatherlayers-deck.umd.min.js"></script>
+
+  <script>
+    var BASE = 'https://shaka-production.up.railway.app';
+    var logEl = document.getElementById('log');
+    function log(m) { console.log(m); logEl.textContent += '\n' + m; }
+
+    function downscale(texData, targetW, targetH) {
+      var c1 = document.createElement('canvas');
+      c1.width = texData.width; c1.height = texData.height;
+      var ctx1 = c1.getContext('2d');
+      var id1 = ctx1.createImageData(texData.width, texData.height);
+      id1.data.set(texData.data);
+      ctx1.putImageData(id1, 0, 0);
+      var c2 = document.createElement('canvas');
+      c2.width = targetW; c2.height = targetH;
+      var ctx2 = c2.getContext('2d');
+      ctx2.drawImage(c1, 0, 0, targetW, targetH);
+      var id2 = ctx2.getImageData(0, 0, targetW, targetH);
+      return { data: new Uint8Array(id2.data), width: targetW, height: targetH };
+    }
+
+    var LAYERS = {
+      currents: {
+        type: 'particle',
+        imageType: 'VECTOR',
+        imageUnscale: [-500, 500],
+        numParticles: 10000,
+        maxAge: 15,
+        speedFactor: 1,
+        width: 2.5,
+        color: [220, 240, 255, 200],
+        downscaleTo: [720, 340],
+      },
+      waves: {
+        type: 'raster',
+        imageType: 'SCALAR',
+        imageUnscale: [0, 15],
+        palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']],
+      },
+      sst: {
+        type: 'raster',
+        imageType: 'SCALAR',
+        imageUnscale: [-2, 35],
+        palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']],
+      },
+    };
+
+    var map, overlay, catalog, animating = false;
+
+    function _ts(k) { var e = catalog && catalog[k]; if (!e) return []; return e.timestamps || (Array.isArray(e) ? e : []); }
+    function _bounds(k) { var e = catalog && catalog[k]; return (e && e.bounds) || [-180, -80, 180, 90]; }
+
+    async function init() {
+      var resp = await fetch(BASE + '/v1/weather/catalog.json');
+      var data = await resp.json();
+      catalog = data.variables || data;
+      log('Catalog: ' + Object.keys(catalog).join(', '));
+
+      map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [-40, 25], zoom: 3,
+        antialias: true, attributionControl: false,
+      });
+      overlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
+      map.addControl(overlay);
+      map.on('load', function() {
+        log('Map ready');
+        var el = document.getElementById('controls');
+        Object.keys(LAYERS).forEach(function(k) {
+          if (!_ts(k).length) return;
+          var b = document.createElement('button');
+          b.textContent = k; b.id = 'btn-' + k;
+          b.onclick = function() { switchLayer(k); };
+          el.appendChild(b);
+        });
+        switchLayer('currents');
+      });
+    }
+
+    async function switchLayer(key) {
+      document.querySelectorAll('#controls button').forEach(function(b) { b.classList.remove('active'); });
+      var btn = document.getElementById('btn-' + key);
+      if (btn) btn.classList.add('active');
+      animating = false;
+      if (window._pRAF) { cancelAnimationFrame(window._pRAF); window._pRAF = null; }
+
+      var cfg = LAYERS[key];
+      var ts = _ts(key);
+      var bounds = _bounds(key);
+      if (!ts.length) return;
+
+      log('Loading ' + key + '...');
+      var t0 = performance.now();
+      var img = await WeatherLayers.loadTextureData(BASE + '/v1/weather/' + key + '/' + ts[0] + '.png');
+
+      if (cfg.downscaleTo) {
+        img = downscale(img, cfg.downscaleTo[0], cfg.downscaleTo[1]);
+        log('Downscaled to ' + img.width + 'x' + img.height);
+      }
+
+      var img2 = null;
+      if (ts.length > 1 && cfg.type === 'raster') {
+        img2 = await WeatherLayers.loadTextureData(BASE + '/v1/weather/' + key + '/' + ts[1] + '.png');
+      }
+      log('Loaded in ' + Math.round(performance.now() - t0) + 'ms');
+
+      if (cfg.type === 'particle') {
+        var layer = new WeatherLayers.ParticleLayer({
+          id: 'weather',
+          image: img,
+          bounds: bounds,
+          imageType: WeatherLayers.ImageType.VECTOR,
+          imageUnscale: cfg.imageUnscale,
+          numParticles: cfg.numParticles,
+          maxAge: cfg.maxAge,
+          speedFactor: cfg.speedFactor,
+          width: cfg.width,
+          color: cfg.color,
+          opacity: 0.9,
+        });
+        overlay.setProps({ layers: [layer] });
+        function repaint() { map.triggerRepaint(); window._pRAF = requestAnimationFrame(repaint); }
+        repaint();
+        log('Particles active (' + cfg.numParticles + ', maxAge=' + cfg.maxAge + ')');
+      } else {
+        animating = true;
+        var startTime = performance.now();
+        var duration = 4000;
+        function tick() {
+          if (!animating) return;
+          var w = img2 ? ((performance.now() - startTime) % duration) / duration : 0;
+          overlay.setProps({ layers: [new WeatherLayers.RasterLayer({
+            id: 'weather',
+            image: img,
+            image2: img2 || undefined,
+            imageWeight: w,
+            bounds: bounds,
+            imageType: WeatherLayers.ImageType.SCALAR,
+            imageUnscale: cfg.imageUnscale,
+            palette: cfg.palette,
+            extensions: [new deck.ClipExtension()],
+            clipBounds: [-181, -85.051129, 181, 85.051129],
+            opacity: 0.85,
+          })] });
+          map.triggerRepaint();
+          requestAnimationFrame(tick);
+        }
+        tick();
+        log('Raster active' + (img2 ? ' (animating 2 frames)' : ''));
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

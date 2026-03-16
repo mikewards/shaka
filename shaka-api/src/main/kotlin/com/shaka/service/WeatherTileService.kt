@@ -90,9 +90,15 @@ object WeatherTileService {
         }
         return try {
             val raw = catalogFile.readText()
-            val variables = json.decodeFromString<Map<String, VariableInfo>>(raw)
+            val generatedAt = Instant.ofEpochMilli(catalogFile.lastModified()).toString()
+            val variables = try {
+                json.decodeFromString<Map<String, VariableInfo>>(raw)
+            } catch (_: Exception) {
+                val legacy = json.decodeFromString<Map<String, List<String>>>(raw)
+                legacy.mapValues { VariableInfo(timestamps = it.value) }
+            }
             val catalog = WeatherCatalog(
-                generatedAt = Instant.ofEpochMilli(catalogFile.lastModified()).toString(),
+                generatedAt = generatedAt,
                 variables = variables,
             )
             cachedCatalog = catalog
