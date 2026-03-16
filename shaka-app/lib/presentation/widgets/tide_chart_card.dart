@@ -282,13 +282,32 @@ class _TideCurvePainter extends CustomPainter {
     double xOf(double ms) => leftPad + (ms - firstMs) / spanMs * chartW;
     double yOf(double h) => topPad + (1 - (h - minH) / rangeH) * chartH;
 
-    // Gradient fill
-    final fillPath = Path();
-    fillPath.moveTo(xOf(points.first.epochMs.toDouble()), size.height - bottomPad);
-    for (final p in points) {
-      fillPath.lineTo(xOf(p.epochMs.toDouble()), yOf(p.heightFt));
+    // Pre-compute screen coordinates for Catmull-Rom spline
+    final n = points.length;
+    final px = List<double>.generate(n, (i) => xOf(points[i].epochMs.toDouble()));
+    final py = List<double>.generate(n, (i) => yOf(points[i].heightFt));
+
+    // Catmull-Rom cubic spline: build curve path and fill path in one pass.
+    // For segment i→i+1, control points use neighbors i-1 and i+2 (clamped).
+    final curvePath = Path()..moveTo(px[0], py[0]);
+    final fillPath = Path()
+      ..moveTo(px[0], size.height - bottomPad)
+      ..lineTo(px[0], py[0]);
+
+    for (int i = 0; i < n - 1; i++) {
+      final i0 = i > 0 ? i - 1 : 0;
+      final i3 = i + 2 < n ? i + 2 : n - 1;
+
+      final cp1x = px[i] + (px[i + 1] - px[i0]) / 6;
+      final cp1y = py[i] + (py[i + 1] - py[i0]) / 6;
+      final cp2x = px[i + 1] - (px[i3] - px[i]) / 6;
+      final cp2y = py[i + 1] - (py[i3] - py[i]) / 6;
+
+      curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, px[i + 1], py[i + 1]);
+      fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, px[i + 1], py[i + 1]);
     }
-    fillPath.lineTo(xOf(points.last.epochMs.toDouble()), size.height - bottomPad);
+
+    fillPath.lineTo(px[n - 1], size.height - bottomPad);
     fillPath.close();
 
     final fillPaint = Paint()
@@ -298,22 +317,6 @@ class _TideCurvePainter extends CustomPainter {
         colors: [tideColor.withOpacity(0.25), tideColor.withOpacity(0.02)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawPath(fillPath, fillPaint);
-
-    // Curve
-    final curvePath = Path();
-    curvePath.moveTo(xOf(points.first.epochMs.toDouble()), yOf(points.first.heightFt));
-    for (int i = 1; i < points.length; i++) {
-      final prev = points[i - 1];
-      final curr = points[i];
-      final px = xOf(prev.epochMs.toDouble());
-      final cx = xOf(curr.epochMs.toDouble());
-      final midX = (px + cx) / 2;
-      curvePath.cubicTo(
-        midX, yOf(prev.heightFt),
-        midX, yOf(curr.heightFt),
-        cx, yOf(curr.heightFt),
-      );
-    }
 
     canvas.drawPath(
       curvePath,
