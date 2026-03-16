@@ -10,9 +10,15 @@ import java.time.Duration
 import java.time.Instant
 
 @Serializable
+data class VariableInfo(
+    val timestamps: List<String> = emptyList(),
+    val bounds: List<Double> = emptyList(),
+)
+
+@Serializable
 data class WeatherCatalog(
     val generatedAt: String = "",
-    val variables: Map<String, List<String>> = emptyMap(),
+    val variables: Map<String, VariableInfo> = emptyMap(),
 )
 
 object WeatherTileService {
@@ -84,7 +90,7 @@ object WeatherTileService {
         }
         return try {
             val raw = catalogFile.readText()
-            val variables = json.decodeFromString<Map<String, List<String>>>(raw)
+            val variables = json.decodeFromString<Map<String, VariableInfo>>(raw)
             val catalog = WeatherCatalog(
                 generatedAt = Instant.ofEpochMilli(catalogFile.lastModified()).toString(),
                 variables = variables,

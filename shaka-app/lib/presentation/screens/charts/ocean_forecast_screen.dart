@@ -125,6 +125,17 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
           // Future: show point value
         },
       )
+      ..addJavaScriptChannel(
+        'DebugChannel',
+        onMessageReceived: (msg) {
+          try {
+            final data = jsonDecode(msg.message) as Map<String, dynamic>;
+            debugPrint('JS: ${data['error'] ?? msg.message}');
+          } catch (_) {
+            debugPrint('JS: ${msg.message}');
+          }
+        },
+      )
       ..setNavigationDelegate(NavigationDelegate(
         onPageFinished: (_) {
           final configJson = jsonEncode({
@@ -160,7 +171,13 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         final data = response.data as Map<String, dynamic>;
         final vars = data['variables'] as Map<String, dynamic>? ?? {};
         final available = vars.entries
-            .where((e) => e.value is List && (e.value as List).isNotEmpty)
+            .where((e) {
+              if (e.value is Map) {
+                final ts = (e.value as Map)['timestamps'];
+                return ts is List && ts.isNotEmpty;
+              }
+              return e.value is List && (e.value as List).isNotEmpty;
+            })
             .map((e) => e.key)
             .toSet();
 

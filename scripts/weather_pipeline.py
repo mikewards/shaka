@@ -209,6 +209,11 @@ def run_pipeline(output_dir, days):
         times = ds.time.values
         n_steps = len(times)
 
+        lats = ds.latitude.values
+        lons = ds.longitude.values
+        bounds = [float(lons.min()), float(lats.min()), float(lons.max()), float(lats.max())]
+        print(f"  {group_name} bounds: {bounds} (lat {len(lats)} x lon {len(lons)})")
+
         for var_key, vconfig in group["variables"].items():
             var_dir = output / var_key
             var_dir.mkdir(parents=True, exist_ok=True)
@@ -237,7 +242,7 @@ def run_pipeline(output_dir, days):
                 except Exception as e:
                     print(f"  Error processing {var_key} t={t_idx}: {e}")
 
-            catalog[var_key] = timestamps
+            catalog[var_key] = {"timestamps": timestamps, "bounds": bounds}
             print(f"  {var_key}: {len(timestamps)} frames")
 
         ds.close()
@@ -249,7 +254,7 @@ def run_pipeline(output_dir, days):
 
     shutil.rmtree(tmp, ignore_errors=True)
 
-    total_frames = sum(len(v) for v in catalog.values())
+    total_frames = sum(len(v["timestamps"]) for v in catalog.values())
     if total_frames == 0:
         print("PIPELINE FAILED: no data was produced", file=sys.stderr)
         sys.exit(1)

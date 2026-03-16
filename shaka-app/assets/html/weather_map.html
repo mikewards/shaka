@@ -16,16 +16,19 @@
   <div id="map"></div>
 
   <script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
-  <script src="https://unpkg.com/@luma.gl/engine@9.2.0/dist/dist.min.js"></script>
-  <script src="https://unpkg.com/deck.gl@9.2.0/dist.min.js"></script>
+  <script src="https://unpkg.com/@luma.gl/engine@9.2.6/dist/dist.min.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.2.11/dist.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/weatherlayers-gl@2026.2.0/dist/weatherlayers-deck.umd.min.js"></script>
 
   <script>
-    // Verify libraries loaded
     if (typeof maplibregl === 'undefined' || typeof deck === 'undefined' || typeof WeatherLayers === 'undefined') {
       document.body.innerHTML = '<div style="color:#ff6b6b;padding:20px;font-family:sans-serif">' +
         'Failed to load map libraries. Check network connection.</div>';
     }
+
+    window.onerror = function(msg, src, line, col, err) {
+      _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
+    };
 
     var map = null;
     var overlay = null;
@@ -41,15 +44,15 @@
     var LAYERS = {
       wind: {
         type: 'particle', label: 'Wind', unit: 'm/s',
-        imageType: 'VECTOR', imageUnscale: [-75, 75],
-        numParticles: 4000, maxAge: 60, speedFactor: 0.5, width: 1.5,
+        imageType: 'VECTOR', imageUnscale: [-500, 500],
+        numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
         palette: [[0,'#ffffff'],[3,'#c8f7ff'],[6,'#70d6ff'],[10,'#ffd670'],[15,'#ff6b6b'],[25,'#d62828']],
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
-        imageType: 'VECTOR', imageUnscale: [-3, 3],
-        numParticles: 6000, maxAge: 80, speedFactor: 0.8, width: 1.2,
-        palette: [[0,'#e0f7ff'],[0.2,'#70d6ff'],[0.5,'#0077b6'],[1.0,'#5e60ce'],[2.0,'#7400b8']],
+        imageType: 'VECTOR', imageUnscale: [-500, 500],
+        numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
+        color: [220, 240, 255, 200],
       },
       waves: {
         type: 'raster', label: 'Wave Height', unit: 'm',
@@ -82,6 +85,32 @@
         palette: [[0,'#10002b'],[0.1,'#3c096c'],[0.3,'#5a189a'],[0.5,'#7b2cbf'],[1,'#c77dff'],[2,'#e0aaff'],[3,'#ffd6ff'],[5,'#fff0f5']],
       },
     };
+
+    function _getTimestamps(key) {
+      if (!catalog || !catalog[key]) return [];
+      var entry = catalog[key];
+      return entry.timestamps || (Array.isArray(entry) ? entry : []);
+    }
+
+    function _getBounds(key) {
+      if (!catalog || !catalog[key] || !catalog[key].bounds) return [-180, -80, 180, 90];
+      return catalog[key].bounds;
+    }
+
+    function _downscale(texData, targetW, targetH) {
+      var c1 = document.createElement('canvas');
+      c1.width = texData.width; c1.height = texData.height;
+      var ctx1 = c1.getContext('2d');
+      var id1 = ctx1.createImageData(texData.width, texData.height);
+      id1.data.set(texData.data);
+      ctx1.putImageData(id1, 0, 0);
+      var c2 = document.createElement('canvas');
+      c2.width = targetW; c2.height = targetH;
+      var ctx2 = c2.getContext('2d');
+      ctx2.drawImage(c1, 0, 0, targetW, targetH);
+      var id2 = ctx2.getImageData(0, 0, targetW, targetH);
+      return { data: new Uint8Array(id2.data), width: targetW, height: targetH };
+    }
 
     function initMap(config) {
       baseUrl = config.baseUrl || '';
@@ -116,9 +145,11 @@
 
     function loadCatalog(catalogData) {
       catalog = catalogData.variables || catalogData;
+      var firstKey = Object.keys(catalog)[0];
+      var firstVar = catalog[firstKey] || {};
       _post('CatalogChannel', {
         variables: Object.keys(catalog),
-        timestamps: catalog[Object.keys(catalog)[0]] || [],
+        timestamps: firstVar.timestamps || firstVar || [],
       });
     }
 
@@ -128,8 +159,10 @@
       timeIndex = 0;
       currentImage = null;
       nextImage = null;
+      _stopParticleRepaint();
 
-      if (catalog && catalog[key] && catalog[key].length > 0) {
+      var ts = _getTimestamps(key);
+      if (ts.length > 0) {
         await _loadFrame(key, 0);
         _renderLayer();
         _post('LayerChannel', {
@@ -137,7 +170,7 @@
           label: LAYERS[key].label,
           unit: LAYERS[key].unit,
           type: LAYERS[key].type,
-          timestamps: catalog[key],
+          timestamps: ts,
           timeIndex: 0,
         });
       } else {
@@ -154,8 +187,8 @@
     }
 
     async function setTimeIndex(idx) {
-      if (!activeLayerKey || !catalog || !catalog[activeLayerKey]) return;
-      var timestamps = catalog[activeLayerKey];
+      if (!activeLayerKey) return;
+      var timestamps = _getTimestamps(activeLayerKey);
       if (idx < 0 || idx >= timestamps.length) return;
       timeIndex = idx;
       await _loadFrame(activeLayerKey, idx);
@@ -184,19 +217,30 @@
     }
 
     async function _loadFrame(key, idx) {
-      var timestamps = catalog[key];
-      if (!timestamps || idx >= timestamps.length) return;
+      var timestamps = _getTimestamps(key);
+      if (!timestamps.length || idx >= timestamps.length) return;
       var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx] + '.png';
       try {
-        currentImage = await WeatherLayers.loadTextureData(url);
+        var raw = await WeatherLayers.loadTextureData(url);
+        if (LAYERS[key].type === 'particle') {
+          currentImage = _downscale(raw, 360, 170);
+        } else {
+          currentImage = raw;
+        }
       } catch (e) {
         console.error('Failed to load frame:', url, e);
+        _post('DebugChannel', { error: 'Load failed: ' + url + ' ' + (e.message || e) });
         currentImage = null;
       }
       if (idx + 1 < timestamps.length) {
         var nextUrl = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx + 1] + '.png';
         try {
-          nextImage = await WeatherLayers.loadTextureData(nextUrl);
+          var rawNext = await WeatherLayers.loadTextureData(nextUrl);
+          if (LAYERS[key].type === 'particle') {
+            nextImage = _downscale(rawNext, 360, 170);
+          } else {
+            nextImage = rawNext;
+          }
         } catch (e) {
           nextImage = null;
         }
@@ -211,44 +255,57 @@
         return;
       }
       var cfg = LAYERS[activeLayerKey];
-      var layerProps = {
-        id: 'weather-layer',
-        image: currentImage,
-        bounds: [-180, -90, 180, 90],
-        imageType: cfg.imageType === 'VECTOR'
-          ? WeatherLayers.ImageType.VECTOR
-          : WeatherLayers.ImageType.SCALAR,
-        imageUnscale: cfg.imageUnscale,
-        extensions: [new deck.ClipExtension()],
-        clipBounds: [-181, -85.051129, 181, 85.051129],
-        pickable: true,
-        opacity: 0.85,
-      };
-
-      if (nextImage) {
-        layerProps.image2 = nextImage;
-        layerProps.imageWeight = 0;
-      }
+      var bounds = _getBounds(activeLayerKey);
 
       var layer;
       if (cfg.type === 'particle') {
         layer = new WeatherLayers.ParticleLayer({
-          ...layerProps,
-          numParticles: cfg.numParticles || 5000,
-          maxAge: cfg.maxAge || 100,
+          id: 'weather-layer',
+          image: currentImage,
+          bounds: bounds,
+          imageType: WeatherLayers.ImageType.VECTOR,
+          imageUnscale: cfg.imageUnscale,
+          numParticles: cfg.numParticles || 10000,
+          maxAge: cfg.maxAge || 15,
           speedFactor: cfg.speedFactor || 1,
-          width: cfg.width || 1,
-          color: [255, 255, 255, 200],
+          width: cfg.width || 2.5,
+          color: cfg.color || [255, 255, 255, 200],
           palette: cfg.palette,
+          opacity: 0.9,
         });
+        _startParticleRepaint();
       } else {
-        layer = new WeatherLayers.RasterLayer({
-          ...layerProps,
+        _stopParticleRepaint();
+        var layerProps = {
+          id: 'weather-layer',
+          image: currentImage,
+          bounds: bounds,
+          imageType: WeatherLayers.ImageType.SCALAR,
+          imageUnscale: cfg.imageUnscale,
           palette: cfg.palette,
-        });
+          extensions: [new deck.ClipExtension()],
+          clipBounds: [-181, -85.051129, 181, 85.051129],
+          pickable: true,
+          opacity: 0.85,
+        };
+        if (nextImage) {
+          layerProps.image2 = nextImage;
+          layerProps.imageWeight = 0;
+        }
+        layer = new WeatherLayers.RasterLayer(layerProps);
       }
 
       overlay.setProps({ layers: [layer] });
+    }
+
+    var _particleRAF = null;
+    function _startParticleRepaint() {
+      _stopParticleRepaint();
+      function loop() { map.triggerRepaint(); _particleRAF = requestAnimationFrame(loop); }
+      loop();
+    }
+    function _stopParticleRepaint() {
+      if (_particleRAF) { cancelAnimationFrame(_particleRAF); _particleRAF = null; }
     }
 
     var _animStartTime = 0;
@@ -256,8 +313,8 @@
 
     function _animLoop() {
       if (!playing || !activeLayerKey || !catalog) return;
-      var timestamps = catalog[activeLayerKey];
-      if (!timestamps || timestamps.length < 2) return;
+      var timestamps = _getTimestamps(activeLayerKey);
+      if (timestamps.length < 2) return;
 
       if (!_animStartTime) _animStartTime = performance.now();
       var elapsed = performance.now() - _animStartTime;
@@ -283,40 +340,41 @@
     function _updateWeight(w) {
       if (!currentImage) return;
       var cfg = LAYERS[activeLayerKey];
-      var layerProps = {
-        id: 'weather-layer',
-        image: currentImage,
-        bounds: [-180, -90, 180, 90],
-        imageType: cfg.imageType === 'VECTOR'
-          ? WeatherLayers.ImageType.VECTOR
-          : WeatherLayers.ImageType.SCALAR,
-        imageUnscale: cfg.imageUnscale,
-        extensions: [new deck.ClipExtension()],
-        clipBounds: [-181, -85.051129, 181, 85.051129],
-        opacity: 0.85,
-      };
-
-      if (nextImage) {
-        layerProps.image2 = nextImage;
-        layerProps.imageWeight = w;
-      }
+      var bounds = _getBounds(activeLayerKey);
 
       var layer;
       if (cfg.type === 'particle') {
         layer = new WeatherLayers.ParticleLayer({
-          ...layerProps,
-          numParticles: cfg.numParticles || 5000,
-          maxAge: cfg.maxAge || 100,
+          id: 'weather-layer',
+          image: currentImage,
+          bounds: bounds,
+          imageType: WeatherLayers.ImageType.VECTOR,
+          imageUnscale: cfg.imageUnscale,
+          numParticles: cfg.numParticles || 10000,
+          maxAge: cfg.maxAge || 15,
           speedFactor: cfg.speedFactor || 1,
-          width: cfg.width || 1,
-          color: [255, 255, 255, 200],
+          width: cfg.width || 2.5,
+          color: cfg.color || [255, 255, 255, 200],
           palette: cfg.palette,
+          opacity: 0.9,
         });
       } else {
-        layer = new WeatherLayers.RasterLayer({
-          ...layerProps,
+        var layerProps = {
+          id: 'weather-layer',
+          image: currentImage,
+          bounds: bounds,
+          imageType: WeatherLayers.ImageType.SCALAR,
+          imageUnscale: cfg.imageUnscale,
           palette: cfg.palette,
-        });
+          extensions: [new deck.ClipExtension()],
+          clipBounds: [-181, -85.051129, 181, 85.051129],
+          opacity: 0.85,
+        };
+        if (nextImage) {
+          layerProps.image2 = nextImage;
+          layerProps.imageWeight = w;
+        }
+        layer = new WeatherLayers.RasterLayer(layerProps);
       }
 
       overlay.setProps({ layers: [layer] });
