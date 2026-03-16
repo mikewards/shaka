@@ -135,8 +135,8 @@ def scale_to_uint8(data, vmin, vmax):
 
 
 def make_mask(data):
-    """Alpha channel: 255 where valid, 0 where NaN."""
-    return np.where(np.isfinite(data), 255, 0).astype(np.uint8)
+    """Alpha channel: fully opaque everywhere (land polygon handles masking)."""
+    return np.full(data.shape, 255, dtype=np.uint8)
 
 
 def process_scalar(ds, var_name, time_idx, scale):
