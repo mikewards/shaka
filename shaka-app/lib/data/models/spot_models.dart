@@ -690,6 +690,12 @@ class TideChartData {
     final future = extremes.where((e) => !e.isHigh && e.epochMs > now);
     return future.isEmpty ? null : future.first;
   }
+
+  List<TideExtreme> get highs =>
+      extremes.where((e) => e.isHigh).toList()..sort((a, b) => a.epochMs.compareTo(b.epochMs));
+
+  List<TideExtreme> get lows =>
+      extremes.where((e) => !e.isHigh).toList()..sort((a, b) => a.epochMs.compareTo(b.epochMs));
 }
 
 class SpotDetail {

@@ -87,28 +87,68 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
 
 
 def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
-    """Find local maxima (H) and minima (L) in the tide curve."""
-    extremes = []
+    """Find local maxima (H) and minima (L) in the tide curve.
+
+    Raw local extremes from 6-min samples produce noisy clusters near
+    true peaks/troughs due to rounding.  A merge pass collapses any
+    extremes within MERGE_WINDOW_MS into one representative point.
+    """
+    raw = []
     n = len(heights_ft)
     if n < 3:
-        return extremes
+        return raw
 
     for i in range(1, n - 1):
         prev_h, curr_h, next_h = heights_ft[i - 1], heights_ft[i], heights_ft[i + 1]
         if curr_h > prev_h and curr_h >= next_h:
-            extremes.append({
+            raw.append({
                 "epoch_ms": times_ms[i],
                 "height_ft": round(curr_h, 2),
                 "type": "H",
             })
         elif curr_h < prev_h and curr_h <= next_h:
-            extremes.append({
+            raw.append({
                 "epoch_ms": times_ms[i],
                 "height_ft": round(curr_h, 2),
                 "type": "L",
             })
 
-    return extremes
+    return _merge_nearby_extremes(raw)
+
+
+_MERGE_WINDOW_MS = 3 * 3_600_000  # 3 hours
+
+
+def _merge_nearby_extremes(raw: list[dict]) -> list[dict]:
+    """Collapse clusters of extremes within _MERGE_WINDOW_MS into one each.
+
+    Within a cluster, if any member is "H" the real event is a high tide
+    (keep the point with max height); otherwise it's a low (keep min).
+    Real tidal extremes are always 5+ hours apart, so a 3-hour window
+    is safe.
+    """
+    if not raw:
+        return raw
+
+    merged: list[dict] = []
+    cluster: list[dict] = [raw[0]]
+
+    for ext in raw[1:]:
+        if ext["epoch_ms"] - cluster[0]["epoch_ms"] <= _MERGE_WINDOW_MS:
+            cluster.append(ext)
+        else:
+            merged.append(_pick_representative(cluster))
+            cluster = [ext]
+
+    merged.append(_pick_representative(cluster))
+    return merged
+
+
+def _pick_representative(cluster: list[dict]) -> dict:
+    has_high = any(e["type"] == "H" for e in cluster)
+    if has_high:
+        return max(cluster, key=lambda e: e["height_ft"]) | {"type": "H"}
+    return min(cluster, key=lambda e: e["height_ft"]) | {"type": "L"}
 
 
 def _cache_key(lat: float, lon: float, date_str: str, days: int) -> tuple:

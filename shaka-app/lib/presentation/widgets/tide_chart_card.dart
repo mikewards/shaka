@@ -158,26 +158,35 @@ class _TideChartCardState extends State<TideChartCard> {
   }
 
   Widget _buildFooter(TideChartData tide) {
-    final nextH = tide.nextHigh;
-    final nextL = tide.nextLow;
+    final allHighs = tide.highs;
+    final allLows = tide.lows;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
       child: Column(
         children: [
-          Row(
-            children: [
-              if (nextH != null) ...[
-                _footerChip('High', _formatTime(nextH.time),
-                    '${nextH.heightFt.toStringAsFixed(1)} ft', _highColor),
+          if (allHighs.isNotEmpty)
+            Row(
+              children: [
+                for (int i = 0; i < allHighs.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  _footerChip('High', _formatTime(allHighs[i].time),
+                      '${allHighs[i].heightFt.toStringAsFixed(1)} ft', _highColor),
+                ],
               ],
-              if (nextH != null && nextL != null) const SizedBox(width: 12),
-              if (nextL != null) ...[
-                _footerChip('Low', _formatTime(nextL.time),
-                    '${nextL.heightFt.toStringAsFixed(1)} ft', _lowColor),
+            ),
+          if (allHighs.isNotEmpty && allLows.isNotEmpty)
+            const SizedBox(height: 8),
+          if (allLows.isNotEmpty)
+            Row(
+              children: [
+                for (int i = 0; i < allLows.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  _footerChip('Low', _formatTime(allLows[i].time),
+                      '${allLows[i].heightFt.toStringAsFixed(1)} ft', _lowColor),
+                ],
               ],
-            ],
-          ),
+            ),
           const SizedBox(height: 8),
           Text(
             tide.provider == 'fes2022'
