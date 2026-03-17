@@ -8,6 +8,7 @@ Provides two operations:
 
 import datetime
 import logging
+import math
 from functools import lru_cache
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -183,7 +184,10 @@ def _do_predict(
     )
 
     fine_heights_m = _predict_heights(lat, lon, fine_times)
-    fine_heights_ft = [round(float(h) * METERS_TO_FEET, 2) for h in fine_heights_m]
+    fine_heights_ft = [
+        round(float(h) * METERS_TO_FEET, 2) if math.isfinite(float(h)) else 0.0
+        for h in fine_heights_m
+    ]
 
     epoch_base = int(local_midnight.timestamp() * 1000)
     fine_ms = [epoch_base + int(m) * 60_000 for m in fine_offsets]
