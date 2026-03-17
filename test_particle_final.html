@@ -50,9 +50,42 @@
     ];
 
     var LAYERS = {
-      currents: { type: 'particle', imageUnscale: [-500, 500], numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5, color: [20, 60, 130, 220], rasterPalette: DIAGNOSTIC_PALETTE },
-      waves:    { type: 'raster', imageUnscale: [0, 15], palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']] },
-      sst:      { type: 'raster', imageUnscale: [-2, 35], palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']] },
+      wind: {
+        type: 'particle', imageUnscale: [-500, 500],
+        numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
+        palette: [[0,'#334455'],[3,'#1a6b8a'],[6,'#0077b6'],[10,'#cc8800'],[15,'#cc3333'],[25,'#991111']],
+        rasterPalette: DIAGNOSTIC_PALETTE,
+      },
+      currents: {
+        type: 'particle', imageUnscale: [-500, 500],
+        numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
+        color: [20, 60, 130, 220],
+        rasterPalette: DIAGNOSTIC_PALETTE,
+      },
+      waves: {
+        type: 'raster', imageUnscale: [0, 15],
+        palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']],
+      },
+      sst: {
+        type: 'raster', imageUnscale: [-2, 35],
+        palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']],
+      },
+      salinity: {
+        type: 'raster', imageUnscale: [20, 40],
+        palette: [[20,'#7400b8'],[25,'#5e60ce'],[30,'#5390d9'],[33,'#48bfe3'],[35,'#56cfe1'],[36,'#64dfdf'],[37,'#72efdd'],[38,'#80ffdb'],[40,'#f0fff0']],
+      },
+      chlorophyll: {
+        type: 'raster', imageUnscale: [0, 20],
+        palette: [[0,'#0d1b2a'],[0.05,'#1b263b'],[0.1,'#003566'],[0.3,'#006d77'],[0.5,'#40916c'],[1,'#74c69d'],[3,'#e9c46a'],[5,'#f4a261'],[10,'#e76f51'],[20,'#9b2226']],
+      },
+      phytoplankton: {
+        type: 'raster', imageUnscale: [0, 10],
+        palette: [[0,'#0d1b2a'],[0.1,'#003566'],[0.5,'#006d77'],[1,'#40916c'],[2,'#74c69d'],[3,'#b5e48c'],[5,'#e9c46a'],[10,'#e76f51']],
+      },
+      zooplankton: {
+        type: 'raster', imageUnscale: [0, 5],
+        palette: [[0,'#10002b'],[0.1,'#3c096c'],[0.3,'#5a189a'],[0.5,'#7b2cbf'],[1,'#c77dff'],[2,'#e0aaff'],[3,'#ffd6ff'],[5,'#fff0f5']],
+      },
     };
 
     var map, overlay, catalog;
@@ -216,8 +249,10 @@
           beforeId: LAND_FILL_ID,
           image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR, imageUnscale: cfg.imageUnscale,
-          numParticles: cfg.numParticles, maxAge: cfg.maxAge, speedFactor: cfg.speedFactor,
-          width: cfg.width, color: cfg.color, opacity: 0.9,
+          numParticles: cfg.numParticles || 10000, maxAge: cfg.maxAge || 15,
+          speedFactor: cfg.speedFactor || 1, width: cfg.width || 2.5,
+          color: cfg.color || [255, 255, 255, 200], palette: cfg.palette,
+          opacity: 0.9,
         }));
         overlay.setProps({ layers: layers });
         if (_pRAF) cancelAnimationFrame(_pRAF);
@@ -230,7 +265,7 @@
           beforeId: LAND_FILL_ID,
           image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
-          palette: cfg.palette, opacity: 0.85,
+          palette: cfg.palette, pickable: true, opacity: 0.85,
         };
         if (nextImage) { props.image2 = nextImage; props.imageWeight = 0; }
         overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });
@@ -264,7 +299,7 @@
             beforeId: LAND_FILL_ID,
             image: currentImage, bounds: bounds,
             imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
-            palette: cfg.palette, opacity: 0.85,
+            palette: cfg.palette, pickable: true, opacity: 0.85,
           };
           if (nextImage) { props.image2 = nextImage; props.imageWeight = w; }
           overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });

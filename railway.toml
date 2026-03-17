@@ -1,6 +1,7 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
+watchPatterns = ["shaka-api/**", "scripts/**", "data/**", "Dockerfile", "railway.toml"]
 
 [deploy]
 healthcheckPath = "/v1/health"
