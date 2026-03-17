@@ -188,8 +188,57 @@ class DataPrefetchJobs(
             }
         }
 
+        // Also process user spots (same today+tomorrow logic)
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots()
+        } catch (e: Exception) {
+            logger.warn("TIDE CHART materialization: failed to load user spots: ${e.message}")
+            emptyList()
+        }
+
+        for (spot in userSpots) {
+            val cacheId = "user-${spot.id}"
+            val localToday = spotLocalDate(spot.coordinates.lon)
+            val todayStr = localToday.toString()
+            val tomorrowStr = localToday.plusDays(1).toString()
+
+            for (day in listOf(todayStr, tomorrowStr)) {
+                val existing = SpotDataCache.getTideDay(cacheId, day, tidesClient.provider)
+                if (existing != null) { skipped++; continue }
+
+                try {
+                    withTimeout(SPOT_TIMEOUT_MS) {
+                        val chartData = tidesClient.getTideChartData(
+                            spot.coordinates.lat, spot.coordinates.lon, day
+                        ) ?: return@withTimeout
+
+                        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                        val localDate = chartData.localDate.ifEmpty { day }
+                        SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                            spotId = cacheId,
+                            localDate = localDate,
+                            provider = chartData.provider,
+                            stationId = chartData.stationId,
+                            stationName = chartData.stationName,
+                            stationDistanceMi = chartData.stationDistanceMi,
+                            timezoneId = chartData.timezoneId,
+                            datum = chartData.datum,
+                            pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), chartData.points),
+                            extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), chartData.extremes),
+                            fetchedAt = Instant.now()
+                        ))
+                        persisted++
+                    }
+                } catch (e: Exception) {
+                    logger.debug("Tide chart failed for user spot ${spot.name}/$day: ${e.message}")
+                    errors++
+                }
+                delay(5000)
+            }
+        }
+
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("TIDE CHART materialization complete: $persisted persisted, $skipped skipped, $errors errors in ${elapsed}ms")
+        logger.info("TIDE CHART materialization complete: ${allSpots.size} catalog + ${userSpots.size} user spots — $persisted persisted, $skipped skipped, $errors errors in ${elapsed}ms")
     }
 
     // ==================== EVERY 10 MIN: Tide Chart Catch-Up ====================

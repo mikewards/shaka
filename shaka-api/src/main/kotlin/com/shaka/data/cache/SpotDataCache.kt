@@ -2384,7 +2384,7 @@ object SpotDataCache {
                         WHERE NOT EXISTS (
                             SELECT 1 FROM spot_tide_days std
                             WHERE std.spot_id = sc.spot_id
-                              AND std.local_date BETWEEN (CURRENT_DATE - 1) AND (CURRENT_DATE + 1)
+                              AND std.local_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + 1)
                         )
                     """)
                     while (rs.next()) {
