@@ -46,13 +46,13 @@
     var LAYERS = {
       wind: {
         type: 'particle', label: 'Wind', unit: 'm/s',
-        imageType: 'VECTOR', imageUnscale: [-500, 500],
+        imageType: 'VECTOR', imageUnscale: [-30, 30],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
         palette: [[0,'#ffffff'],[3,'#c8f7ff'],[6,'#70d6ff'],[10,'#ffd670'],[15,'#ff6b6b'],[25,'#d62828']],
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
-        imageType: 'VECTOR', imageUnscale: [-500, 500],
+        imageType: 'VECTOR', imageUnscale: [-3, 3],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
         color: [220, 240, 255, 200],
       },

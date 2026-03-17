@@ -132,7 +132,7 @@ class HealthService {
     
     private suspend fun checkCopernicus(): ServiceStatus {
         return try {
-            val response = client.head("https://wmts.marine.copernicus.eu/teroWmts")
+            val response = client.get("https://wmts.marine.copernicus.eu/teroWmts?service=WMTS&request=GetCapabilities")
             if (response.status.value in 200..399) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {

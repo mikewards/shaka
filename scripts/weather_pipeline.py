@@ -93,6 +93,15 @@ DATASETS = {
         "stride_hours": 24,
         "depth": 0.5,
     },
+    "wind": {
+        "dataset_id": "cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H",
+        "variables": {
+            "wind": {"vars": ["eastward_wind", "northward_wind"], "type": "vector", "scale": [-30, 30]},
+        },
+        "stride_hours": 3,
+        "depth": None,
+        "nrt": True,
+    },
 }
 
 
@@ -195,9 +204,16 @@ def run_pipeline(output_dir, days):
             all_vars.extend(vconfig["vars"])
         all_vars = list(set(all_vars))
 
+        if group.get("nrt"):
+            g_start = now - timedelta(hours=24)
+            g_end = now
+        else:
+            g_start = start
+            g_end = end
+
         nc_path = tmp / f"{group_name}.nc"
         ok = download_dataset(
-            group["dataset_id"], all_vars, start, end,
+            group["dataset_id"], all_vars, g_start, g_end,
             group["depth"], nc_path,
         )
         if not ok:
