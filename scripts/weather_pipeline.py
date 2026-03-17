@@ -139,7 +139,7 @@ def scale_to_uint8(data, vmin, vmax):
     """Linearly scale float data to 0-255 uint8, NaN → 0."""
     scaled = (data - vmin) / (vmax - vmin) * 255.0
     scaled = np.clip(scaled, 0, 255)
-    result = np.nan_to_num(scaled, nan=0).astype(np.uint8)
+    result = np.nan_to_num(scaled, nan=127.5).astype(np.uint8)
     return result
 
 
