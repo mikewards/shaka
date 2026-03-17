@@ -27,6 +27,10 @@ COPY --from=build /app/build/libs/*-all.jar app.jar
 # Copy weather pipeline script
 COPY scripts/weather_pipeline.py /app/scripts/weather_pipeline.py
 
+# Copy PMTiles land/lakes mask files
+COPY data/ne_50m_land.pmtiles /app/data/ne_50m_land.pmtiles
+COPY data/ne_50m_lakes.pmtiles /app/data/ne_50m_lakes.pmtiles
+
 # Create weather data directory
 RUN mkdir -p /data/weather
 

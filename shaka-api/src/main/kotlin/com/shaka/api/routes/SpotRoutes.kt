@@ -1367,6 +1367,19 @@ fun Application.configureRouting() {
                     call.respond(HttpStatusCode.NotFound, mapOf("error" to "tile not found"))
                 }
             }
+
+            get("/weather/tiles/{filename}") {
+                val filename = call.parameters["filename"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "filename required"))
+                val file = java.io.File("/app/data/$filename")
+                if (file.exists()) {
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                    call.response.header(HttpHeaders.AcceptRanges, "bytes")
+                    call.respondFile(file)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "file not found"))
+                }
+            }
             
         }
     }

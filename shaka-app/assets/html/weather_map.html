@@ -19,6 +19,7 @@
   <script src="https://unpkg.com/@luma.gl/engine@9.2.6/dist/dist.min.js"></script>
   <script src="https://unpkg.com/deck.gl@9.2.11/dist.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/weatherlayers-gl@2026.2.0/dist/weatherlayers-deck.umd.min.js"></script>
+  <script src="https://unpkg.com/pmtiles@4.4.0/dist/pmtiles.js"></script>
 
   <script>
     if (typeof maplibregl === 'undefined' || typeof deck === 'undefined' || typeof WeatherLayers === 'undefined') {
@@ -30,8 +31,6 @@
       _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
     };
 
-    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_land.json';
-    var LAKES_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_lakes.json';
     var LAND_FILL_ID = 'land-fill';
 
     var VELOCITY_BG_PALETTE = [
@@ -109,6 +108,9 @@
     }
 
     function initMap(config) {
+      var protocol = new pmtiles.Protocol();
+      maplibregl.addProtocol('pmtiles', protocol.tile);
+
       baseUrl = config.baseUrl || '';
       var lat = config.lat || 23;
       var lng = config.lng || -108;
@@ -131,19 +133,24 @@
       map.addControl(overlay);
 
       map.on('load', function() {
-        map.addSource('land-geojson', { type: 'geojson', data: LAND_GEOJSON });
+        var landUrl = 'pmtiles://' + baseUrl + '/v1/weather/tiles/ne_50m_land.pmtiles';
+        var lakesUrl = 'pmtiles://' + baseUrl + '/v1/weather/tiles/ne_50m_lakes.pmtiles';
+
+        map.addSource('land-pmtiles', { type: 'vector', url: landUrl });
         map.addLayer({
           id: LAND_FILL_ID,
           type: 'fill',
-          source: 'land-geojson',
+          source: 'land-pmtiles',
+          'source-layer': 'land',
           paint: { 'fill-color': '#fbf8f3', 'fill-opacity': 1 },
         }, 'aeroway-runway');
 
-        map.addSource('lakes-geojson', { type: 'geojson', data: LAKES_GEOJSON });
+        map.addSource('lakes-pmtiles', { type: 'vector', url: lakesUrl });
         map.addLayer({
           id: 'lakes-fill',
           type: 'fill',
-          source: 'lakes-geojson',
+          source: 'lakes-pmtiles',
+          'source-layer': 'lakes',
           paint: { 'fill-color': '#b0d0d6', 'fill-opacity': 1 },
         }, 'aeroway-runway');
 
