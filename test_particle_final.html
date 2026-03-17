@@ -36,7 +36,8 @@
 
   <script>
     var BASE = 'https://shaka-production.up.railway.app';
-    var CARTO_TILES = 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/{z}/{x}/{y}.pbf';
+    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
+    var LAND_FILL_ID = 'land-fill';
     var logEl = document.getElementById('log');
     function log(m) { console.log(m); logEl.textContent += '\n' + m; }
 
@@ -77,26 +78,6 @@
       if (ts.length) info.textContent = ts[timeIndex] + ' (' + (timeIndex + 1) + '/' + ts.length + ')';
     }
 
-    function _waterMask() {
-      return new deck.MVTLayer({
-        id: 'ocean-mask',
-        data: CARTO_TILES,
-        minZoom: 0,
-        maxZoom: 14,
-        renderSubLayers: function(props) {
-          var waterFeatures = (props.data || []).filter(function(f) {
-            return f.properties.layerName === 'water';
-          });
-          if (!waterFeatures.length) return null;
-          return new deck.GeoJsonLayer(Object.assign({}, props, {
-            id: props.id + '-water',
-            data: { type: 'FeatureCollection', features: waterFeatures },
-            operation: 'mask',
-          }));
-        },
-      });
-    }
-
     async function init() {
       var resp = await fetch(BASE + '/v1/weather/catalog.json');
       var data = await resp.json();
@@ -125,6 +106,14 @@
 
       map.on('load', function() {
         log('Map ready');
+
+        map.addSource('land-geojson', { type: 'geojson', data: LAND_GEOJSON });
+        map.addLayer({
+          id: LAND_FILL_ID,
+          type: 'fill',
+          source: 'land-geojson',
+          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 },
+        });
 
         var el = document.getElementById('controls');
         var playBtn = document.createElement('button');
@@ -195,29 +184,25 @@
     function _renderLayer() {
       if (!activeKey || !currentImage) { overlay.setProps({ layers: [] }); return; }
       var cfg = LAYERS[activeKey], bounds = _bounds(activeKey);
-      var mask = _waterMask();
 
       if (cfg.type === 'particle') {
-        var layers = [mask];
+        var layers = [];
         if (cfg.rasterPalette) {
           layers.push(new WeatherLayers.RasterLayer({
             id: 'weather-raster',
+            beforeId: LAND_FILL_ID,
             image: currentImage, bounds: bounds,
             imageType: WeatherLayers.ImageType.VECTOR, imageUnscale: cfg.imageUnscale,
             palette: cfg.rasterPalette, opacity: 0.7,
-            pickable: true,
-            extensions: [new deck.MaskExtension()],
-            maskId: 'ocean-mask',
           }));
         }
         layers.push(new WeatherLayers.ParticleLayer({
           id: 'weather-particle',
+          beforeId: LAND_FILL_ID,
           image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR, imageUnscale: cfg.imageUnscale,
           numParticles: cfg.numParticles, maxAge: cfg.maxAge, speedFactor: cfg.speedFactor,
           width: cfg.width, color: cfg.color, opacity: 0.9,
-          extensions: [new deck.MaskExtension()],
-          maskId: 'ocean-mask',
         }));
         overlay.setProps({ layers: layers });
         if (_pRAF) cancelAnimationFrame(_pRAF);
@@ -227,14 +212,13 @@
         if (_pRAF) { cancelAnimationFrame(_pRAF); _pRAF = null; }
         var props = {
           id: 'weather',
+          beforeId: LAND_FILL_ID,
           image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
           palette: cfg.palette, opacity: 0.85,
-          extensions: [new deck.MaskExtension()],
-          maskId: 'ocean-mask',
         };
         if (nextImage) { props.image2 = nextImage; props.imageWeight = 0; }
-        overlay.setProps({ layers: [mask, new WeatherLayers.RasterLayer(props)] });
+        overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });
       }
     }
 
@@ -256,21 +240,19 @@
 
       if (cfg.type === 'raster' && nextImage) {
         var interpStart = performance.now();
-        var mask = _waterMask();
         function interp() {
           if (!playing || activeKey !== key) return;
           var w = Math.min((performance.now() - interpStart) / dwellMs, 1);
           var bounds = _bounds(key);
           var props = {
             id: 'weather',
+            beforeId: LAND_FILL_ID,
             image: currentImage, bounds: bounds,
             imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
             palette: cfg.palette, opacity: 0.85,
-            extensions: [new deck.MaskExtension()],
-            maskId: 'ocean-mask',
           };
           if (nextImage) { props.image2 = nextImage; props.imageWeight = w; }
-          overlay.setProps({ layers: [mask, new WeatherLayers.RasterLayer(props)] });
+          overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });
           map.triggerRepaint();
           if (w < 1) _interpRAF = requestAnimationFrame(interp);
         }

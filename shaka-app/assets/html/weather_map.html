@@ -33,6 +33,12 @@
     var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
     var LAND_FILL_ID = 'land-fill';
 
+    var VELOCITY_BG_PALETTE = [
+      [0,'#000033'],[5,'#000088'],[15,'#0000ff'],[30,'#0088ff'],
+      [60,'#00ffff'],[100,'#00ff00'],[150,'#88ff00'],[200,'#ffff00'],
+      [300,'#ff8800'],[400,'#ff0000'],[500,'#ff00ff'],[700,'#ffffff']
+    ];
+
     var map = null;
     var overlay = null;
     var activeLayerKey = null;
@@ -49,12 +55,14 @@
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
         palette: [[0,'#ffffff'],[3,'#c8f7ff'],[6,'#70d6ff'],[10,'#ffd670'],[15,'#ff6b6b'],[25,'#d62828']],
+        rasterPalette: VELOCITY_BG_PALETTE,
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
         color: [220, 240, 255, 200],
+        rasterPalette: VELOCITY_BG_PALETTE,
       },
       waves: {
         type: 'raster', label: 'Wave Height', unit: 'm',
@@ -247,9 +255,21 @@
       var cfg = LAYERS[activeLayerKey];
       var bounds = _getBounds(activeLayerKey);
 
-      var layer;
       if (cfg.type === 'particle') {
-        layer = new WeatherLayers.ParticleLayer({
+        var layers = [];
+        if (cfg.rasterPalette) {
+          layers.push(new WeatherLayers.RasterLayer({
+            id: 'weather-raster',
+            beforeId: LAND_FILL_ID,
+            image: currentImage,
+            bounds: bounds,
+            imageType: WeatherLayers.ImageType.VECTOR,
+            imageUnscale: cfg.imageUnscale,
+            palette: cfg.rasterPalette,
+            opacity: 0.7,
+          }));
+        }
+        layers.push(new WeatherLayers.ParticleLayer({
           id: 'weather-layer',
           beforeId: LAND_FILL_ID,
           image: currentImage,
@@ -263,7 +283,8 @@
           color: cfg.color || [255, 255, 255, 200],
           palette: cfg.palette,
           opacity: 0.9,
-        });
+        }));
+        overlay.setProps({ layers: layers });
         _startParticleRepaint();
       } else {
         _stopParticleRepaint();
@@ -282,10 +303,9 @@
           layerProps.image2 = nextImage;
           layerProps.imageWeight = 0;
         }
-        layer = new WeatherLayers.RasterLayer(layerProps);
+        overlay.setProps({ layers: [new WeatherLayers.RasterLayer(layerProps)] });
       }
 
-      overlay.setProps({ layers: [layer] });
       map.triggerRepaint();
     }
 
