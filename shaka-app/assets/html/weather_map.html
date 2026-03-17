@@ -7,7 +7,7 @@
   <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0d0d; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #fbf8f3; }
     #map { width: 100%; height: 100%; }
     .maplibregl-ctrl-attrib { display: none !important; }
   </style>
@@ -30,7 +30,8 @@
       _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
     };
 
-    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
+    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_land.json';
+    var LAKES_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_lakes.json';
     var LAND_FILL_ID = 'land-fill';
 
     var VELOCITY_BG_PALETTE = [
@@ -54,14 +55,14 @@
         type: 'particle', label: 'Wind', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
-        palette: [[0,'#ffffff'],[3,'#c8f7ff'],[6,'#70d6ff'],[10,'#ffd670'],[15,'#ff6b6b'],[25,'#d62828']],
+        palette: [[0,'#334455'],[3,'#1a6b8a'],[6,'#0077b6'],[10,'#cc8800'],[15,'#cc3333'],[25,'#991111']],
         rasterPalette: VELOCITY_BG_PALETTE,
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5,
-        color: [220, 240, 255, 200],
+        color: [20, 60, 130, 220],
         rasterPalette: VELOCITY_BG_PALETTE,
       },
       waves: {
@@ -115,7 +116,7 @@
 
       map = new maplibregl.Map({
         container: 'map',
-        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
         center: [lng, lat],
         zoom: zoom,
         antialias: true,
@@ -135,8 +136,17 @@
           id: LAND_FILL_ID,
           type: 'fill',
           source: 'land-geojson',
-          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 },
+          paint: { 'fill-color': '#fbf8f3', 'fill-opacity': 1 },
         }, 'aeroway-runway');
+
+        map.addSource('lakes-geojson', { type: 'geojson', data: LAKES_GEOJSON });
+        map.addLayer({
+          id: 'lakes-fill',
+          type: 'fill',
+          source: 'lakes-geojson',
+          paint: { 'fill-color': '#b0d0d6', 'fill-opacity': 1 },
+        }, 'aeroway-runway');
+
         _post('ReadyChannel', { status: 'ready' });
       });
 

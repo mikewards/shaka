@@ -6,7 +6,7 @@
   <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; background: #0e0e0e; }
+    html, body { width: 100%; height: 100%; background: #fbf8f3; }
     #map { width: 100%; height: 100%; }
     #log { position: fixed; top: 10px; left: 10px; z-index: 999; background: rgba(0,0,0,0.85);
       color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 6px;
@@ -36,7 +36,8 @@
 
   <script>
     var BASE = 'https://shaka-production.up.railway.app';
-    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
+    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_land.json';
+    var LAKES_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/50m/physical/ne_50m_lakes.json';
     var LAND_FILL_ID = 'land-fill';
     var logEl = document.getElementById('log');
     function log(m) { console.log(m); logEl.textContent += '\n' + m; }
@@ -48,7 +49,7 @@
     ];
 
     var LAYERS = {
-      currents: { type: 'particle', imageUnscale: [-500, 500], numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5, color: [220, 240, 255, 200], rasterPalette: DIAGNOSTIC_PALETTE },
+      currents: { type: 'particle', imageUnscale: [-500, 500], numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5, color: [20, 60, 130, 220], rasterPalette: DIAGNOSTIC_PALETTE },
       waves:    { type: 'raster', imageUnscale: [0, 15], palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']] },
       sst:      { type: 'raster', imageUnscale: [-2, 35], palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']] },
     };
@@ -86,7 +87,7 @@
 
       map = new maplibregl.Map({
         container: 'map',
-        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
         center: [-40, 25], zoom: 3, antialias: true, attributionControl: false,
       });
       overlay = new deck.MapboxOverlay({
@@ -112,8 +113,16 @@
           id: LAND_FILL_ID,
           type: 'fill',
           source: 'land-geojson',
-          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 },
-        });
+          paint: { 'fill-color': '#fbf8f3', 'fill-opacity': 1 },
+        }, 'aeroway-runway');
+
+        map.addSource('lakes-geojson', { type: 'geojson', data: LAKES_GEOJSON });
+        map.addLayer({
+          id: 'lakes-fill',
+          type: 'fill',
+          source: 'lakes-geojson',
+          paint: { 'fill-color': '#b0d0d6', 'fill-opacity': 1 },
+        }, 'aeroway-runway');
 
         var el = document.getElementById('controls');
         var playBtn = document.createElement('button');
