@@ -16,12 +16,15 @@
       background: rgba(0,0,0,0.7); color: #fff; cursor: pointer; font-size: 13px; }
     #controls button.active { background: rgba(0,100,255,0.5); border-color: #4af; }
     #frame-info { color: #aaa; font-family: monospace; font-size: 12px; margin-left: 10px; }
+    #hover-info { position: fixed; top: 10px; right: 10px; z-index: 999; background: rgba(0,0,0,0.85);
+      color: #ff0; font-family: monospace; font-size: 14px; padding: 10px 14px; border-radius: 6px; }
     .maplibregl-ctrl-attrib { display: none !important; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="log">Loading...</div>
+  <div id="hover-info">Hover over ocean to see magnitude</div>
   <div id="controls">
     <span id="frame-info"></span>
   </div>
@@ -33,13 +36,18 @@
 
   <script>
     var BASE = 'https://shaka-production.up.railway.app';
-    var LAND_GEOJSON = 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_land.json';
-    var LAND_FILL_ID = 'land-fill';
+    var CARTO_TILES = 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/{z}/{x}/{y}.pbf';
     var logEl = document.getElementById('log');
     function log(m) { console.log(m); logEl.textContent += '\n' + m; }
 
+    var DIAGNOSTIC_PALETTE = [
+      [0,'#000033'],[5,'#000088'],[15,'#0000ff'],[30,'#0088ff'],
+      [60,'#00ffff'],[100,'#00ff00'],[150,'#88ff00'],[200,'#ffff00'],
+      [300,'#ff8800'],[400,'#ff0000'],[500,'#ff00ff'],[700,'#ffffff']
+    ];
+
     var LAYERS = {
-      currents: { type: 'particle', imageUnscale: [-500, 500], numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5, color: [220, 240, 255, 200] },
+      currents: { type: 'particle', imageUnscale: [-500, 500], numParticles: 10000, maxAge: 15, speedFactor: 1, width: 2.5, color: [220, 240, 255, 200], rasterPalette: DIAGNOSTIC_PALETTE },
       waves:    { type: 'raster', imageUnscale: [0, 15], palette: [[0,'#0d1b2a'],[0.5,'#1b4965'],[1,'#62b6cb'],[2,'#bee9e8'],[3,'#ffd166'],[5,'#ef476f'],[10,'#d62828'],[15,'#6a040f']] },
       sst:      { type: 'raster', imageUnscale: [-2, 35], palette: [[-2,'#023e8a'],[5,'#0077b6'],[10,'#00b4d8'],[15,'#48cae4'],[20,'#90e0ef'],[22,'#ade8f4'],[25,'#ffd166'],[28,'#f77f00'],[30,'#ef476f'],[35,'#d00000']] },
     };
@@ -69,6 +77,26 @@
       if (ts.length) info.textContent = ts[timeIndex] + ' (' + (timeIndex + 1) + '/' + ts.length + ')';
     }
 
+    function _waterMask() {
+      return new deck.MVTLayer({
+        id: 'ocean-mask',
+        data: CARTO_TILES,
+        minZoom: 0,
+        maxZoom: 14,
+        renderSubLayers: function(props) {
+          var waterFeatures = (props.data || []).filter(function(f) {
+            return f.properties.layerName === 'water';
+          });
+          if (!waterFeatures.length) return null;
+          return new deck.GeoJsonLayer(Object.assign({}, props, {
+            id: props.id + '-water',
+            data: { type: 'FeatureCollection', features: waterFeatures },
+            operation: 'mask',
+          }));
+        },
+      });
+    }
+
     async function init() {
       var resp = await fetch(BASE + '/v1/weather/catalog.json');
       var data = await resp.json();
@@ -80,14 +108,23 @@
         style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         center: [-40, 25], zoom: 3, antialias: true, attributionControl: false,
       });
-      overlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
+      overlay = new deck.MapboxOverlay({
+        interleaved: true, layers: [],
+        getTooltip: function(info) {
+          if (info && info.raster) {
+            var val = info.raster.value;
+            var hoverEl = document.getElementById('hover-info');
+            if (val !== undefined && val !== null) {
+              hoverEl.textContent = 'magnitude: ' + (typeof val === 'number' ? val.toFixed(2) : JSON.stringify(val));
+            }
+          }
+          return null;
+        }
+      });
       map.addControl(overlay);
 
       map.on('load', function() {
-        map.addSource('land-geojson', { type: 'geojson', data: LAND_GEOJSON });
-        map.addLayer({ id: LAND_FILL_ID, type: 'fill', source: 'land-geojson',
-          paint: { 'fill-color': '#0e0e0e', 'fill-opacity': 1 } }, 'aeroway-runway');
-        log('Land mask added');
+        log('Map ready');
 
         var el = document.getElementById('controls');
         var playBtn = document.createElement('button');
@@ -158,23 +195,46 @@
     function _renderLayer() {
       if (!activeKey || !currentImage) { overlay.setProps({ layers: [] }); return; }
       var cfg = LAYERS[activeKey], bounds = _bounds(activeKey);
+      var mask = _waterMask();
+
       if (cfg.type === 'particle') {
-        overlay.setProps({ layers: [new WeatherLayers.ParticleLayer({
-          id: 'weather', beforeId: LAND_FILL_ID, image: currentImage, bounds: bounds,
+        var layers = [mask];
+        if (cfg.rasterPalette) {
+          layers.push(new WeatherLayers.RasterLayer({
+            id: 'weather-raster',
+            image: currentImage, bounds: bounds,
+            imageType: WeatherLayers.ImageType.VECTOR, imageUnscale: cfg.imageUnscale,
+            palette: cfg.rasterPalette, opacity: 0.7,
+            pickable: true,
+            extensions: [new deck.MaskExtension()],
+            maskId: 'ocean-mask',
+          }));
+        }
+        layers.push(new WeatherLayers.ParticleLayer({
+          id: 'weather-particle',
+          image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.VECTOR, imageUnscale: cfg.imageUnscale,
           numParticles: cfg.numParticles, maxAge: cfg.maxAge, speedFactor: cfg.speedFactor,
           width: cfg.width, color: cfg.color, opacity: 0.9,
-        })] });
+          extensions: [new deck.MaskExtension()],
+          maskId: 'ocean-mask',
+        }));
+        overlay.setProps({ layers: layers });
         if (_pRAF) cancelAnimationFrame(_pRAF);
         function repaint() { map.triggerRepaint(); _pRAF = requestAnimationFrame(repaint); }
         repaint();
       } else {
         if (_pRAF) { cancelAnimationFrame(_pRAF); _pRAF = null; }
-        var props = { id: 'weather', beforeId: LAND_FILL_ID, image: currentImage, bounds: bounds,
+        var props = {
+          id: 'weather',
+          image: currentImage, bounds: bounds,
           imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
-          palette: cfg.palette, opacity: 0.85 };
+          palette: cfg.palette, opacity: 0.85,
+          extensions: [new deck.MaskExtension()],
+          maskId: 'ocean-mask',
+        };
         if (nextImage) { props.image2 = nextImage; props.imageWeight = 0; }
-        overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });
+        overlay.setProps({ layers: [mask, new WeatherLayers.RasterLayer(props)] });
       }
     }
 
@@ -196,15 +256,21 @@
 
       if (cfg.type === 'raster' && nextImage) {
         var interpStart = performance.now();
+        var mask = _waterMask();
         function interp() {
           if (!playing || activeKey !== key) return;
           var w = Math.min((performance.now() - interpStart) / dwellMs, 1);
           var bounds = _bounds(key);
-          var props = { id: 'weather', beforeId: LAND_FILL_ID, image: currentImage, bounds: bounds,
+          var props = {
+            id: 'weather',
+            image: currentImage, bounds: bounds,
             imageType: WeatherLayers.ImageType.SCALAR, imageUnscale: cfg.imageUnscale,
-            palette: cfg.palette, opacity: 0.85 };
+            palette: cfg.palette, opacity: 0.85,
+            extensions: [new deck.MaskExtension()],
+            maskId: 'ocean-mask',
+          };
           if (nextImage) { props.image2 = nextImage; props.imageWeight = w; }
-          overlay.setProps({ layers: [new WeatherLayers.RasterLayer(props)] });
+          overlay.setProps({ layers: [mask, new WeatherLayers.RasterLayer(props)] });
           map.triggerRepaint();
           if (w < 1) _interpRAF = requestAnimationFrame(interp);
         }
