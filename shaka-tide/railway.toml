@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "shaka-tide/Dockerfile"
 
 [deploy]
 healthcheckPath = "/health"
