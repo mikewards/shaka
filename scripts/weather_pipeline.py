@@ -236,8 +236,8 @@ def run_pipeline(output_dir, days):
         all_vars = list(set(all_vars))
 
         if group.get("nrt"):
-            g_start = now - timedelta(hours=24)
-            g_end = now
+            g_start = now - timedelta(hours=48)
+            g_end = now - timedelta(hours=6)
         else:
             g_start = start
             g_end = end
