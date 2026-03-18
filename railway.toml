@@ -7,3 +7,7 @@ healthcheckPath = "/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+[[volumes]]
+mount = "/data/weather"
+name = "weather-data"
