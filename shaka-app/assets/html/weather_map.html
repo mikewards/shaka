@@ -39,13 +39,6 @@
       [300,'#ff8800'],[400,'#ff0000'],[500,'#ff00ff'],[700,'#ffffff']
     ];
 
-    var _t0 = performance.now();
-    function _timing(label) {
-      var ms = Math.round(performance.now() - _t0);
-      _post('DebugChannel', { timing: label + ' +' + ms + 'ms' });
-    }
-    _timing('js_exec');
-
     var map = null;
     var overlay = null;
     var activeLayerKey = null;
@@ -115,7 +108,6 @@
     }
 
     function initMap(config) {
-      _timing('initMap_called');
       var protocol = new pmtiles.Protocol();
       maplibregl.addProtocol('pmtiles', protocol.tile);
 
@@ -141,7 +133,6 @@
       map.addControl(overlay);
 
       map.on('load', function() {
-        _timing('map_loaded');
         var landUrl = 'pmtiles://' + baseUrl + '/v1/weather/tiles/ne_50m_land.pmtiles';
         var lakesUrl = 'pmtiles://' + baseUrl + '/v1/weather/tiles/ne_50m_lakes.pmtiles';
 
@@ -172,7 +163,6 @@
     }
 
     function loadCatalog(catalogData) {
-      _timing('loadCatalog_called');
       catalog = catalogData.variables || catalogData;
       var firstKey = Object.keys(catalog)[0];
       var firstVar = catalog[firstKey] || {};
@@ -183,7 +173,6 @@
     }
 
     async function setLayer(key) {
-      _timing('setLayer_called:' + key);
       if (!LAYERS[key]) return;
       if (playing) pause();
       activeLayerKey = key;
@@ -195,10 +184,8 @@
       var ts = _getTimestamps(key);
       if (ts.length > 0) {
         await _loadCurrentFrame(key, 0);
-        _timing('setLayer_png_loaded:' + key);
         await _loadNextFrame(key, 0);
         _renderLayer();
-        _timing('setLayer_rendered:' + key);
         _post('LayerChannel', {
           layer: key,
           label: LAYERS[key].label,
