@@ -699,19 +699,65 @@ class TideChartData {
       }
     }
     merged.add(_pickRepresentative(cluster));
-    return merged;
+
+    final reclassified = _reclassifyTypes(merged);
+
+    double totalRange = 0;
+    if (raw.isNotEmpty) {
+      final maxH = raw.map((e) => e.heightFt).reduce((a, b) => a > b ? a : b);
+      final minH = raw.map((e) => e.heightFt).reduce((a, b) => a < b ? a : b);
+      totalRange = maxH - minH;
+    }
+    return _filterByProminence(reclassified, totalRange);
   }
 
   static TideExtreme _pickRepresentative(List<TideExtreme> cluster) {
-    final hasHigh = cluster.any((e) => e.isHigh);
-    if (hasHigh) {
-      final best = cluster.reduce(
-          (a, b) => a.heightFt >= b.heightFt ? a : b);
-      return TideExtreme(epochMs: best.epochMs, heightFt: best.heightFt, type: 'H');
-    }
-    final best = cluster.reduce(
+    final maxPt = cluster.reduce(
+        (a, b) => a.heightFt >= b.heightFt ? a : b);
+    final minPt = cluster.reduce(
         (a, b) => a.heightFt <= b.heightFt ? a : b);
-    return TideExtreme(epochMs: best.epochMs, heightFt: best.heightFt, type: 'L');
+    final meanH = cluster.fold(0.0, (s, e) => s + e.heightFt) / cluster.length;
+    final best = (maxPt.heightFt - meanH).abs() >= (minPt.heightFt - meanH).abs()
+        ? maxPt
+        : minPt;
+    return TideExtreme(epochMs: best.epochMs, heightFt: best.heightFt, type: best.type);
+  }
+
+  static List<TideExtreme> _reclassifyTypes(List<TideExtreme> merged) {
+    final n = merged.length;
+    if (n <= 1) return merged;
+    final result = <TideExtreme>[];
+    for (int i = 0; i < n; i++) {
+      final higherThanPrev =
+          i == 0 || merged[i].heightFt > merged[i - 1].heightFt;
+      final higherThanNext =
+          i == n - 1 || merged[i].heightFt > merged[i + 1].heightFt;
+      final type = (higherThanPrev && higherThanNext) ? 'H' : 'L';
+      result.add(TideExtreme(
+          epochMs: merged[i].epochMs,
+          heightFt: merged[i].heightFt,
+          type: type));
+    }
+    return result;
+  }
+
+  static List<TideExtreme> _filterByProminence(
+      List<TideExtreme> merged, double totalRange) {
+    if (merged.length <= 2) return merged;
+    final threshold = totalRange * 0.05 < 0.1 ? 0.1 : totalRange * 0.05;
+    final result = <TideExtreme>[];
+    for (int i = 0; i < merged.length; i++) {
+      if (i == 0 || i == merged.length - 1) {
+        result.add(merged[i]);
+        continue;
+      }
+      final diffPrev = (merged[i].heightFt - merged[i - 1].heightFt).abs();
+      final diffNext = (merged[i].heightFt - merged[i + 1].heightFt).abs();
+      if (diffPrev < diffNext ? diffPrev >= threshold : diffNext >= threshold) {
+        result.add(merged[i]);
+      }
+    }
+    return result.length != merged.length ? _reclassifyTypes(result) : result;
   }
 
   TideExtreme? get nextHigh {

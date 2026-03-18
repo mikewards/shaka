@@ -263,7 +263,7 @@ class _TideCurvePainter extends CustomPainter {
 
     const topPad = 20.0;
     const bottomPad = 20.0;
-    const leftPad = 4.0;
+    const leftPad = 30.0;
     const rightPad = 4.0;
     final chartW = size.width - leftPad - rightPad;
     final chartH = size.height - topPad - bottomPad;
@@ -281,6 +281,30 @@ class _TideCurvePainter extends CustomPainter {
 
     double xOf(double ms) => leftPad + (ms - firstMs) / spanMs * chartW;
     double yOf(double h) => topPad + (1 - (h - minH) / rangeH) * chartH;
+
+    // Y-axis: pick a tick interval that gives 3–6 ticks across the range
+    final double rawStep = rangeH / 5;
+    final double tickStep = rawStep <= 0.5 ? 0.5
+        : rawStep <= 1.0 ? 1.0
+        : rawStep <= 2.0 ? 2.0
+        : 5.0;
+    final double firstTick = (minH / tickStep).ceil() * tickStep;
+    final gridPaint = Paint()..color = dimText.withOpacity(0.12);
+    for (double h = firstTick; h <= maxH; h += tickStep) {
+      final y = yOf(h);
+      canvas.drawLine(Offset(leftPad, y), Offset(size.width - rightPad, y), gridPaint);
+      final label = h == h.roundToDouble()
+          ? '${h.toInt()}'
+          : h.toStringAsFixed(1);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: dimText, fontSize: 9),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(leftPad - tp.width - 4, y - tp.height / 2));
+    }
 
     // Pre-compute screen coordinates for Catmull-Rom spline
     final n = points.length;

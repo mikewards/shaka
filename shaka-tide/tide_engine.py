@@ -90,11 +90,10 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
 def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
     """Find local maxima (H) and minima (L) in the tide curve.
 
-    Raw local extremes from 6-min samples produce noisy clusters near
-    true peaks/troughs due to rounding.  A merge pass collapses any
-    extremes within MERGE_WINDOW_MS into one representative point.
+    Pipeline: raw local-extreme detection → cluster merge (3 h window) →
+    neighbour-based H/L reclassification → relative-prominence filter.
     """
-    raw = []
+    raw: list[dict] = []
     n = len(heights_ft)
     if n < 3:
         return raw
@@ -114,7 +113,13 @@ def _find_extremes(times_ms: list[int], heights_ft: list[float]) -> list[dict]:
                 "type": "L",
             })
 
-    return _merge_nearby_extremes(raw)
+    merged = _merge_nearby_extremes(raw)
+    merged = _reclassify_types(merged)
+
+    total_range = (max(heights_ft) - min(heights_ft)) if heights_ft else 0.0
+    merged = _filter_by_prominence(merged, total_range)
+
+    return merged
 
 
 _MERGE_WINDOW_MS = 3 * 3_600_000  # 3 hours
@@ -123,10 +128,8 @@ _MERGE_WINDOW_MS = 3 * 3_600_000  # 3 hours
 def _merge_nearby_extremes(raw: list[dict]) -> list[dict]:
     """Collapse clusters of extremes within _MERGE_WINDOW_MS into one each.
 
-    Within a cluster, if any member is "H" the real event is a high tide
-    (keep the point with max height); otherwise it's a low (keep min).
-    Real tidal extremes are always 5+ hours apart, so a 3-hour window
-    is safe.
+    Picks the point furthest from the cluster mean; type assignment is
+    deferred to _reclassify_types.
     """
     if not raw:
         return raw
@@ -146,10 +149,55 @@ def _merge_nearby_extremes(raw: list[dict]) -> list[dict]:
 
 
 def _pick_representative(cluster: list[dict]) -> dict:
-    has_high = any(e["type"] == "H" for e in cluster)
-    if has_high:
-        return max(cluster, key=lambda e: e["height_ft"]) | {"type": "H"}
-    return min(cluster, key=lambda e: e["height_ft"]) | {"type": "L"}
+    """Select the single most-extreme point from a noise cluster."""
+    max_pt = max(cluster, key=lambda e: e["height_ft"])
+    min_pt = min(cluster, key=lambda e: e["height_ft"])
+    mean_h = sum(e["height_ft"] for e in cluster) / len(cluster)
+    if abs(max_pt["height_ft"] - mean_h) >= abs(min_pt["height_ft"] - mean_h):
+        return dict(max_pt)
+    return dict(min_pt)
+
+
+def _reclassify_types(merged: list[dict]) -> list[dict]:
+    """Assign H/L by comparing each point's height to its immediate neighbours.
+
+    Tidal extremes must alternate H/L.  This corrects any mis-labels
+    from the noisy raw detection by using relative height context.
+    """
+    n = len(merged)
+    if n <= 1:
+        return merged
+    for i in range(n):
+        higher_than_prev = (i == 0) or merged[i]["height_ft"] > merged[i - 1]["height_ft"]
+        higher_than_next = (i == n - 1) or merged[i]["height_ft"] > merged[i + 1]["height_ft"]
+        if higher_than_prev and higher_than_next:
+            merged[i] = merged[i] | {"type": "H"}
+        else:
+            merged[i] = merged[i] | {"type": "L"}
+    return merged
+
+
+def _filter_by_prominence(merged: list[dict], total_range: float) -> list[dict]:
+    """Remove noise extremes whose prominence is below a relative threshold.
+
+    Threshold adapts to the location's tidal range so that low-amplitude
+    spots (atolls, enclosed bays) are not over-filtered.
+    """
+    if len(merged) <= 2:
+        return merged
+    threshold = max(0.1, 0.05 * total_range)
+    result: list[dict] = []
+    for i, ext in enumerate(merged):
+        if i == 0 or i == len(merged) - 1:
+            result.append(ext)
+            continue
+        diff_prev = abs(ext["height_ft"] - merged[i - 1]["height_ft"])
+        diff_next = abs(ext["height_ft"] - merged[i + 1]["height_ft"])
+        if min(diff_prev, diff_next) >= threshold:
+            result.append(ext)
+    if len(result) != len(merged):
+        result = _reclassify_types(result)
+    return result
 
 
 def _cache_key(lat: float, lon: float, date_str: str, days: int) -> tuple:
@@ -168,6 +216,7 @@ def _cached_predict(key: tuple) -> dict:
 
 
 _FINE_STEP = 6  # minutes – single resolution for all predictions
+_EXTREMES_BUFFER_MIN = 360  # 6 h each side – gives boundary extremes neighbours
 
 def _do_predict(
     lat: float, lon: float, date_str: str, days: int
@@ -177,24 +226,39 @@ def _do_predict(
     utc_start = local_midnight.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
     total_minutes = days * 24 * 60
-    fine_offsets = np.arange(0, total_minutes + 1, _FINE_STEP)
-    fine_times = np.array(
-        [utc_start + datetime.timedelta(minutes=int(m)) for m in fine_offsets],
+    epoch_base = int(local_midnight.timestamp() * 1000)
+
+    # Wider window for extreme detection so boundary extremes have neighbours
+    buf_start = utc_start - datetime.timedelta(minutes=_EXTREMES_BUFFER_MIN)
+    buf_total = total_minutes + 2 * _EXTREMES_BUFFER_MIN
+    buf_offsets = np.arange(0, buf_total + 1, _FINE_STEP)
+    buf_times = np.array(
+        [buf_start + datetime.timedelta(minutes=int(m)) for m in buf_offsets],
         dtype="datetime64[ms]",
     )
 
-    fine_heights_m = _predict_heights(lat, lon, fine_times)
-    fine_heights_ft = [
+    buf_heights_m = _predict_heights(lat, lon, buf_times)
+    buf_heights_ft = [
         round(float(h) * METERS_TO_FEET, 2) if math.isfinite(float(h)) else 0.0
-        for h in fine_heights_m
+        for h in buf_heights_m
     ]
 
-    epoch_base = int(local_midnight.timestamp() * 1000)
-    fine_ms = [epoch_base + int(m) * 60_000 for m in fine_offsets]
+    buf_epoch_base = epoch_base - _EXTREMES_BUFFER_MIN * 60_000
+    buf_ms = [buf_epoch_base + int(m) * 60_000 for m in buf_offsets]
 
-    extremes = _find_extremes(fine_ms, fine_heights_ft)
+    extremes = _find_extremes(buf_ms, buf_heights_ft)
 
-    points = [{"epoch_ms": t, "height_ft": h} for t, h in zip(fine_ms, fine_heights_ft)]
+    # Trim extremes to the requested day window
+    day_end_ms = epoch_base + total_minutes * 60_000
+    extremes = [e for e in extremes if epoch_base <= e["epoch_ms"] <= day_end_ms]
+
+    # Points cover exactly the requested day (no buffer)
+    day_idx_start = _EXTREMES_BUFFER_MIN // _FINE_STEP
+    day_idx_end = day_idx_start + total_minutes // _FINE_STEP + 1
+    points = [
+        {"epoch_ms": buf_ms[i], "height_ft": buf_heights_ft[i]}
+        for i in range(day_idx_start, min(day_idx_end, len(buf_ms)))
+    ]
 
     return {"points": points, "extremes": extremes}
 
