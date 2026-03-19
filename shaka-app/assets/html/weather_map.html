@@ -48,6 +48,7 @@
     var catalog = null;
     var timeIndex = 0;
     var baseUrl = '';
+    var _textureCache = {};
 
     var LAYERS = {
       wind: {
@@ -183,7 +184,12 @@
 
       var ts = _getTimestamps(key);
       if (ts.length > 0) {
-        await _loadCurrentFrame(key, 0);
+        if (_textureCache[key]) {
+          currentImage = _textureCache[key];
+        } else {
+          await _loadCurrentFrame(key, 0);
+          if (currentImage) _textureCache[key] = currentImage;
+        }
         await _loadNextFrame(key, 0);
         _renderLayer();
         _post('LayerChannel', {
@@ -194,6 +200,7 @@
           timestamps: ts,
           timeIndex: 0,
         });
+        _prefetchAllLayers();
       } else {
         overlay.setProps({ layers: [] });
         _post('LayerChannel', {
@@ -411,6 +418,21 @@
       }
       overlay.setProps({ layers: [new WeatherLayers.RasterLayer(layerProps)] });
       map.triggerRepaint();
+    }
+
+    function _prefetchAllLayers() {
+      var keys = Object.keys(LAYERS);
+      for (var i = 0; i < keys.length; i++) {
+        (function(key) {
+          if (_textureCache[key]) return;
+          var ts = _getTimestamps(key);
+          if (!ts.length) return;
+          var url = baseUrl + '/v1/weather/' + key + '/' + ts[0] + '.png';
+          WeatherLayers.loadTextureData(url).then(function(img) {
+            _textureCache[key] = img;
+          }).catch(function() {});
+        })(keys[i]);
+      }
     }
 
     function _post(channel, data) {
