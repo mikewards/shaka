@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Copernicus CMEMS → WeatherLayers GL PNG pipeline.
+Copernicus CMEMS → WeatherLayers GL WebP pipeline.
 
 Downloads global ocean forecast data, processes each variable and time step
-into EPSG:4326 PNGs suitable for WeatherLayers GL, and writes a catalog.json.
+into EPSG:4326 WebP (lossless) suitable for WeatherLayers GL, writes a
+catalog.json, and optionally uploads everything to Cloudflare R2 for CDN
+delivery.
 
 Vector data (currents): R=U, G=V, B=V(dup), A=mask  →  imageType: VECTOR
 Scalar data (SST, etc): R=value, G=0, B=0, A=mask    →  imageType: SCALAR
@@ -14,6 +16,9 @@ Usage:
 Env vars (copernicusmarine CLI reads these automatically):
   COPERNICUSMARINE_SERVICE_USERNAME
   COPERNICUSMARINE_SERVICE_PASSWORD
+
+R2 CDN upload (optional — skipped if not set):
+  R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
 """
 
 import argparse
@@ -280,7 +285,7 @@ def run_pipeline(output_dir, days):
                     break
                 ts = _to_iso(times[t_idx])
                 ts_safe = ts.replace(":", "")
-                png_path = var_dir / f"{ts_safe}.png"
+                webp_path = var_dir / f"{ts_safe}.webp"
 
                 try:
                     if vconfig["type"] == "vector":
@@ -294,7 +299,7 @@ def run_pipeline(output_dir, days):
                             ds, vconfig["vars"][0], t_idx, vconfig["scale"],
                         )
                     img = Image.fromarray(rgba, "RGBA")
-                    img.save(str(png_path), optimize=True)
+                    img.save(str(webp_path), format="WEBP", lossless=True, method=0)
                     timestamps.append(ts_safe)
                 except Exception as e:
                     print(f"  Error processing {var_key} t={t_idx}: {e}")
@@ -316,6 +321,56 @@ def run_pipeline(output_dir, days):
         print("PIPELINE FAILED: no data was produced", file=sys.stderr)
         sys.exit(1)
     print(f"Pipeline complete: {total_frames} total frames across {len(catalog)} variables.")
+
+    _upload_to_r2(output)
+
+
+def _upload_to_r2(output_dir):
+    """Upload all weather files to Cloudflare R2 for CDN delivery."""
+    account_id = os.environ.get("R2_ACCOUNT_ID")
+    access_key = os.environ.get("R2_ACCESS_KEY_ID")
+    secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+    bucket = os.environ.get("R2_BUCKET_NAME", "shaka-weather")
+
+    if not all([account_id, access_key, secret_key]):
+        print("  R2 credentials not set, skipping CDN upload")
+        return
+
+    try:
+        import boto3
+    except ImportError:
+        print("  boto3 not installed, skipping CDN upload")
+        return
+
+    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+    )
+
+    uploaded = 0
+    output = Path(output_dir)
+
+    catalog_path = output / "catalog.json"
+    if catalog_path.exists():
+        s3.upload_file(
+            str(catalog_path), bucket, "catalog.json",
+            ExtraArgs={"ContentType": "application/json", "CacheControl": "public, max-age=300"},
+        )
+        uploaded += 1
+
+    for webp_file in sorted(output.rglob("*.webp")):
+        key = str(webp_file.relative_to(output))
+        s3.upload_file(
+            str(webp_file), bucket, key,
+            ExtraArgs={"ContentType": "image/webp", "CacheControl": "public, max-age=21600"},
+        )
+        uploaded += 1
+
+    print(f"  Uploaded {uploaded} files to R2 CDN ({bucket})")
 
 
 def _time_step_hours(times):

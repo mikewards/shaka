@@ -48,6 +48,7 @@
     var catalog = null;
     var timeIndex = 0;
     var baseUrl = '';
+    var weatherCdnUrl = '';
     var _textureCache = {};
 
     var LAYERS = {
@@ -113,6 +114,7 @@
       maplibregl.addProtocol('pmtiles', protocol.tile);
 
       baseUrl = config.baseUrl || '';
+      weatherCdnUrl = config.weatherCdnUrl || '';
       var lat = config.lat || 23;
       var lng = config.lng || -108;
       var zoom = config.zoom || 4;
@@ -157,7 +159,7 @@
 
         _post('ReadyChannel', { status: 'ready' });
 
-        fetch(baseUrl + '/v1/weather/catalog.json')
+        fetch((weatherCdnUrl || (baseUrl + '/v1/weather')) + '/catalog.json')
           .then(function(r) { return r.json(); })
           .then(function(data) {
             loadCatalog(data);
@@ -267,7 +269,7 @@
     async function _loadCurrentFrame(key, idx) {
       var timestamps = _getTimestamps(key);
       if (!timestamps.length || idx >= timestamps.length) return;
-      var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[idx] + '.png';
+      var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[idx] + '.webp';
       try {
         currentImage = await WeatherLayers.loadTextureData(url);
       } catch (e) {
@@ -282,7 +284,7 @@
       var timestamps = _getTimestamps(key);
       var nextIdx = idx + 1;
       if (nextIdx >= timestamps.length) { nextImage = null; return; }
-      var url = baseUrl + '/v1/weather/' + key + '/' + timestamps[nextIdx] + '.png';
+      var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[nextIdx] + '.webp';
       try {
         nextImage = await WeatherLayers.loadTextureData(url);
       } catch (e) {
@@ -446,7 +448,7 @@
           if (_textureCache[key]) return;
           var ts = _getTimestamps(key);
           if (!ts.length) return;
-          var url = baseUrl + '/v1/weather/' + key + '/' + ts[0] + '.png';
+          var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + ts[0] + '.webp';
           WeatherLayers.loadTextureData(url).then(function(img) {
             _textureCache[key] = img;
           }).catch(function() {});

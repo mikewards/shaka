@@ -57,8 +57,14 @@ fun Application.module() {
     }
 
     install(Compression) {
-        gzip { priority = 1.0 }
-        deflate { priority = 0.9 }
+        gzip {
+            priority = 1.0
+            matchContentType(ContentType.Application.Json, ContentType.Text.Any)
+        }
+        deflate {
+            priority = 0.9
+            matchContentType(ContentType.Application.Json, ContentType.Text.Any)
+        }
     }
 
     install(ContentNegotiation) {

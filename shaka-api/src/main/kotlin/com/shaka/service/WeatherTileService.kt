@@ -41,8 +41,10 @@ object WeatherTileService {
     fun getTileFile(variable: String, timestamp: String): File? {
         if (!variable.matches(Regex("[a-z_]+"))) return null
         if (!timestamp.matches(Regex("[0-9T\\-Z]+"))) return null
-        val file = File(dataDir, "$variable/$timestamp.png")
-        return if (file.exists() && file.isFile) file else null
+        val webp = File(dataDir, "$variable/$timestamp.webp")
+        if (webp.exists() && webp.isFile) return webp
+        val png = File(dataDir, "$variable/$timestamp.png")
+        return if (png.exists() && png.isFile) png else null
     }
 
     suspend fun runPipeline() {

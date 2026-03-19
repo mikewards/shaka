@@ -1357,7 +1357,7 @@ fun Application.configureRouting() {
             get("/weather/{variable}/{file}") {
                 val variable = call.parameters["variable"]
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "variable required"))
-                val timestamp = call.parameters["file"]?.removeSuffix(".png")
+                val timestamp = call.parameters["file"]?.removeSuffix(".webp")?.removeSuffix(".png")
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "timestamp required"))
 
                 val file = WeatherTileService.getTileFile(variable, timestamp)

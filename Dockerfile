@@ -17,7 +17,7 @@ RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf && \
     apk add --no-cache --virtual .build-deps \
         gcc g++ musl-dev python3-dev hdf5-dev netcdf-dev && \
     pip3 install --no-cache-dir --break-system-packages \
-        copernicusmarine xarray netCDF4 numpy Pillow h5py && \
+        copernicusmarine xarray netCDF4 numpy Pillow h5py boto3 && \
     apk del .build-deps && \
     rm -rf /root/.cache /tmp/*
 
