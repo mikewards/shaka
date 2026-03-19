@@ -14,6 +14,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.http.*
 import io.ktor.server.response.*
@@ -53,6 +54,11 @@ fun Application.module() {
         allowMethod(HttpMethod.Options)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
+    }
+
+    install(Compression) {
+        gzip { priority = 1.0 }
+        deflate { priority = 0.9 }
     }
 
     install(ContentNegotiation) {

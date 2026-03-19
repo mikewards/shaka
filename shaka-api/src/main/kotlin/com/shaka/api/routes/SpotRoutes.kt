@@ -1350,6 +1350,7 @@ fun Application.configureRouting() {
 
             get("/weather/catalog.json") {
                 val catalog = WeatherTileService.getCatalog()
+                call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
                 call.respond(catalog)
             }
 
@@ -1361,7 +1362,7 @@ fun Application.configureRouting() {
 
                 val file = WeatherTileService.getTileFile(variable, timestamp)
                 if (file != null) {
-                    call.response.header(HttpHeaders.CacheControl, "public, max-age=3600")
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=21600")
                     call.respondFile(file)
                 } else {
                     call.respond(HttpStatusCode.NotFound, mapOf("error" to "tile not found"))
