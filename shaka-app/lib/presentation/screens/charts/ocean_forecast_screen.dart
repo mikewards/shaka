@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -78,8 +77,22 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         onMessageReceived: (msg) {
           try {
             final data = jsonDecode(msg.message) as Map<String, dynamic>;
+            final vars = (data['variables'] as List?)?.cast<String>() ?? [];
             final ts = (data['timestamps'] as List?)?.cast<String>() ?? [];
-            setState(() => _timestamps = ts);
+            setState(() {
+              _availableLayers = vars.toSet();
+              _timestamps = ts;
+              if (vars.isNotEmpty) {
+                _activeLayer = _kLayers.keys.firstWhere(
+                  (k) => vars.contains(k),
+                  orElse: () => _activeLayer,
+                );
+              }
+              if (data['noData'] == true || vars.isEmpty) {
+                _errorMessage = 'Forecast data not yet available';
+                _isLoading = false;
+              }
+            });
           } catch (_) {}
         },
       )
@@ -155,56 +168,8 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     setState(() {});
   }
 
-  Future<void> _onMapReady() async {
+  void _onMapReady() {
     setState(() => _mapReady = true);
-    _fetchCatalog();
-  }
-
-  Future<void> _fetchCatalog() async {
-    try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-      ));
-      final response = await dio.get('$_kApiBase/v1/weather/catalog.json');
-      if (response.statusCode == 200 && response.data != null) {
-        final data = response.data as Map<String, dynamic>;
-        final vars = data['variables'] as Map<String, dynamic>? ?? {};
-        final available = vars.entries
-            .where((e) {
-              if (e.value is Map) {
-                final ts = (e.value as Map)['timestamps'];
-                return ts is List && ts.isNotEmpty;
-              }
-              return e.value is List && (e.value as List).isNotEmpty;
-            })
-            .map((e) => e.key)
-            .toSet();
-
-        setState(() => _availableLayers = available);
-
-        final catalogJson = jsonEncode(data);
-        await _controller?.runJavaScript('loadCatalog($catalogJson)');
-
-        final initialLayer = _kLayers.keys.firstWhere(
-          (k) => available.contains(k),
-          orElse: () => _activeLayer,
-        );
-        setState(() => _activeLayer = initialLayer);
-        await _controller?.runJavaScript("setLayer('$initialLayer')");
-      } else {
-        setState(() {
-          _errorMessage = 'Forecast data not yet available';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Catalog fetch failed: $e');
-      setState(() {
-        _errorMessage = 'Forecast data not yet available';
-        _isLoading = false;
-      });
-    }
   }
 
   void _selectLayer(String key) {

@@ -156,6 +156,21 @@
         }, 'aeroway-runway');
 
         _post('ReadyChannel', { status: 'ready' });
+
+        fetch(baseUrl + '/v1/weather/catalog.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            loadCatalog(data);
+            var keys = Object.keys(LAYERS);
+            for (var i = 0; i < keys.length; i++) {
+              if (_getTimestamps(keys[i]).length > 0) { setLayer(keys[i]); return; }
+            }
+            _post('CatalogChannel', { variables: [], noData: true });
+          })
+          .catch(function(e) {
+            _post('DebugChannel', { error: 'Catalog fetch failed: ' + (e.message || e) });
+            _post('CatalogChannel', { variables: [], noData: true });
+          });
       });
 
       map.on('click', function(e) {
@@ -165,11 +180,15 @@
 
     function loadCatalog(catalogData) {
       catalog = catalogData.variables || catalogData;
-      var firstKey = Object.keys(catalog)[0];
-      var firstVar = catalog[firstKey] || {};
+      var available = [];
+      var keys = Object.keys(catalog);
+      for (var i = 0; i < keys.length; i++) {
+        var ts = _getTimestamps(keys[i]);
+        if (ts.length > 0) available.push(keys[i]);
+      }
       _post('CatalogChannel', {
-        variables: Object.keys(catalog),
-        timestamps: firstVar.timestamps || firstVar || [],
+        variables: available,
+        timestamps: available.length > 0 ? _getTimestamps(available[0]) : [],
       });
     }
 
