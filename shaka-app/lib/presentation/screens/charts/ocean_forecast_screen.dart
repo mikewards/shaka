@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
-const _kWeatherCdnBase = 'https://pub-8985070539ba41e9a3ad48e3ea688f4a.r2.dev';
+const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
 
 const _kLayers = <String, _LayerMeta>{
   'wind': _LayerMeta('Wind', 'm/s', Icons.air, Color(0xFF70D6FF)),
