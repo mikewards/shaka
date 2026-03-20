@@ -288,7 +288,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
           ),
 
           // Bottom controls
-          if (!_isLoading) Positioned(
+          Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
               padding: EdgeInsets.fromLTRB(
@@ -428,11 +428,9 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
             ),
           ),
 
-          // Loading overlay (leaves bottom controls accessible)
+          // Loading overlay
           if (_isLoading)
-            Positioned(
-              top: 0, left: 0, right: 0,
-              bottom: 120 + MediaQuery.of(context).padding.bottom,
+            Positioned.fill(
               child: Container(
                 color: const Color(0xFF0D0D0D).withOpacity(0.7),
                 child: const Center(
