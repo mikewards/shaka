@@ -30,19 +30,13 @@ void main() async {
 
 ```dart
 void main() {
-  // CRITICAL: Do NOT use async/await before runApp() on iOS - it causes hangs!
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Start the app FIRST
   runApp(const ShakaApp());
-  
-  // Initialize services AFTER app starts (non-blocking)
   Future.microtask(() {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    // Other initialization...
   });
 }
 ```
@@ -75,22 +69,47 @@ The iOS Simulator and physical devices behave differently:
 
 **Always verify on a physical device before confirming "it works."**
 
-Debug mode is more likely to hang than release mode on physical devices.
+## Rule 4: Use `flutter run --profile` to deploy and test on iPhone
 
-## Rule 4: iOS Deployment Checklist
+This single command **replaces** the old `flutter clean && flutter pub get && flutter build ios --release && flutter install` chain. It builds, installs, launches, and streams all log output to the terminal:
+
+```bash
+cd shaka-app && flutter run --profile -d iPhone
+```
+
+No separate clean/pub get/build/install steps needed. The Xcode build takes 30-90 seconds — wait for it.
+
+For release builds with no logging (final verification only):
+
+```bash
+cd shaka-app && flutter clean && flutter pub get && flutter build ios --release && flutter install -d iPhone
+```
+
+**NEVER** use `flutter run` without `--profile` or `--release`. Debug mode uses JIT compilation which iOS 26 blocks (`mprotect` permission denied).
+
+**NEVER** use `flutter build + flutter install` and then `flutter logs`. `flutter logs` requires the Dart VM connection that only `flutter run` establishes. It will always be empty.
+
+## Rule 5: WebView JS debugging via Safari Web Inspector
+
+All WKWebView instances have `isInspectable = true`. To debug JS:
+
+1. iPhone: Settings -> Safari -> Advanced -> Web Inspector ON
+2. iPhone: Settings -> Privacy & Security -> Developer Mode ON
+3. Connect via USB, open Safari on Mac
+4. Develop menu -> iPhone -> select the WebView
+
+Works in both profile and release builds.
+
+## Deployment Checklist
 
 Before deploying to iPhone, verify:
 
 1. [ ] `main.dart` has NO `async` on `main()` function
 2. [ ] `main.dart` has NO `await` before `runApp()`
 3. [ ] `LaunchScreen.storyboard` has dark background (0.051, 0.051, 0.051)
-4. [ ] Build and install with release mode:
-
-```bash
-flutter build ios --release && flutter install -d iPhone
-```
-
-**If debug mode hangs, release mode usually works.** Use release mode for physical device testing when debugging startup issues.
+4. [ ] Deploy with the appropriate command:
+   - Testing: `flutter run --profile -d iPhone`
+   - Final deploy: `flutter build ios --release && flutter install -d iPhone`
 
 ## Troubleshooting
 
@@ -99,4 +118,12 @@ If the app hangs on startup (physical iPhone):
 1. Check `main.dart` for any `await` before `runApp()`
 2. Check for any `async` keyword on `main()`
 3. Try release mode: `flutter build ios --release`
-4. Check device logs: `flutter logs -d iPhone`
+
+If no log output from `flutter run --profile`:
+
+1. Accept the iOS Local Network permission dialog when prompted
+2. If previously declined: Settings -> Privacy & Security -> Local Network -> enable for the app
+
+If `flutter run` crashes with `mprotect failed: 13`:
+
+1. You're running debug mode. Use `--profile` or `--release` on iOS 26+ devices.

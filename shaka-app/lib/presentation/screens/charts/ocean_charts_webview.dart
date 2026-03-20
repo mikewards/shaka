@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 
@@ -384,7 +385,11 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
         },
       )
       ..loadRequest(Uri.parse(url));
-    
+
+    if (_controller!.platform is WebKitWebViewController) {
+      (_controller!.platform as WebKitWebViewController).setInspectable(true);
+    }
+
     setState(() {});
   }
 

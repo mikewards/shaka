@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -29,12 +31,18 @@ class OceanForecastScreen extends StatefulWidget {
   final double? initialLat;
   final double? initialLon;
   final String? spotName;
+  final String? prefetchedCatalogJson;
+  final Uint8List? prefetchedWindBytes;
+  final String? prefetchedWindTimestamp;
 
   const OceanForecastScreen({
     super.key,
     this.initialLat,
     this.initialLon,
     this.spotName,
+    this.prefetchedCatalogJson,
+    this.prefetchedWindBytes,
+    this.prefetchedWindTimestamp,
   });
 
   @override
@@ -151,23 +159,47 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         },
       )
       ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) {
-          final configJson = jsonEncode({
-            'baseUrl': _kApiBase,
-            'weatherCdnUrl': _kWeatherCdnBase,
-            'lat': widget.initialLat ?? 23.0,
-            'lng': widget.initialLon ?? -108.0,
-            'zoom': widget.initialLat != null ? 6 : 4,
-          });
-          _controller?.runJavaScript('initMap($configJson)');
-        },
+        onPageFinished: (_) => _onPageFinished(),
         onWebResourceError: (error) {
           debugPrint('WebView error: ${error.description}');
         },
       ))
       ..loadHtmlString(html, baseUrl: _kApiBase);
 
+    if (_controller!.platform is WebKitWebViewController) {
+      (_controller!.platform as WebKitWebViewController).setInspectable(true);
+    }
+
     setState(() {});
+  }
+
+  Future<void> _onPageFinished() async {
+    final sw = Stopwatch()..start();
+    print('[INJECT] onPageFinished, catalog=${widget.prefetchedCatalogJson != null}, wind=${widget.prefetchedWindBytes != null}');
+    if (widget.prefetchedCatalogJson != null) {
+      await _controller?.runJavaScript(
+        '_injectCatalog(${widget.prefetchedCatalogJson})',
+      );
+      print('[INJECT] catalog injected ${sw.elapsedMilliseconds}ms');
+    }
+    if (widget.prefetchedWindBytes != null &&
+        widget.prefetchedWindTimestamp != null) {
+      final b64 = base64Encode(widget.prefetchedWindBytes!);
+      print('[INJECT] base64 encoded ${b64.length} chars ${sw.elapsedMilliseconds}ms');
+      await _controller?.runJavaScript(
+        "_injectTexture('wind','${widget.prefetchedWindTimestamp}','$b64')",
+      );
+      print('[INJECT] wind texture injected ${sw.elapsedMilliseconds}ms');
+    }
+    final configJson = jsonEncode({
+      'baseUrl': _kApiBase,
+      'weatherCdnUrl': _kWeatherCdnBase,
+      'lat': widget.initialLat ?? 23.0,
+      'lng': widget.initialLon ?? -108.0,
+      'zoom': widget.initialLat != null ? 6 : 4,
+    });
+    await _controller?.runJavaScript('initMap($configJson)');
+    print('[INJECT] initMap called ${sw.elapsedMilliseconds}ms');
   }
 
   void _onMapReady() {
