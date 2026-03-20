@@ -31,6 +31,15 @@
       _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
     };
 
+    var _injectedCatalog = null;
+    var _injectedTextures = {};
+
+    function _injectCatalog(data) { _injectedCatalog = data; }
+
+    function _injectTexture(key, ts, base64) {
+      _injectedTextures[key + '/' + ts] = 'data:image/webp;base64,' + base64;
+    }
+
     var LAND_FILL_ID = 'land-fill';
 
     var VELOCITY_BG_PALETTE = [
@@ -159,8 +168,12 @@
 
         _post('ReadyChannel', { status: 'ready' });
 
-        fetch((weatherCdnUrl || (baseUrl + '/v1/weather')) + '/catalog.json')
-          .then(function(r) { return r.json(); })
+        var catalogPromise = _injectedCatalog
+          ? Promise.resolve(_injectedCatalog)
+          : fetch((weatherCdnUrl || (baseUrl + '/v1/weather')) + '/catalog.json')
+              .then(function(r) { return r.json(); });
+
+        catalogPromise
           .then(function(data) {
             loadCatalog(data);
             var keys = Object.keys(LAYERS);
@@ -269,7 +282,9 @@
     async function _loadCurrentFrame(key, idx) {
       var timestamps = _getTimestamps(key);
       if (!timestamps.length || idx >= timestamps.length) return;
-      var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[idx] + '.webp';
+      var injectedKey = key + '/' + timestamps[idx];
+      var url = _injectedTextures[injectedKey]
+        || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[idx] + '.webp';
       try {
         currentImage = await WeatherLayers.loadTextureData(url);
       } catch (e) {

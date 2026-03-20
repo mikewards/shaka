@@ -1,14 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import '../../../core/theme/app_colors.dart';
 import '../../../data/services/health_service.dart';
 import 'ocean_charts_webview.dart';
 import 'ocean_forecast_screen.dart';
 import 'gibs_imagery_screen.dart';
 
-/// Charts Hub - Selection screen for ocean data sources
-/// Presents two independent options: Satellite (GIBS) and Conditions (Copernicus)
-/// Auto-degrades when services are unavailable
+const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
+
 class ChartsHubScreen extends StatefulWidget {
   final double? initialLat;
   final double? initialLon;
@@ -27,14 +29,40 @@ class ChartsHubScreen extends StatefulWidget {
 
 class _ChartsHubScreenState extends State<ChartsHubScreen> {
   final _healthProvider = HealthProvider();
-  
+  String? _catalogJson;
+  Uint8List? _windBytes;
+  String? _windTimestamp;
+
   bool get _hasSpotContext => widget.spotName != null;
 
   @override
   void initState() {
     super.initState();
-    // Refresh health status when screen opens
     _healthProvider.fetchHealth();
+    _prefetchWeatherData();
+  }
+
+  Future<void> _prefetchWeatherData() async {
+    try {
+      final catalogResp = await http.get(
+        Uri.parse('$_kWeatherCdnBase/catalog.json'),
+      );
+      if (catalogResp.statusCode != 200) return;
+      _catalogJson = catalogResp.body;
+
+      final catalog = jsonDecode(catalogResp.body) as Map<String, dynamic>;
+      final windEntry = catalog['wind'] as Map<String, dynamic>?;
+      final timestamps = (windEntry?['timestamps'] as List?)?.cast<String>();
+      if (timestamps == null || timestamps.isEmpty) return;
+
+      _windTimestamp = timestamps.first;
+      final windResp = await http.get(
+        Uri.parse('$_kWeatherCdnBase/wind/$_windTimestamp.webp'),
+      );
+      if (windResp.statusCode == 200) {
+        _windBytes = windResp.bodyBytes;
+      }
+    } catch (_) {}
   }
 
   @override
@@ -81,6 +109,9 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                               initialLat: widget.initialLat,
                               initialLon: widget.initialLon,
                               spotName: widget.spotName,
+                              prefetchedCatalogJson: _catalogJson,
+                              prefetchedWindBytes: _windBytes,
+                              prefetchedWindTimestamp: _windTimestamp,
                             ),
                           ),
                         );
