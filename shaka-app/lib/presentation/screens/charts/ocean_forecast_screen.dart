@@ -288,7 +288,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
           ),
 
           // Bottom controls
-          Positioned(
+          if (!_isLoading) Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
               padding: EdgeInsets.fromLTRB(
