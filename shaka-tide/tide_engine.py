@@ -267,7 +267,7 @@ def _do_predict(
     buf_heights_m = _predict_heights(lat, lon, buf_times)
     mllw_offset = _get_mllw_offset_ft(lat, lon)
     buf_heights_ft = [
-        round(float(h) * METERS_TO_FEET + mllw_offset, 2) if math.isfinite(float(h)) else 0.0
+        round(float(h) * METERS_TO_FEET - mllw_offset, 2) if math.isfinite(float(h)) else 0.0
         for h in buf_heights_m
     ]
 
