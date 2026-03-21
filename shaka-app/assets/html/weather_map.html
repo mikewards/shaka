@@ -59,7 +59,6 @@
     var timeIndex = 0;
     var baseUrl = '';
     var weatherCdnUrl = '';
-    var _textureCache = {};
 
     var LAYERS = {
       wind: {
@@ -219,12 +218,7 @@
 
       var ts = _getTimestamps(key);
       if (ts.length > 0) {
-        if (_textureCache[key]) {
-          currentImage = _textureCache[key];
-        } else {
-          await _loadCurrentFrame(key, 0);
-          if (currentImage) _textureCache[key] = currentImage;
-        }
+        await _loadCurrentFrame(key, 0);
         await _loadNextFrame(key, 0);
         _renderLayer();
         _post('LayerChannel', {
@@ -475,12 +469,14 @@
       var keys = Object.keys(LAYERS);
       for (var i = 0; i < keys.length; i++) {
         (function(key) {
-          if (_textureCache[key]) return;
           var ts = _getTimestamps(key);
           if (!ts.length) return;
-          var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + ts[0] + '.webp';
+          var cacheKey = key + '/' + ts[0];
+          if (_textureCache[cacheKey]) return;
+          var url = _injectedTextures[cacheKey]
+            || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + ts[0] + '.webp';
           WeatherLayers.loadTextureData(url).then(function(img) {
-            _textureCache[key] = img;
+            _textureCache[cacheKey] = img;
           }).catch(function() {});
         })(keys[i]);
       }
