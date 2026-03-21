@@ -127,12 +127,14 @@ class FES2022TideClient : TideClient {
             val timezoneId = obj["timezoneId"]?.jsonPrimitive?.contentOrNull ?: "Etc/UTC"
             val localDate = obj["local_date"]?.jsonPrimitive?.contentOrNull ?: ""
 
+            val datum = obj["datum"]?.jsonPrimitive?.contentOrNull ?: "MSL"
+
             val chart = TideChartData(
                 provider = "fes2022",
                 stationId = "",
                 stationName = "FES2022",
                 stationDistanceMi = 0.0,
-                datum = "MSL",
+                datum = datum,
                 timezoneId = timezoneId,
                 points = points,
                 extremes = extremes,

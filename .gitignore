@@ -45,5 +45,11 @@ tools/bd-scraper/.cookies
 # Logs
 *.log
 
+# Python
+shaka-tide/.venv/
+shaka-tide/fes2022_local/
+shaka-tide/data/mllw_progress/
+__pycache__/
+
 # Docker
 postgres_data/

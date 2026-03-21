@@ -9,6 +9,7 @@ Provides two operations:
 import datetime
 import logging
 import math
+import os
 from functools import lru_cache
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -16,6 +17,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pyTMD.io
 import timescale.time
+from scipy.interpolate import RegularGridInterpolator
 from timezonefinder import TimezoneFinder
 
 from config import COORD_PRECISION, FES_DATA_DIR, METERS_TO_FEET
@@ -28,6 +30,7 @@ MODEL_NAME = "FES2022_extrapolated"
 _dataset = None
 _corrections = None
 _minor = None
+_mllw_interpolator: Optional[RegularGridInterpolator] = None
 
 
 def _get_tz_finder() -> TimezoneFinder:
@@ -48,7 +51,7 @@ def get_timezone(lat: float, lon: float) -> str:
 
 def load_model(data_dir: str = FES_DATA_DIR) -> None:
     """Load FES2022 model and open the dataset once. Reused across all requests."""
-    global _dataset, _corrections, _minor
+    global _dataset, _corrections, _minor, _mllw_interpolator
     logger.info("Loading FES2022 model from %s ...", data_dir)
     m = pyTMD.io.model(data_dir).from_database(MODEL_NAME)
     n_files = len(m.z.model_file) if isinstance(m.z.model_file, list) else 1
@@ -57,6 +60,30 @@ def load_model(data_dir: str = FES_DATA_DIR) -> None:
     _corrections = m.corrections
     _minor = m.minor
     logger.info("FES2022 dataset opened and ready")
+
+    grid_path = os.path.join(os.path.dirname(__file__), "data", "mllw_grid.npz")
+    if os.path.exists(grid_path):
+        data = np.load(grid_path)
+        _mllw_interpolator = RegularGridInterpolator(
+            (data["lat"], data["lon"]),
+            data["mllw_offset"],
+            method="linear",
+            bounds_error=False,
+            fill_value=np.nan,
+        )
+        logger.info("MLLW grid loaded (%s)", grid_path)
+    else:
+        logger.warning("MLLW grid not found at %s — using MSL datum", grid_path)
+
+
+def _get_mllw_offset_ft(lat: float, lon: float) -> float:
+    """Return the MLLW offset in feet for a coordinate via bilinear interpolation."""
+    if _mllw_interpolator is None:
+        return 0.0
+    val = float(_mllw_interpolator((lat, lon)))
+    if not math.isfinite(val):
+        return 0.0
+    return val * METERS_TO_FEET
 
 
 def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
@@ -238,8 +265,9 @@ def _do_predict(
     )
 
     buf_heights_m = _predict_heights(lat, lon, buf_times)
+    mllw_offset = _get_mllw_offset_ft(lat, lon)
     buf_heights_ft = [
-        round(float(h) * METERS_TO_FEET, 2) if math.isfinite(float(h)) else 0.0
+        round(float(h) * METERS_TO_FEET + mllw_offset, 2) if math.isfinite(float(h)) else 0.0
         for h in buf_heights_m
     ]
 
@@ -340,7 +368,7 @@ def predict_chart(
         "date": date_str,
         "local_date": date_str,
         "days": days,
-        "datum": "MSL",
+        "datum": "MLLW" if _mllw_interpolator is not None else "MSL",
         "model": "FES2022",
         "timezoneId": tz_id,
         "points": points,
@@ -403,6 +431,6 @@ def predict_summary(lat: float, lon: float) -> dict:
         "next_high_tide_ft": next_high["height_ft"] if next_high else None,
         "next_low_tide_epoch_ms": next_low["epoch_ms"] if next_low else None,
         "next_low_tide_ft": next_low["height_ft"] if next_low else None,
-        "datum": "MSL",
+        "datum": "MLLW" if _mllw_interpolator is not None else "MSL",
         "timezoneId": tz_id,
     }
