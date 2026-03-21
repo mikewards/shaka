@@ -55,6 +55,7 @@
     var nextImage = null;
     var playing = false;
     var catalog = null;
+    var _textureCache = {};
     var timeIndex = 0;
     var baseUrl = '';
     var weatherCdnUrl = '';
@@ -282,11 +283,19 @@
     async function _loadCurrentFrame(key, idx) {
       var timestamps = _getTimestamps(key);
       if (!timestamps.length || idx >= timestamps.length) return;
-      var injectedKey = key + '/' + timestamps[idx];
-      var url = _injectedTextures[injectedKey]
+      var cacheKey = key + '/' + timestamps[idx];
+      if (_textureCache[cacheKey]) {
+        _post('DebugChannel', { error: '[CACHE] HIT ' + cacheKey });
+        currentImage = _textureCache[cacheKey];
+        nextImage = null;
+        return;
+      }
+      var url = _injectedTextures[cacheKey]
         || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[idx] + '.webp';
       try {
+        _post('DebugChannel', { error: '[CACHE] MISS ' + cacheKey });
         currentImage = await WeatherLayers.loadTextureData(url);
+        _textureCache[cacheKey] = currentImage;
       } catch (e) {
         console.error('Failed to load frame:', url, e);
         _post('DebugChannel', { error: 'Load failed: ' + url + ' ' + (e.message || e) });
@@ -299,9 +308,15 @@
       var timestamps = _getTimestamps(key);
       var nextIdx = idx + 1;
       if (nextIdx >= timestamps.length) { nextImage = null; return; }
+      var cacheKey = key + '/' + timestamps[nextIdx];
+      if (_textureCache[cacheKey]) {
+        nextImage = _textureCache[cacheKey];
+        return;
+      }
       var url = (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[nextIdx] + '.webp';
       try {
         nextImage = await WeatherLayers.loadTextureData(url);
+        _textureCache[cacheKey] = nextImage;
       } catch (e) {
         nextImage = null;
       }
