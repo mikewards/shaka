@@ -38,24 +38,24 @@ class AppColors {
   static const Color borderLight = Color(0xFFF3F1ED);
   static const Color borderDark = Color(0xFFD4D2CD);
 
-  // Shaka Score Colors - 5-tier traffic-light palette
-  static const Color scoreExcellent = Color(0xFF4ADE80);    // Radiant green   - 80-100
-  static const Color scoreGood = Color(0xFF22C55E);          // Confident green - 60-79
-  static const Color scoreAverage = Color(0xFFFACC15);       // Yellow/gold     - 40-59
-  static const Color scoreBelowAvg = Color(0xFFF97316);      // Orange          - 20-39
-  static const Color scorePoor = Color(0xFFEF4444);          // Red             - 0-19
+  // Shaka Score Colors - Apple-inspired 5-tier palette
+  static const Color scoreExcellent = Color(0xFF30D158);    // Apple Green     - 80-100
+  static const Color scoreGood = Color(0xFF00C7BE);          // Apple Mint      - 60-79
+  static const Color scoreAverage = Color(0xFFFFD60A);       // Apple Yellow    - 40-59
+  static const Color scoreBelowAvg = Color(0xFFFF9F0A);      // Apple Orange    - 20-39
+  static const Color scorePoor = Color(0xFFFF453A);          // Apple Red       - 0-19
 
   // Score background tints (13% opacity for chip/badge backgrounds)
-  static const Color scoreExcellentBg = Color(0x224ADE80);
-  static const Color scoreGoodBg = Color(0x2222C55E);
-  static const Color scoreAverageBg = Color(0x22FACC15);
-  static const Color scoreBelowAvgBg = Color(0x22F97316);
-  static const Color scorePoorBg = Color(0x22EF4444);
+  static const Color scoreExcellentBg = Color(0x2230D158);
+  static const Color scoreGoodBg = Color(0x2200C7BE);
+  static const Color scoreAverageBg = Color(0x22FFD60A);
+  static const Color scoreBelowAvgBg = Color(0x22FF9F0A);
+  static const Color scorePoorBg = Color(0x22FF453A);
 
   // Status
-  static const Color success = Color(0xFF4ADE80);
-  static const Color warning = Color(0xFFFACC15);
-  static const Color error = Color(0xFFEF4444);
+  static const Color success = Color(0xFF30D158);
+  static const Color warning = Color(0xFFFFD60A);
+  static const Color error = Color(0xFFFF453A);
   static const Color info = Color(0xFF38BDF8);
 
   // Chart / condition indicator colors
