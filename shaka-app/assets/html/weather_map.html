@@ -279,7 +279,6 @@
       if (!timestamps.length || idx >= timestamps.length) return;
       var cacheKey = key + '/' + timestamps[idx];
       if (_textureCache[cacheKey]) {
-        _post('DebugChannel', { error: '[CACHE] HIT ' + cacheKey });
         currentImage = _textureCache[cacheKey];
         nextImage = null;
         return;
@@ -287,7 +286,6 @@
       var url = _injectedTextures[cacheKey]
         || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + timestamps[idx] + '.webp';
       try {
-        _post('DebugChannel', { error: '[CACHE] MISS ' + cacheKey });
         currentImage = await WeatherLayers.loadTextureData(url);
         _textureCache[cacheKey] = currentImage;
       } catch (e) {
