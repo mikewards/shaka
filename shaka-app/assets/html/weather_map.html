@@ -11,17 +11,41 @@
     #map { width: 100%; height: 100%; }
     .maplibregl-ctrl-attrib { display: none !important; }
     .probe-marker {
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.9);
-      background: rgba(255,255,255,0.25);
-      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+      width: 48px; height: 48px;
       pointer-events: none;
-      animation: probe-pulse 1.5s ease-in-out infinite;
+      position: relative;
     }
-    @keyframes probe-pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.4); opacity: 0.6; }
+    .probe-marker::before, .probe-marker::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.85);
+      border-radius: 1px;
+      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+    }
+    /* Vertical line (gap in the middle) */
+    .probe-marker::before {
+      width: 1.5px; height: 100%;
+      left: 50%; top: 0;
+      transform: translateX(-50%);
+      mask-image: linear-gradient(to bottom, white 30%, transparent 30%, transparent 70%, white 70%);
+      -webkit-mask-image: linear-gradient(to bottom, white 30%, transparent 30%, transparent 70%, white 70%);
+    }
+    /* Horizontal line (gap in the middle) */
+    .probe-marker::after {
+      height: 1.5px; width: 100%;
+      top: 50%; left: 0;
+      transform: translateY(-50%);
+      mask-image: linear-gradient(to right, white 30%, transparent 30%, transparent 70%, white 70%);
+      -webkit-mask-image: linear-gradient(to right, white 30%, transparent 30%, transparent 70%, white 70%);
+    }
+    .probe-dot {
+      position: absolute;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #ff3b30;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 4px rgba(255,59,48,0.6);
     }
   </style>
 </head>
@@ -519,6 +543,9 @@
       if (!coord || !map) return;
       var el = document.createElement('div');
       el.className = 'probe-marker';
+      var dot = document.createElement('div');
+      dot.className = 'probe-dot';
+      el.appendChild(dot);
       _probeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
         .setLngLat([coord[0], coord[1]])
         .addTo(map);
