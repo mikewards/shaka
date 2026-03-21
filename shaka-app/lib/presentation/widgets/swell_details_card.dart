@@ -128,8 +128,6 @@ class SwellDetailsCard extends StatefulWidget {
 }
 
 class _SwellDetailsCardState extends State<SwellDetailsCard> {
-  bool _expanded = false;
-
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _primaryColor = AppColors.chartTideHigh;
@@ -146,14 +144,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       child: Column(
         children: [
           _buildHeader(),
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity, height: 0),
-            secondChild: _buildExpandedContent(),
-            crossFadeState:
-                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 250),
-            sizeCurve: Curves.easeInOut,
-          ),
+          _buildExpandedContent(),
         ],
       ),
     );
@@ -162,38 +153,38 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   Widget _buildHeader() {
     final swellValue =
         widget.conditions.swellCorrected ?? widget.conditions.swell;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => _expanded = !_expanded);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                swellValue,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              swellValue,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showSwellWindInfo(context);
+            },
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Data sources',
+                  style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
                 ),
-              ),
+                SizedBox(width: 4),
+                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
+              ],
             ),
-            const SizedBox(width: 4),
-            AnimatedRotation(
-              turns: _expanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 250),
-              child: const Icon(
-                Icons.keyboard_arrow_down,
-                size: 20,
-                color: AppColors.darkTextHint,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -407,6 +398,175 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     final m = RegExp(r'(\d+)\s*(kts?|mph)', caseSensitive: false).firstMatch(wind);
     if (m != null) return '${m.group(1)}${m.group(2)}';
     return null;
+  }
+
+  void _showSwellWindInfo(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Swell & Wind',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: AppColors.darkTextMuted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'How ocean conditions are measured and calculated:',
+                style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              _buildInfoCard(
+                'Swell Height',
+                'Open-Meteo Marine + NDBC Buoys',
+                'Hourly',
+                'Significant wave height \u2014 the average of the tallest third of waves. Modeled by NOAA WaveWatch III; live NDBC buoy readings used when a buoy is nearby.',
+              ),
+              _buildInfoCard(
+                'Swell Period & Direction',
+                'Open-Meteo Marine + NDBC Buoys',
+                'Hourly',
+                'Seconds between wave crests and compass bearing. Longer period = more powerful, organized swell from distant storms.',
+              ),
+              _buildInfoCard(
+                'Exposure Correction',
+                'Shaka Exposure Model',
+                'Every 3 hours',
+                'Open-ocean swell scaled for local coastline. Headlands, coves, and reefs reduce wave height \u2014 a sheltered spot can see 50%+ less than offshore.',
+              ),
+              _buildInfoCard(
+                'Secondary Swell',
+                'Open-Meteo Marine API',
+                'Hourly',
+                'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
+              ),
+              _buildInfoCard(
+                'Wind',
+                'Open-Meteo Weather API (NOAA GFS)',
+                'Hourly',
+                '10-meter wind speed and direction. Offshore = clean, glassy surface. Onshore = chop and reduced visibility.',
+              ),
+              _buildInfoCard(
+                'Exposure Arc',
+                'Shaka Coastal Analysis',
+                'Computed once',
+                'Which direction this spot faces open ocean and how wide the window is. Scans 16 compass bearings at 1\u20135 km to detect sheltering land.',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.explore, size: 16, color: AppColors.darkTextHint),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'The compass shows swell arrows (direction + relative size), the wind indicator, and the blue exposure arc where open ocean faces this spot.',
+                        style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildInfoCard(String label, String source, String frequency, String description) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  frequency,
+                  style: const TextStyle(
+                    color: AppColors.darkTextMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            source,
+            style: TextStyle(
+              color: AppColors.success,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(
+              color: AppColors.darkTextSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

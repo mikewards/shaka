@@ -131,17 +131,21 @@ Future<Uint8List> generateSelectedShakaImage(
     0, 0, src.width.toDouble(), src.height.toDouble(),
   );
 
-  // Layer 1 — white outline via slightly larger copy behind the fill
-  canvas.saveLayer(dst.inflate(4 * px), Paint());
+  // White outline — uniform scale from center so border is even on all sides
+  const outlineScale = 1.06;
+  final whiteDst = Rect.fromCenter(
+    center: dst.center,
+    width: dst.width * outlineScale,
+    height: dst.height * outlineScale,
+  );
   canvas.drawImageRect(
     src,
     srcRect,
-    dst.inflate(1.5 * px),
+    whiteDst,
     Paint()..colorFilter = const ColorFilter.mode(Colors.white, BlendMode.srcIn),
   );
-  canvas.restore();
 
-  // Layer 3 — tier-color fill
+  // Tier-color fill
   canvas.drawImageRect(
     src,
     srcRect,

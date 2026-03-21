@@ -699,23 +699,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         border: Border.all(color: _borderColor),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: risks
             .map((r) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.warning_amber,
-                          color: AppColors.warning, size: 16),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          r.risk,
-                          style: const TextStyle(
-                              color: AppColors.darkTextSecondary, fontSize: 13),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    r.risk,
+                    style: const TextStyle(
+                        color: AppColors.darkTextSecondary, fontSize: 13),
                   ),
                 ))
             .toList(),

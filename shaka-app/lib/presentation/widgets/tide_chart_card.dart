@@ -14,8 +14,6 @@ class TideChartCard extends StatefulWidget {
 }
 
 class _TideChartCardState extends State<TideChartCard> {
-  bool _expanded = false;
-
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _tideColor = AppColors.chartTide;
@@ -39,14 +37,7 @@ class _TideChartCardState extends State<TideChartCard> {
       child: Column(
         children: [
           _buildHeader(),
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity, height: 0),
-            secondChild: _hasData ? _buildExpandedContent() : const SizedBox.shrink(),
-            crossFadeState:
-                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 250),
-            sizeCurve: Curves.easeInOut,
-          ),
+          if (_hasData) _buildExpandedContent(),
         ],
       ),
     );
@@ -64,68 +55,57 @@ class _TideChartCardState extends State<TideChartCard> {
             ? Icons.trending_down
             : Icons.remove;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _hasData
-          ? () {
-              HapticFeedback.lightImpact();
-              setState(() => _expanded = !_expanded);
-            }
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Icon(Icons.waves, size: 18, color: _tideColor),
-            const SizedBox(width: 8),
-            Text(
-              'TIDES',
-              style: TextStyle(
-                color: _lightText,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(Icons.waves, size: 18, color: _tideColor),
+          const SizedBox(width: 8),
+          Text(
+            'TIDES',
+            style: TextStyle(
+              color: _lightText,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const Spacer(),
+          if (!_hasData) ...[
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _tideColor.withOpacity(0.5),
               ),
             ),
-            const Spacer(),
-            if (!_hasData) ...[
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _tideColor.withOpacity(0.5),
-                ),
+            const SizedBox(width: 6),
+            Text(
+              'Loading...',
+              style: TextStyle(color: _dimText, fontSize: 13),
+            ),
+          ] else if (heightText.isNotEmpty) ...[
+            Icon(stageIcon, size: 16, color: _tideColor),
+            const SizedBox(width: 4),
+            Text(
+              '$heightText ${_capitalize(stageText)}',
+              style: TextStyle(
+                color: _tideColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 6),
-              Text(
-                'Loading...',
-                style: TextStyle(color: _dimText, fontSize: 13),
-              ),
-            ] else if (heightText.isNotEmpty) ...[
-              Icon(stageIcon, size: 16, color: _tideColor),
-              const SizedBox(width: 4),
-              Text(
-                '$heightText ${_capitalize(stageText)}',
-                style: TextStyle(
-                  color: _tideColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 4),
-              AnimatedRotation(
-                turns: _expanded ? 0.5 : 0,
-                duration: const Duration(milliseconds: 250),
-                child: Icon(
-                  Icons.keyboard_arrow_down,
-                  size: 20,
-                  color: Colors.white38,
-                ),
-              ),
-            ],
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showTideInfo(context);
+              },
+              child: const Icon(Icons.info_outline, size: 14, color: AppColors.darkTextHint),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -236,6 +216,163 @@ class _TideChartCardState extends State<TideChartCard> {
     final m = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     return '$h:$m $ampm';
+  }
+
+  void _showTideInfo(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Tides',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: AppColors.darkTextMuted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'How tide predictions are generated:',
+                style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              _buildInfoCard(
+                'Tide Height',
+                'FES2022 Global Tide Model',
+                'Predicted',
+                'Water level from 34 astronomical harmonic constituents on a global finite-element mesh. Accurate to ~2 cm in open ocean.',
+              ),
+              _buildInfoCard(
+                'Rising / Falling',
+                'Interpolated from tide curve',
+                'Real-time',
+                'Current stage derived from the predicted curve. Rising tide often brings bait and fish closer to shore.',
+              ),
+              _buildInfoCard(
+                'High & Low Points',
+                'FES2022 extremes',
+                'Daily',
+                'Today\'s predicted peaks and troughs with exact times. Tide changes drive current, which moves bait and triggers feeding.',
+              ),
+              _buildInfoCard(
+                'Datum',
+                'Station-dependent',
+                'Reference level',
+                'Heights shown relative to MLLW (Mean Lower Low Water) or MSL (Mean Sea Level). The "zero" baseline for all tide readings.',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: AppColors.darkTextHint),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Predictions are astronomical only \u2014 storm surge, barometric pressure, and wind effects are not included.',
+                        style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildInfoCard(String label, String source, String frequency, String description) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  frequency,
+                  style: const TextStyle(
+                    color: AppColors.darkTextMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            source,
+            style: TextStyle(
+              color: AppColors.success,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(
+              color: AppColors.darkTextSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -19,50 +19,50 @@ class _ConditionSource {
 }
 
 const _conditionSources = {
-  'visibility': _ConditionSource(
-    source: 'Copernicus Marine (Satellite)',
-    updateFrequency: 'Daily',
-    description: 'Chlorophyll-a concentration measured by ocean color satellites. Lower chlorophyll means clearer water.',
-  ),
-  'water': _ConditionSource(
-    source: 'Open-Meteo Marine API',
-    updateFrequency: 'Hourly',
-    description: 'Sea surface temperature from ocean weather models. Affects fish behavior and wetsuit requirements.',
+  'swell_corrected': _ConditionSource(
+    source: 'Shaka Exposure Model',
+    updateFrequency: 'Every 3 hours',
+    description: 'Open-ocean swell scaled for coastline sheltering. Headlands, coves, and reefs can cut wave height 50%+ from the offshore reading.',
   ),
   'swell': _ConditionSource(
     source: 'Open-Meteo Marine + NDBC Buoys',
     updateFrequency: 'Hourly',
-    description: 'Open-ocean significant wave height from NOAA wave models. When an NDBC buoy is nearby, real-time buoy readings are used instead for higher accuracy.',
-  ),
-  'swell_corrected': _ConditionSource(
-    source: 'Exposure-attenuated swell model',
-    updateFrequency: 'Every 3 hours',
-    description: 'Open-ocean swell adjusted for this spot\'s coastal exposure. Accounts for headlands, coves, and shoreline orientation so sheltered spots show reduced wave heights.',
+    description: 'Significant wave height in open water from NOAA WaveWatch III. Live NDBC buoy data is used when a buoy is within range.',
   ),
   'secondary_swell': _ConditionSource(
     source: 'Open-Meteo Marine API',
     updateFrequency: 'Hourly',
-    description: 'Secondary swell system traveling from a different direction than the primary swell. Also corrected for this spot\'s exposure when available.',
+    description: 'Second wave system from a different direction. Also exposure-corrected when available. Can add energy or create cross-chop.',
   ),
   'wind': _ConditionSource(
-    source: 'Open-Meteo Weather API',
+    source: 'Open-Meteo Weather API (NOAA GFS)',
     updateFrequency: 'Hourly',
-    description: 'Surface wind speed and direction. High winds create surface chop and reduce visibility.',
+    description: '10-meter wind speed and direction. Offshore = clean conditions. Onshore = chop. Strong wind kills visibility.',
+  ),
+  'water': _ConditionSource(
+    source: 'Open-Meteo Marine API',
+    updateFrequency: 'Hourly',
+    description: 'Sea surface temperature from global ocean models. Affects thermoclines, fish behavior, and wetsuit needs.',
+  ),
+  'visibility': _ConditionSource(
+    source: 'NASA & Copernicus Satellites',
+    updateFrequency: 'Daily',
+    description: 'Water clarity from satellite chlorophyll-a. Multi-satellite average (NASA PACE, NOAA-20/21, Sentinel-3). Low chlorophyll = blue water.',
   ),
   'tide': _ConditionSource(
     source: 'FES2022 Global Tide Model',
     updateFrequency: 'Predicted',
-    description: 'Astronomical tide predictions from the FES2022 global ocean model. Tidal movement affects current strength and fish activity.',
-  ),
-  'exposure': _ConditionSource(
-    source: 'Multi-ring land/water analysis',
-    updateFrequency: 'Computed once',
-    description: 'Which direction this spot faces the open ocean and how wide the exposure arc is. Sampled at 1km, 2km, and 5km across 16 compass directions to detect sheltering headlands and coves.',
+    description: 'Astronomical tide from 34 harmonic constituents. Drives current strength, bait movement, and feeding windows.',
   ),
   'depth': _ConditionSource(
-    source: 'NOAA NCEI DEM + GEBCO',
+    source: 'NOAA NCEI + GEBCO Bathymetry',
+    updateFrequency: 'Static',
+    description: 'Bottom depth from high-res NOAA coastal surveys where available, with GEBCO global grid as fallback.',
+  ),
+  'exposure': _ConditionSource(
+    source: 'Shaka Coastal Analysis',
     updateFrequency: 'Computed once',
-    description: 'Seafloor depth at this spot from high-resolution NOAA bathymetry surveys with global GEBCO data as fallback.',
+    description: 'How exposed or sheltered this spot is. Scans 16 compass bearings at 1\u20135 km to detect the open-ocean window.',
   ),
 };
 
