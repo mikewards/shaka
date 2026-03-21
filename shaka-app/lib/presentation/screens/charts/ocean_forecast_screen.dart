@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -26,6 +27,99 @@ class _LayerMeta {
   final Color color;
   const _LayerMeta(this.label, this.unit, this.icon, this.color);
 }
+
+class _PaletteStop {
+  final double value;
+  final Color color;
+  const _PaletteStop(this.value, this.color);
+}
+
+/// Mirrors the JS LAYERS[key].palette definitions in weather_map.html.
+/// Currents uses the VELOCITY_BG_PALETTE mapped to real-world current speeds.
+const _kLayerPalettes = <String, List<_PaletteStop>>{
+  'wind': [
+    _PaletteStop(0, Color(0xFF334455)),
+    _PaletteStop(3, Color(0xFF1A6B8A)),
+    _PaletteStop(6, Color(0xFF0077B6)),
+    _PaletteStop(10, Color(0xFFCC8800)),
+    _PaletteStop(15, Color(0xFFCC3333)),
+    _PaletteStop(25, Color(0xFF991111)),
+  ],
+  'currents': [
+    _PaletteStop(0, Color(0xFF000033)),
+    _PaletteStop(0.2, Color(0xFF0000FF)),
+    _PaletteStop(0.5, Color(0xFF00FFFF)),
+    _PaletteStop(1.0, Color(0xFF88FF00)),
+    _PaletteStop(1.5, Color(0xFFFFFF00)),
+    _PaletteStop(2.0, Color(0xFFFF8800)),
+    _PaletteStop(3.0, Color(0xFFFF00FF)),
+  ],
+  'waves': [
+    _PaletteStop(0, Color(0xFF0D1B2A)),
+    _PaletteStop(0.5, Color(0xFF1B4965)),
+    _PaletteStop(1, Color(0xFF62B6CB)),
+    _PaletteStop(2, Color(0xFFBEE9E8)),
+    _PaletteStop(3, Color(0xFFFFD166)),
+    _PaletteStop(5, Color(0xFFEF476F)),
+    _PaletteStop(10, Color(0xFFD62828)),
+    _PaletteStop(15, Color(0xFF6A040F)),
+  ],
+  'sst': [
+    _PaletteStop(-2, Color(0xFF023E8A)),
+    _PaletteStop(5, Color(0xFF0077B6)),
+    _PaletteStop(10, Color(0xFF00B4D8)),
+    _PaletteStop(15, Color(0xFF48CAE4)),
+    _PaletteStop(20, Color(0xFF90E0EF)),
+    _PaletteStop(22, Color(0xFFADE8F4)),
+    _PaletteStop(25, Color(0xFFFFD166)),
+    _PaletteStop(28, Color(0xFFF77F00)),
+    _PaletteStop(30, Color(0xFFEF476F)),
+    _PaletteStop(35, Color(0xFFD00000)),
+  ],
+  'salinity': [
+    _PaletteStop(20, Color(0xFF7400B8)),
+    _PaletteStop(25, Color(0xFF5E60CE)),
+    _PaletteStop(30, Color(0xFF5390D9)),
+    _PaletteStop(33, Color(0xFF48BFE3)),
+    _PaletteStop(35, Color(0xFF56CFE1)),
+    _PaletteStop(36, Color(0xFF64DFDF)),
+    _PaletteStop(37, Color(0xFF72EFDD)),
+    _PaletteStop(38, Color(0xFF80FFDB)),
+    _PaletteStop(40, Color(0xFFF0FFF0)),
+  ],
+  'chlorophyll': [
+    _PaletteStop(0, Color(0xFF0D1B2A)),
+    _PaletteStop(0.05, Color(0xFF1B263B)),
+    _PaletteStop(0.1, Color(0xFF003566)),
+    _PaletteStop(0.3, Color(0xFF006D77)),
+    _PaletteStop(0.5, Color(0xFF40916C)),
+    _PaletteStop(1, Color(0xFF74C69D)),
+    _PaletteStop(3, Color(0xFFE9C46A)),
+    _PaletteStop(5, Color(0xFFF4A261)),
+    _PaletteStop(10, Color(0xFFE76F51)),
+    _PaletteStop(20, Color(0xFF9B2226)),
+  ],
+  'phytoplankton': [
+    _PaletteStop(0, Color(0xFF0D1B2A)),
+    _PaletteStop(0.1, Color(0xFF003566)),
+    _PaletteStop(0.5, Color(0xFF006D77)),
+    _PaletteStop(1, Color(0xFF40916C)),
+    _PaletteStop(2, Color(0xFF74C69D)),
+    _PaletteStop(3, Color(0xFFB5E48C)),
+    _PaletteStop(5, Color(0xFFE9C46A)),
+    _PaletteStop(10, Color(0xFFE76F51)),
+  ],
+  'zooplankton': [
+    _PaletteStop(0, Color(0xFF10002B)),
+    _PaletteStop(0.1, Color(0xFF3C096C)),
+    _PaletteStop(0.3, Color(0xFF5A189A)),
+    _PaletteStop(0.5, Color(0xFF7B2CBF)),
+    _PaletteStop(1, Color(0xFFC77DFF)),
+    _PaletteStop(2, Color(0xFFE0AAFF)),
+    _PaletteStop(3, Color(0xFFFFD6FF)),
+    _PaletteStop(5, Color(0xFFFFF0F5)),
+  ],
+};
 
 class OceanForecastScreen extends StatefulWidget {
   final double? initialLat;
@@ -60,6 +154,10 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   String? _errorMessage;
   Set<String> _availableLayers = {};
 
+  double? _probeValue;
+  double? _probeDirection;
+  Timer? _probeDismissTimer;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +166,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   @override
   void dispose() {
+    _probeDismissTimer?.cancel();
     super.dispose();
   }
 
@@ -142,9 +241,26 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         },
       )
       ..addJavaScriptChannel(
+        'ProbeChannel',
+        onMessageReceived: (msg) {
+          try {
+            final data = jsonDecode(msg.message) as Map<String, dynamic>;
+            setState(() {
+              _probeValue = (data['value'] as num?)?.toDouble();
+              _probeDirection = (data['direction'] as num?)?.toDouble();
+            });
+            _probeDismissTimer?.cancel();
+            _probeDismissTimer = Timer(const Duration(seconds: 4), () {
+              if (mounted) setState(() { _probeValue = null; _probeDirection = null; });
+            });
+          } catch (_) {}
+        },
+      )
+      ..addJavaScriptChannel(
         'TapChannel',
         onMessageReceived: (msg) {
-          // Future: show point value
+          setState(() { _probeValue = null; _probeDirection = null; });
+          _probeDismissTimer?.cancel();
         },
       )
       ..addJavaScriptChannel(
@@ -203,14 +319,17 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   void _selectLayer(String key) {
     if (key == _activeLayer) return;
     final hasData = _availableLayers.isEmpty || _availableLayers.contains(key);
+    _probeDismissTimer?.cancel();
     setState(() {
       _isLoading = hasData;
       _activeLayer = key;
       _timeIndex = 0;
       _timestamps = [];
+      _probeValue = null;
+      _probeDirection = null;
       _errorMessage = hasData ? null : 'No data available for this layer yet';
     });
-    _controller?.runJavaScript("setLayer('$key')");
+    _controller?.runJavaScript("setLayer('$key');_clearProbeMarker()");
   }
 
   void _onTimeSliderChanged(double value) {
@@ -224,7 +343,9 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     if (_playing) {
       _controller?.runJavaScript('pause()');
     } else {
-      _controller?.runJavaScript('play()');
+      _probeDismissTimer?.cancel();
+      setState(() { _probeValue = null; _probeDirection = null; });
+      _controller?.runJavaScript('play();_clearProbeMarker()');
     }
   }
 
@@ -240,6 +361,107 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     } catch (_) {
       return ts;
     }
+  }
+
+  static String _degreesToCardinal(double deg) {
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
+                  'S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    final idx = ((deg % 360 + 360) % 360 / 22.5 + 0.5).floor() % 16;
+    return dirs[idx];
+  }
+
+  String _formatProbeValue() {
+    if (_probeValue == null) return '';
+    final unit = _kLayers[_activeLayer]?.unit ?? '';
+    final valStr = _probeValue!.abs() < 10
+        ? _probeValue!.toStringAsFixed(1)
+        : _probeValue!.toStringAsFixed(0);
+    final isVector = _activeLayer == 'wind' || _activeLayer == 'currents';
+    if (isVector && _probeDirection != null) {
+      return '$valStr $unit ${_degreesToCardinal(_probeDirection!)}';
+    }
+    return '$valStr $unit';
+  }
+
+  Widget _buildProbeChip() {
+    final text = _formatProbeValue();
+    return Container(
+      key: ValueKey('probe_$text'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: (_kLayers[_activeLayer]?.color ?? Colors.cyan).withOpacity(0.5),
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  String _formatTickValue(double val) {
+    if (val.abs() < 1 && val != 0) return val.toStringAsFixed(1);
+    if (val == val.roundToDouble()) return val.toInt().toString();
+    return val.toStringAsFixed(1);
+  }
+
+  Widget _buildLegendBar() {
+    final palette = _kLayerPalettes[_activeLayer];
+    if (palette == null || palette.isEmpty) return const SizedBox.shrink();
+    final unit = _kLayers[_activeLayer]?.unit ?? '';
+
+    final colors = palette.map((s) => s.color).toList();
+    final minVal = palette.first.value;
+    final maxVal = palette.last.value;
+    final range = maxVal - minVal;
+
+    final stops = range > 0
+        ? palette.map((s) => (s.value - minVal) / range).toList()
+        : null;
+
+    const tickCount = 5;
+    final tickLabels = List.generate(tickCount, (i) {
+      final val = minVal + range * i / (tickCount - 1);
+      return _formatTickValue(val);
+    });
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 10,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: colors, stops: stops),
+            borderRadius: BorderRadius.circular(5),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (int i = 0; i < tickLabels.length; i++)
+              Text(
+                i == tickLabels.length - 1
+                    ? '${tickLabels[i]} $unit'
+                    : tickLabels[i],
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -313,6 +535,20 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
             ),
           ),
 
+          // Probe value chip
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 46,
+            left: 0, right: 0,
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _probeValue != null
+                    ? _buildProbeChip()
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+
           // Bottom controls
           Positioned(
             bottom: 0, left: 0, right: 0,
@@ -336,6 +572,15 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: KeyedSubtree(
+                      key: ValueKey(_activeLayer),
+                      child: _buildLegendBar(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
                   // Time controls
                   if (_timestamps.isNotEmpty) ...[
                     Row(

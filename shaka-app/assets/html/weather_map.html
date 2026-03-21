@@ -10,6 +10,19 @@
     html, body { width: 100%; height: 100%; overflow: hidden; background: #fbf8f3; }
     #map { width: 100%; height: 100%; }
     .maplibregl-ctrl-attrib { display: none !important; }
+    .probe-marker {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.25);
+      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+      pointer-events: none;
+      animation: probe-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes probe-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.6; }
+    }
   </style>
 </head>
 <body>
@@ -137,9 +150,24 @@
         attributionControl: false,
       });
 
+      var _probeJustFired = false;
+
       overlay = new deck.MapboxOverlay({
         interleaved: true,
         layers: [],
+        onClick: function(info) {
+          if (info && info.raster && info.raster.value !== undefined) {
+            _probeJustFired = true;
+            _post('ProbeChannel', {
+              lat: info.coordinate ? info.coordinate[1] : null,
+              lng: info.coordinate ? info.coordinate[0] : null,
+              value: info.raster.value,
+              direction: info.raster.direction,
+              layer: activeLayerKey,
+            });
+            _showProbeMarker(info.coordinate);
+          }
+        },
       });
 
       map.addControl(overlay);
@@ -189,7 +217,9 @@
       });
 
       map.on('click', function(e) {
+        if (_probeJustFired) { _probeJustFired = false; return; }
         _post('TapChannel', { lat: e.lngLat.lat, lng: e.lngLat.lng });
+        _clearProbeMarker();
       });
     }
 
@@ -333,6 +363,7 @@
             imageType: WeatherLayers.ImageType.VECTOR,
             imageUnscale: cfg.imageUnscale,
             palette: cfg.rasterPalette,
+            pickable: true,
             opacity: 0.7,
           }));
         }
@@ -478,6 +509,25 @@
           }).catch(function() {});
         })(keys[i]);
       }
+    }
+
+    var _probeMarker = null;
+    var _probeTimeout = null;
+
+    function _showProbeMarker(coord) {
+      _clearProbeMarker();
+      if (!coord || !map) return;
+      var el = document.createElement('div');
+      el.className = 'probe-marker';
+      _probeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([coord[0], coord[1]])
+        .addTo(map);
+      _probeTimeout = setTimeout(_clearProbeMarker, 4000);
+    }
+
+    function _clearProbeMarker() {
+      if (_probeMarker) { _probeMarker.remove(); _probeMarker = null; }
+      if (_probeTimeout) { clearTimeout(_probeTimeout); _probeTimeout = null; }
     }
 
     function _post(channel, data) {
