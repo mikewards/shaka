@@ -55,9 +55,9 @@ class ManageFishSheet extends StatefulWidget {
 }
 
 class _ManageFishSheetState extends State<ManageFishSheet> {
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _bgColor = AppColors.darkBackground;
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
 
   late Set<String> _hidden;
   late Set<String> _pinned;
@@ -192,7 +192,7 @@ class _ManageFishSheetState extends State<ManageFishSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.darkTextHint,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -206,7 +206,7 @@ class _ManageFishSheetState extends State<ManageFishSheet> {
                     child: Text(
                       'Reset',
                       style: TextStyle(
-                        color: _saving ? Colors.white24 : AppColors.info,
+                        color: _saving ? AppColors.darkTextHint : AppColors.info,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -226,7 +226,7 @@ class _ManageFishSheetState extends State<ManageFishSheet> {
                     child: Text(
                       _saving ? 'Saving…' : 'Done',
                       style: TextStyle(
-                        color: _saving ? Colors.white24 : AppColors.info,
+                        color: _saving ? AppColors.darkTextHint : AppColors.info,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -363,7 +363,7 @@ class _ManageRow extends StatelessWidget {
                 index: index,
                 child: const Icon(
                   Icons.drag_handle,
-                  color: Colors.white30,
+                  color: AppColors.darkTextHint,
                   size: 20,
                 ),
               ),
@@ -383,7 +383,7 @@ class _ManageRow extends StatelessWidget {
                 onPressed: onTogglePin,
                 icon: Icon(
                   pinned ? Icons.push_pin : Icons.push_pin_outlined,
-                  color: pinned ? AppColors.info : Colors.white38,
+                  color: pinned ? AppColors.info : AppColors.darkTextHint,
                   size: 18,
                 ),
               ),
@@ -391,7 +391,7 @@ class _ManageRow extends StatelessWidget {
                 onPressed: onHide,
                 icon: const Icon(
                   Icons.visibility_off_outlined,
-                  color: Colors.white38,
+                  color: AppColors.darkTextHint,
                   size: 18,
                 ),
               ),
@@ -419,13 +419,13 @@ class _HiddenRow extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.visibility_off_outlined,
-              color: Colors.white30, size: 18),
+              color: AppColors.darkTextHint, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
               style: const TextStyle(
-                color: Colors.white70,
+                color: AppColors.darkTextSecondary,
                 fontSize: 15,
               ),
               overflow: TextOverflow.ellipsis,

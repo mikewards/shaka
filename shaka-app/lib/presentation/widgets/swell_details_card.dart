@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
 class _ParsedSwell {
@@ -129,10 +130,10 @@ class SwellDetailsCard extends StatefulWidget {
 class _SwellDetailsCardState extends State<SwellDetailsCard> {
   bool _expanded = false;
 
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
-  static const _primaryColor = Color(0xFF2DD4BF);
-  static const _secondaryColor = Color(0xFF60A5FA);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
+  static const _primaryColor = AppColors.chartTideHigh;
+  static const _secondaryColor = AppColors.chartTideLow;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +189,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
               child: const Icon(
                 Icons.keyboard_arrow_down,
                 size: 20,
-                color: Colors.white38,
+                color: AppColors.darkTextHint,
               ),
             ),
           ],
@@ -363,7 +364,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -436,7 +437,7 @@ class _SwellDirectionBadge extends StatelessWidget {
 /// Small circular badge with a rotated wind icon showing wind source direction.
 class _WindBadge extends StatelessWidget {
   final double degrees;
-  static const _color = Color(0xFF607D8B);
+  static const _color = AppColors.chartWind;
 
   const _WindBadge({required this.degrees});
 
@@ -460,7 +461,7 @@ class _WindBadge extends StatelessWidget {
 /// Small circular badge showing the direction a spot faces (exposure).
 class _ExposureBadge extends StatelessWidget {
   final double degrees;
-  static const _color = Color(0xFFD4A037);
+  static const _color = AppColors.chartSwell;
 
   const _ExposureBadge({required this.degrees});
 
@@ -626,7 +627,7 @@ class _SwellCompassPainter extends CustomPainter {
     final sweepAngle = width * pi / 180;
 
     final fillPaint = Paint()
-      ..color = const Color(0xFFD4A037).withValues(alpha: 0.25)
+      ..color = AppColors.chartSwell.withValues(alpha: 0.25)
       ..style = PaintingStyle.fill;
 
     final sectorPath = Path()
@@ -650,7 +651,7 @@ class _SwellCompassPainter extends CustomPainter {
       ..strokeWidth = 2.5);
 
     canvas.drawArc(rect, startAngle, sweepAngle, false, Paint()
-      ..color = const Color(0xFFD4A037).withValues(alpha: 0.8)
+      ..color = AppColors.chartSwell.withValues(alpha: 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2);
   }
@@ -730,7 +731,7 @@ class _SwellCompassPainter extends CustomPainter {
       ..quadraticBezierTo(pointCtrlX, pointCtrlY, pillLeft, 0)
       ..close();
     canvas.drawPath(pillPath, Paint()
-      ..color = const Color(0xFF607D8B).withValues(alpha: 0.85));
+      ..color = AppColors.chartWind.withValues(alpha: 0.85));
     canvas.drawPath(pillPath, Paint()
       ..color = Colors.white.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke

@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 
 /// Shaka Color Palette
-/// 
-/// Design: Quiet Luxury - Understated elegance
-/// Colors should feel like real materials: leather, aged paper, brushed metal, natural stone
-/// Warm tones throughout - no pure black or white
+///
+/// Design: Clean Ocean — bright, confident data indicators on calm backgrounds.
+/// Scores and interactive elements pop; backgrounds and borders stay subtle.
 class AppColors {
   AppColors._();
 
-  // Primary - Deep Ocean Blue (slightly warmed)
-  static const Color oceanBlue = Color(0xFF1E3A5F);
-  static const Color oceanBlueLight = Color(0xFF2D4A6F);
-  static const Color oceanBlueDark = Color(0xFF152942);
+  // Primary - True Ocean Blue
+  static const Color oceanBlue = Color(0xFF1B6FA8);
+  static const Color oceanBlueLight = Color(0xFF2E8BC0);
+  static const Color oceanBlueDark = Color(0xFF0E4D76);
 
-  // Secondary - Muted Coral (desaturated for quiet luxury)
-  static const Color coral = Color(0xFFCB8B7A);
-  static const Color coralLight = Color(0xFFD9A99C);
-  static const Color coralDark = Color(0xFFAA7265);
+  // Secondary - Punchy Coral
+  static const Color coral = Color(0xFFE8735A);
+  static const Color coralLight = Color(0xFFF09A85);
+  static const Color coralDark = Color(0xFFC45A42);
 
   // Neutral - Warm Sand tones
   static const Color sand = Color(0xFFF2E6D9);
@@ -39,18 +38,33 @@ class AppColors {
   static const Color borderLight = Color(0xFFF3F1ED);
   static const Color borderDark = Color(0xFFD4D2CD);
 
-  // Shaka Score Colors - 5-tier, desaturated natural tones
-  static const Color scoreExcellent = Color(0xFF6B8E7D);    // Sage green      - 80-100
-  static const Color scoreGood = Color(0xFF8FA98B);          // Muted green     - 60-79
-  static const Color scoreAverage = Color(0xFFC9A66B);       // Amber/brass     - 40-59
-  static const Color scoreBelowAvg = Color(0xFFC4876B);      // Dusty terracotta- 20-39
-  static const Color scorePoor = Color(0xFFB87A7A);          // Dusty rose      - 0-19
+  // Shaka Score Colors - 5-tier traffic-light palette
+  static const Color scoreExcellent = Color(0xFF4ADE80);    // Radiant green   - 80-100
+  static const Color scoreGood = Color(0xFF22C55E);          // Confident green - 60-79
+  static const Color scoreAverage = Color(0xFFFACC15);       // Yellow/gold     - 40-59
+  static const Color scoreBelowAvg = Color(0xFFF97316);      // Orange          - 20-39
+  static const Color scorePoor = Color(0xFFEF4444);          // Red             - 0-19
 
-  // Status - Desaturated, refined
-  static const Color success = Color(0xFF6B8E7D);
-  static const Color warning = Color(0xFFC9A66B);
-  static const Color error = Color(0xFFB87A7A);
-  static const Color info = Color(0xFF7A9BB8);
+  // Score background tints (13% opacity for chip/badge backgrounds)
+  static const Color scoreExcellentBg = Color(0x224ADE80);
+  static const Color scoreGoodBg = Color(0x2222C55E);
+  static const Color scoreAverageBg = Color(0x22FACC15);
+  static const Color scoreBelowAvgBg = Color(0x22F97316);
+  static const Color scorePoorBg = Color(0x22EF4444);
+
+  // Status
+  static const Color success = Color(0xFF4ADE80);
+  static const Color warning = Color(0xFFFACC15);
+  static const Color error = Color(0xFFEF4444);
+  static const Color info = Color(0xFF38BDF8);
+
+  // Chart / condition indicator colors
+  static const Color chartTide = Color(0xFF38BDF8);
+  static const Color chartTideHigh = Color(0xFF2DD4BF);
+  static const Color chartTideLow = Color(0xFF60A5FA);
+  static const Color chartNowLine = Color(0xFFFBBF24);
+  static const Color chartSwell = Color(0xFFD4A037);
+  static const Color chartWind = Color(0xFF607D8B);
 
   /// Get score color based on shaka score value (5-tier, 20-point bands)
   static Color getScoreColor(int score) {
@@ -59,6 +73,15 @@ class AppColors {
     if (score >= 40) return scoreAverage;
     if (score >= 20) return scoreBelowAvg;
     return scorePoor;
+  }
+
+  /// Get score background tint for chips/badges
+  static Color getScoreBgColor(int score) {
+    if (score >= 80) return scoreExcellentBg;
+    if (score >= 60) return scoreGoodBg;
+    if (score >= 40) return scoreAverageBg;
+    if (score >= 20) return scoreBelowAvgBg;
+    return scorePoorBg;
   }
 
   /// Which tier (1-5) a score falls into
@@ -83,15 +106,15 @@ class AppColors {
   // DARK THEME COLORS
   // ===========================================
 
-  // Dark Theme - Base colors
-  static const darkBackground = Color(0xFF0D0D0D);  // Main app background
-  static const darkSurface = Color(0xFF1A1A1A);     // Cards, containers, inputs
-  static const darkBorder = Color(0xFF2A2A2A);      // Subtle borders
-  static const darkAccent = Color(0xFF7A9BB8);      // Primary accent (muted blue-gray, matches Quiet Luxury theme)
+  // Dark Theme - Base colors (subtle blue tint)
+  static const darkBackground = Color(0xFF0F1117);
+  static const darkSurface = Color(0xFF1A1D27);
+  static const darkBorder = Color(0xFF2A2D3A);
+  static const darkAccent = Color(0xFF38BDF8);
 
   // Dark Theme - Text colors
   static const darkTextPrimary = Colors.white;
-  static const darkTextSecondary = Color(0xB3FFFFFF);  // 70% white
-  static const darkTextMuted = Color(0x80FFFFFF);      // 50% white
+  static const darkTextSecondary = Color(0xBFFFFFFF);  // 75% white
+  static const darkTextMuted = Color(0x8CFFFFFF);      // 55% white
   static const darkTextHint = Color(0x4DFFFFFF);       // 30% white
 }

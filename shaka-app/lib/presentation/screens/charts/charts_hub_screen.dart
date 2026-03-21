@@ -68,7 +68,7 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.darkBackground,
       body: SafeArea(
         child: ListenableBuilder(
           listenable: _healthProvider,
@@ -443,14 +443,14 @@ class _DataSourceCard extends StatelessWidget {
                         children: [
                           Icon(
                             Icons.cloud_off,
-                            color: Colors.white54,
+                            color: AppColors.darkTextMuted,
                             size: 32,
                           ),
                           SizedBox(height: 8),
                           Text(
                             'Temporarily unavailable',
                             style: TextStyle(
-                              color: Colors.white54,
+                              color: AppColors.darkTextMuted,
                               fontSize: 14,
                             ),
                           ),

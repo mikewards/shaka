@@ -37,9 +37,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   late TabController _tabController;
 
   // Dark theme colors
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _bgColor = AppColors.darkBackground;
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
 
   // User spot handling
   final _apiClient = ShakaApiClient();
@@ -266,7 +266,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1E3A5F), _bgColor],
+          colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
@@ -299,7 +299,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         indicatorColor: AppColors.info,
         indicatorWeight: 3,
         labelColor: Colors.white,
-        unselectedLabelColor: Colors.white54,
+        unselectedLabelColor: AppColors.darkTextMuted,
         labelStyle: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -375,7 +375,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 icon: Icons.satellite_alt,
                 label: 'Satellite',
                 sublabel: 'NASA GIBS',
-                color: const Color(0xFF4CAF50),
+                color: AppColors.success,
                 onTap: () {
                   HapticFeedback.lightImpact();
                   context.push('/charts/gibs', extra: {
@@ -435,7 +435,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       return const Center(
         child: Text(
           'Forecast data unavailable',
-          style: TextStyle(color: Colors.white54),
+          style: TextStyle(color: AppColors.darkTextMuted),
         ),
       );
     }
@@ -478,7 +478,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 ),
                 Text(
                   _formatWeekday(day.date),
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -510,12 +510,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white54, size: 14),
+        Icon(icon, color: AppColors.darkTextMuted, size: 14),
         const SizedBox(width: 4),
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white70,
+            color: AppColors.darkTextSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
@@ -555,7 +555,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return Text(
       title,
       style: TextStyle(
-        color: Colors.white.withOpacity(0.5),
+        color: AppColors.darkTextMuted,
         fontSize: 11,
         fontWeight: FontWeight.w600,
         letterSpacing: 1.2,
@@ -596,7 +596,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             Text(
               sublabel,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: AppColors.darkTextMuted,
                 fontSize: 11,
               ),
             ),
@@ -639,7 +639,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 13),
             ),
           ),
           Expanded(
@@ -651,7 +651,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   child: Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white12,
+                      color: AppColors.darkTextHint,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: FractionallySizedBox(
@@ -712,7 +712,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                         child: Text(
                           r.risk,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
+                              color: AppColors.darkTextSecondary, fontSize: 13),
                         ),
                       ),
                     ],
@@ -773,7 +773,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           const SizedBox(height: 10),
           Text(
             access.parkingInfo,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
           ),
         ],
       ),
@@ -876,7 +876,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 if (mpa.designation != null)
                   Text(
                     mpa.designation!,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
                   ),
                 if (mpa.isInsideMPA && mpa.spearfishingStatus == 1) ...[
                   const SizedBox(height: 8),
@@ -904,7 +904,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   const SizedBox(height: 6),
                   const Text(
                     'Spearfishing is PROHIBITED inside sanctuary boundaries.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -921,7 +921,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                         Expanded(
                           child: Text(
                             'Know exactly where the sanctuary begins and ends before entering the water.',
-                            style: TextStyle(color: Colors.white70, fontSize: 11),
+                            style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 11),
                           ),
                         ),
                       ],
@@ -1153,7 +1153,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                     SizedBox(width: 10),
                     Text(
                       'Loading forecast & details...',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                      style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1208,7 +1208,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1E3A5F), _bgColor],
+          colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
@@ -1242,7 +1242,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               children: [
                 IconButton(
                   onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                  icon: const Icon(Icons.arrow_back, color: AppColors.darkTextSecondary),
                 ),
               ],
             ),
@@ -1259,7 +1259,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   SizedBox(height: 16),
                   Text(
                     'Loading spot...',
-                    style: TextStyle(color: Colors.white54, fontSize: 14),
+                    style: TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
                   ),
                 ],
               ),
@@ -1280,7 +1280,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               children: [
                 IconButton(
                   onPressed: () => context.pop(),
-                  icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                  icon: const Icon(Icons.arrow_back, color: AppColors.darkTextSecondary),
                 ),
               ],
             ),
@@ -1293,7 +1293,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.error_outline,
-                        color: Colors.white38, size: 48),
+                        color: AppColors.darkTextHint, size: 48),
                     const SizedBox(height: 16),
                     const Text(
                       'Unable to load',
@@ -1307,7 +1307,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                     Text(
                       message,
                       style:
-                          const TextStyle(color: Colors.white54, fontSize: 14),
+                          const TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),

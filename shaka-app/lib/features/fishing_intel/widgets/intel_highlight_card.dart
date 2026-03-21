@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/fishing_intel_models.dart';
+import '../../../core/theme/app_colors.dart';
 
 class IntelHighlightCard extends StatelessWidget {
   final IntelHighlight highlight;
   
   const IntelHighlightCard({required this.highlight, super.key});
   
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
   
   @override
   Widget build(BuildContext context) {
@@ -44,7 +45,7 @@ class IntelHighlightCard extends StatelessWidget {
                 Text(
                   '${highlight.distanceMi.toStringAsFixed(1)}mi away',
                   style: TextStyle(
-                    color: Colors.grey[500],
+                    color: AppColors.darkTextMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -80,7 +81,7 @@ class IntelHighlightCard extends StatelessWidget {
               child: Text(
                 '"${highlight.excerpt}"',
                 style: TextStyle(
-                  color: Colors.grey[400],
+                  color: AppColors.darkTextMuted,
                   fontSize: 13,
                   fontStyle: FontStyle.italic,
                 ),
@@ -98,12 +99,12 @@ class IntelHighlightCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.location_on, size: 14, color: Colors.grey[500]),
+                    Icon(Icons.location_on, size: 14, color: AppColors.darkTextMuted),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         '${highlight.boatName ?? ""}${highlight.boatName != null ? " @ " : ""}${highlight.landingName}',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -115,11 +116,11 @@ class IntelHighlightCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                        Icon(Icons.access_time, size: 14, color: AppColors.darkTextHint),
                         const SizedBox(width: 4),
                         Text(
                           _formatTime(highlight.publishedAt),
-                          style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                          style: TextStyle(color: AppColors.darkTextMuted, fontSize: 11),
                         ),
                       ],
                     ),
@@ -130,12 +131,12 @@ class IntelHighlightCard extends StatelessWidget {
                           Text(
                             highlight.sourceName,
                             style: const TextStyle(
-                              color: Color(0xFF4FC3F7),
+                              color: AppColors.info,
                               fontSize: 11,
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.open_in_new, size: 12, color: Color(0xFF4FC3F7)),
+                          const Icon(Icons.open_in_new, size: 12, color: AppColors.info),
                         ],
                       ),
                     ),
@@ -145,11 +146,11 @@ class IntelHighlightCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.check_circle, size: 12, color: Colors.green),
+                      const Icon(Icons.check_circle, size: 12, color: AppColors.success),
                       const SizedBox(width: 4),
                       Text(
                         'Also on: ${highlight.corroboratedBy.join(", ")}',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                        style: TextStyle(color: AppColors.darkTextMuted, fontSize: 10),
                       ),
                     ],
                   ),

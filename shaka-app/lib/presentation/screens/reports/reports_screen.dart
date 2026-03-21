@@ -19,9 +19,9 @@ class ReportsScreen extends StatefulWidget {
 
 class _ReportsScreenState extends State<ReportsScreen>
     with TickerProviderStateMixin {
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _bgColor = AppColors.darkBackground;
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
   static const _groupRadius = 12.0;
   static const _speciesRowHPad = 14.0;
   static const _speciesRowVPad = 12.0;
@@ -157,7 +157,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   },
             icon: Icon(
               Icons.tune,
-              color: canManageFish ? Colors.white70 : Colors.white24,
+              color: canManageFish ? AppColors.darkTextSecondary : AppColors.darkTextHint,
             ),
             tooltip: 'Manage fish',
           ),
@@ -214,7 +214,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                         child: Text(
                           r.label,
                           style: TextStyle(
-                            color: isSelected ? AppColors.info : Colors.white70,
+                            color: isSelected ? AppColors.info : AppColors.darkTextSecondary,
                             fontSize: 13,
                             fontWeight:
                                 isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -526,19 +526,19 @@ class _ReportsScreenState extends State<ReportsScreen>
     if (lower.contains('bait') ||
         lower.contains('sardine') ||
         lower.contains('anchov')) {
-      return const Color(0xFFC9A66B); // amber
+      return AppColors.warning;
     }
     if (lower.contains('wind') ||
         lower.contains('weather') ||
         lower.contains('swell') ||
         lower.contains('storm')) {
-      return const Color(0xFF7A9BB8); // blue-gray
+      return AppColors.info;
     }
     if (lower.contains('hot') ||
         lower.contains('fire') ||
         lower.contains('firing') ||
         lower.contains('heat')) {
-      return const Color(0xFFCB8B7A); // coral
+      return AppColors.coral;
     }
     if (lower.contains('island') ||
         lower.contains('harbor') ||
@@ -546,15 +546,15 @@ class _ReportsScreenState extends State<ReportsScreen>
         lower.contains('catalina') ||
         lower.contains('clemente') ||
         lower.contains('coast')) {
-      return const Color(0xFF8FA98B); // sage green
+      return AppColors.scoreGood;
     }
     if (lower.contains('temp') ||
         lower.contains('degree') ||
         lower.contains('warm') ||
         lower.contains('cold')) {
-      return const Color(0xFF7A9BB8); // blue-gray
+      return AppColors.info;
     }
-    const defaults = [Color(0xFF7A9BB8), Color(0xFF6B8E7D), Color(0xFFC9A66B)];
+    const defaults = [AppColors.info, AppColors.scoreGood, AppColors.warning];
     return defaults[index % defaults.length];
   }
 
@@ -643,7 +643,7 @@ class _ReportsScreenState extends State<ReportsScreen>
         ? AppColors.success
         : isDown
             ? AppColors.error
-            : Colors.white54;
+            : AppColors.darkTextMuted;
     final isExpanded = _expandedSpeciesByRegion[regionId] == s.species;
     final isPinned = prefs.pinnedSpecies.contains(s.species);
     final disableAnimations = MediaQuery.of(context).disableAnimations;
@@ -789,7 +789,7 @@ class _ReportsScreenState extends State<ReportsScreen>
         children: [
           SlidableAction(
             onPressed: (_) => _togglePinned(regionId, s.species),
-            backgroundColor: const Color(0xFF2A2A2A),
+            backgroundColor: AppColors.darkBorder,
             foregroundColor: Colors.white,
             icon: isPinned ? Icons.push_pin_outlined : Icons.push_pin,
             label: isPinned ? 'Unpin' : 'Pin',
@@ -892,7 +892,7 @@ class _ReportsScreenState extends State<ReportsScreen>
         ? AppColors.success
         : isDown
             ? AppColors.error
-            : Colors.white54;
+            : AppColors.darkTextMuted;
     String changeText;
     if (s.percentChange > 500) {
       changeText = 'New!';

@@ -1029,7 +1029,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             builder: (context, setModalState) {
               return Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF1A1A1A),
+                  color: AppColors.darkSurface,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Column(
@@ -1074,14 +1074,14 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                               children: [
                                 Icon(
                                   _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
-                                  color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white38,
+                                  color: _showSpotsOnMap ? AppColors.info : Colors.white38,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Show on map',
                                   style: TextStyle(
-                                    color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white54,
+                                    color: _showSpotsOnMap ? AppColors.info : Colors.white54,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -1197,7 +1197,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
             colorScheme: ColorScheme.dark(
               primary: AppColors.info,
               onPrimary: Colors.white,
-              surface: const Color(0xFF1A1A1A),
+              surface: AppColors.darkSurface,
               onSurface: Colors.white,
               secondary: AppColors.info,
               onSecondary: Colors.white,
@@ -1711,7 +1711,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                 child: Text(
                   'Mark Spot',
                   style: TextStyle(
-                    color: Color(0xFF1A1A1A),
+                    color: AppColors.darkSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1891,7 +1891,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
           maxHeight: MediaQuery.of(context).size.height * 0.7,
         ),
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.darkSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Column(
@@ -2087,7 +2087,7 @@ class _LayerPickerSheetState extends State<_LayerPickerSheet> {
       maxChildSize: 0.9,
       builder: (context, scrollController) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.darkSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Column(
@@ -2374,7 +2374,7 @@ class _SavedSpotCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
+            color: AppColors.darkBorder,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
@@ -2391,7 +2391,7 @@ class _SavedSpotCard extends StatelessWidget {
                               height: 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF7A9BB8),
+                                color: AppColors.info,
                               ),
                             ),
                           ),
@@ -2420,7 +2420,7 @@ class _SavedSpotCard extends StatelessWidget {
                           ? 'Getting intel on this spot...'
                           : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                       style: TextStyle(
-                        color: isLoading ? const Color(0xFF7A9BB8) : Colors.white54,
+                        color: isLoading ? AppColors.info : Colors.white54,
                         fontSize: 12,
                         fontFamily: isLoading ? null : 'monospace',
                       ),

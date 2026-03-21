@@ -78,9 +78,6 @@ void showLocationPickerSheet(
   );
 }
 
-// Dark theme constants matching app (app_colors.dart)
-const _sheetBg = Color(0xFF1A1A1A);
-const _sheetBorder = Color(0xFF2A2A2A);
 
 class _LocationPickerSheet extends StatefulWidget {
   final Function(double lat, double lon, String name) onLocationSelected;
@@ -134,7 +131,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     return Container(
       height: height,
       decoration: const BoxDecoration(
-        color: _sheetBg,
+        color: AppColors.darkSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -162,7 +159,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white70),
+                  icon: const Icon(Icons.close, color: AppColors.darkTextSecondary),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -193,7 +190,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.chevron_right, color: Colors.white54, size: 24),
+                    Icon(Icons.chevron_right, color: AppColors.darkTextMuted, size: 24),
                   ],
                 ),
               ),
@@ -208,7 +205,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 'POPULAR SPOTS',
                 style: TextStyle(
                   letterSpacing: 2,
-                  color: Colors.white.withOpacity(0.5),
+                  color: AppColors.darkTextMuted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -261,7 +258,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                               ),
                             ),
                           ),
-                          Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+                          Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
                         ],
                       ),
                     ),
@@ -341,7 +338,7 @@ class _DropPinScreenState extends State<_DropPinScreen> {
     final coordTop = topPadding + coordTopExtra;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.darkBackground,
       body: Stack(
         children: [
           Positioned.fill(
@@ -373,12 +370,12 @@ class _DropPinScreenState extends State<_DropPinScreen> {
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.7),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white24),
+                  border: Border.all(color: AppColors.darkBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                    const Icon(Icons.gps_fixed, color: AppColors.darkTextMuted, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       '${_currentCenter.latitude.toStringAsFixed(5)}, ${_currentCenter.longitude.toStringAsFixed(5)}',
@@ -422,12 +419,12 @@ class _DropPinScreenState extends State<_DropPinScreen> {
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white24),
+                          border: Border.all(color: AppColors.darkBorder),
                         ),
                         child: const Center(
                           child: Text(
                             'Cancel',
-                            style: TextStyle(color: Colors.white70, fontSize: 15),
+                            style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 15),
                           ),
                         ),
                       ),
@@ -447,7 +444,7 @@ class _DropPinScreenState extends State<_DropPinScreen> {
                           child: Text(
                             'Set as Map Home',
                             style: TextStyle(
-                              color: Color(0xFF1A1A1A),
+                              color: AppColors.darkSurface,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                             ),

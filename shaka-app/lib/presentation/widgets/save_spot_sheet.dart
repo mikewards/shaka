@@ -43,8 +43,8 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
+  static const _bgColor = AppColors.darkBackground;
+  static const _cardColor = AppColors.darkSurface;
 
   @override
   void initState() {
@@ -148,7 +148,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: AppColors.darkTextHint,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -175,12 +175,12 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on, color: Colors.white38, size: 18),
+                    const Icon(Icons.location_on, color: AppColors.darkTextHint, size: 18),
                     const SizedBox(width: 10),
                     Text(
                       '${_formatCoordinate(widget.latitude, true)}  ${_formatCoordinate(widget.longitude, false)}',
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: AppColors.darkTextSecondary,
                         fontSize: 13,
                         fontFamily: 'monospace',
                       ),
@@ -210,7 +210,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.white24),
+                    borderSide: const BorderSide(color: AppColors.darkTextHint),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 ),
@@ -258,7 +258,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                           child: Text(
                             'Cancel',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: AppColors.darkTextSecondary,
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
                             ),
@@ -274,7 +274,7 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: _isLoading ? Colors.white54 : Colors.white,
+                          color: _isLoading ? AppColors.darkTextMuted : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Center(
@@ -284,13 +284,13 @@ class _SaveSpotSheetState extends State<SaveSpotSheet> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Color(0xFF1A1A1A),
+                                    color: AppColors.darkSurface,
                                   ),
                                 )
                               : const Text(
                                   'Save',
                                   style: TextStyle(
-                                    color: Color(0xFF1A1A1A),
+                                    color: AppColors.darkSurface,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                   ),

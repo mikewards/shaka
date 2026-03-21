@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 import '../models/fishing_intel_models.dart';
+import '../../../core/theme/app_colors.dart';
 
 class BaitStatusCard extends StatelessWidget {
   final List<BaitStatus> baitStatus;
   
   const BaitStatusCard({required this.baitStatus, super.key});
   
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
   
   Color _statusColor(String status) {
     final lower = status.toLowerCase();
     if (lower.contains('loaded') || lower.contains('plenty')) {
-      return Colors.green;
+      return AppColors.success;
     } else if (lower.contains('limited') || lower.contains('low')) {
-      return Colors.orange;
+      return AppColors.scoreBelowAvg;
     } else if (lower.contains('none') || lower.contains('out')) {
-      return Colors.red;
+      return AppColors.error;
     }
-    return Colors.blue;
+    return AppColors.info;
   }
   
   @override

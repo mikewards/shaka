@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/fishing_intel_models.dart';
+import '../../../core/theme/app_colors.dart';
 
 class SpeciesSummaryCard extends StatelessWidget {
   final List<SpeciesSummary> species;
   
   const SpeciesSummaryCard({required this.species, super.key});
   
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
   
   @override
   Widget build(BuildContext context) {
@@ -31,9 +32,9 @@ class SpeciesSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A4E),
+        color: AppColors.darkSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF4FC3F7).withOpacity(0.3)),
+        border: Border.all(color: AppColors.info.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -50,13 +51,13 @@ class SpeciesSummaryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFF4FC3F7).withOpacity(0.2),
+              color: AppColors.info.withOpacity(0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '$total',
               style: const TextStyle(
-                color: Color(0xFF4FC3F7),
+                color: AppColors.info,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),

@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 /// Shaka App Theme
-/// 
-/// Design: Quiet Luxury
-/// - Understated elegance, not tech-forward minimalism
-/// - Light font weights for display text
-/// - Generous letter-spacing on labels (gallery/museum aesthetic)
-/// - Warmth throughout
+///
+/// Design: Clean Ocean
+/// - Confident weights for mobile legibility
+/// - Tight letter-spacing on labels for readability
+/// - Warmth on light surfaces, cool-blue tint on dark surfaces
 class AppTheme {
   AppTheme._();
 
@@ -29,7 +28,6 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
       ),
 
-      // App Bar - Clean, minimal
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.background,
         elevation: 0,
@@ -45,13 +43,11 @@ class AppTheme {
         ),
       ),
 
-      // Typography - Light weights for elegance, generous tracking on labels
       textTheme: const TextTheme(
-        // Display - Light weight for refined elegance
         displayLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 48,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
           letterSpacing: -1.0,
           height: 1.1,
@@ -59,7 +55,7 @@ class AppTheme {
         displayMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 36,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
           letterSpacing: -0.5,
           height: 1.1,
@@ -67,34 +63,32 @@ class AppTheme {
         displaySmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 28,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
           letterSpacing: -0.3,
           height: 1.2,
         ),
-        // Headlines - Medium weight
         headlineLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 24,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
           letterSpacing: -0.2,
         ),
         headlineMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 20,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
           letterSpacing: -0.1,
         ),
         headlineSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 18,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
           letterSpacing: 0,
         ),
-        // Titles
         titleLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
@@ -116,7 +110,6 @@ class AppTheme {
           color: AppColors.textSecondary,
           letterSpacing: 0.3,
         ),
-        // Body - Slightly increased letter-spacing for readability
         bodyLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
@@ -141,31 +134,29 @@ class AppTheme {
           letterSpacing: 0.2,
           height: 1.4,
         ),
-        // Labels - ALL-CAPS with generous tracking (gallery aesthetic)
         labelLarge: TextStyle(
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
-          letterSpacing: 1.5,
+          letterSpacing: 1.0,
         ),
         labelMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 11,
           fontWeight: FontWeight.w500,
           color: AppColors.textSecondary,
-          letterSpacing: 1.5,
+          letterSpacing: 1.0,
         ),
         labelSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 10,
           fontWeight: FontWeight.w500,
           color: AppColors.textMuted,
-          letterSpacing: 2.0,
+          letterSpacing: 1.2,
         ),
       ),
 
-      // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.oceanBlue,
@@ -184,7 +175,6 @@ class AppTheme {
         ),
       ),
 
-      // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.oceanBlue,
@@ -197,7 +187,6 @@ class AppTheme {
         ),
       ),
 
-      // Card
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
@@ -207,7 +196,6 @@ class AppTheme {
         ),
       ),
 
-      // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
@@ -231,14 +219,12 @@ class AppTheme {
         ),
       ),
 
-      // Divider
       dividerTheme: const DividerThemeData(
         color: AppColors.border,
         thickness: 1,
         space: 1,
       ),
 
-      // Bottom Navigation
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.oceanBlue,
@@ -249,32 +235,27 @@ class AppTheme {
     );
   }
 
-  /// Dark theme - Surfline-style dark UI
+  /// Dark theme
   static ThemeData get darkTheme {
-    const darkBackground = Color(0xFF0D0D0D);
-    const darkSurface = Color(0xFF1A1A1A);
-    const darkBorder = Color(0xFF2A2A2A);
-    
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       primaryColor: AppColors.oceanBlue,
-      scaffoldBackgroundColor: darkBackground,
+      scaffoldBackgroundColor: AppColors.darkBackground,
       
       colorScheme: const ColorScheme.dark(
         primary: AppColors.oceanBlue,
         secondary: AppColors.coral,
-        surface: darkSurface,
-        surfaceContainerHighest: darkBackground,
+        surface: AppColors.darkSurface,
+        surfaceContainerHighest: AppColors.darkBackground,
         error: AppColors.error,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: Colors.white,
       ),
 
-      // App Bar - Dark, minimal
       appBarTheme: const AppBarTheme(
-        backgroundColor: darkBackground,
+        backgroundColor: AppColors.darkBackground,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -288,61 +269,60 @@ class AppTheme {
         ),
       ),
 
-      // Typography - White/grey on dark
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
+      textTheme: TextTheme(
+        displayLarge: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 48,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: Colors.white,
           letterSpacing: -1.0,
           height: 1.1,
         ),
-        displayMedium: TextStyle(
+        displayMedium: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 36,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: Colors.white,
           letterSpacing: -0.5,
           height: 1.1,
         ),
-        displaySmall: TextStyle(
+        displaySmall: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 28,
-          fontWeight: FontWeight.w300,
+          fontWeight: FontWeight.w400,
           color: Colors.white,
           letterSpacing: -0.3,
           height: 1.2,
         ),
-        headlineLarge: TextStyle(
+        headlineLarge: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 24,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: Colors.white,
           letterSpacing: -0.2,
         ),
-        headlineMedium: TextStyle(
+        headlineMedium: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 20,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: Colors.white,
           letterSpacing: -0.1,
         ),
-        headlineSmall: TextStyle(
+        headlineSmall: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 18,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w500,
           color: Colors.white,
           letterSpacing: 0,
         ),
-        titleLarge: TextStyle(
+        titleLarge: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
           fontWeight: FontWeight.w500,
           color: Colors.white,
           letterSpacing: 0.1,
         ),
-        titleMedium: TextStyle(
+        titleMedium: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 14,
           fontWeight: FontWeight.w500,
@@ -353,10 +333,10 @@ class AppTheme {
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: Colors.white70,
+          color: AppColors.darkTextSecondary,
           letterSpacing: 0.3,
         ),
-        bodyLarge: TextStyle(
+        bodyLarge: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 16,
           fontWeight: FontWeight.w400,
@@ -364,7 +344,7 @@ class AppTheme {
           letterSpacing: 0.2,
           height: 1.6,
         ),
-        bodyMedium: TextStyle(
+        bodyMedium: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 14,
           fontWeight: FontWeight.w400,
@@ -376,34 +356,33 @@ class AppTheme {
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w400,
-          color: Colors.white70,
+          color: AppColors.darkTextSecondary,
           letterSpacing: 0.2,
           height: 1.4,
         ),
-        labelLarge: TextStyle(
+        labelLarge: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: FontWeight.w500,
           color: Colors.white,
-          letterSpacing: 1.5,
+          letterSpacing: 1.0,
         ),
         labelMedium: TextStyle(
           fontFamily: 'Inter',
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: Colors.white70,
-          letterSpacing: 1.5,
+          color: AppColors.darkTextSecondary,
+          letterSpacing: 1.0,
         ),
         labelSmall: TextStyle(
           fontFamily: 'Inter',
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: Colors.white54,
-          letterSpacing: 2.0,
+          color: AppColors.darkTextMuted,
+          letterSpacing: 1.2,
         ),
       ),
 
-      // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.oceanBlue,
@@ -422,7 +401,6 @@ class AppTheme {
         ),
       ),
 
-      // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.oceanBlue,
@@ -435,9 +413,8 @@ class AppTheme {
         ),
       ),
 
-      // Card
       cardTheme: CardThemeData(
-        color: darkSurface,
+        color: AppColors.darkSurface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -445,42 +422,39 @@ class AppTheme {
         ),
       ),
 
-      // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: darkSurface,
+        fillColor: AppColors.darkSurface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: darkBorder),
+          borderSide: BorderSide(color: AppColors.darkBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: darkBorder),
+          borderSide: BorderSide(color: AppColors.darkBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.oceanBlue, width: 2),
+          borderSide: BorderSide(color: AppColors.oceanBlue, width: 2),
         ),
-        hintStyle: const TextStyle(
+        hintStyle: TextStyle(
           fontFamily: 'Inter',
           fontSize: 14,
-          color: Colors.white38,
+          color: AppColors.darkTextMuted,
         ),
       ),
 
-      // Divider
-      dividerTheme: const DividerThemeData(
-        color: darkBorder,
+      dividerTheme: DividerThemeData(
+        color: AppColors.darkBorder,
         thickness: 1,
         space: 1,
       ),
 
-      // Bottom Navigation
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: darkBackground,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: AppColors.darkBackground,
         selectedItemColor: AppColors.oceanBlue,
-        unselectedItemColor: Colors.white54,
+        unselectedItemColor: AppColors.darkTextMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),

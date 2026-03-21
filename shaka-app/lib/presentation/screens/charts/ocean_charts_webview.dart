@@ -1191,7 +1191,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           maxChildSize: 0.75,
           builder: (context, scrollController) => Container(
             decoration: const BoxDecoration(
-              color: Color(0xFF1A1A1A),
+              color: AppColors.darkSurface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Column(
@@ -1345,12 +1345,12 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
             colorScheme: ColorScheme.dark(
               primary: AppColors.info,
               onPrimary: Colors.white,
-              surface: const Color(0xFF1A1A1A),
+              surface: AppColors.darkSurface,
               onSurface: Colors.white,
               secondary: AppColors.info,
               onSecondary: Colors.white,
             ),
-            dialogBackgroundColor: const Color(0xFF1A1A1A),
+            dialogBackgroundColor: AppColors.darkSurface,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.info,
@@ -1397,7 +1397,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
           bottom: MediaQuery.of(context).padding.bottom + 16,
         ),
         decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
+          color: AppColors.darkSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Column(
@@ -1899,7 +1899,7 @@ class _OceanChartsWebViewState extends State<OceanChartsWebView> {
 
   Widget _buildOfflineView() {
     return Container(
-      color: const Color(0xFF0D0D0D),
+      color: AppColors.darkBackground,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

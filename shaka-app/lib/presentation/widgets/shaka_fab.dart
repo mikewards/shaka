@@ -33,11 +33,11 @@ class ShakaFab extends StatelessWidget {
         decoration: BoxDecoration(
           color: backgroundColor ?? AppColors.darkSurface.withOpacity(0.9),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: AppColors.darkBorder),
         ),
         child: Icon(
           icon,
-          color: iconColor ?? Colors.white70,
+          color: iconColor ?? AppColors.darkTextSecondary,
           size: 22,
         ),
       ),

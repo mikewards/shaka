@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import '../../../core/theme/app_colors.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -82,7 +83,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0D0D0D))
+      ..setBackgroundColor(AppColors.darkBackground)
       ..addJavaScriptChannel(
         'ReadyChannel',
         onMessageReceived: (_) => _onMapReady(),
@@ -317,7 +318,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.darkBackground,
       body: Stack(
         children: [
           if (_controller != null)
@@ -544,7 +545,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
           if (_isLoading)
             Positioned.fill(
               child: Container(
-                color: const Color(0xFF0D0D0D).withOpacity(0.7),
+                color: AppColors.darkBackground.withOpacity(0.7),
                 child: const Center(
                   child: CircularProgressIndicator(
                     color: Colors.white54,

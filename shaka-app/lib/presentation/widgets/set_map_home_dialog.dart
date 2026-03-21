@@ -9,7 +9,7 @@ import 'location_picker.dart';
 class SetMapHomeDialog extends StatelessWidget {
   const SetMapHomeDialog({super.key});
 
-  static const _bgColor = Color(0xFF1A1A1A);
+  static const _bgColor = AppColors.darkSurface;
 
   /// Call when Explore (or app shell) has determined Map Home is not set.
   static Future<void> showIfNeeded(BuildContext context) async {
@@ -55,7 +55,7 @@ class SetMapHomeDialog extends StatelessWidget {
             Text(
               'Choose where your Explore map and Satellite map will open by default. You can change this anytime in Profile.',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: AppColors.darkTextSecondary,
                 fontSize: 14,
                 height: 1.4,
               ),

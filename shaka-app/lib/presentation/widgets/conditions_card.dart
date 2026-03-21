@@ -74,8 +74,8 @@ class ConditionsCard extends StatelessWidget {
   final GibsSatelliteReadings? satelliteReadings;
 
   // Dark theme colors
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
 
   const ConditionsCard({super.key, required this.conditions, this.satelliteReadings});
 
@@ -113,10 +113,10 @@ class ConditionsCard extends StatelessWidget {
                   children: [
                     Text(
                       'Data sources',
-                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                      style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.info_outline, size: 12, color: Colors.white38),
+                    Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
                   ],
                 ),
               ),
@@ -210,7 +210,7 @@ class ConditionsCard extends StatelessWidget {
   void _showAllSourcesInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.darkSurface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -240,14 +240,14 @@ class ConditionsCard extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Colors.white54),
+                    icon: const Icon(Icons.close, color: AppColors.darkTextMuted),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               const Text(
                 'Condition data is aggregated from multiple scientific sources:',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
               ..._conditionSources.entries.map((e) => _buildSourceCard(
@@ -265,12 +265,12 @@ class ConditionsCard extends StatelessWidget {
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.schedule, size: 16, color: Colors.white38),
+                    Icon(Icons.schedule, size: 16, color: AppColors.darkTextHint),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Data is refreshed automatically. Forecasts become more accurate as the date approaches.',
-                        style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
+                        style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
                       ),
                     ),
                   ],
@@ -329,7 +329,7 @@ class ConditionsCard extends StatelessWidget {
                 child: Text(
                   source.updateFrequency,
                   style: const TextStyle(
-                    color: Colors.white54,
+                    color: AppColors.darkTextMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -350,7 +350,7 @@ class ConditionsCard extends StatelessWidget {
           Text(
             source.description,
             style: const TextStyle(
-              color: Colors.white70,
+              color: AppColors.darkTextSecondary,
               fontSize: 13,
               height: 1.4,
             ),
@@ -393,7 +393,7 @@ class _ConditionRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white54, fontSize: 13),
+            style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
           ),
           Flexible(
             child: Text(

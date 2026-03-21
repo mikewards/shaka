@@ -7,7 +7,7 @@
   <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #fbf8f3; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0f1117; }
     #map { width: 100%; height: 100%; }
     .maplibregl-ctrl-attrib { display: none !important; }
     .probe-marker {
@@ -206,7 +206,7 @@
           type: 'fill',
           source: 'land-pmtiles',
           'source-layer': 'land',
-          paint: { 'fill-color': '#fbf8f3', 'fill-opacity': 1 },
+          paint: { 'fill-color': '#0f1117', 'fill-opacity': 1 },
         }, 'aeroway-runway');
 
         map.addSource('lakes-pmtiles', { type: 'vector', url: lakesUrl });

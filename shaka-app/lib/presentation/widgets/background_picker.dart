@@ -47,8 +47,8 @@ class BackgroundPickerSheet extends StatelessWidget {
     final isDecoupled = onSelected != null;
     
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
@@ -60,7 +60,7 @@ class BackgroundPickerSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.darkTextHint,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -170,7 +170,7 @@ class _BackgroundOption extends StatelessWidget {
       case MapBackground.defaultDark:
         return AppColors.info;
       case MapBackground.satellite:
-        return const Color(0xFF4CAF50);
+        return AppColors.success;
       case MapBackground.nauticalChart:
         return const Color(0xFF26A69A);
     }
@@ -192,7 +192,7 @@ class _BackgroundOption extends StatelessWidget {
                 : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? iconColor : Colors.white12,
+              color: isSelected ? iconColor : AppColors.darkTextHint,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -201,14 +201,14 @@ class _BackgroundOption extends StatelessWidget {
             children: [
               Icon(
                 _getIcon(),
-                color: isSelected ? iconColor : Colors.white54,
+                color: isSelected ? iconColor : AppColors.darkTextMuted,
                 size: 28,
               ),
               const SizedBox(height: 6),
               Text(
                 background.displayName,
                 style: TextStyle(
-                  color: isSelected ? iconColor : Colors.white70,
+                  color: isSelected ? iconColor : AppColors.darkTextSecondary,
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 ),

@@ -89,9 +89,9 @@ class _SavedSpotsScreenState extends State<SavedSpotsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: Colors.white38, size: 48),
+            const Icon(Icons.error_outline, color: AppColors.darkTextHint, size: 48),
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: Colors.white54)),
+            Text(_error!, style: const TextStyle(color: AppColors.darkTextMuted)),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () {
@@ -113,17 +113,17 @@ class _SavedSpotsScreenState extends State<SavedSpotsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.bookmark_border, color: Colors.white24, size: 64),
+            const Icon(Icons.bookmark_border, color: AppColors.darkTextHint, size: 64),
             const SizedBox(height: 16),
             const Text(
               'No saved spots yet',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               'Save spots from the Explore or Satellite Imagery map',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.4), fontSize: 13),
+                  color: AppColors.darkTextHint, fontSize: 13),
             ),
           ],
         ),
@@ -198,7 +198,7 @@ class _ProfileSpotCard extends StatelessWidget {
                   Text(
                     '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                     style: const TextStyle(
-                      color: Colors.white54,
+                      color: AppColors.darkTextMuted,
                       fontSize: 12,
                       fontFamily: 'monospace',
                     ),
@@ -206,7 +206,7 @@ class _ProfileSpotCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+            const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
           ],
         ),
       ),

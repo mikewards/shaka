@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'data/api/shaka_api_client.dart';
 import 'data/models/spot_models.dart';
@@ -28,7 +29,7 @@ void main() {
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0D0D0D),
+      systemNavigationBarColor: AppColors.darkBackground,
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );

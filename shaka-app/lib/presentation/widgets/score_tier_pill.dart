@@ -44,7 +44,7 @@ class ScoreTierPill extends StatelessWidget {
               child: Container(
                 margin: EdgeInsets.only(bottom: isLast ? 0 : gap),
                 decoration: BoxDecoration(
-                  color: isFilled ? color : Colors.white.withOpacity(0.08),
+                  color: isFilled ? color : Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.vertical(
                     top: isFirst ? const Radius.circular(4) : Radius.zero,
                     bottom: isLast ? const Radius.circular(4) : Radius.zero,
@@ -70,7 +70,7 @@ class ScoreTierPill extends StatelessWidget {
             child: Container(
               margin: EdgeInsets.only(right: isLast ? 0 : gap),
               decoration: BoxDecoration(
-                color: isFilled ? color : Colors.white.withOpacity(0.08),
+                color: isFilled ? color : Colors.white.withOpacity(0.15),
                 borderRadius: BorderRadius.horizontal(
                   left: isFirst ? const Radius.circular(4) : Radius.zero,
                   right: isLast ? const Radius.circular(4) : Radius.zero,

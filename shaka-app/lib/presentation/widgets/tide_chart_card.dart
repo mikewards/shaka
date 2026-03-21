@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/models/spot_models.dart';
 
 class TideChartCard extends StatefulWidget {
@@ -15,14 +16,14 @@ class TideChartCard extends StatefulWidget {
 class _TideChartCardState extends State<TideChartCard> {
   bool _expanded = false;
 
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
-  static const _tideColor = Color(0xFF38BDF8);
-  static const _highColor = Color(0xFF2DD4BF);
-  static const _lowColor = Color(0xFF60A5FA);
-  static const _nowColor = Color(0xFFFBBF24);
-  static const _dimText = Color(0xFF888888);
-  static const _lightText = Color(0xFFE5E5E5);
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
+  static const _tideColor = AppColors.chartTide;
+  static const _highColor = AppColors.chartTideHigh;
+  static const _lowColor = AppColors.chartTideLow;
+  static const _nowColor = AppColors.chartNowLine;
+  static const _dimText = AppColors.darkTextMuted;
+  static const _lightText = AppColors.darkTextSecondary;
 
   bool get _hasData =>
       widget.tide != null && widget.tide!.points.isNotEmpty;
@@ -397,7 +398,7 @@ class _TideCurvePainter extends CustomPainter {
           Offset(x, y),
           4,
           Paint()
-            ..color = const Color(0xFF1A1A1A)
+            ..color = AppColors.darkSurface
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
 
@@ -453,7 +454,7 @@ class _TideCurvePainter extends CustomPainter {
           Offset(nx, ny),
           5,
           Paint()
-            ..color = const Color(0xFF1A1A1A)
+            ..color = AppColors.darkSurface
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5,
         );

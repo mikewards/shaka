@@ -728,7 +728,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             builder: (context, setModalState) {
               return Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xFF1A1A1A),
+                  color: AppColors.darkSurface,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Column(
@@ -739,7 +739,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: AppColors.darkTextHint,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -772,14 +772,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               children: [
                                 Icon(
                                   _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
-                                  color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white38,
+                                  color: _showSpotsOnMap ? AppColors.info : AppColors.darkTextHint,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Show on map',
                                   style: TextStyle(
-                                    color: _showSpotsOnMap ? const Color(0xFF7A9BB8) : Colors.white54,
+                                    color: _showSpotsOnMap ? AppColors.info : AppColors.darkTextMuted,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -796,16 +796,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.bookmark_border, color: Colors.white24, size: 48),
+                                  Icon(Icons.bookmark_border, color: AppColors.darkTextHint, size: 48),
                                   SizedBox(height: 12),
                                   Text(
                                     'No saved spots yet',
-                                    style: TextStyle(color: Colors.white54),
+                                    style: TextStyle(color: AppColors.darkTextMuted),
                                   ),
                                   SizedBox(height: 4),
                                   Text(
                                     'Tap the + button to save a location',
-                                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                                    style: TextStyle(color: AppColors.darkTextHint, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -892,19 +892,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final label = tierLabels[entry.key] ?? '—';
       _badgeImageCache[key] ??=
           await generateScoreChipImage(entry.key, entry.value, label);
+
+      final selectedKey = 'selected-chip-${entry.key}';
+      _badgeImageCache[selectedKey] ??=
+          await generateSelectedShakaImage(entry.key, entry.value);
     }));
   }
 
   Future<void> _registerScoreBadgeImages() async {
     if (_mapController == null) return;
-    if (_badgeImageCache.length < 6) await _preGenerateChipImages();
+    if (_badgeImageCache.length < 12) await _preGenerateChipImages();
 
     await Future.wait(tierDefs.keys.map((tier) async {
-      final key = 'chip-$tier';
-      if (_registeredBadgeImages.contains(key)) return;
-      if (_mapController == null) return;
-      await _mapController!.addImage(key, _badgeImageCache[key]!);
-      _registeredBadgeImages.add(key);
+      for (final prefix in ['chip', 'selected-chip']) {
+        final key = '$prefix-$tier';
+        if (_registeredBadgeImages.contains(key)) return;
+        if (_mapController == null) return;
+        await _mapController!.addImage(key, _badgeImageCache[key]!);
+        _registeredBadgeImages.add(key);
+      }
     }));
   }
 
@@ -973,7 +979,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
   
-  /// Highlight the selected spot — larger pill on top of base markers.
+  /// Highlight the selected spot with a shaka silhouette marker.
   Future<void> _updateSelectedMarker() async {
     if (_mapController == null) return;
 
@@ -986,7 +992,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_selectedSpotIndex == null || _selectedSpotIndex! >= _visibleSpots.length) return;
 
     final spot = _visibleSpots[_selectedSpotIndex!];
-    final tierKey = chipKeyForScore(spot.shakaScore);
+    final shakaKey = selectedChipKeyForScore(spot.shakaScore);
 
     final geojson = {
       'type': 'FeatureCollection',
@@ -998,7 +1004,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'coordinates': [spot.coordinates.lon, spot.coordinates.lat],
           },
           'properties': {
-            'icon': tierKey,
+            'icon': shakaKey,
           },
         },
       ],
@@ -1016,7 +1022,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         'selected-spot-icon',
         const SymbolLayerProperties(
           iconImage: ['get', 'icon'],
-          iconSize: 1.2,
+          iconSize: 1.0,
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
@@ -1261,12 +1267,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.7),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: AppColors.darkTextHint),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.gps_fixed, color: Colors.white54, size: 16),
+                  const Icon(Icons.gps_fixed, color: AppColors.darkTextMuted, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     '${_currentCenter!.latitude.toStringAsFixed(5)}, ${_currentCenter!.longitude.toStringAsFixed(5)}',
@@ -1313,7 +1319,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (!_initialCenterReady || _isLoading)
         Positioned.fill(
           child: Container(
-            color: const Color(0xFF0D0D0D),
+            color: AppColors.darkBackground,
             child: const Center(
               child: CircularProgressIndicator(
                 color: AppColors.info,
@@ -1329,13 +1335,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: AnimatedOpacity(
             opacity: (!_mapFullyReady || _styleTransitionActive) ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 400),
-            child: Container(color: const Color(0xFF0D0D0D)),
+            child: Container(color: AppColors.darkBackground),
           ),
         ),
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.darkBackground,
       body: Stack(
         children: [
           Column(
@@ -1351,12 +1357,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 SizedBox(
                   height: carouselHeight,
                   child: Container(
-                    color: const Color(0xFF0D0D0D),
+                    color: AppColors.darkBackground,
                     child: !_mapFullyReady
                         ? const Center(
                             child: Text(
                               'Loading spots...',
-                              style: TextStyle(color: Colors.white54),
+                              style: TextStyle(color: AppColors.darkTextMuted),
                             ),
                           )
                         : _error != null
@@ -1364,11 +1370,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.error_outline, color: Colors.white38, size: 32),
+                                    const Icon(Icons.error_outline, color: AppColors.darkTextHint, size: 32),
                                     const SizedBox(height: 8),
                                     Text(
                                       'Failed to load spots',
-                                      style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                      style: TextStyle(color: AppColors.darkTextMuted),
                                     ),
                                     const SizedBox(height: 12),
                                     TextButton(
@@ -1382,7 +1388,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ? const Center(
                                     child: Text(
                                       'No spots in view — pan or zoom the map',
-                                      style: TextStyle(color: Colors.white54),
+                                      style: TextStyle(color: AppColors.darkTextMuted),
                                     ),
                                   )
                                 : _buildSpotCarousel(),
@@ -1407,13 +1413,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withOpacity(0.9),
+          color: AppColors.darkSurface.withOpacity(0.9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: AppColors.darkTextHint),
         ),
         child: const Icon(
           Icons.layers,
-          color: Colors.white70,
+          color: AppColors.darkTextSecondary,
           size: 22,
         ),
       ),
@@ -1455,14 +1461,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withOpacity(0.9),
+          color: AppColors.darkSurface.withOpacity(0.9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: AppColors.darkTextHint),
         ),
         child: Stack(
           children: [
             Center(
-              child: Icon(icon, color: Colors.white70, size: 22),
+              child: Icon(icon, color: AppColors.darkTextSecondary, size: 22),
             ),
             if (badgeCount > 0)
               Positioned(
@@ -1497,7 +1503,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Widget _buildPinModeActions() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0D0D0D),
+        color: AppColors.darkBackground,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
@@ -1518,14 +1524,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
+                      color: AppColors.darkBorder,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white24),
+                      border: Border.all(color: AppColors.darkTextHint),
                     ),
                     child: const Center(
                       child: Text(
                         'Cancel',
-                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                        style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 15),
                       ),
                     ),
                   ),
@@ -1538,7 +1544,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7A9BB8),
+                      color: AppColors.info,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Center(
@@ -1572,7 +1578,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Text(
                 '${_visibleSpots.length} spots in view',
                 style: const TextStyle(
-                  color: Colors.white54,
+                  color: AppColors.darkTextMuted,
                   fontSize: 12,
                 ),
               ),
@@ -1580,7 +1586,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Text(
                 '${_allSpots.length} total',
                 style: const TextStyle(
-                  color: Colors.white54,
+                  color: AppColors.darkTextMuted,
                   fontSize: 12,
                 ),
               ),
@@ -1624,7 +1630,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 decoration: BoxDecoration(
                   color: index == _selectedSpotIndex
                       ? AppColors.info
-                      : Colors.white24,
+                      : AppColors.darkTextHint,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -1658,10 +1664,10 @@ class _SpotMarkerCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
+          color: AppColors.darkSurface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: Colors.white12,
+            color: AppColors.darkTextHint,
           ),
         ),
         child: Row(
@@ -1679,7 +1685,7 @@ class _SpotMarkerCard extends StatelessWidget {
                             height: 12,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFF7A9BB8),
+                              color: AppColors.info,
                             ),
                           ),
                         ),
@@ -1711,7 +1717,7 @@ class _SpotMarkerCard extends StatelessWidget {
                       if (spot.isUserSpot)
                         const Padding(
                           padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.bookmark, color: Color(0xFF7A9BB8), size: 16),
+                          child: Icon(Icons.bookmark, color: AppColors.info, size: 16),
                         ),
                     ],
                   ),
@@ -1720,7 +1726,7 @@ class _SpotMarkerCard extends StatelessWidget {
                     Text(
                       'Getting intel on this spot...',
                       style: TextStyle(
-                        color: const Color(0xFF7A9BB8),
+                        color: AppColors.info,
                         fontSize: 12,
                       ),
                     )
@@ -1747,7 +1753,7 @@ class _SpotMarkerCard extends StatelessWidget {
                           child: Text(
                             spot.region,
                             style: const TextStyle(
-                              color: Colors.white54,
+                              color: AppColors.darkTextMuted,
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1766,18 +1772,18 @@ class _SpotMarkerCard extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.white24),
+                                    border: Border.all(color: AppColors.darkTextHint),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.visibility, size: 11, color: Colors.white54),
+                                      const Icon(Icons.visibility, size: 11, color: AppColors.darkTextMuted),
                                       const SizedBox(width: 4),
                                       Flexible(
                                         child: Text(
                                           spot.visibility!,
-                                          style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                          style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -1792,17 +1798,17 @@ class _SpotMarkerCard extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.white24),
+                                  border: Border.all(color: AppColors.darkTextHint),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.waves, size: 11, color: Colors.white54),
+                                    const Icon(Icons.waves, size: 11, color: AppColors.darkTextMuted),
                                     const SizedBox(width: 4),
                                     Text(
                                       spot.swell!,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                      style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
                                     ),
                                   ],
                                 ),
@@ -1813,17 +1819,17 @@ class _SpotMarkerCard extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.white24),
+                                  border: Border.all(color: AppColors.darkTextHint),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.air, size: 11, color: Colors.white54),
+                                    const Icon(Icons.air, size: 11, color: AppColors.darkTextMuted),
                                     const SizedBox(width: 4),
                                     Text(
                                       spot.wind!,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                      style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
                                     ),
                                   ],
                                 ),
@@ -1837,7 +1843,7 @@ class _SpotMarkerCard extends StatelessWidget {
             ),
             
             // Chevron hint
-            const Icon(Icons.chevron_right, color: Colors.white38, size: 24),
+            const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 24),
           ],
         ),
       ),
@@ -1874,7 +1880,7 @@ class _SavedSpotCard extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
+            color: AppColors.darkBorder,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
@@ -1892,7 +1898,7 @@ class _SavedSpotCard extends StatelessWidget {
                               height: 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF7A9BB8),
+                                color: AppColors.info,
                               ),
                             ),
                           ),
@@ -1921,7 +1927,7 @@ class _SavedSpotCard extends StatelessWidget {
                           ? 'Getting intel on this spot...'
                           : '${spot.latitude.toStringAsFixed(4)}°, ${spot.longitude.toStringAsFixed(4)}°',
                       style: TextStyle(
-                        color: isLoading ? const Color(0xFF7A9BB8) : Colors.white54,
+                        color: isLoading ? AppColors.info : AppColors.darkTextMuted,
                         fontSize: 12,
                         fontFamily: isLoading ? null : 'monospace',
                       ),
@@ -1931,7 +1937,7 @@ class _SavedSpotCard extends StatelessWidget {
               ),
               IconButton(
                 onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline, color: Colors.white38),
+                icon: const Icon(Icons.delete_outline, color: AppColors.darkTextHint),
                 iconSize: 20,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),

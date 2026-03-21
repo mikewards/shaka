@@ -18,7 +18,7 @@ class SectionHeader extends StatelessWidget {
         Text(
           title,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            letterSpacing: 2,
+            letterSpacing: 1.2,
             color: AppColors.textMuted,
           ),
         ),

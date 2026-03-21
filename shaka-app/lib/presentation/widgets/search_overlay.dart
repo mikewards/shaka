@@ -34,9 +34,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
   bool _isSearching = false;
   Timer? _debounce;
 
-  static const _bgColor = Color(0xFF0D0D0D);
-  static const _cardColor = Color(0xFF1A1A1A);
-  static const _borderColor = Color(0xFF2A2A2A);
+  static const _bgColor = AppColors.darkBackground;
+  static const _cardColor = AppColors.darkSurface;
+  static const _borderColor = AppColors.darkBorder;
 
   @override
   void initState() {
@@ -167,7 +167,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
               children: [
                 IconButton(
                   onPressed: widget.onClose,
-                  icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                  icon: const Icon(Icons.arrow_back, color: AppColors.darkTextSecondary),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
@@ -190,7 +190,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                       _controller.clear();
                       _onSearchChanged('');
                     },
-                    icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                    icon: const Icon(Icons.close, color: AppColors.darkTextMuted, size: 20),
                   ),
               ],
             ),
@@ -225,11 +225,11 @@ class _SearchOverlayState extends State<SearchOverlay> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.search_off, color: Colors.white38, size: 48),
+              const Icon(Icons.search_off, color: AppColors.darkTextHint, size: 48),
               const SizedBox(height: 12),
               Text(
                 'No spots found for "$query"',
-                style: const TextStyle(color: Colors.white54, fontSize: 14),
+                style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
               ),
             ],
           ),
@@ -260,7 +260,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                 const Text(
                   'RECENT',
                   style: TextStyle(
-                    color: Colors.white54,
+                    color: AppColors.darkTextMuted,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.2,
@@ -280,10 +280,10 @@ class _SearchOverlayState extends State<SearchOverlay> {
             ),
           ),
           ..._recentSearches.map((search) => ListTile(
-                leading: const Icon(Icons.history, color: Colors.white38, size: 20),
+                leading: const Icon(Icons.history, color: AppColors.darkTextHint, size: 20),
                 title: Text(
                   search,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 14),
                 ),
                 onTap: () => _searchFromRecent(search),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -299,7 +299,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
             child: Text(
               'REGIONS',
               style: TextStyle(
-                color: Colors.white54,
+                color: AppColors.darkTextMuted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.2,
@@ -339,9 +339,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
       ),
       subtitle: Text(
         spot.region,
-        style: const TextStyle(color: Colors.white54, fontSize: 12),
+        style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+      trailing: const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
       onTap: () => _selectSpot(spot),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
     );
@@ -358,7 +358,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
           border: Border.all(color: _borderColor),
         ),
         child: const Center(
-          child: Icon(Icons.place_outlined, color: Colors.white54, size: 18),
+          child: Icon(Icons.place_outlined, color: AppColors.darkTextMuted, size: 18),
         ),
       ),
       title: Text(
@@ -367,9 +367,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
       ),
       subtitle: Text(
         '${region.spotCount} spots',
-        style: const TextStyle(color: Colors.white54, fontSize: 12),
+        style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 12),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+      trailing: const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
       onTap: () => _selectRegion(region),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
     );

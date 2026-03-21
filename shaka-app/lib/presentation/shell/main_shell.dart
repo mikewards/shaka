@@ -24,7 +24,7 @@ class MainShell extends StatelessWidget {
       // Hide bottom nav during Explore pin mode (map goes full-screen)
       bottomNavigationBar: isPinMode ? null : Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0D0D0D),
+          color: AppColors.darkBackground,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.3),
@@ -105,7 +105,7 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isSelected 
         ? AppColors.info
-        : Colors.white54;
+        : AppColors.darkTextMuted;
     
     return GestureDetector(
       onTap: onTap,

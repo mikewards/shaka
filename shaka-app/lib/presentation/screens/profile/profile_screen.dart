@@ -100,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               'SETTINGS',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: AppColors.darkTextMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.2,
@@ -192,7 +192,7 @@ class _ProfileRow extends StatelessWidget {
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      color: Colors.white54,
+                      color: AppColors.darkTextMuted,
                       fontSize: 12,
                     ),
                     maxLines: 1,
@@ -201,7 +201,7 @@ class _ProfileRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+            const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
           ],
         ),
       ),
