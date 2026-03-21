@@ -40,14 +40,14 @@ class AppColors {
 
   // Shaka Score Colors - Apple-inspired 5-tier palette
   static const Color scoreExcellent = Color(0xFF30D158);    // Apple Green     - 80-100
-  static const Color scoreGood = Color(0xFF00C7BE);          // Apple Mint      - 60-79
+  static const Color scoreGood = Color(0xFF7AE02B);          // Chartreuse      - 60-79
   static const Color scoreAverage = Color(0xFFFFD60A);       // Apple Yellow    - 40-59
   static const Color scoreBelowAvg = Color(0xFFFF9F0A);      // Apple Orange    - 20-39
   static const Color scorePoor = Color(0xFFFF453A);          // Apple Red       - 0-19
 
   // Score background tints (13% opacity for chip/badge backgrounds)
   static const Color scoreExcellentBg = Color(0x2230D158);
-  static const Color scoreGoodBg = Color(0x2200C7BE);
+  static const Color scoreGoodBg = Color(0x227AE02B);
   static const Color scoreAverageBg = Color(0x22FFD60A);
   static const Color scoreBelowAvgBg = Color(0x22FF9F0A);
   static const Color scorePoorBg = Color(0x22FF453A);
