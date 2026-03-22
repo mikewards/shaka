@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/unit_converter.dart';
+import '../../data/services/unit_preference_service.dart';
 import 'score_tier_pill.dart';
 
 enum ShakaScoreSize { small, medium, large }
@@ -149,8 +151,8 @@ class ShakaScoreBadge extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildFactorRow(context, 'Visibility', '35%', 'Chlorophyll concentration (satellite data)'),
-            _buildFactorRow(context, 'Swell', '28%', 'Wave height (meters)'),
-            _buildFactorRow(context, 'Wind', '22%', 'Wind speed (knots)'),
+            _buildFactorRow(context, 'Swell', '28%', 'Wave height (${UnitConverter.swellHeightUnit(UnitPreferenceService().system)})'),
+            _buildFactorRow(context, 'Wind', '22%', 'Wind speed (${UnitConverter.windSpeedUnit(UnitPreferenceService().system)})'),
             _buildFactorRow(context, 'Solunar', '15%', 'Moon transit & feeding periods'),
             const SizedBox(height: 16),
             Container(

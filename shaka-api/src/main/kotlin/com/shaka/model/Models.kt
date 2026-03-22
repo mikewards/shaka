@@ -23,7 +23,14 @@ data class SpotConditions(
     val secondarySwellCorrected: String? = null,
     val exposureBearing: Int? = null,
     val exposureWidth: Int? = null,
-    val bathymetryDepthM: Double? = null
+    val bathymetryDepthM: Double? = null,
+    // Raw numeric fields for client-side unit conversion (SI/Imperial)
+    val swellHeightFt: Double? = null,
+    val swellPeriodSec: Double? = null,
+    val swellDirection: String? = null,
+    val windSpeedKts: Double? = null,
+    val windDirectionCardinal: String? = null,
+    val waterTempC: Double? = null
 )
 
 @Serializable
@@ -413,7 +420,11 @@ data class UserSpotResponse(
     val visibility: String? = null, // e.g. "Murky", "Blue water" (from cache)
     val swell: String? = null,     // e.g. "3ft @ 12s NW" (from cache)
     val wind: String? = null,      // e.g. "8 kts NE" (from cache)
-    val waterTemp: String? = null   // e.g. "24°C / 75°F" (from cache)
+    val waterTemp: String? = null,  // e.g. "24°C / 75°F" (from cache)
+    // Raw numeric fields for client-side unit conversion
+    val waterTempC: Double? = null,
+    val swellHeightFt: Double? = null,
+    val windSpeedKts: Double? = null
 )
 
 @Serializable
@@ -449,7 +460,11 @@ data class SpotMapMarker(
     val visibility: String? = null,  // "Murky", "Blue water", etc.
     val swell: String? = null,       // "3ft @ 12s NW"
     val wind: String? = null,        // "8 kts NE"
-    val waterTemp: String? = null    // "24°C / 75°F"
+    val waterTemp: String? = null,   // "24°C / 75°F"
+    // Raw numeric fields for client-side unit conversion
+    val waterTempC: Double? = null,
+    val swellHeightFt: Double? = null,
+    val windSpeedKts: Double? = null
 )
 
 @Serializable

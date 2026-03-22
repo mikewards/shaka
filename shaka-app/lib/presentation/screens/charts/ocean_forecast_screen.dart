@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/unit_converter.dart';
+import '../../../data/services/unit_preference_service.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -54,6 +56,21 @@ class OceanForecastScreen extends StatefulWidget {
 class _OceanForecastScreenState extends State<OceanForecastScreen> {
   WebViewController? _controller;
   bool _mapReady = false;
+  VoidCallback? _unitListener;
+
+  static String _unitForLayer(String key, UnitSystem system) {
+    switch (key) {
+      case 'wind':
+      case 'currents':
+        return UnitConverter.chartWindUnit(system);
+      case 'waves':
+        return UnitConverter.chartWaveUnit(system);
+      case 'sst':
+        return UnitConverter.chartSSTUnit(system);
+      default:
+        return _kLayers[key]?.unit ?? '';
+    }
+  }
   bool _isLoading = true;
   bool _playing = false;
   String _activeLayer = 'wind';
@@ -69,12 +86,24 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   @override
   void initState() {
     super.initState();
+    _unitListener = () {
+      if (mounted) {
+        setState(() {});
+        _controller?.runJavaScript(
+          'if (typeof setUnitSystem === "function") setUnitSystem("${UnitPreferenceService().system.name}");',
+        );
+      }
+    };
+    UnitPreferenceService().addListener(_unitListener!);
     _initWebView();
   }
 
   @override
   void dispose() {
     _probeDismissTimer?.cancel();
+    if (_unitListener != null) {
+      UnitPreferenceService().removeListener(_unitListener!);
+    }
     super.dispose();
   }
 
@@ -218,6 +247,9 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
       'zoom': widget.initialLat != null ? 6 : 4,
     });
     await _controller?.runJavaScript('initMap($configJson)');
+    await _controller?.runJavaScript(
+      'if (typeof setUnitSystem === "function") setUnitSystem("${UnitPreferenceService().system.name}");',
+    );
   }
 
   void _onMapReady() {
@@ -280,15 +312,31 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   String _formatProbeValue() {
     if (_probeValue == null) return '';
-    final unit = _kLayers[_activeLayer]?.unit ?? '';
-    final valStr = _probeValue!.abs() < 10
-        ? _probeValue!.toStringAsFixed(1)
-        : _probeValue!.toStringAsFixed(0);
+    final system = UnitPreferenceService().system;
     final isVector = _activeLayer == 'wind' || _activeLayer == 'currents';
-    if (isVector && _probeDirection != null) {
-      return '$valStr $unit ${_degreesToCardinal(_probeDirection!)}';
+    String formatted;
+    switch (_activeLayer) {
+      case 'wind':
+      case 'currents':
+        formatted = UnitConverter.formatChartWind(_probeValue!, system);
+        break;
+      case 'waves':
+        formatted = UnitConverter.formatChartWaveHeight(_probeValue!, system);
+        break;
+      case 'sst':
+        formatted = UnitConverter.formatChartSST(_probeValue!, system);
+        break;
+      default:
+        final unit = _kLayers[_activeLayer]?.unit ?? '';
+        final valStr = _probeValue!.abs() < 10
+            ? _probeValue!.toStringAsFixed(1)
+            : _probeValue!.toStringAsFixed(0);
+        formatted = '$valStr $unit';
     }
-    return '$valStr $unit';
+    if (isVector && _probeDirection != null) {
+      return '$formatted ${_degreesToCardinal(_probeDirection!)}';
+    }
+    return formatted;
   }
 
   Widget _buildProbeChip() {

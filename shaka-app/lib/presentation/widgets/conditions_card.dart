@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/unit_converter.dart';
 import '../../data/models/spot_models.dart';
+import '../../data/services/unit_preference_service.dart';
 import '../utils/gibs_colormap.dart';
 
 /// Data source information for conditions
@@ -81,85 +83,97 @@ class ConditionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with info hint
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final units = UnitPreferenceService();
+    return ListenableBuilder(
+      listenable: units,
+      builder: (context, _) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Conditions',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _showAllSourcesInfo(context);
-                },
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Data sources',
-                      style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+              // Header with info hint
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Conditions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
-                    SizedBox(width: 4),
-                    Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
-                  ],
-                ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _showAllSourcesInfo(context);
+                    },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Data sources',
+                          style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              _ConditionRow(
+                label: 'Swell',
+                value: conditions.swellHeightFt != null
+                    ? UnitConverter.formatSwell(conditions.swellHeightFt, conditions.swellPeriodSec, conditions.swellDirection, units.system)
+                    : (conditions.swellCorrected ?? conditions.swell),
+                sourceKey: conditions.swellCorrected != null ? 'swell_corrected' : 'swell',
+              ),
+              _ConditionRow(
+                label: 'Wind',
+                value: conditions.windSpeedKts != null
+                    ? UnitConverter.formatWind(conditions.windSpeedKts, conditions.windDirectionCardinal, units.system)
+                    : conditions.wind,
+                sourceKey: 'wind',
+              ),
+              _ConditionRow(
+                label: 'Water',
+                value: conditions.waterTempC != null
+                    ? UnitConverter.formatTemperature(conditions.waterTempC, units.system)
+                    : conditions.waterTemp,
+                sourceKey: 'water',
+              ),
+              _ConditionRow(
+                label: 'Visibility',
+                value: _resolveVisibility(),
+                sourceKey: 'visibility',
+                isLast: !(conditions.tideState.isNotEmpty && conditions.tideState != 'unknown') && conditions.bathymetryDepthM == null,
+              ),
+              if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
+                _ConditionRow(
+                  label: 'Tide',
+                  value: conditions.tideState,
+                  sourceKey: 'tide',
+                  isLast: conditions.bathymetryDepthM == null,
+                ),
+              if (conditions.bathymetryDepthM != null)
+                _ConditionRow(
+                  label: 'Depth',
+                  value: UnitConverter.formatDepth(conditions.bathymetryDepthM, units.system),
+                  sourceKey: 'depth',
+                  isLast: true,
+                ),
             ],
           ),
-          const SizedBox(height: 8),
-          _ConditionRow(
-            label: 'Swell',
-            value: conditions.swellCorrected ?? conditions.swell,
-            sourceKey: conditions.swellCorrected != null ? 'swell_corrected' : 'swell',
-          ),
-          _ConditionRow(
-            label: 'Wind',
-            value: conditions.wind,
-            sourceKey: 'wind',
-          ),
-          _ConditionRow(
-            label: 'Water',
-            value: conditions.waterTemp,
-            sourceKey: 'water',
-          ),
-          _ConditionRow(
-            label: 'Visibility',
-            value: _resolveVisibility(),
-            sourceKey: 'visibility',
-            isLast: !(conditions.tideState.isNotEmpty && conditions.tideState != 'unknown') && conditions.bathymetryDepthM == null,
-          ),
-          if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown')
-            _ConditionRow(
-              label: 'Tide',
-              value: conditions.tideState,
-              sourceKey: 'tide',
-              isLast: conditions.bathymetryDepthM == null,
-            ),
-          if (conditions.bathymetryDepthM != null)
-            _ConditionRow(
-              label: 'Depth',
-              value: '${conditions.bathymetryDepthM!.toStringAsFixed(1)}m / ${(conditions.bathymetryDepthM! * 3.28084).toStringAsFixed(0)}ft',
-              sourceKey: 'depth',
-              isLast: true,
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 

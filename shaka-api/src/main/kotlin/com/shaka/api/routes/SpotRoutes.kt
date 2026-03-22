@@ -152,7 +152,10 @@ fun Application.configureRouting() {
                         },
                         waterTemp = cached?.sst?.value?.let { sst ->
                             "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
-                        }
+                        },
+                        waterTempC = cached?.sst?.value,
+                        swellHeightFt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt },
+                        windSpeedKts = cached?.wind?.value?.speedKnots
                     )
                 }
                 
@@ -930,7 +933,10 @@ fun Application.configureRouting() {
                             },
                             waterTemp = cached?.sst?.value?.let { sst ->
                                 "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
-                            }
+                            },
+                            waterTempC = cached?.sst?.value,
+                            swellHeightFt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt },
+                            windSpeedKts = cached?.wind?.value?.speedKnots
                         )
                     },
                     count = spots.size,

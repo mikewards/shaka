@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/animations.dart';
+import '../../core/utils/unit_converter.dart';
 import '../../data/models/spot_models.dart';
+import '../../data/services/unit_preference_service.dart';
 import 'shaka_score_badge.dart';
 
 /// Spot card with clean, Square-inspired styling.
@@ -101,43 +103,55 @@ class _ConditionSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _MiniCondition(
-              label: 'Vis',
-              value: _extractValue(conditions.visibility),
-            ),
+    final units = UnitPreferenceService();
+    return ListenableBuilder(
+      listenable: units,
+      builder: (context, _) {
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(8),
           ),
-          _Divider(),
-          Expanded(
-            child: _MiniCondition(
-              label: 'Temp',
-              value: _extractTemp(conditions.waterTemp),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _MiniCondition(
+                  label: 'Vis',
+                  value: _extractValue(conditions.visibility),
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _MiniCondition(
+                  label: 'Temp',
+                  value: conditions.waterTempC != null
+                      ? UnitConverter.formatTemperature(conditions.waterTempC, units.system)
+                      : _extractTemp(conditions.waterTemp),
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _MiniCondition(
+                  label: 'Swell',
+                  value: conditions.swellHeightFt != null
+                      ? UnitConverter.formatSwellHeight(conditions.swellHeightFt, units.system)
+                      : _extractSwell(conditions.swell),
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _MiniCondition(
+                  label: 'Wind',
+                  value: conditions.windSpeedKts != null
+                      ? UnitConverter.formatWindSpeed(conditions.windSpeedKts, units.system)
+                      : _extractWind(conditions.wind),
+                ),
+              ),
+            ],
           ),
-          _Divider(),
-          Expanded(
-            child: _MiniCondition(
-              label: 'Swell',
-              value: _extractSwell(conditions.swell),
-            ),
-          ),
-          _Divider(),
-          Expanded(
-            child: _MiniCondition(
-              label: 'Wind',
-              value: _extractWind(conditions.wind),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

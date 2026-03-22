@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/unit_converter.dart';
+import '../services/unit_preference_service.dart';
+
 /// Categories for GIBS satellite imagery layers
 /// Order determines display order in the layer picker
 enum GibsLayerCategory {
@@ -77,7 +80,18 @@ class GibsLayer {
   
   /// Whether this layer has legend data available
   bool get hasLegend => legendColors != null && legendColors!.isNotEmpty;
-  
+
+  /// Legend labels with unit system applied. For SST layers, returns °F in Imperial
+  /// and °C in Metric. For other layers, returns legendLabels as-is.
+  List<String>? get effectiveLegendLabels {
+    if (category != GibsLayerCategory.seaSurfaceTemp) return legendLabels;
+    const celsiusValues = [0.0, 8.0, 16.0, 24.0, 32.0];
+    final system = UnitPreferenceService().system;
+    return celsiusValues
+        .map((c) => UnitConverter.formatChartSST(c, system))
+        .toList();
+  }
+
   /// Whether this layer has orbit track data available
   bool get hasOrbitTrack => orbitTrackAscending != null || orbitTrackDescending != null;
 

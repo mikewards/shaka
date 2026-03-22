@@ -15,6 +15,7 @@ import '../../../data/models/spot_models.dart';
 import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
+import '../../../data/services/unit_preference_service.dart';
 import '../../widgets/dynamic_ocean_legend.dart';
 import '../../widgets/background_picker.dart';
 import '../../widgets/save_spot_sheet.dart';
@@ -1814,29 +1815,32 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
     }
     
     if (categoriesWithLegends.isEmpty) return const SizedBox.shrink();
-    
-    // Stack legends vertically for each category
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: categoriesWithLegends.values.map((layer) {
-        // Get category display name
-        final categoryName = layer.category == GibsLayerCategory.chlorophyll 
-            ? 'Chl-a'  // Standard scientific abbreviation
-            : layer.category == GibsLayerCategory.seaSurfaceTemp 
-                ? 'SST' 
-                : '';
-        
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: DynamicOceanLegend.fromGibs(
-            colors: layer.legendColors!,
-            labels: layer.legendLabels!,
-            unit: layer.legendUnit,
-            categoryName: categoryName,
-            compact: true,
-          ),
-        );
-      }).toList(),
+
+    // Stack legends vertically for each category. Listen to unit changes for SST.
+    return ListenableBuilder(
+      listenable: UnitPreferenceService(),
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: categoriesWithLegends.values.map((layer) {
+          // Get category display name
+          final categoryName = layer.category == GibsLayerCategory.chlorophyll
+              ? 'Chl-a'  // Standard scientific abbreviation
+              : layer.category == GibsLayerCategory.seaSurfaceTemp
+                  ? 'SST'
+                  : '';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: DynamicOceanLegend.fromGibs(
+              colors: layer.legendColors!,
+              labels: layer.effectiveLegendLabels!,
+              unit: layer.legendUnit,
+              categoryName: categoryName,
+              compact: true,
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
   

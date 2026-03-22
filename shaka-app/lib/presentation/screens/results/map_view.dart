@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/unit_converter.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/unit_preference_service.dart';
 import '../../utils/tier_pill_painter.dart';
 import '../../widgets/shaka_score_badge.dart';
 
@@ -246,11 +248,15 @@ class _SpotPreviewCard extends StatelessWidget {
                   ),
                   _ConditionItem(
                     label: 'Temp',
-                    value: _extractTemp(spot.conditions.waterTemp),
+                    value: spot.conditions.waterTempC != null
+                        ? UnitConverter.formatTemperature(spot.conditions.waterTempC, UnitPreferenceService().system)
+                        : _extractTemp(spot.conditions.waterTemp),
                   ),
                   _ConditionItem(
                     label: 'Swell',
-                    value: _extractSwell(spot.conditions.swell),
+                    value: spot.conditions.swellHeightFt != null
+                        ? UnitConverter.formatSwellHeight(spot.conditions.swellHeightFt, UnitPreferenceService().system)
+                        : _extractSwell(spot.conditions.swell),
                   ),
                   _ConditionItem(
                     label: 'Wind',

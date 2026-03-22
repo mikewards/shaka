@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
 import '../../../data/services/map_home_service.dart';
+import '../../../data/services/unit_preference_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/location_picker.dart';
 
@@ -25,8 +26,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    UnitPreferenceService().addListener(_onUnitChanged);
     _loadSavedSpotsCount();
     _loadMapHome();
+  }
+
+  void _onUnitChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    UnitPreferenceService().removeListener(_onUnitChanged);
+    super.dispose();
   }
 
   Future<void> _loadSavedSpotsCount() async {
@@ -116,6 +128,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ? 'Loading...'
                 : (_mapHome?.displaySubtitle ?? 'Not set — tap to choose'),
             onTap: _openMapHomePicker,
+          ),
+          const SizedBox(height: 12),
+          // Units row
+          _ProfileRow(
+            icon: Icons.straighten,
+            iconColor: AppColors.info,
+            title: 'Units',
+            subtitle: UnitPreferenceService().isImperial
+                ? 'Imperial (°F, ft, kts)'
+                : 'Metric (°C, m, km/h)',
+            onTap: () {
+              HapticFeedback.selectionClick();
+              UnitPreferenceService().toggle();
+            },
           ),
           const SizedBox(height: 12),
           // Saved Spots row (single row; tap opens full list)

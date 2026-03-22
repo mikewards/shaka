@@ -9,6 +9,7 @@ import 'data/models/spot_models.dart';
 import 'data/repositories/spot_repository.dart';
 import 'data/services/health_service.dart';
 import 'data/services/map_background_service.dart';
+import 'data/services/unit_preference_service.dart';
 import 'presentation/bloc/search_bloc.dart';
 import 'presentation/shell/main_shell.dart';
 import 'presentation/screens/explore/explore_screen.dart';
@@ -45,6 +46,7 @@ void main() {
     ]);
     HealthProvider().checkHealthInBackground();
     MapBackgroundService().init();
+    UnitPreferenceService().init();
   });
 }
 

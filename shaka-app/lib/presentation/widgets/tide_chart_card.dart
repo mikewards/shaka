@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/unit_converter.dart';
 import '../../data/models/spot_models.dart';
+import '../../data/services/unit_preference_service.dart';
 
 class TideChartCard extends StatefulWidget {
   final TideChartData? tide;
@@ -14,6 +16,7 @@ class TideChartCard extends StatefulWidget {
 }
 
 class _TideChartCardState extends State<TideChartCard> {
+  final _units = UnitPreferenceService();
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _tideColor = AppColors.chartTide;
@@ -28,18 +31,23 @@ class _TideChartCardState extends State<TideChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Column(
-        children: [
-          _buildHeader(),
-          if (_hasData) _buildExpandedContent(),
-        ],
-      ),
+    return ListenableBuilder(
+      listenable: _units,
+      builder: (context, _) {
+        return Container(
+          decoration: BoxDecoration(
+            color: _cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Column(
+            children: [
+              _buildHeader(),
+              if (_hasData) _buildExpandedContent(),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -47,7 +55,7 @@ class _TideChartCardState extends State<TideChartCard> {
     final tide = widget.tide;
     final stageText = tide?.currentStage ?? '';
     final heightText = tide?.currentHeightFt != null
-        ? '${tide!.currentHeightFt!.toStringAsFixed(1)} ft'
+        ? UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)
         : '';
     final stageIcon = stageText == 'rising'
         ? Icons.trending_up
@@ -124,6 +132,7 @@ class _TideChartCardState extends State<TideChartCard> {
               painter: _TideCurvePainter(
                 points: tide.points,
                 extremes: tide.extremes,
+                unitSystem: _units.system,
                 tideColor: _tideColor,
                 highColor: _highColor,
                 lowColor: _lowColor,
@@ -152,7 +161,7 @@ class _TideChartCardState extends State<TideChartCard> {
                 for (int i = 0; i < allHighs.length; i++) ...[
                   if (i > 0) const SizedBox(width: 8),
                   _footerChip('High', _formatTime(allHighs[i].time),
-                      '${allHighs[i].heightFt.toStringAsFixed(1)} ft', _highColor),
+                      UnitConverter.formatTideHeight(allHighs[i].heightFt, _units.system), _highColor),
                 ],
               ],
             ),
@@ -164,7 +173,7 @@ class _TideChartCardState extends State<TideChartCard> {
                 for (int i = 0; i < allLows.length; i++) ...[
                   if (i > 0) const SizedBox(width: 8),
                   _footerChip('Low', _formatTime(allLows[i].time),
-                      '${allLows[i].heightFt.toStringAsFixed(1)} ft', _lowColor),
+                      UnitConverter.formatTideHeight(allLows[i].heightFt, _units.system), _lowColor),
                 ],
               ],
             ),
@@ -172,7 +181,7 @@ class _TideChartCardState extends State<TideChartCard> {
           Text(
             tide.provider == 'fes2022'
                 ? 'FES2022 Global Tide Model · ${tide.datum}'
-                : '${tide.stationName} · ${tide.stationDistanceMi.toStringAsFixed(1)} mi · ${tide.datum}',
+                : '${tide.stationName} · ${UnitConverter.formatDistance(tide.stationDistanceMi, _units.system)} · ${tide.datum}',
             style: TextStyle(color: _dimText, fontSize: 11),
             overflow: TextOverflow.ellipsis,
           ),
@@ -379,6 +388,7 @@ class _TideChartCardState extends State<TideChartCard> {
 class _TideCurvePainter extends CustomPainter {
   final List<TidePoint> points;
   final List<TideExtreme> extremes;
+  final UnitSystem unitSystem;
   final Color tideColor;
   final Color highColor;
   final Color lowColor;
@@ -388,6 +398,7 @@ class _TideCurvePainter extends CustomPainter {
   _TideCurvePainter({
     required this.points,
     required this.extremes,
+    required this.unitSystem,
     required this.tideColor,
     required this.highColor,
     required this.lowColor,
@@ -431,9 +442,10 @@ class _TideCurvePainter extends CustomPainter {
     for (double h = firstTick; h <= maxH; h += tickStep) {
       final y = yOf(h);
       canvas.drawLine(Offset(leftPad, y), Offset(size.width - rightPad, y), gridPaint);
-      final label = h == h.roundToDouble()
-          ? '${h.toInt()}'
-          : h.toStringAsFixed(1);
+      final displayH = UnitConverter.convertTideValue(h, unitSystem);
+      final label = displayH == displayH.roundToDouble()
+          ? '${displayH.toInt()}'
+          : displayH.toStringAsFixed(1);
       final tp = TextPainter(
         text: TextSpan(
           text: label,
@@ -539,7 +551,7 @@ class _TideCurvePainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
 
-      final label = '${ext.heightFt.toStringAsFixed(1)}ft';
+      final label = UnitConverter.formatTideHeightCompact(ext.heightFt, unitSystem);
       final tp = TextPainter(
         text: TextSpan(
           text: label,
@@ -612,5 +624,5 @@ class _TideCurvePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TideCurvePainter old) =>
-      points != old.points || extremes != old.extremes;
+      points != old.points || extremes != old.extremes || unitSystem != old.unitSystem;
 }

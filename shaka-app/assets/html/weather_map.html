@@ -70,8 +70,44 @@
 
     var _injectedCatalog = null;
     var _injectedTextures = {};
+    var currentUnitSystem = 'imperial';
 
     function _injectCatalog(data) { _injectedCatalog = data; }
+
+    function setUnitSystem(system) {
+      currentUnitSystem = system;
+      updateLayerChipUnit();
+    }
+
+    function updateLayerChipUnit() {
+      // Layer chip is rendered in Flutter; unit labels updated via rebuild
+    }
+
+    function formatProbeValue(value, layerKey) {
+      if (value === undefined || value === null) return '';
+      var isMetric = (currentUnitSystem === 'metric');
+      switch (layerKey) {
+        case 'wind':
+        case 'currents':
+          if (!isMetric) {
+            return (value * 1.94384).toFixed(1) + ' kts';
+          }
+          return value.toFixed(1) + ' m/s';
+        case 'waves':
+          if (!isMetric) {
+            return (value * 3.28084).toFixed(1) + ' ft';
+          }
+          return value.toFixed(1) + ' m';
+        case 'sst':
+          if (!isMetric) {
+            return Math.round(value * 9/5 + 32) + '°F';
+          }
+          return value.toFixed(1) + '°C';
+        default:
+          var unit = LAYERS[layerKey] ? LAYERS[layerKey].unit : '';
+          return value.toFixed(2) + ' ' + unit;
+      }
+    }
 
     function _injectTexture(key, ts, base64) {
       _injectedTextures[key + '/' + ts] = 'data:image/webp;base64,' + base64;

@@ -28,6 +28,13 @@ class SpotConditions {
   final int? exposureBearing;
   final int? exposureWidth;
   final double? bathymetryDepthM;
+  // Raw numeric fields for client-side unit conversion
+  final double? swellHeightFt;
+  final double? swellPeriodSec;
+  final String? swellDirection;
+  final double? windSpeedKts;
+  final String? windDirectionCardinal;
+  final double? waterTempC;
 
   const SpotConditions({
     required this.visibility,
@@ -41,6 +48,12 @@ class SpotConditions {
     this.exposureBearing,
     this.exposureWidth,
     this.bathymetryDepthM,
+    this.swellHeightFt,
+    this.swellPeriodSec,
+    this.swellDirection,
+    this.windSpeedKts,
+    this.windDirectionCardinal,
+    this.waterTempC,
   });
 
   factory SpotConditions.fromJson(Map<String, dynamic> json) {
@@ -56,6 +69,12 @@ class SpotConditions {
       exposureBearing: json['exposureBearing'],
       exposureWidth: json['exposureWidth'],
       bathymetryDepthM: (json['bathymetryDepthM'] as num?)?.toDouble(),
+      swellHeightFt: (json['swellHeightFt'] as num?)?.toDouble(),
+      swellPeriodSec: (json['swellPeriodSec'] as num?)?.toDouble(),
+      swellDirection: json['swellDirection'],
+      windSpeedKts: (json['windSpeedKts'] as num?)?.toDouble(),
+      windDirectionCardinal: json['windDirectionCardinal'],
+      waterTempC: (json['waterTempC'] as num?)?.toDouble(),
     );
   }
 }
@@ -1098,16 +1117,19 @@ class ServiceHealth {
 class UserSpotResponse {
   final String id;
   final String name;
-  final Coordinates coordinates;  // Uses existing Coordinates class
+  final Coordinates coordinates;
   final String region;
   final String country;
   final DateTime createdAt;
   final bool isUserSpot;
-  final int? shakaScore;  // Latest Shaka Score (if available from API)
-  final String? visibility; // e.g. "Murky", "Blue water" (from cache)
-  final String? swell;      // e.g. "3ft @ 12s NW" (from cache)
-  final String? wind;       // e.g. "8 kts NE" (from cache)
-  final String? waterTemp;  // e.g. "24°C / 75°F" (from cache)
+  final int? shakaScore;
+  final String? visibility;
+  final String? swell;
+  final String? wind;
+  final String? waterTemp;
+  final double? waterTempC;
+  final double? swellHeightFt;
+  final double? windSpeedKts;
 
   UserSpotResponse({
     required this.id,
@@ -1122,9 +1144,11 @@ class UserSpotResponse {
     this.swell,
     this.wind,
     this.waterTemp,
+    this.waterTempC,
+    this.swellHeightFt,
+    this.windSpeedKts,
   });
 
-  // Convenience getters
   double get latitude => coordinates.lat;
   double get longitude => coordinates.lon;
 
@@ -1142,10 +1166,12 @@ class UserSpotResponse {
       swell: json['swell'] as String?,
       wind: json['wind'] as String?,
       waterTemp: json['waterTemp'] as String?,
+      waterTempC: (json['waterTempC'] as num?)?.toDouble(),
+      swellHeightFt: (json['swellHeightFt'] as num?)?.toDouble(),
+      windSpeedKts: (json['windSpeedKts'] as num?)?.toDouble(),
     );
   }
 
-  /// Convert to SpotMapMarker for use in Explore map carousel + markers
   SpotMapMarker toSpotMapMarker() {
     return SpotMapMarker(
       id: id,
@@ -1158,6 +1184,9 @@ class UserSpotResponse {
       wind: wind,
       waterTemp: waterTemp,
       isUserSpot: true,
+      waterTempC: waterTempC,
+      swellHeightFt: swellHeightFt,
+      windSpeedKts: windSpeedKts,
     );
   }
 }
@@ -1217,12 +1246,15 @@ class SpotMapMarker {
   final Coordinates coordinates;
   final String region;
   final int? shakaScore;
-  // Condition fields from cache (nullable - may not have data)
-  final String? visibility; // "Murky", "Blue water", etc.
-  final String? swell;      // "3ft @ 12s NW"
-  final String? wind;       // "8 kts NE"
-  final String? waterTemp;  // "24°C / 75°F"
-  final bool isUserSpot;    // true for user-saved spots (visual distinction on map)
+  final String? visibility;
+  final String? swell;
+  final String? wind;
+  final String? waterTemp;
+  final bool isUserSpot;
+  // Raw numeric fields for client-side unit conversion
+  final double? waterTempC;
+  final double? swellHeightFt;
+  final double? windSpeedKts;
 
   const SpotMapMarker({
     required this.id,
@@ -1235,6 +1267,9 @@ class SpotMapMarker {
     this.wind,
     this.waterTemp,
     this.isUserSpot = false,
+    this.waterTempC,
+    this.swellHeightFt,
+    this.windSpeedKts,
   });
 
   factory SpotMapMarker.fromJson(Map<String, dynamic> json) {
@@ -1248,6 +1283,9 @@ class SpotMapMarker {
       swell: json['swell'] as String?,
       wind: json['wind'] as String?,
       waterTemp: json['waterTemp'] as String?,
+      waterTempC: (json['waterTempC'] as num?)?.toDouble(),
+      swellHeightFt: (json['swellHeightFt'] as num?)?.toDouble(),
+      windSpeedKts: (json['windSpeedKts'] as num?)?.toDouble(),
     );
   }
 }

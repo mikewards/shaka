@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/unit_converter.dart';
 import '../../data/models/spot_models.dart';
+import '../../data/services/unit_preference_service.dart';
 
 class _ParsedSwell {
   final double heightFt;
@@ -133,9 +135,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   static const _primaryColor = AppColors.chartTideHigh;
   static const _secondaryColor = AppColors.chartTideLow;
 
+  final _units = UnitPreferenceService();
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ListenableBuilder(
+      listenable: _units,
+      builder: (context, _) {
+        return Container(
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(12),
@@ -148,11 +155,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         ],
       ),
     );
+      },
+    );
   }
 
   Widget _buildHeader() {
-    final swellValue =
-        widget.conditions.swellCorrected ?? widget.conditions.swell;
+    final swellValue = widget.conditions.swellHeightFt != null
+        ? UnitConverter.formatSwell(widget.conditions.swellHeightFt, widget.conditions.swellPeriodSec, widget.conditions.swellDirection, _units.system)
+        : (widget.conditions.swellCorrected ?? widget.conditions.swell);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
@@ -207,7 +217,10 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     if (c.swellCorrected != null) {
       final ps = _parseSwell(c.swellCorrected!);
       addCompass(ps, _primaryColor);
-      items.add(('Swell (at spot)', c.swellCorrected!,
+      final primarySwellValue = c.swellHeightFt != null
+          ? UnitConverter.formatSwell(c.swellHeightFt, c.swellPeriodSec, c.swellDirection, _units.system)
+          : c.swellCorrected!;
+      items.add(('Swell (at spot)', primarySwellValue,
           ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _primaryColor) : null));
       if (c.swellCorrected != c.swell) {
         final ps2 = _parseSwell(c.swell);
@@ -218,7 +231,10 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     } else {
       final ps = _parseSwell(c.swell);
       addCompass(ps, _primaryColor);
-      items.add(('Swell', c.swell,
+      final swellValue = c.swellHeightFt != null
+          ? UnitConverter.formatSwell(c.swellHeightFt, c.swellPeriodSec, c.swellDirection, _units.system)
+          : c.swell;
+      items.add(('Swell', swellValue,
           ps != null ? _SwellDirectionBadge(degrees: ps.degrees, color: _primaryColor) : null));
     }
 
@@ -243,7 +259,10 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     }
 
     final windDir = _parseWindDirection(c.wind);
-    items.add(('Wind', c.wind,
+    final windValue = widget.conditions.windSpeedKts != null
+        ? UnitConverter.formatWind(widget.conditions.windSpeedKts, widget.conditions.windDirectionCardinal, _units.system)
+        : c.wind;
+    items.add(('Wind', windValue,
         windDir != null ? _WindBadge(degrees: windDir) : null));
 
     if (c.exposureBearing != null) {
@@ -314,7 +333,8 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                                 exposureBearing: c.exposureBearing?.toDouble(),
                                 exposureWidth: c.exposureWidth?.toDouble(),
                                 windDirection: _parseWindDirection(c.wind),
-                                windLabel: _formatWindLabel(c.wind),
+                                windLabel: _formatWindLabel(c.wind, _units.system),
+                                unitSystem: _units.system,
                               ),
                             ),
                           ),
@@ -394,10 +414,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     return null;
   }
 
-  static String? _formatWindLabel(String wind) {
+  static String? _formatWindLabel(String wind, UnitSystem system) {
     final m = RegExp(r'(\d+)\s*(kts?|mph)', caseSensitive: false).firstMatch(wind);
-    if (m != null) return '${m.group(1)}${m.group(2)}';
-    return null;
+    if (m == null) return null;
+    final kts = double.tryParse(m.group(1)!) ?? 0;
+    if (system == UnitSystem.metric) {
+      return '${UnitConverter.knotsToKmh(kts).round()}km/h';
+    }
+    return '${m.group(1)}${m.group(2)}';
   }
 
   void _showSwellWindInfo(BuildContext context) {
@@ -674,6 +698,7 @@ class _SwellCompassPainter extends CustomPainter {
   final double? exposureWidth;
   final double? windDirection;
   final String? windLabel;
+  final UnitSystem unitSystem;
 
   _SwellCompassPainter({
     required this.swells,
@@ -681,6 +706,7 @@ class _SwellCompassPainter extends CustomPainter {
     this.exposureWidth,
     this.windDirection,
     this.windLabel,
+    required this.unitSystem,
   });
 
   static const _shadowStyle = [
@@ -1057,10 +1083,7 @@ class _SwellCompassPainter extends CustomPainter {
     for (final geometry in geometries) {
       // --- Label ---
       final ht = geometry.swell.heightFt;
-      final htStr = ht == ht.roundToDouble()
-          ? '${ht.round()}ft'
-          : '${ht.toStringAsFixed(1)}ft';
-      final label = '$htStr ${geometry.swell.periodSec}s';
+      final label = '${UnitConverter.formatSwellHeight(ht, unitSystem)} ${geometry.swell.periodSec}s';
       final axis = Offset(cos(geometry.arrowAngle), sin(geometry.arrowAngle));
       final rearToFrontSpan = (geometry.endPt.dx - geometry.rearBorderPt.dx) * axis.dx +
           (geometry.endPt.dy - geometry.rearBorderPt.dy) * axis.dy;
@@ -1120,6 +1143,7 @@ class _SwellCompassPainter extends CustomPainter {
         exposureBearing != oldDelegate.exposureBearing ||
         exposureWidth != oldDelegate.exposureWidth ||
         windDirection != oldDelegate.windDirection ||
-        windLabel != oldDelegate.windLabel;
+        windLabel != oldDelegate.windLabel ||
+        unitSystem != oldDelegate.unitSystem;
   }
 }

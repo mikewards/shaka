@@ -72,7 +72,13 @@ class ForecastService {
                     secondarySwellCorrected = cached.swell.value.secondaryCorrectedHeightFt?.takeIf { it >= 0.5 }?.let { "${it.roundToInt()}ft @ ${cached.swell.value.secondaryPeriodSec?.toInt() ?: 0}s ${cached.swell.value.secondaryDirection ?: ""}" },
                     exposureBearing = cached.exposure?.bearing,
                     exposureWidth = cached.exposure?.width,
-                    bathymetryDepthM = cached.exposure?.depthM
+                    bathymetryDepthM = cached.exposure?.depthM,
+                    swellHeightFt = cached.swell.value.correctedHeightFt ?: cached.swell.value.heightFt,
+                    swellPeriodSec = cached.swell.value.periodSec,
+                    swellDirection = cached.swell.value.direction,
+                    windSpeedKts = cached.wind.value.speedKnots,
+                    windDirectionCardinal = cached.wind.value.direction,
+                    waterTempC = sst
                 )
             )
         }
@@ -124,7 +130,13 @@ class ForecastService {
                             secondarySwell = secSwell?.let { "${it.toInt()}ft @ ${secPeriod?.toInt() ?: 0}s ${secDir ?: ""}" },
                             exposureBearing = cached?.exposure?.bearing,
                             exposureWidth = cached?.exposure?.width,
-                            bathymetryDepthM = cached?.exposure?.depthM
+                            bathymetryDepthM = cached?.exposure?.depthM,
+                            swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
+                            swellPeriodSec = ocean.wavePeriod,
+                            swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                            windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
+                            windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                            waterTempC = sst
                         )
                     )
                 }
@@ -200,7 +212,13 @@ class ForecastService {
                         waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
-                        secondarySwell = secSwell2?.let { "${it.toInt()}ft @ ${secPeriod2?.toInt() ?: 0}s ${secDir2 ?: ""}" }
+                        secondarySwell = secSwell2?.let { "${it.toInt()}ft @ ${secPeriod2?.toInt() ?: 0}s ${secDir2 ?: ""}" },
+                        swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
+                        swellPeriodSec = ocean.wavePeriod,
+                        swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
+                        windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
+                        windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                        waterTempC = sst
                     )
                 )
             }
