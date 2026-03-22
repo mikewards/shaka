@@ -533,6 +533,17 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Force-run the ocean forecast tile pipeline (ECMWF + CMEMS → WebP)
+            post("/admin/weather/tiles/trigger") {
+                kotlinx.coroutines.GlobalScope.launch {
+                    com.shaka.service.WeatherTileService.forcePipeline()
+                }
+                call.respondText(
+                    """{"status":"started","message":"Weather tile pipeline triggered in background"}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+
             // Clear all weather/swell data (to force refetch after code changes)
             post("/admin/weather/clear") {
                 val cleared = com.shaka.data.cache.SpotDataCache.clearAllWeather()

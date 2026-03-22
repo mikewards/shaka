@@ -111,6 +111,11 @@ object WeatherTileService {
         }
     }
 
+    suspend fun forcePipeline() {
+        lastRun = null
+        runPipeline()
+    }
+
     private fun shouldRun(): Boolean {
         val last = lastRun ?: return true
         return Duration.between(last, Instant.now()).toHours() >= 6

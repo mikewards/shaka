@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Copernicus CMEMS → WeatherLayers GL WebP pipeline.
+Ocean forecast → WeatherLayers GL WebP pipeline.
 
-Downloads global ocean forecast data, processes each variable and time step
-into EPSG:4326 WebP (lossless) suitable for WeatherLayers GL, writes a
-catalog.json, and optionally uploads everything to Cloudflare R2 for CDN
-delivery.
+Downloads global ocean/atmosphere forecast data from CMEMS and ECMWF,
+processes each variable and time step into EPSG:4326 WebP (lossless)
+suitable for WeatherLayers GL, writes a catalog.json, and optionally
+uploads everything to Cloudflare R2 for CDN delivery.
 
-Vector data (currents): R=U, G=V, B=V(dup), A=mask  →  imageType: VECTOR
-Scalar data (SST, etc): R=value, G=0, B=0, A=mask    →  imageType: SCALAR
+Vector data (currents, wind): R=U, G=V, B=V(dup), A=mask → imageType: VECTOR
+Scalar data (SST, etc):       R=value, G=0, B=0, A=mask  → imageType: SCALAR
 
 Usage:
   python weather_pipeline.py [--output-dir /data/weather] [--days 5]
@@ -99,15 +99,82 @@ DATASETS = {
         "depth": 0.5,
     },
     "wind": {
-        "dataset_id": "cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H",
+        "source": "ecmwf",
         "variables": {
-            "wind": {"vars": ["eastward_wind", "northward_wind"], "type": "vector", "scale": [-30, 30]},
+            "wind": {"vars": ["u10", "v10"], "type": "vector", "scale": [-30, 30]},
         },
         "stride_hours": 3,
         "depth": None,
-        "nrt": True,
     },
 }
+
+
+def download_ecmwf_wind(days, output_path):
+    """Download 10m wind forecast from ECMWF IFS Open Data (free, no credentials).
+
+    Pins to the 00z run so timestamps start at today midnight UTC, matching
+    CMEMS forecast variables. Falls back to yesterday's 00z if today's isn't
+    available yet (00z data appears ~07-09 UTC).
+    """
+    from ecmwf.opendata import Client
+
+    client = Client(source="ecmwf", model="ifs", resol="0p25")
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    steps_today = list(range(0, days * 24 + 1, 3))
+
+    try:
+        print(f"  Downloading ECMWF IFS wind (00z {today}, steps 0-{steps_today[-1]}h)")
+        client.retrieve(
+            date=today, time=0, type="fc",
+            param=["10u", "10v"],
+            step=steps_today,
+            target=str(output_path),
+        )
+        return True
+    except Exception as e:
+        print(f"  Today 00z not available ({e}), trying yesterday 00z")
+
+    steps_yesterday = list(range(24, (days + 1) * 24 + 1, 3))
+    print(f"  Downloading ECMWF IFS wind (00z {yesterday}, steps 24-{steps_yesterday[-1]}h)")
+    client.retrieve(
+        date=yesterday, time=0, type="fc",
+        param=["10u", "10v"],
+        step=steps_yesterday,
+        target=str(output_path),
+    )
+    return True
+
+
+def _open_ecmwf_grib(path):
+    """Open ECMWF GRIB2 file and normalize to match CMEMS xarray conventions.
+
+    Handles cfgrib's time/step dimensions, 0-360 longitude, and coordinate
+    naming differences so the rest of the pipeline can process it identically
+    to CMEMS NetCDF data.
+    """
+    ds = xr.open_dataset(str(path), engine="cfgrib")
+
+    if "step" in ds.dims:
+        valid_times = ds.time.values + ds.step.values
+        ds = ds.assign_coords(time=("step", valid_times)).swap_dims({"step": "time"})
+    elif "valid_time" in ds.coords and "time" not in ds.dims:
+        if "valid_time" in ds.dims:
+            ds = ds.rename({"valid_time": "time"})
+        else:
+            ds = ds.swap_dims({list(ds.dims)[0]: "valid_time"}).rename({"valid_time": "time"})
+
+    if ds.longitude.values.max() > 180:
+        ds = ds.assign_coords(
+            longitude=((ds.longitude + 180) % 360) - 180
+        ).sortby("longitude")
+
+    if "lat" in ds.dims and "latitude" not in ds.dims:
+        ds = ds.rename({"lat": "latitude", "lon": "longitude"})
+
+    return ds
 
 
 def download_dataset(dataset_id, variables, start_dt, end_dt, depth, output_path):
@@ -196,30 +263,6 @@ def process_vector(ds, u_name, v_name, time_idx, scale, land_zero_mask=None):
     return np.stack([r, g, b, alpha], axis=-1)
 
 
-def _collect_ocean_mask(ds):
-    """Return (land_bool, lats, lons) from the first variable's first timestep.
-    land_bool is True where value is NaN (i.e. land)."""
-    var_name = list(ds.data_vars)[0]
-    da = ds[var_name].isel(time=0)
-    if "depth" in da.dims:
-        da = da.isel(depth=0)
-    data = da.values.astype(np.float32)
-    return np.isnan(data), ds.latitude.values, ds.longitude.values
-
-
-def _build_wind_ocean_mask(wind_ds, land_mask, mask_lats, mask_lons):
-    """Reproject land_mask onto the wind grid via nearest-neighbour lookup."""
-    w_lats = wind_ds.latitude.values
-    w_lons = wind_ds.longitude.values
-    lat_idx = np.searchsorted(np.sort(mask_lats), w_lats).clip(0, len(mask_lats) - 1)
-    lon_idx = np.searchsorted(np.sort(mask_lons), w_lons).clip(0, len(mask_lons) - 1)
-    if mask_lats[0] > mask_lats[-1]:
-        lat_idx = np.searchsorted(mask_lats[::-1], w_lats).clip(0, len(mask_lats) - 1)
-        lat_idx = len(mask_lats) - 1 - lat_idx
-    ii, jj = np.meshgrid(lat_idx, lon_idx, indexing="ij")
-    return land_mask[ii, jj]
-
-
 def run_pipeline(output_dir, days):
     output = Path(output_dir)
     tmp = output / "_tmp"
@@ -230,9 +273,6 @@ def run_pipeline(output_dir, days):
     end = start + timedelta(days=days)
 
     catalog = {}
-    ocean_mask_data = None
-    ocean_mask_lats = None
-    ocean_mask_lons = None
 
     for group_name, group in DATASETS.items():
         all_vars = []
@@ -240,23 +280,31 @@ def run_pipeline(output_dir, days):
             all_vars.extend(vconfig["vars"])
         all_vars = list(set(all_vars))
 
-        if group.get("nrt"):
-            g_start = now - timedelta(hours=48)
-            g_end = now - timedelta(hours=6)
+        data_path = tmp / f"{group_name}.nc"
+
+        if group.get("source") == "ecmwf":
+            data_path = tmp / f"{group_name}.grib2"
+            try:
+                ok = download_ecmwf_wind(days, data_path)
+            except Exception as e:
+                print(f"  ECMWF download failed ({group_name}): {e}")
+                ok = False
+            if not ok:
+                print(f"  Skipping {group_name} (ECMWF download failed)")
+                continue
+            ds = _open_ecmwf_grib(data_path)
         else:
             g_start = start
             g_end = end
+            ok = download_dataset(
+                group["dataset_id"], all_vars, g_start, g_end,
+                group["depth"], data_path,
+            )
+            if not ok:
+                print(f"  Skipping {group_name} (download failed)")
+                continue
+            ds = xr.open_dataset(data_path)
 
-        nc_path = tmp / f"{group_name}.nc"
-        ok = download_dataset(
-            group["dataset_id"], all_vars, g_start, g_end,
-            group["depth"], nc_path,
-        )
-        if not ok:
-            print(f"  Skipping {group_name} (download failed)")
-            continue
-
-        ds = xr.open_dataset(nc_path)
         stride = group["stride_hours"]
         times = ds.time.values
         n_steps = len(times)
@@ -265,15 +313,6 @@ def run_pipeline(output_dir, days):
         lons = ds.longitude.values
         bounds = [float(lons.min()), float(lats.min()), float(lons.max()), float(lats.max())]
         print(f"  {group_name} bounds: {bounds} (lat {len(lats)} x lon {len(lons)})")
-
-        if ocean_mask_data is None and group_name != "wind":
-            ocean_mask_data, ocean_mask_lats, ocean_mask_lons = _collect_ocean_mask(ds)
-            print(f"  Collected ocean mask from {group_name} ({ocean_mask_data.shape})")
-
-        wind_land_mask = None
-        if group_name == "wind" and ocean_mask_data is not None:
-            wind_land_mask = _build_wind_ocean_mask(ds, ocean_mask_data, ocean_mask_lats, ocean_mask_lons)
-            print(f"  Built wind land mask ({wind_land_mask.shape}, {wind_land_mask.sum()} land pixels)")
 
         for var_key, vconfig in group["variables"].items():
             var_dir = output / var_key
@@ -292,7 +331,6 @@ def run_pipeline(output_dir, days):
                         rgba = process_vector(
                             ds, vconfig["vars"][0], vconfig["vars"][1],
                             t_idx, vconfig["scale"],
-                            land_zero_mask=wind_land_mask,
                         )
                     else:
                         rgba = process_scalar(
@@ -314,6 +352,8 @@ def run_pipeline(output_dir, days):
         json.dump(catalog, f, indent=2)
     print(f"Catalog written: {catalog_path}")
 
+    _cleanup_old_tiles(output, catalog)
+
     shutil.rmtree(tmp, ignore_errors=True)
 
     total_frames = sum(len(v["timestamps"]) for v in catalog.values())
@@ -323,6 +363,22 @@ def run_pipeline(output_dir, days):
     print(f"Pipeline complete: {total_frames} total frames across {len(catalog)} variables.")
 
     _upload_to_r2(output)
+
+
+def _cleanup_old_tiles(output_dir, catalog):
+    """Delete orphaned WebP tiles not referenced by the current catalog."""
+    removed = 0
+    for var_key, info in catalog.items():
+        var_dir = output_dir / var_key
+        if not var_dir.is_dir():
+            continue
+        valid = set(ts + ".webp" for ts in info["timestamps"])
+        for f in var_dir.iterdir():
+            if f.suffix == ".webp" and f.name not in valid:
+                f.unlink()
+                removed += 1
+    if removed:
+        print(f"  Cleaned up {removed} orphaned tile(s)")
 
 
 def _upload_to_r2(output_dir):
