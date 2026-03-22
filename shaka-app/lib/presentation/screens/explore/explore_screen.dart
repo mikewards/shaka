@@ -11,6 +11,8 @@ import '../../../data/models/spot_models.dart';
 import '../../../data/services/ip_geolocation_service.dart';
 import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
+import '../../../data/services/unit_preference_service.dart';
+import '../../../core/utils/unit_converter.dart';
 import '../../widgets/background_picker.dart';
 import '../../utils/tier_pill_painter.dart';
 import '../../widgets/score_tier_pill.dart';
@@ -1655,6 +1657,14 @@ class _SpotMarkerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final units = UnitPreferenceService();
+    return ListenableBuilder(
+      listenable: units,
+      builder: (context, _) => _buildCard(context, units.system),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, UnitSystem system) {
     final score = spot.shakaScore ?? 0;
     final isLoading = spot.isUserSpot && (spot.shakaScore == null || spot.swell == null);
     
@@ -1807,7 +1817,9 @@ class _SpotMarkerCard extends StatelessWidget {
                                     const Icon(Icons.waves, size: 11, color: AppColors.darkTextMuted),
                                     const SizedBox(width: 4),
                                     Text(
-                                      spot.swell!,
+                                      spot.swellHeightFt != null
+                                          ? UnitConverter.formatSwellHeight(spot.swellHeightFt, system)
+                                          : spot.swell!,
                                       style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
                                     ),
                                   ],
@@ -1828,7 +1840,9 @@ class _SpotMarkerCard extends StatelessWidget {
                                     const Icon(Icons.air, size: 11, color: AppColors.darkTextMuted),
                                     const SizedBox(width: 4),
                                     Text(
-                                      spot.wind!,
+                                      spot.windSpeedKts != null
+                                          ? UnitConverter.formatWind(spot.windSpeedKts, null, system)
+                                          : spot.wind!,
                                       style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
                                     ),
                                   ],

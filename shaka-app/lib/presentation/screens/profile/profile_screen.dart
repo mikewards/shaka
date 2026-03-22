@@ -130,19 +130,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _openMapHomePicker,
           ),
           const SizedBox(height: 12),
-          // Units row
-          _ProfileRow(
-            icon: Icons.straighten,
-            iconColor: AppColors.info,
-            title: 'Units',
-            subtitle: UnitPreferenceService().isImperial
-                ? 'Imperial (°F, ft, kts)'
-                : 'Metric (°C, m, km/h)',
-            onTap: () {
-              HapticFeedback.selectionClick();
-              UnitPreferenceService().toggle();
-            },
-          ),
+          // Units row with inline toggle
+          _UnitToggleRow(),
           const SizedBox(height: 12),
           // Saved Spots row (single row; tap opens full list)
           _ProfileRow(
@@ -229,6 +218,111 @@ class _ProfileRow extends StatelessWidget {
             ),
             const Icon(Icons.chevron_right, color: AppColors.darkTextHint, size: 20),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnitToggleRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final units = UnitPreferenceService();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.info.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.straighten, color: AppColors.info, size: 24),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Text(
+              'Units',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          // Segmented toggle
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.darkBackground,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SegmentButton(
+                  label: '°F ft kts',
+                  isSelected: units.isImperial,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    units.setSystem(UnitSystem.imperial);
+                  },
+                ),
+                _SegmentButton(
+                  label: '°C m km/h',
+                  isSelected: units.isMetric,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    units.setSystem(UnitSystem.metric);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _SegmentButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.info.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: isSelected ? AppColors.info.withOpacity(0.4) : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppColors.info : AppColors.darkTextMuted,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
         ),
       ),
     );

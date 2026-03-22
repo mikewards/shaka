@@ -244,7 +244,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),
-              child: _buildTabBar(),
+              child: _buildTabBar(
+                hasRestriction: spot.regulations?.mpaStatus?.isInsideMPA == true,
+              ),
             ),
           ),
         ];
@@ -291,7 +293,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar({bool hasRestriction = false}) {
     return Container(
       color: _bgColor,
       child: TabBar(
@@ -304,10 +306,30 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
-        tabs: const [
-          Tab(text: 'Conditions'),
-          Tab(text: 'Forecast'),
-          Tab(text: 'Regulations'),
+        tabs: [
+          const Tab(text: 'Conditions'),
+          const Tab(text: 'Forecast'),
+          Tab(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Text('Regulations'),
+                if (hasRestriction)
+                  Positioned(
+                    right: -8,
+                    top: -2,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
