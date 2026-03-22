@@ -129,7 +129,6 @@ class SpotSummary {
   final int shakaScore;
   final int confidence;
   final SpotConditions conditions;
-  final List<String> expectedFish;
   final List<String> gearRecommendations;
   final List<String> risks;
   final String bestTimeOfDay;
@@ -142,7 +141,6 @@ class SpotSummary {
     required this.shakaScore,
     required this.confidence,
     required this.conditions,
-    required this.expectedFish,
     required this.gearRecommendations,
     required this.risks,
     required this.bestTimeOfDay,
@@ -157,7 +155,6 @@ class SpotSummary {
       shakaScore: json['shakaScore'] ?? 0,
       confidence: json['confidence'] ?? 0,
       conditions: SpotConditions.fromJson(json['conditions'] ?? {}),
-      expectedFish: List<String>.from(json['expectedFish'] ?? []),
       gearRecommendations: List<String>.from(json['gearRecommendations'] ?? []),
       risks: List<String>.from(json['risks'] ?? []),
       bestTimeOfDay: json['bestTimeOfDay'] ?? '',
@@ -184,29 +181,6 @@ class AccessInfo {
       directions: json['directions'] ?? '',
       parkingInfo: json['parkingInfo'] ?? '',
       permitRequired: json['permitRequired'] ?? false,
-    );
-  }
-}
-
-class FishInfo {
-  final String name;
-  final String? localName;
-  final String likelihood;
-  final String? seasonalNotes;
-
-  const FishInfo({
-    required this.name,
-    this.localName,
-    required this.likelihood,
-    this.seasonalNotes,
-  });
-
-  factory FishInfo.fromJson(Map<String, dynamic> json) {
-    return FishInfo(
-      name: json['name'] ?? '',
-      localName: json['localName'],
-      likelihood: json['likelihood'] ?? 'possible',
-      seasonalNotes: json['seasonalNotes'],
     );
   }
 }
@@ -813,7 +787,6 @@ class SpotDetail {
   final AccessInfo access;
   final SpotConditions conditions;
   final List<DayForecast> forecast;
-  final List<FishInfo> expectedFish;
   final List<GearItem> gearRecommendations;
   final List<RiskInfo> risks;
   final List<CommunityReport> communityReports;
@@ -835,7 +808,6 @@ class SpotDetail {
     required this.access,
     required this.conditions,
     required this.forecast,
-    required this.expectedFish,
     required this.gearRecommendations,
     required this.risks,
     required this.communityReports,
@@ -860,9 +832,6 @@ class SpotDetail {
       conditions: SpotConditions.fromJson(json['conditions'] ?? {}),
       forecast: (json['forecast'] as List? ?? [])
           .map((e) => DayForecast.fromJson(e))
-          .toList(),
-      expectedFish: (json['expectedFish'] as List? ?? [])
-          .map((e) => FishInfo.fromJson(e))
           .toList(),
       gearRecommendations: (json['gearRecommendations'] as List? ?? [])
           .map((e) => GearItem.fromJson(e))

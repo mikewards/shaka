@@ -68,25 +68,14 @@ class SpotCard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Fish preview + View indicator
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    spot.expectedFish.take(3).join(' · '),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textMuted,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'View >',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textMuted,
                 ),
-                Text(
-                  'View >',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),

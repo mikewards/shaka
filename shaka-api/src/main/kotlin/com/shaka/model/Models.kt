@@ -56,7 +56,6 @@ data class SpotSummary(
     val shakaScore: Int,
     val confidence: Int,
     val conditions: SpotConditions,
-    val expectedFish: List<String>,
     val gearRecommendations: List<String>,
     val risks: List<String>,
     val bestTimeOfDay: String,
@@ -73,7 +72,6 @@ data class SpotDetail(
     val access: AccessInfo,
     val conditions: SpotConditions,
     val forecast: List<DayForecast>,
-    val expectedFish: List<FishInfo>,
     val gearRecommendations: List<GearItem>,
     val risks: List<RiskInfo>,
     val communityReports: List<CommunityReport>,
@@ -156,14 +154,6 @@ data class DayForecast(
     val shakaScore: Int,
     val confidence: Int,
     val conditions: SpotConditions
-)
-
-@Serializable
-data class FishInfo(
-    val name: String,
-    val localName: String? = null,
-    val likelihood: String,
-    val seasonalNotes: String? = null
 )
 
 @Serializable

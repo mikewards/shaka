@@ -546,26 +546,16 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     );
   }
 
-  /// REGULATIONS TAB - MPA warnings, regulations, fish info
+  /// REGULATIONS TAB - MPA warnings, regulations
   Widget _buildGuideTab(SpotDetail spot) {
     return ListView(
       padding: const EdgeInsets.all(16),
       physics: const ClampingScrollPhysics(),
       children: [
-        // Regulations
         if (spot.regulations != null) ...[
           _buildRegulationsInfo(spot.regulations!),
           const SizedBox(height: 24),
         ],
-
-        // Expected Fish
-        if (spot.expectedFish.isNotEmpty) ...[
-          _buildSectionHeader('FISH'),
-          const SizedBox(height: 10),
-          _buildFishList(spot.expectedFish),
-          const SizedBox(height: 24),
-        ],
-
         const SizedBox(height: 40),
       ],
     );
@@ -733,37 +723,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 ))
             .toList(),
       ),
-    );
-  }
-
-  Widget _buildFishList(List<FishInfo> fish) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: fish
-          .map((f) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _borderColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      f.name,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                    ),
-                    if (f.likelihood == 'very likely') ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.star, color: Colors.amber, size: 14),
-                    ],
-                  ],
-                ),
-              ))
-          .toList(),
     );
   }
 
@@ -1180,35 +1139,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               color: AppColors.info,
             ),
           ),
-          // Guide tab with fish preview
           ListView(
             padding: const EdgeInsets.all(16),
-            children: [
-              if (spot.expectedFish.isNotEmpty) ...[
-                _buildSectionHeader('FISH'),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: spot.expectedFish
-                      .map((fish) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _cardColor,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _borderColor),
-                            ),
-                            child: Text(
-                              fish,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 13),
-                            ),
-                          ))
-                      .toList(),
-                ),
-              ],
-            ],
+            children: const [],
           ),
         ],
       ),

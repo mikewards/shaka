@@ -36,7 +36,6 @@ class SpotRepository {
         val permitInfo: String?,
         val directions: String?,
         val hazards: List<String>,
-        val targetSpecies: List<String>,
         val bestMonths: List<Int>,
         val imageUrl: String?
     )
@@ -159,7 +158,6 @@ class SpotRepository {
                 it[permitInfo] = spot.permitInfo
                 it[directions] = spot.directions
                 it[hazards] = spot.hazards.joinToString(",")
-                it[targetSpecies] = spot.targetSpecies.joinToString(",")
                 it[bestMonths] = spot.bestMonths.joinToString(",")
                 it[imageUrl] = spot.imageUrl
                 it[createdAt] = LocalDateTime.now()
@@ -190,7 +188,6 @@ class SpotRepository {
                 this[SpotsTable.permitInfo] = spot.permitInfo
                 this[SpotsTable.directions] = spot.directions
                 this[SpotsTable.hazards] = spot.hazards.joinToString(",")
-                this[SpotsTable.targetSpecies] = spot.targetSpecies.joinToString(",")
                 this[SpotsTable.bestMonths] = spot.bestMonths.joinToString(",")
                 this[SpotsTable.imageUrl] = spot.imageUrl
                 this[SpotsTable.createdAt] = LocalDateTime.now()
@@ -236,7 +233,6 @@ class SpotRepository {
             permitInfo = row[SpotsTable.permitInfo],
             directions = row[SpotsTable.directions],
             hazards = row[SpotsTable.hazards]?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
-            targetSpecies = row[SpotsTable.targetSpecies]?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
             bestMonths = row[SpotsTable.bestMonths]?.split(",")?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList(),
             imageUrl = row[SpotsTable.imageUrl]
         )
@@ -294,7 +290,6 @@ class SpotRepository {
             permitInfo = null,
             directions = spot.directions,
             hazards = emptyList(),
-            targetSpecies = spot.commonFish,
             bestMonths = emptyList(),
             imageUrl = spot.imageUrl
         )

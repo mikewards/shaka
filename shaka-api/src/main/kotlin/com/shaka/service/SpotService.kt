@@ -299,7 +299,6 @@ class SpotService {
                         waterTempC = sst.tempC
                     )
                 },
-                expectedFish = spot.commonFish,
                 gearRecommendations = generateGearRecs(sst.tempC, spot.depth),
                 risks = generateRisks(weather, ocean),
                 bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
@@ -560,13 +559,6 @@ class SpotService {
                 )
             },
             forecast = emptyList(),
-            expectedFish = spot.commonFish.map { fish ->
-                FishInfo(
-                    name = fish,
-                    likelihood = getFishLikelihood(fish, spotId, date),
-                    seasonalNotes = getSeasonalNotes(fish, spotId, date)
-                )
-            },
             gearRecommendations = generateGearRecs(sst.tempC, spot.depth).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
@@ -845,7 +837,6 @@ class SpotService {
                             waterTempC = sst.tempC
                         )
                     },
-                    expectedFish = spot.commonFish,
                     gearRecommendations = emptyList(),
                     risks = emptyList(),
                     bestTimeOfDay = getBestTimeOfDay(SpotDataCache.get(spotId)?.solunar?.value?.moonPhase)
@@ -1077,68 +1068,6 @@ class SpotService {
         }
     }
 
-    /**
-     * Get fish likelihood based on season and conditions.
-     */
-    private fun getFishLikelihood(fish: String, spotId: String, date: String): String {
-        val month = java.time.LocalDate.parse(date).monthValue
-        val seasonalMultiplier = getSeasonalMultiplier(spotId, date)
-        
-        return when {
-            seasonalMultiplier >= 1.4 -> "very likely"
-            seasonalMultiplier >= 1.2 -> "likely"
-            seasonalMultiplier >= 1.0 -> "possible"
-            else -> "unlikely"
-        }
-    }
-
-    /**
-     * Get seasonal notes for fish species.
-     */
-    private fun getSeasonalNotes(fish: String, spotId: String, date: String): String? {
-        val month = java.time.LocalDate.parse(date).monthValue
-        
-        // Common fish seasonal patterns
-        return when (fish.lowercase()) {
-            "ulua", "giant trevally", "gt" -> {
-                when (month) {
-                    in 5..9 -> "Peak season - active in warm water"
-                    else -> "Present year-round"
-                }
-            }
-            "yellowtail", "hiramasa" -> {
-                when (month) {
-                    in 1..4 -> "Peak season - running in cooler water"
-                    else -> null
-                }
-            }
-            "mahi mahi", "dorado" -> {
-                when (month) {
-                    in 4..10 -> "Peak season - following warm currents"
-                    else -> "Less common in cooler months"
-                }
-            }
-            "wahoo", "ono" -> {
-                when (month) {
-                    in 5..9 -> "Peak season"
-                    else -> null
-                }
-            }
-            "hogfish" -> {
-                when (month) {
-                    in 3..6 -> "Spawning season - more active"
-                    else -> null
-                }
-            }
-            "grouper" -> {
-                when (month) {
-                    in 1..4 -> "Spawning aggregations in some areas"
-                    else -> null
-                }
-            }
-            else -> null
-        }
-    }
 
     /**
      * Get regulatory information for a spot based on its region and country.
@@ -1639,7 +1568,6 @@ class SpotService {
                 waterTempC = sst.tempC
             ),
             forecast = emptyList(),
-            expectedFish = emptyList(),
             gearRecommendations = generateGearRecs(sst.tempC, 10).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
