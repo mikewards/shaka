@@ -13,10 +13,12 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 # System deps + Python with scientific packages (single layer, build deps cleaned)
-# eccodes is in Alpine's community repo, not main — enable it first
-RUN ALPINE_VER=$(cat /etc/alpine-release | cut -d'.' -f1,2) && \
-    echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/community" >> /etc/apk/repositories && \
-    apk add --no-cache curl python3 py3-pip hdf5 netcdf eccodes && \
+# eccodes lives in Alpine edge/testing — use --repository for targeted install
+RUN apk add --no-cache curl python3 py3-pip hdf5 netcdf && \
+    apk add --no-cache \
+        --repository=https://dl-cdn.alpinelinux.org/alpine/edge/testing \
+        --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
+        eccodes && \
     apk add --no-cache --virtual .build-deps \
         gcc g++ musl-dev python3-dev hdf5-dev netcdf-dev && \
     pip3 install --no-cache-dir --break-system-packages \
