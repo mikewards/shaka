@@ -263,6 +263,30 @@ def process_vector(ds, u_name, v_name, time_idx, scale, land_zero_mask=None):
     return np.stack([r, g, b, alpha], axis=-1)
 
 
+def _collect_ocean_mask(ds):
+    """Return (land_bool, lats, lons) from the first variable's first timestep.
+    land_bool is True where value is NaN (i.e. land)."""
+    var_name = list(ds.data_vars)[0]
+    da = ds[var_name].isel(time=0)
+    if "depth" in da.dims:
+        da = da.isel(depth=0)
+    data = da.values.astype(np.float32)
+    return np.isnan(data), ds.latitude.values, ds.longitude.values
+
+
+def _build_wind_ocean_mask(wind_ds, land_mask, mask_lats, mask_lons):
+    """Reproject land_mask onto the wind grid via nearest-neighbour lookup."""
+    w_lats = wind_ds.latitude.values
+    w_lons = wind_ds.longitude.values
+    lat_idx = np.searchsorted(np.sort(mask_lats), w_lats).clip(0, len(mask_lats) - 1)
+    lon_idx = np.searchsorted(np.sort(mask_lons), w_lons).clip(0, len(mask_lons) - 1)
+    if mask_lats[0] > mask_lats[-1]:
+        lat_idx = np.searchsorted(mask_lats[::-1], w_lats).clip(0, len(mask_lats) - 1)
+        lat_idx = len(mask_lats) - 1 - lat_idx
+    ii, jj = np.meshgrid(lat_idx, lon_idx, indexing="ij")
+    return land_mask[ii, jj]
+
+
 def run_pipeline(output_dir, days):
     output = Path(output_dir)
     tmp = output / "_tmp"
@@ -273,6 +297,9 @@ def run_pipeline(output_dir, days):
     end = start + timedelta(days=days)
 
     catalog = {}
+    ocean_mask_data = None
+    ocean_mask_lats = None
+    ocean_mask_lons = None
 
     for group_name, group in DATASETS.items():
         all_vars = []
@@ -314,6 +341,15 @@ def run_pipeline(output_dir, days):
         bounds = [float(lons.min()), float(lats.min()), float(lons.max()), float(lats.max())]
         print(f"  {group_name} bounds: {bounds} (lat {len(lats)} x lon {len(lons)})")
 
+        if ocean_mask_data is None and group_name != "wind":
+            ocean_mask_data, ocean_mask_lats, ocean_mask_lons = _collect_ocean_mask(ds)
+            print(f"  Collected ocean mask from {group_name} ({ocean_mask_data.shape})")
+
+        wind_land_mask = None
+        if group_name == "wind" and ocean_mask_data is not None:
+            wind_land_mask = _build_wind_ocean_mask(ds, ocean_mask_data, ocean_mask_lats, ocean_mask_lons)
+            print(f"  Built wind land mask ({wind_land_mask.shape}, {wind_land_mask.sum()} land pixels)")
+
         for var_key, vconfig in group["variables"].items():
             var_dir = output / var_key
             var_dir.mkdir(parents=True, exist_ok=True)
@@ -331,6 +367,7 @@ def run_pipeline(output_dir, days):
                         rgba = process_vector(
                             ds, vconfig["vars"][0], vconfig["vars"][1],
                             t_idx, vconfig["scale"],
+                            land_zero_mask=wind_land_mask,
                         )
                     else:
                         rgba = process_scalar(
