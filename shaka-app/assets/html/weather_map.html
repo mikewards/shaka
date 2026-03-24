@@ -186,6 +186,21 @@
       return entry.timestamps || (Array.isArray(entry) ? entry : []);
     }
 
+    function _parseTs(s) {
+      return new Date(s.replace(/(\d{4}-\d{2}-\d{2}T)(\d{2})(\d{2})(\d{2})Z/, '$1$2:$3:$4Z'));
+    }
+
+    function _findNowIndex(timestamps) {
+      if (!timestamps.length) return 0;
+      var now = Date.now();
+      var best = 0;
+      for (var i = 0; i < timestamps.length; i++) {
+        if (_parseTs(timestamps[i]).getTime() <= now) best = i;
+        else break;
+      }
+      return best;
+    }
+
     function _getBounds(key) {
       if (!catalog || !catalog[key] || !catalog[key].bounds) return [-180, -80, 180, 90];
       return catalog[key].bounds;
@@ -301,15 +316,15 @@
       if (!LAYERS[key]) return;
       if (playing) pause();
       activeLayerKey = key;
-      timeIndex = 0;
       currentImage = null;
       nextImage = null;
       _stopParticleRepaint();
 
       var ts = _getTimestamps(key);
+      timeIndex = _findNowIndex(ts);
       if (ts.length > 0) {
-        await _loadCurrentFrame(key, 0);
-        await _loadNextFrame(key, 0);
+        await _loadCurrentFrame(key, timeIndex);
+        await _loadNextFrame(key, timeIndex);
         _renderLayer();
         _post('LayerChannel', {
           layer: key,
@@ -317,7 +332,7 @@
           unit: LAYERS[key].unit,
           type: LAYERS[key].type,
           timestamps: ts,
-          timeIndex: 0,
+          timeIndex: timeIndex,
         });
         _prefetchAllLayers();
       } else {
@@ -483,9 +498,7 @@
     function _getDwellMs(key) {
       var ts = _getTimestamps(key);
       if (ts.length < 2) return 2000;
-      var t0 = new Date(ts[0].replace(/(\d{4}-\d{2}-\d{2}T)(\d{2})(\d{2})(\d{2})Z/, '$1$2:$3:$4Z'));
-      var t1 = new Date(ts[1].replace(/(\d{4}-\d{2}-\d{2}T)(\d{2})(\d{2})(\d{2})Z/, '$1$2:$3:$4Z'));
-      var diffHours = (t1 - t0) / 3600000;
+      var diffHours = (_parseTs(ts[1]) - _parseTs(ts[0])) / 3600000;
       if (diffHours <= 3) return 500;
       if (diffHours <= 6) return 1000;
       return 2000;
@@ -560,10 +573,11 @@
         (function(key) {
           var ts = _getTimestamps(key);
           if (!ts.length) return;
-          var cacheKey = key + '/' + ts[0];
+          var idx = _findNowIndex(ts);
+          var cacheKey = key + '/' + ts[idx];
           if (_textureCache[cacheKey]) return;
           var url = _injectedTextures[cacheKey]
-            || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + ts[0] + '.webp';
+            || (weatherCdnUrl || (baseUrl + '/v1/weather')) + '/' + key + '/' + ts[idx] + '.webp';
           WeatherLayers.loadTextureData(url).then(function(img) {
             _textureCache[cacheKey] = img;
           }).catch(function() {});
