@@ -1390,12 +1390,34 @@ fun Application.configureRouting() {
                 val filename = call.parameters["filename"]
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "filename required"))
                 val file = java.io.File("/app/data/$filename")
-                if (file.exists()) {
-                    call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
-                    call.response.header(HttpHeaders.AcceptRanges, "bytes")
-                    call.respondFile(file)
-                } else {
+                if (!file.exists()) {
                     call.respond(HttpStatusCode.NotFound, mapOf("error" to "file not found"))
+                    return@get
+                }
+                val totalLen = file.length()
+                call.response.header(HttpHeaders.CacheControl, "public, max-age=86400")
+                call.response.header(HttpHeaders.AcceptRanges, "bytes")
+
+                val rangeHeader = call.request.header(HttpHeaders.Range)
+                if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+                    val spec = rangeHeader.removePrefix("bytes=").split(",")[0].trim()
+                    val dash = spec.indexOf('-')
+                    val start = spec.substring(0, dash).toLongOrNull() ?: 0L
+                    val end = if (dash + 1 < spec.length) {
+                        spec.substring(dash + 1).toLongOrNull() ?: (totalLen - 1)
+                    } else {
+                        totalLen - 1
+                    }
+                    val len = end - start + 1
+                    val raf = java.io.RandomAccessFile(file, "r")
+                    raf.seek(start)
+                    val buf = ByteArray(len.toInt())
+                    raf.readFully(buf)
+                    raf.close()
+                    call.response.header(HttpHeaders.ContentRange, "bytes $start-$end/$totalLen")
+                    call.respondBytes(buf, ContentType.Application.OctetStream, HttpStatusCode.PartialContent)
+                } else {
+                    call.respondFile(file)
                 }
             }
             
