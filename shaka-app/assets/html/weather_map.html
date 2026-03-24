@@ -115,10 +115,14 @@
 
     var LAND_FILL_ID = 'land-fill';
 
-    var VELOCITY_BG_PALETTE = [
-      [0,'#000033'],[5,'#000088'],[15,'#0000ff'],[30,'#0088ff'],
-      [60,'#00ffff'],[100,'#00ff00'],[150,'#88ff00'],[200,'#ffff00'],
-      [300,'#ff8800'],[400,'#ff0000'],[500,'#ff00ff'],[700,'#ffffff']
+    var WIND_BG_PALETTE = [
+      [0,'#0a1a3a'],[2,'#0d3068'],[5,'#1a5098'],[8,'#2878c0'],
+      [12,'#40a8d8'],[16,'#80ccee'],[20,'#ffdd66'],[25,'#ff8833'],[30,'#ff3333']
+    ];
+
+    var CURRENTS_BG_PALETTE = [
+      [0,'#081830'],[0.1,'#0d3068'],[0.3,'#1a5098'],[0.5,'#2878c0'],
+      [0.8,'#40a8d8'],[1.2,'#80ccee'],[1.8,'#ffdd66'],[2.5,'#ff8833'],[3.5,'#ff3333']
     ];
 
     var map = null;
@@ -138,15 +142,15 @@
         type: 'particle', label: 'Wind', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-30, 30],
         numParticles: 10000, maxAge: 15, speedFactor: 17, width: 2.5,
-        palette: [[0,'#334455'],[3,'#1a6b8a'],[6,'#0077b6'],[10,'#cc8800'],[15,'#cc3333'],[25,'#991111']],
-        rasterPalette: VELOCITY_BG_PALETTE,
+        palette: [[0,'#5588aa'],[3,'#44aacc'],[6,'#22bbdd'],[10,'#cc8800'],[15,'#cc3333'],[25,'#991111']],
+        rasterPalette: WIND_BG_PALETTE,
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 25, speedFactor: 3, width: 3,
-        color: [20, 60, 130, 220],
-        rasterPalette: VELOCITY_BG_PALETTE,
+        color: [130, 210, 255, 230],
+        rasterPalette: CURRENTS_BG_PALETTE,
       },
       waves: {
         type: 'raster', label: 'Wave Height', unit: 'm',
