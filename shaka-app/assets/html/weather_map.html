@@ -121,9 +121,8 @@
     ];
 
     var CURRENTS_BG_PALETTE = [
-      [0,'#0d0520'],[0.05,'#1a0a3a'],[0.1,'#2a1260'],[0.2,'#3a1a80'],
-      [0.4,'#4a28a0'],[0.6,'#5838b8'],[0.8,'#6648cc'],[1.2,'#7a68dd'],
-      [1.8,'#9088ee'],[2.5,'#b0a8ff'],[3.5,'#d4ccff']
+      [0,'#08021a'],[0.1,'#10052e'],[0.3,'#1a0a40'],[0.5,'#241050'],
+      [0.8,'#301865'],[1.2,'#3e2278'],[1.8,'#4e308a'],[2.5,'#6040a0'],[3.5,'#7855b8']
     ];
 
     var map = null;
@@ -150,7 +149,7 @@
         type: 'particle', label: 'Currents', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
         numParticles: 10000, maxAge: 25, speedFactor: 3, width: 3,
-        color: [130, 210, 255, 230],
+        color: [200, 235, 255, 240],
         rasterPalette: CURRENTS_BG_PALETTE,
       },
       waves: {
