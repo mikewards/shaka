@@ -82,6 +82,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   double? _probeValue;
   double? _probeDirection;
   Timer? _probeDismissTimer;
+  Timer? _scrubDebounce;
 
   @override
   void initState() {
@@ -100,6 +101,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
 
   @override
   void dispose() {
+    _scrubDebounce?.cancel();
     _probeDismissTimer?.cancel();
     if (_unitListener != null) {
       UnitPreferenceService().removeListener(_unitListener!);
@@ -276,7 +278,10 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     final idx = value.round();
     if (idx == _timeIndex) return;
     setState(() => _timeIndex = idx);
-    _controller?.runJavaScript('setTimeIndex($idx)');
+    _scrubDebounce?.cancel();
+    _scrubDebounce = Timer(const Duration(milliseconds: 150), () {
+      _controller?.runJavaScript('setTimeIndex($idx)');
+    });
   }
 
   void _togglePlayback() {
