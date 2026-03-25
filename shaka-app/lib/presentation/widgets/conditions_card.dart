@@ -39,12 +39,12 @@ const _conditionSources = {
   'wind': _ConditionSource(
     source: 'Open-Meteo Weather API (NOAA GFS)',
     updateFrequency: 'Hourly',
-    description: '10-meter wind speed and direction. Offshore = clean conditions. Onshore = chop. Strong wind kills visibility.',
+    description: '10-meter wind speed and direction. Offshore = clean conditions. Onshore = chop.',
   ),
   'water': _ConditionSource(
     source: 'Open-Meteo Marine API',
     updateFrequency: 'Hourly',
-    description: 'Sea surface temperature from global ocean models. Affects thermoclines, fish behavior, and wetsuit needs.',
+    description: 'Sea surface temperature from global ocean models.',
   ),
   'visibility': _ConditionSource(
     source: 'NASA & Copernicus Satellites',
