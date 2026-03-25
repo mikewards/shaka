@@ -37,7 +37,7 @@ dependencies:
   # Caching
   flutter_cache_manager: ^3.3.2
 
-  # WebView for Copernicus Viewer
+  # WebView for Ocean Forecast
   webview_flutter: ^4.4.2
   
   # Connectivity

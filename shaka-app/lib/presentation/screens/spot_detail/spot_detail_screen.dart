@@ -12,6 +12,8 @@ import '../../widgets/satellite_readings_card.dart';
 import '../../widgets/swell_details_card.dart';
 import '../../widgets/tide_chart_card.dart';
 import '../../widgets/score_tier_pill.dart';
+import '../../widgets/spot_ocean_forecast_card.dart';
+import '../charts/ocean_forecast_screen.dart';
 
 class SpotDetailScreen extends StatefulWidget {
   final String spotId;
@@ -409,20 +411,23 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               ),
             ),
             const SizedBox(width: 12),
-            // Ocean Conditions button
             Expanded(
               child: _buildChartButton(
-                icon: Icons.waves,
-                label: 'Conditions',
-                sublabel: 'Copernicus',
-                color: AppColors.info,
+                icon: Icons.air,
+                label: 'Forecast',
+                sublabel: 'Ocean Data',
+                color: const Color(0xFF00BCD4),
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  context.push('/charts/copernicus', extra: {
-                    'lat': spot.coordinates.lat,
-                    'lon': spot.coordinates.lon,
-                    'spotName': spot.name,
-                  });
+                  Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute(
+                      builder: (context) => OceanForecastScreen(
+                        initialLat: spot.coordinates.lat,
+                        initialLon: spot.coordinates.lon,
+                        spotName: spot.name,
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
@@ -465,10 +470,15 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       physics: const ClampingScrollPhysics(),
-      itemCount: forecast.length,
+      itemCount: forecast.length + 1,
       itemBuilder: (context, index) {
-        final day = forecast[index];
-        return _buildForecastCard(day, index == 0);
+        if (index < forecast.length) {
+          return _buildForecastCard(forecast[index], index == 0);
+        }
+        return SpotOceanForecastCard(
+          lat: spot.coordinates.lat,
+          lon: spot.coordinates.lon,
+        );
       },
     );
   }

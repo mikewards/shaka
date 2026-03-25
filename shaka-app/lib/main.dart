@@ -20,7 +20,7 @@ import 'presentation/screens/spot_detail/spot_detail_screen.dart';
 import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/reports/reports_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
-import 'presentation/screens/charts/ocean_charts_webview.dart';
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -188,18 +188,6 @@ final _router = GoRouter(
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
         return GibsImageryScreen(
-          initialLat: extra?['lat'] as double?,
-          initialLon: extra?['lon'] as double?,
-          spotName: extra?['spotName'] as String?,
-        );
-      },
-    ),
-    GoRoute(
-      path: '/charts/copernicus',
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final extra = state.extra as Map<String, dynamic>?;
-        return OceanChartsWebView(
           initialLat: extra?['lat'] as double?,
           initialLon: extra?['lon'] as double?,
           spotName: extra?['spotName'] as String?,

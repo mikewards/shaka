@@ -1,15 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// A unified widget that displays a color legend for ocean chart layers
-/// Supports both:
-/// - Copernicus: CSS gradient string + tick values extracted from WebView
-/// - GIBS: Direct color array + labels from layer model
+/// Displays a color legend for ocean chart layers (GIBS satellite imagery)
 class DynamicOceanLegend extends StatelessWidget {
-  // For Copernicus (CSS gradient + ticks from JS)
-  final String? gradientCss;
-  final List<String>? ticks;
-  
-  // For GIBS (explicit colors + labels from model)
   final List<Color>? colors;
   final List<String>? labels;
   final String? unit;
@@ -19,34 +11,13 @@ class DynamicOceanLegend extends StatelessWidget {
 
   const DynamicOceanLegend({
     super.key,
-    // Copernicus params
-    this.gradientCss,
-    this.ticks,
-    // GIBS params
     this.colors,
     this.labels,
     this.unit,
     this.categoryName,
-    // Shared
     this.compact = false,
   });
   
-  /// Factory for Copernicus data
-  factory DynamicOceanLegend.fromCopernicus({
-    Key? key,
-    required String? gradientCss,
-    required List<String> ticks,
-    bool compact = false,
-  }) {
-    return DynamicOceanLegend(
-      key: key,
-      gradientCss: gradientCss,
-      ticks: ticks,
-      compact: compact,
-    );
-  }
-  
-  /// Factory for GIBS data
   factory DynamicOceanLegend.fromGibs({
     Key? key,
     required List<Color> colors,
@@ -65,54 +36,6 @@ class DynamicOceanLegend extends StatelessWidget {
     );
   }
 
-  /// Parse "linear-gradient(to right, rgb(255, 253, 205), rgb(254, 252, 203), ...)"
-  /// into a list of Colors (for Copernicus CSS gradients)
-  List<Color> _parseGradientColors() {
-    if (gradientCss == null || gradientCss!.isEmpty) return [];
-    
-    final rgbPattern = RegExp(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)');
-    final matches = rgbPattern.allMatches(gradientCss!);
-    
-    if (matches.isEmpty) return [];
-    
-    final allColors = matches.map((m) => Color.fromARGB(
-      255,
-      int.parse(m.group(1)!),
-      int.parse(m.group(2)!),
-      int.parse(m.group(3)!),
-    )).toList();
-    
-    // If we have too many colors (Copernicus sends ~250), sample evenly
-    // Flutter LinearGradient works better with fewer stops
-    if (allColors.length > 20) {
-      final step = allColors.length / 20;
-      return List.generate(20, (i) => allColors[(i * step).floor().clamp(0, allColors.length - 1)]);
-    }
-    
-    return allColors;
-  }
-  
-  /// Get the colors to display (from either source)
-  List<Color> _getColors() {
-    // Prefer explicit colors (GIBS)
-    if (colors != null && colors!.isNotEmpty) {
-      return colors!;
-    }
-    // Fall back to parsing CSS gradient (Copernicus)
-    return _parseGradientColors();
-  }
-  
-  /// Get the labels to display
-  List<String> _getLabels() {
-    // Prefer explicit labels (GIBS)
-    if (labels != null && labels!.isNotEmpty) {
-      return labels!;
-    }
-    // Fall back to ticks (Copernicus)
-    return ticks ?? [];
-  }
-  
-  /// Get center label (category + unit for GIBS, empty for Copernicus)
   String? _getCenterLabel() {
     if (categoryName != null || unit != null) {
       final parts = <String>[];
@@ -125,8 +48,8 @@ class DynamicOceanLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayColors = _getColors();
-    final displayLabels = _getLabels();
+    final displayColors = colors ?? [];
+    final displayLabels = labels ?? [];
     final centerLabel = _getCenterLabel();
     
     // Don't render if we have no data

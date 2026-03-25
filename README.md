@@ -133,7 +133,7 @@ shaka/
 │           │   ├── charts/
 │           │   │   ├── charts_hub_screen.dart      Chart type selection
 │           │   │   ├── gibs_imagery_screen.dart    NASA satellite viewer
-│           │   │   └── ocean_charts_webview.dart   Copernicus viewer
+│           │   │   └── ocean_forecast_screen.dart   Ocean forecast viewer
 │           │   ├── spot_detail/   Individual spot view + Fishing tab
 │           │   └── profile/       Settings, saved spots
 │           ├── shell/             Bottom navigation
@@ -323,10 +323,6 @@ MapLibre-based viewer for NASA Global Imagery Browse Services tiles:
 - True Color composites from MODIS/VIIRS
 
 Supports multi-layer stacking, opacity control, and date selection back to 2012.
-
-### Copernicus Ocean Conditions
-
-WebView wrapper for Copernicus Marine viewer. Displays animated currents, SST, waves, wind, and chlorophyll. Supports snapshot saving for offline reference.
 
 ### User Spots
 

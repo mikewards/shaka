@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/theme/app_colors.dart';
 import '../../../data/services/health_service.dart';
-import 'ocean_charts_webview.dart';
 import 'ocean_forecast_screen.dart';
 import 'gibs_imagery_screen.dart';
 
@@ -152,39 +151,7 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  // Conditions Card (Copernicus) - BOTTOM
-                  Expanded(
-                    child: _DataSourceCard(
-                      title: 'Ocean Conditions',
-                      subtitle: 'Animated currents, waves, wind with hourly snapshots',
-                      source: 'Copernicus Marine Service',
-                      badge: 'ANIMATED',
-                      badgeColor: AppColors.info,
-                      icon: Icons.play_circle_outline,
-                      imagePath: 'assets/images/ocean_conditions_preview.png',
-                      fallbackColors: const [
-                        Color(0xFF1A237E),
-                        Color(0xFF0D47A1),
-                        Color(0xFF00BCD4),
-                      ],
-                      isAvailable: _healthProvider.isCopernicusAvailable,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.of(context, rootNavigator: true).push(
-                          MaterialPageRoute(
-                            builder: (context) => OceanChartsWebView(
-                              initialLat: widget.initialLat,
-                              initialLon: widget.initialLon,
-                              spotName: widget.spotName,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  
+
                   const SizedBox(height: 16),
                 ],
               ),
