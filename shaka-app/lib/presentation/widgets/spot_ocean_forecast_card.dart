@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -301,12 +302,29 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     return formatted;
   }
 
+  Widget _buildDirectionArrow(double degrees, Color color) {
+    return Container(
+      width: 22,
+      height: 22,
+      margin: const EdgeInsets.only(left: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        shape: BoxShape.circle,
+      ),
+      child: Transform.rotate(
+        angle: (degrees + 180) * pi / 180,
+        child: Icon(Icons.navigation, size: 13, color: color),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final layerColor = _kLayers[_activeLayer]?.color ?? Colors.cyan;
+    final mapHeight = MediaQuery.of(context).size.height * 0.48;
 
     return Container(
-      margin: const EdgeInsets.only(top: 20),
+      margin: const EdgeInsets.only(top: 20, bottom: 24),
       decoration: BoxDecoration(
         color: AppColors.darkSurface,
         borderRadius: BorderRadius.circular(14),
@@ -332,7 +350,7 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                   ),
                 ),
                 const Spacer(),
-                if (_probeValue != null)
+                if (_probeValue != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
@@ -352,6 +370,10 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                       ),
                     ),
                   ),
+                  if (_probeDirection != null &&
+                      (_activeLayer == 'wind' || _activeLayer == 'currents'))
+                    _buildDirectionArrow(_probeDirection!, layerColor),
+                ],
               ],
             ),
           ),
@@ -433,7 +455,7 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
               bottomRight: Radius.circular(14),
             ),
             child: SizedBox(
-              height: 260,
+              height: mapHeight.clamp(300, 500),
               child: Stack(
                 children: [
                   if (_controller != null)

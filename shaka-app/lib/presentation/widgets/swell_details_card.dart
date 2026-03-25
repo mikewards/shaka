@@ -136,6 +136,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   static const _secondaryColor = AppColors.chartTideLow;
 
   final _units = UnitPreferenceService();
+  bool _detailsExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -271,22 +272,23 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
           _ExposureBadge(degrees: c.exposureBearing!.toDouble())));
     }
 
+    final rowWidgets = <Widget>[
+      for (int i = 0; i < items.length; i++)
+        _buildRow(
+          items[i].$1,
+          items[i].$2,
+          badge: items[i].$3,
+          isLast: i == items.length - 1,
+        ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(height: 1, color: Colors.white10),
-          for (int i = 0; i < items.length; i++)
-            _buildRow(
-              items[i].$1,
-              items[i].$2,
-              badge: items[i].$3,
-              isLast: i == items.length - 1,
-            ),
           if (compassSwells.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(height: 1, color: Colors.white10),
             const SizedBox(height: 12),
             AspectRatio(
               aspectRatio: 1.0,
@@ -310,7 +312,6 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          // Satellite imagery tiles
                           if (tileUrls != null && tileOffset != null)
                             for (int i = 0; i < 4; i++)
                               Positioned(
@@ -325,7 +326,6 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                                       SizedBox(width: _tileSize, height: _tileSize),
                                 ),
                               ),
-                          // Compass rose
                           Positioned.fill(
                             child: CustomPaint(
                               painter: _SwellCompassPainter(
@@ -345,7 +345,53 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                 },
               ),
             ),
+            const SizedBox(height: 12),
           ],
+          // "Swell & Wind Details" expandable flyout
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() => _detailsExpanded = !_detailsExpanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Swell & Wind Details',
+                      style: TextStyle(
+                        color: AppColors.darkTextMuted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _detailsExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 20,
+                      color: Colors.white38,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity, height: 0),
+            secondChild: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: rowWidgets,
+            ),
+            crossFadeState:
+                _detailsExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+            sizeCurve: Curves.easeInOut,
+          ),
         ],
       ),
     );
@@ -425,6 +471,79 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
   }
 
   void _showSwellWindInfo(BuildContext context) {
+    final c = widget.conditions;
+    final infoCards = <Widget>[];
+
+    // Primary swell
+    if (c.swellCorrected != null) {
+      infoCards.add(_buildInfoCard(
+        'Swell (At Spot)',
+        'Shaka Exposure Model',
+        'Every 3 hours',
+        'Open-ocean swell scaled for local coastline. Headlands, coves, and reefs reduce wave height \u2014 a sheltered spot can see 50%+ less than offshore.',
+      ));
+      if (c.swellCorrected != c.swell) {
+        infoCards.add(_buildInfoCard(
+          'Swell (Open Ocean)',
+          'Open-Meteo Marine + NDBC Buoys',
+          'Hourly',
+          'Significant wave height in open water from NOAA WaveWatch III. Live NDBC buoy readings used when a buoy is nearby.',
+        ));
+      }
+    } else {
+      infoCards.add(_buildInfoCard(
+        'Swell',
+        'Open-Meteo Marine + NDBC Buoys',
+        'Hourly',
+        'Significant wave height in open water from NOAA WaveWatch III. Live NDBC buoy readings used when a buoy is nearby.',
+      ));
+    }
+
+    // Secondary swell
+    if (c.secondarySwell != null) {
+      if (c.secondarySwellCorrected != null) {
+        infoCards.add(_buildInfoCard(
+          '2nd Swell (At Spot)',
+          'Shaka Exposure Model',
+          'Every 3 hours',
+          'Secondary wave system exposure-corrected for local coastline sheltering.',
+        ));
+        if (c.secondarySwellCorrected != c.secondarySwell) {
+          infoCards.add(_buildInfoCard(
+            '2nd Swell (Open Ocean)',
+            'Open-Meteo Marine API',
+            'Hourly',
+            'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
+          ));
+        }
+      } else {
+        infoCards.add(_buildInfoCard(
+          '2nd Swell',
+          'Open-Meteo Marine API',
+          'Hourly',
+          'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
+        ));
+      }
+    }
+
+    // Wind
+    infoCards.add(_buildInfoCard(
+      'Wind',
+      'Open-Meteo Weather API (NOAA GFS)',
+      'Hourly',
+      '10-meter wind speed and direction. Offshore = clean, glassy surface. Onshore = chop and reduced visibility.',
+    ));
+
+    // Exposure
+    if (c.exposureBearing != null) {
+      infoCards.add(_buildInfoCard(
+        'Exposure',
+        'Shaka Coastal Analysis',
+        'Computed once',
+        'Which direction this spot faces open ocean and how wide the window is. Scans 16 compass bearings at 1\u20135 km to detect sheltering land.',
+      ));
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.darkSurface,
@@ -467,42 +586,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                 style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
-              _buildInfoCard(
-                'Swell Height',
-                'Open-Meteo Marine + NDBC Buoys',
-                'Hourly',
-                'Significant wave height \u2014 the average of the tallest third of waves. Modeled by NOAA WaveWatch III; live NDBC buoy readings used when a buoy is nearby.',
-              ),
-              _buildInfoCard(
-                'Swell Period & Direction',
-                'Open-Meteo Marine + NDBC Buoys',
-                'Hourly',
-                'Seconds between wave crests and compass bearing. Longer period = more powerful, organized swell from distant storms.',
-              ),
-              _buildInfoCard(
-                'Exposure Correction',
-                'Shaka Exposure Model',
-                'Every 3 hours',
-                'Open-ocean swell scaled for local coastline. Headlands, coves, and reefs reduce wave height \u2014 a sheltered spot can see 50%+ less than offshore.',
-              ),
-              _buildInfoCard(
-                'Secondary Swell',
-                'Open-Meteo Marine API',
-                'Hourly',
-                'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
-              ),
-              _buildInfoCard(
-                'Wind',
-                'Open-Meteo Weather API (NOAA GFS)',
-                'Hourly',
-                '10-meter wind speed and direction. Offshore = clean, glassy surface. Onshore = chop and reduced visibility.',
-              ),
-              _buildInfoCard(
-                'Exposure Arc',
-                'Shaka Coastal Analysis',
-                'Computed once',
-                'Which direction this spot faces open ocean and how wide the window is. Scans 16 compass bearings at 1\u20135 km to detect sheltering land.',
-              ),
+              ...infoCards,
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),

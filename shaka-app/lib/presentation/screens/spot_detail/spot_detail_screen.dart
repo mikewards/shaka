@@ -364,6 +364,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
         // Tides (expandable, only when data available)
         if (spot.tide != null && spot.tide!.points.isNotEmpty) ...[
+          _buildSectionHeader('TIDES'),
+          const SizedBox(height: 10),
           TideChartCard(tide: spot.tide!),
           const SizedBox(height: 20),
         ],
@@ -393,24 +395,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         const SizedBox(height: 10),
         Row(
           children: [
-            // Satellite Imagery button
-            Expanded(
-              child: _buildChartButton(
-                icon: Icons.satellite_alt,
-                label: 'Satellite',
-                sublabel: 'NASA GIBS',
-                color: AppColors.success,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  context.push('/charts/gibs', extra: {
-                    'lat': spot.coordinates.lat,
-                    'lon': spot.coordinates.lon,
-                    'spotName': spot.name,
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: _buildChartButton(
                 icon: Icons.air,
@@ -428,6 +412,23 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                       ),
                     ),
                   );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildChartButton(
+                icon: Icons.satellite_alt,
+                label: 'Satellite',
+                sublabel: 'NASA GIBS',
+                color: AppColors.success,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/charts/gibs', extra: {
+                    'lat': spot.coordinates.lat,
+                    'lon': spot.coordinates.lon,
+                    'spotName': spot.name,
+                  });
                 },
               ),
             ),
@@ -596,30 +597,36 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: _cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
             Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              sublabel,
-              style: TextStyle(
-                color: AppColors.darkTextMuted,
-                fontSize: 11,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    sublabel,
+                    style: TextStyle(
+                      color: AppColors.darkTextMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -714,7 +721,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
   Widget _buildRisksList(List<RiskInfo> risks) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(12),
@@ -724,7 +731,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: risks
             .map((r) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     r.risk,
                     style: const TextStyle(

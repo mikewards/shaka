@@ -57,28 +57,11 @@ class _TideChartCardState extends State<TideChartCard> {
     final heightText = tide?.currentHeightFt != null
         ? UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)
         : '';
-    final stageIcon = stageText == 'rising'
-        ? Icons.trending_up
-        : stageText == 'falling'
-            ? Icons.trending_down
-            : Icons.remove;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Icon(Icons.waves, size: 18, color: _tideColor),
-          const SizedBox(width: 8),
-          Text(
-            'TIDES',
-            style: TextStyle(
-              color: _lightText,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const Spacer(),
           if (!_hasData) ...[
             SizedBox(
               width: 14,
@@ -94,25 +77,34 @@ class _TideChartCardState extends State<TideChartCard> {
               style: TextStyle(color: _dimText, fontSize: 13),
             ),
           ] else if (heightText.isNotEmpty) ...[
-            Icon(stageIcon, size: 16, color: _tideColor),
-            const SizedBox(width: 4),
-            Text(
-              '$heightText ${_capitalize(stageText)}',
-              style: TextStyle(
-                color: _tideColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                '$heightText ${_capitalize(stageText)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showTideInfo(context);
-              },
-              child: const Icon(Icons.info_outline, size: 14, color: AppColors.darkTextHint),
-            ),
           ],
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showTideInfo(context);
+            },
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Data sources',
+                  style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -222,6 +222,16 @@ class ConditionsCard extends StatelessWidget {
   }
 
   void _showAllSourcesInfo(BuildContext context) {
+    // Only show sources for rows visible in the CONDITIONS card, in display order
+    final visibleKeys = <String>[
+      conditions.swellCorrected != null ? 'swell_corrected' : 'swell',
+      'wind',
+      'water',
+      'visibility',
+      if (conditions.tideState.isNotEmpty && conditions.tideState != 'unknown') 'tide',
+      if (conditions.bathymetryDepthM != null) 'depth',
+    ];
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.darkSurface,
@@ -264,11 +274,13 @@ class ConditionsCard extends StatelessWidget {
                 style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
               ),
               const SizedBox(height: 20),
-              ..._conditionSources.entries.map((e) => _buildSourceCard(
-                context,
-                _labelForKey(e.key),
-                e.value,
-              )),
+              ...visibleKeys
+                  .where((k) => _conditionSources.containsKey(k))
+                  .map((k) => _buildSourceCard(
+                    context,
+                    _labelForKey(k),
+                    _conditionSources[k]!,
+                  )),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),

@@ -112,7 +112,7 @@ class SatelliteReadingsCard extends StatefulWidget {
 
 class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     with SingleTickerProviderStateMixin {
-  bool _expanded = false;
+  bool _detailsExpanded = false;
 
   // Dark theme colors (matching ConditionsCard)
   static const _cardColor = Color(0xFF1A1A1A);
@@ -149,6 +149,10 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
 
     var info = _getVisibilityInfo(effectiveChl);
 
+    final estimatedChl = readings.noaaErddapChlorophyll == null
+        ? _estimateFromSatelliteColors(readings)
+        : null;
+
     return Container(
       decoration: BoxDecoration(
         color: _cardColor,
@@ -157,100 +161,117 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       ),
       child: Column(
         children: [
-          // --- Collapsed header (always visible) ---
           _buildHeader(info, readings),
-
-          // --- Expanded details ---
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity, height: 0),
-            secondChild: _buildExpandedContent(readings, info),
-            crossFadeState:
-                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 250),
-            sizeCurve: Curves.easeInOut,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(height: 1, color: Colors.white10),
+                const SizedBox(height: 14),
+                _buildVisibilityScale(readings, estimatedChl),
+                const SizedBox(height: 12),
+                // "Visibility Details" expandable flyout
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _detailsExpanded = !_detailsExpanded);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Visibility Details',
+                            style: TextStyle(
+                              color: AppColors.darkTextMuted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _detailsExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 250),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: Colors.white38,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                AnimatedCrossFade(
+                  firstChild: const SizedBox(width: double.infinity, height: 0),
+                  secondChild: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      _buildCopernicusSection(readings),
+                      const SizedBox(height: 16),
+                      _buildSatelliteImagerySection(readings),
+                    ],
+                  ),
+                  crossFadeState: _detailsExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 250),
+                  sizeCurve: Curves.easeInOut,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// The always-visible header row: label, color dot, chevron.
   Widget _buildHeader(_VisibilityInfo info, GibsSatelliteReadings readings) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        setState(() => _expanded = !_expanded);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // Color indicator dot
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: info.color,
-                border: Border.all(color: Colors.white24, width: 0.5),
-              ),
-            ),
-            const SizedBox(width: 10),
-            // The actual label (e.g., "Clear")
-            Expanded(
-              child: Text(
-                info.label,
-                style: TextStyle(
-                  color: info.color,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            // Expand chevron
-            AnimatedRotation(
-              turns: _expanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 250),
-              child: const Icon(
-                Icons.keyboard_arrow_down,
-                size: 20,
-                color: Colors.white38,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Full expanded content: measured chlorophyll, legend, satellite imagery.
-  Widget _buildExpandedContent(
-      GibsSatelliteReadings readings, _VisibilityInfo info) {
-    final estimatedChl = readings.noaaErddapChlorophyll == null
-        ? _estimateFromSatelliteColors(readings)
-        : null;
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
         children: [
-          // Divider
-          Container(height: 1, color: Colors.white10),
-          const SizedBox(height: 14),
-
-          // Visibility scale
-          _buildVisibilityScale(readings, estimatedChl),
-          const SizedBox(height: 16),
-
-          // Copernicus Marine value
-          _buildCopernicusSection(readings),
-          const SizedBox(height: 16),
-
-          // Satellite imagery
-          _buildSatelliteImagerySection(readings),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: info.color,
+              border: Border.all(color: Colors.white24, width: 0.5),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              info.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showSatelliteInfo(context);
+            },
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Data sources',
+                  style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -573,44 +594,14 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'VISIBILITY SCALE',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1,
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _showSatelliteInfo(context);
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.info_outline, size: 12, color: Colors.white54),
-                    SizedBox(width: 4),
-                    Text(
-                      'About',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        const Text(
+          'VISIBILITY SCALE',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
         ),
         const SizedBox(height: 8),
         ...labels.map((entry) {
