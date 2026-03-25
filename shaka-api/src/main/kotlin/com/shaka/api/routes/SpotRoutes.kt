@@ -18,6 +18,7 @@ import com.shaka.fishing_intel.processing.ResolvedGeo
 import com.shaka.fishing_intel.processing.SpeciesNormalizer
 import com.shaka.fishing_intel.processing.SoCalGazetteer
 import com.shaka.fishing_intel.models.*
+import com.shaka.PrefetchJobsKey
 import com.shaka.service.SpotService
 import com.shaka.service.ForecastService
 import com.shaka.service.HealthService
@@ -552,7 +553,32 @@ fun Application.configureRouting() {
                     io.ktor.http.ContentType.Application.Json
                 )
             }
-            
+
+            // Trigger full V2 weather prefetch pipeline (all stale + missing spots)
+            post("/admin/weather/trigger") {
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                if (prefetchJobs == null) {
+                    call.respondText(
+                        """{"status":"error","message":"PrefetchJobs not initialized yet"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.ServiceUnavailable
+                    )
+                    return@post
+                }
+                GlobalScope.launch {
+                    try {
+                        prefetchJobs.prefetchWeather()
+                    } catch (e: Exception) {
+                        org.slf4j.LoggerFactory.getLogger("AdminWeatherTrigger")
+                            .error("Manual weather prefetch failed: ${e.message}", e)
+                    }
+                }
+                call.respondText(
+                    """{"status":"started","message":"Full V2 weather prefetch triggered in background. Check /admin/cache/stats for progress."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+
             // Trigger weather/swell fetch for all spots without weather data
             post("/admin/weather/refetch") {
                 val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutWeather()

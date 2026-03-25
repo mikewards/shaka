@@ -88,9 +88,11 @@ class OpenMeteoClient {
                 parameter("timezone", "auto")
             }.body()
 
-            val today = java.time.LocalDate.now().toString()
+            val spotZone = try { java.time.ZoneId.of(response.timezone) } catch (_: Exception) { java.time.ZoneId.systemDefault() }
+            val spotNow = java.time.LocalDateTime.now(spotZone)
+            val today = spotNow.toLocalDate().toString()
             val idx = if (date == today) {
-                java.time.LocalTime.now().hour
+                spotNow.hour
             } else {
                 12
             }.coerceAtMost((response.hourly.wave_height?.size ?: 1) - 1)
@@ -190,8 +192,10 @@ class OpenMeteoClient {
             val hoursTotal = response.hourly.wave_height?.size ?: 0
             val numDays = hoursTotal / 24
             
+            val spotZone = try { java.time.ZoneId.of(response.timezone) } catch (_: Exception) { java.time.ZoneId.systemDefault() }
+            val currentHour = java.time.LocalTime.now(spotZone).hour
             (0 until numDays).map { day ->
-                val idx = (day * 24) + 12
+                val idx = if (day == 0) (day * 24) + currentHour else (day * 24) + 12
                 OceanData(
                     waveHeight = response.hourly.wave_height?.getOrNull(idx) ?: 1.0,
                     wavePeriod = response.hourly.wave_period?.getOrNull(idx) ?: 8.0,
@@ -230,7 +234,8 @@ data class OpenMeteoHourlyWeather(
 
 @Serializable
 data class OpenMeteoMarineResponse(
-    val hourly: OpenMeteoHourlyMarine
+    val hourly: OpenMeteoHourlyMarine,
+    val timezone: String? = null
 )
 
 @Serializable

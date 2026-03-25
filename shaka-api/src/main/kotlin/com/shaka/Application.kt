@@ -18,9 +18,12 @@ import io.ktor.server.plugins.compression.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.http.*
 import io.ktor.server.response.*
+import io.ktor.util.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+
+val PrefetchJobsKey = AttributeKey<DataPrefetchJobs>("PrefetchJobs")
 
 private val logger = LoggerFactory.getLogger("Application")
 
@@ -117,6 +120,7 @@ private fun Application.configureScheduledJobs() {
         ndbcBuoyClient = ndbcClient,
         bathymetryClient = bathymetryClient
     )
+    attributes.put(PrefetchJobsKey, prefetchJobs)
     
     // Create isolated scope for background jobs - failures won't affect other jobs or the app
     val backgroundScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
