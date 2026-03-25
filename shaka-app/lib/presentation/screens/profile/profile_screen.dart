@@ -137,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _ProfileRow(
             icon: Icons.bookmark_border,
             iconColor: AppColors.scoreExcellent,
-            title: 'Saved Spots',
+            title: 'My Spots',
             subtitle: _isLoadingSpots
                 ? 'Loading...'
                 : '${_savedSpots.length} spot${_savedSpots.length == 1 ? '' : 's'}',

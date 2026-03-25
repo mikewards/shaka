@@ -68,7 +68,7 @@ class _SavedSpotsScreenState extends State<SavedSpotsScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
-          'Saved Spots',
+          'My Spots',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
@@ -116,7 +116,7 @@ class _SavedSpotsScreenState extends State<SavedSpotsScreen> {
             const Icon(Icons.bookmark_border, color: AppColors.darkTextHint, size: 64),
             const SizedBox(height: 16),
             const Text(
-              'No saved spots yet',
+              'No spots yet',
               style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 16),
             ),
             const SizedBox(height: 8),

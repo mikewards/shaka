@@ -99,7 +99,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   // Saved spots state
   List<SpotMapMarker> _curatedSpots = [];  // From /spots/all
   List<UserSpotResponse> _userSpots = [];  // From /user-spots
-  bool _showSpotsOnMap = true;  // Toggle user spots visibility
+  bool _showMySpots = true;    // Toggle user spots on map
+  bool _showAllSpots = true;   // Toggle curated/default spots on map
   
   // Pin mode state
   bool _isPinMode = false;
@@ -462,8 +463,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   /// Rebuild the combined spots list (curated + user saved spots)
   void _rebuildCombinedSpots() {
     _allSpots = [
-      ..._curatedSpots,
-      if (_showSpotsOnMap) ..._userSpots.map((s) => s.toSpotMapMarker()),
+      if (_showAllSpots) ..._curatedSpots,
+      if (_showMySpots) ..._userSpots.map((s) => s.toSpotMapMarker()),
     ];
   }
 
@@ -508,7 +509,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       return;
     }
 
-    if (_showSpotsOnMap) _startPulseTimer();
+    if (_showMySpots) _startPulseTimer();
 
     // Give the server-side background prefetch a head start before first poll
     await Future.delayed(const Duration(seconds: 3));
@@ -564,7 +565,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       await Future.wait(futures);
 
-      if (anyUpdated && mounted && _showSpotsOnMap) {
+      if (anyUpdated && mounted && _showMySpots) {
         debugPrint('📍 Explore: Updated spot data, refreshing markers');
         setState(() => _rebuildCombinedSpots());
         await _updateMarkers();
@@ -715,8 +716,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  // Saved spots sheet (reuses same UX as Gibs)
   void _showSavedSpotsSheet() {
+    bool infoExpanded = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -728,6 +729,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
         builder: (context, scrollController) {
           return StatefulBuilder(
             builder: (context, setModalState) {
+              void toggleMySpots() {
+                setModalState(() => _showMySpots = !_showMySpots);
+                setState(() => _rebuildCombinedSpots());
+                _updateMarkers();
+                _updateVisibleSpots();
+              }
+              void toggleAllSpots() {
+                setModalState(() => _showAllSpots = !_showAllSpots);
+                setState(() => _rebuildCombinedSpots());
+                _updateMarkers();
+                _updateVisibleSpots();
+              }
+
               return Container(
                 decoration: const BoxDecoration(
                   color: AppColors.darkSurface,
@@ -735,7 +749,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Handle
                     Container(
                       margin: const EdgeInsets.only(top: 12),
                       width: 40,
@@ -745,13 +758,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    // Header with toggle
                     Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                       child: Row(
                         children: [
                           const Text(
-                            'Saved Spots',
+                            'My Spots',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -760,30 +772,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ),
                           const Spacer(),
                           GestureDetector(
-                            onTap: () {
-                              setModalState(() {
-                                _showSpotsOnMap = !_showSpotsOnMap;
-                              });
-                              setState(() {
-                                _rebuildCombinedSpots();
-                              });
-                              _updateMarkers();
-                              _updateVisibleSpots();
-                            },
+                            onTap: () => setModalState(() => infoExpanded = !infoExpanded),
                             child: Row(
                               children: [
-                                Icon(
-                                  _showSpotsOnMap ? Icons.visibility : Icons.visibility_off,
-                                  color: _showSpotsOnMap ? AppColors.info : AppColors.darkTextHint,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 6),
                                 Text(
-                                  'Show on map',
+                                  'Spot Privacy',
                                   style: TextStyle(
-                                    color: _showSpotsOnMap ? AppColors.info : AppColors.darkTextMuted,
+                                    color: infoExpanded ? AppColors.info : AppColors.darkTextHint,
                                     fontSize: 13,
                                   ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.info_outline,
+                                  color: infoExpanded ? AppColors.info : AppColors.darkTextHint,
+                                  size: 18,
                                 ),
                               ],
                             ),
@@ -791,6 +794,147 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ],
                       ),
                     ),
+                    // Map display toggles (only when user has spots)
+                    if (_userSpots.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: toggleMySpots,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _showMySpots
+                                      ? AppColors.info.withOpacity(0.15)
+                                      : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _showMySpots
+                                        ? AppColors.info.withOpacity(0.4)
+                                        : Colors.white.withOpacity(0.1),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _showMySpots ? Icons.check_circle : Icons.circle_outlined,
+                                      color: _showMySpots ? AppColors.info : AppColors.darkTextHint,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'My Spots',
+                                      style: TextStyle(
+                                        color: _showMySpots ? AppColors.info : AppColors.darkTextMuted,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: toggleAllSpots,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _showAllSpots
+                                      ? AppColors.info.withOpacity(0.15)
+                                      : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _showAllSpots
+                                        ? AppColors.info.withOpacity(0.4)
+                                        : Colors.white.withOpacity(0.1),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _showAllSpots ? Icons.check_circle : Icons.circle_outlined,
+                                      color: _showAllSpots ? AppColors.info : AppColors.darkTextHint,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'All Spots',
+                                      style: TextStyle(
+                                        color: _showAllSpots ? AppColors.info : AppColors.darkTextMuted,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Info disclaimer (collapsible)
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Container(
+                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.lock_outline, color: AppColors.info, size: 16),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Your spots are private',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Your spots are stored securely on this device and are never shared with anyone. '
+                              'This is why we don\'t ask for account information — your data stays on your phone.',
+                              style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 14),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'If this device is lost or reset, your spots will be lost too.',
+                                    style: TextStyle(color: AppColors.warning, fontSize: 12, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      crossFadeState: infoExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 200),
+                    ),
+                    const SizedBox(height: 12),
                     // Spot list
                     Expanded(
                       child: _userSpots.isEmpty
@@ -801,7 +945,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   Icon(Icons.bookmark_border, color: AppColors.darkTextHint, size: 48),
                                   SizedBox(height: 12),
                                   Text(
-                                    'No saved spots yet',
+                                    'No spots yet',
                                     style: TextStyle(color: AppColors.darkTextMuted),
                                   ),
                                   SizedBox(height: 4),
@@ -1301,13 +1445,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
       
-      // Background picker button (left-aligned, hidden in pin mode)
-      if (!_isPinMode)
-        Positioned(
-          bottom: 16,
-          left: 16,
-          child: _buildBackgroundButton(),
-        ),
+      // Background picker button (left-aligned, adjusts position in pin mode)
+      Positioned(
+        bottom: 16,
+        left: 16,
+        child: _buildBackgroundButton(),
+      ),
 
       // Right floating buttons: Saved Spots + Pin (hidden in pin mode)
       if (!_isPinMode)
@@ -1428,7 +1571,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  /// Right floating buttons: Saved Spots (top) + Pin/Add spot (bottom)
+  /// Right floating buttons: My Spots (top) + Pin/Add spot (bottom)
   Widget _buildRightFloatingButtons() {
     return Column(
       mainAxisSize: MainAxisSize.min,

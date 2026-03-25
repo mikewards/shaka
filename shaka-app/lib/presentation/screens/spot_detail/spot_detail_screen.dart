@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -231,13 +232,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: IconButton(
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                context.pop();
-              },
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
+            leading: const SizedBox.shrink(),
+            leadingWidth: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: _buildHeader(spot),
             ),
@@ -271,27 +267,31 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
-      padding: EdgeInsets.fromLTRB(56, safeTop, 20, 60),
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        height: kToolbarHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                spot.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                ),
+      padding: EdgeInsets.fromLTRB(8, safeTop, 20, 48),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.pop();
+            },
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+          Expanded(
+            child: Text(
+              spot.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(width: 12),
-            ScoreTierPill(score: spot.score.overall, width: 14, height: 48, vertical: true),
-          ],
-        ),
+          ),
+          const SizedBox(width: 12),
+          ScoreTierPill(score: spot.score.overall, width: 14, height: 48, vertical: true),
+        ],
       ),
     );
   }
@@ -343,8 +343,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Conditions
-        _buildSectionHeader('CONDITIONS'),
+        // Conditions with current date
+        Row(
+          children: [
+            _buildSectionHeader('CONDITIONS'),
+            const Spacer(),
+            Text(
+              DateFormat('EEEE, MMM d').format(DateTime.now()),
+              style: const TextStyle(
+                color: AppColors.darkTextHint,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
         ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
 
@@ -1081,10 +1093,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: IconButton(
-              onPressed: () => context.pop(),
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
+            leading: const SizedBox.shrink(),
+            leadingWidth: 0,
             flexibleSpace: FlexibleSpaceBar(
               background: _buildPreloadedHeader(spot),
             ),
@@ -1173,27 +1183,28 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
-      padding: EdgeInsets.fromLTRB(56, safeTop, 20, 60),
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        height: kToolbarHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                spot.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                ),
+      padding: EdgeInsets.fromLTRB(8, safeTop, 20, 48),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+          Expanded(
+            child: Text(
+              spot.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
           const SizedBox(width: 12),
           ScoreTierPill(score: spot.shakaScore, width: 14, height: 48, vertical: true),
-          ],
-        ),
+        ],
       ),
     );
   }

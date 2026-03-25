@@ -1051,7 +1051,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                       child: Row(
                         children: [
                           const Text(
-                            'Saved Spots',
+                            'My Spots',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -1102,7 +1102,7 @@ class _GibsImageryScreenState extends State<GibsImageryScreen> {
                                   Icon(Icons.bookmark_border, color: Colors.white24, size: 48),
                                   SizedBox(height: 12),
                                   Text(
-                                    'No saved spots yet',
+                                    'No spots yet',
                                     style: TextStyle(color: Colors.white54),
                                   ),
                                   SizedBox(height: 4),
