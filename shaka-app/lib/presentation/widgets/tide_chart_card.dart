@@ -169,14 +169,6 @@ class _TideChartCardState extends State<TideChartCard> {
                 ],
               ],
             ),
-          const SizedBox(height: 8),
-          Text(
-            tide.provider == 'fes2022'
-                ? 'FES2022 Global Tide Model · ${tide.datum}'
-                : '${tide.stationName} · ${UnitConverter.formatDistance(tide.stationDistanceMi, _units.system)} · ${tide.datum}',
-            style: TextStyle(color: _dimText, fontSize: 11),
-            overflow: TextOverflow.ellipsis,
-          ),
         ],
       ),
     );

@@ -231,15 +231,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: IconButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  context.pop();
-                },
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
+            leading: IconButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                context.pop();
+              },
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: _buildHeader(spot),
@@ -265,6 +262,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   }
 
   Widget _buildHeader(SpotDetail spot) {
+    final safeTop = MediaQuery.of(context).padding.top;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -273,24 +271,27 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              spot.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
+      padding: EdgeInsets.fromLTRB(56, safeTop, 20, 60),
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        height: kToolbarHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                spot.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          // Vertical tier pill (matches carousel orientation)
-          ScoreTierPill(score: spot.score.overall, width: 14, height: 48, vertical: true),
-        ],
+            const SizedBox(width: 12),
+            ScoreTierPill(score: spot.score.overall, width: 14, height: 48, vertical: true),
+          ],
+        ),
       ),
     );
   }
@@ -561,7 +562,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   Widget _buildGuideTab(SpotDetail spot) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      physics: const ClampingScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       children: [
         if (spot.regulations != null) ...[
           _buildRegulationsInfo(spot.regulations!),
@@ -1080,12 +1081,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             expandedHeight: 160,
             pinned: true,
             backgroundColor: _bgColor,
-            leading: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: IconButton(
-                onPressed: () => context.pop(),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
+            leading: IconButton(
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: _buildPreloadedHeader(spot),
@@ -1166,6 +1164,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   }
 
   Widget _buildPreloadedHeader(SpotSummary spot) {
+    final safeTop = MediaQuery.of(context).padding.top;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -1174,23 +1173,27 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           colors: [AppColors.oceanBlue, _bgColor],
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(56, 80, 20, 60),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              spot.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
+      padding: EdgeInsets.fromLTRB(56, safeTop, 20, 60),
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        height: kToolbarHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                spot.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
           const SizedBox(width: 12),
           ScoreTierPill(score: spot.shakaScore, width: 14, height: 48, vertical: true),
-        ],
+          ],
+        ),
       ),
     );
   }
