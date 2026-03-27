@@ -267,8 +267,8 @@ class SpotService {
                 shakaScore = score.overall,
                 confidence = score.confidence,
                 conditions = buildSwellConditionFields(cached).let { scf ->
-                    val swellHt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt } ?: SpotDataCache.metersToFeet(ocean.waveHeight)
-                    val swellPer = cached?.swell?.value?.periodSec ?: ocean.wavePeriod
+                    val swellHt = cached?.swell?.value?.let { (it.correctedHeightFt ?: it.heightFt).roundToInt().toDouble() } ?: SpotDataCache.metersToFeet(ocean.waveHeight).roundToInt().toDouble()
+                    val swellPer = cached?.swell?.value?.periodSec?.roundToInt()?.toDouble() ?: ocean.wavePeriod.roundToInt().toDouble()
                     val swellDir = cached?.swell?.value?.direction ?: SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble())
                     val windKts = cached?.wind?.value?.speedKnots ?: SpotDataCache.kmhToKnots(weather.windSpeed)
                     val windDir = cached?.wind?.value?.direction ?: SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
@@ -276,8 +276,8 @@ class SpotService {
                         visibility = getVisibilityLabel(effectiveChl),
                         waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                         swell = cached?.swell?.let { 
-                            "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                        } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                            "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
+                        } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
                         wind = cached?.wind?.let { 
                             "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                         } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -526,8 +526,8 @@ class SpotService {
                 permitRequired = false
             ),
             conditions = run {
-                val swellHt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt } ?: SpotDataCache.metersToFeet(ocean.waveHeight)
-                val swellPer = cached?.swell?.value?.periodSec ?: ocean.wavePeriod
+                val swellHt = cached?.swell?.value?.let { (it.correctedHeightFt ?: it.heightFt).roundToInt().toDouble() } ?: SpotDataCache.metersToFeet(ocean.waveHeight).roundToInt().toDouble()
+                val swellPer = cached?.swell?.value?.periodSec?.roundToInt()?.toDouble() ?: ocean.wavePeriod.roundToInt().toDouble()
                 val swellDir = cached?.swell?.value?.direction ?: SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble())
                 val windKts = cached?.wind?.value?.speedKnots ?: SpotDataCache.kmhToKnots(weather.windSpeed)
                 val windDir = cached?.wind?.value?.direction ?: SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
@@ -535,8 +535,8 @@ class SpotService {
                     visibility = getVisibilityLabel(effectiveChl),
                     waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                     swell = cached?.swell?.let { 
-                        "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                    } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                        "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
+                    } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
                     wind = cached?.wind?.let { 
                         "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                     } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -819,7 +819,7 @@ class SpotService {
                         SpotConditions(
                             visibility = getVisibilityLabel(effectiveChl),
                             waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
-                            swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                            swell = "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
                             wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                             tideState = "",
                             swellSource = "open-meteo",
@@ -829,8 +829,8 @@ class SpotService {
                             exposureBearing = scf.exposureBearing,
                             exposureWidth = scf.exposureWidth,
                             bathymetryDepthM = scf.bathymetryDepthM,
-                            swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
-                            swellPeriodSec = ocean.wavePeriod,
+                            swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight).roundToInt().toDouble(),
+                            swellPeriodSec = ocean.wavePeriod.roundToInt().toDouble(),
                             swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
                             windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
                             windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
@@ -1225,12 +1225,12 @@ class SpotService {
         val swell = cached?.swell?.value
         val exposure = cached?.exposure
         return SwellConditionFields(
-            swellCorrected = swell?.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${swell.periodSec.toInt()}s ${swell.direction}" },
+            swellCorrected = swell?.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${swell.periodSec.roundToInt()}s ${swell.direction}" },
             secondarySwell = swell?.secondaryHeightFt?.let { ht ->
-                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.roundToInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
             },
             secondarySwellCorrected = swell?.secondaryCorrectedHeightFt?.let { ht ->
-                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.toInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
+                if (ht >= 0.5) "${ht.roundToInt()}ft @ ${swell.secondaryPeriodSec?.roundToInt() ?: 0}s ${swell.secondaryDirection ?: ""}" else null
             },
             exposureBearing = exposure?.bearing,
             exposureWidth = exposure?.width,
@@ -1545,8 +1545,8 @@ class SpotService {
                 visibility = getVisibilityLabel(effectiveChl),
                 waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
                 swell = cached?.swell?.let { 
-                    "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.toInt()}s ${it.value.direction}" 
-                } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.toInt()}s",
+                    "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
+                } ?: "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
                 wind = cached?.wind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
@@ -1560,8 +1560,8 @@ class SpotService {
                 exposureBearing = cached?.exposure?.bearing,
                 exposureWidth = cached?.exposure?.width,
                 bathymetryDepthM = cached?.exposure?.depthM,
-                swellHeightFt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt } ?: SpotDataCache.metersToFeet(ocean.waveHeight),
-                swellPeriodSec = cached?.swell?.value?.periodSec ?: ocean.wavePeriod,
+                swellHeightFt = cached?.swell?.value?.let { (it.correctedHeightFt ?: it.heightFt).roundToInt().toDouble() } ?: SpotDataCache.metersToFeet(ocean.waveHeight).roundToInt().toDouble(),
+                swellPeriodSec = cached?.swell?.value?.periodSec?.roundToInt()?.toDouble() ?: ocean.wavePeriod.roundToInt().toDouble(),
                 swellDirection = cached?.swell?.value?.direction ?: SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
                 windSpeedKts = cached?.wind?.value?.speedKnots ?: SpotDataCache.kmhToKnots(weather.windSpeed),
                 windDirectionCardinal = cached?.wind?.value?.direction ?: SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),

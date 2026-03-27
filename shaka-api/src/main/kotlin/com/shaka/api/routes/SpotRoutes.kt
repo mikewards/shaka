@@ -31,6 +31,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import java.util.UUID
 
 /** Parse BD thread title for leading general location tag (Inshore, Offshore, Islands, Bay, Harbor). Returns (zone, cleanedTitle) or (null, null). */
@@ -146,7 +147,7 @@ fun Application.configureRouting() {
                         visibility = spotService.resolveVisibilityLabel(cached),
                         swell = cached?.swell?.value?.let { s ->
                             val ht = s.correctedHeightFt ?: s.heightFt
-                            "${ht.toInt()}ft @ ${s.periodSec.toInt()}s ${s.direction}"
+                            "${ht.roundToInt()}ft @ ${s.periodSec.roundToInt()}s ${s.direction}"
                         },
                         wind = cached?.wind?.value?.let { 
                             "${it.speedKnots.toInt()} kts ${it.direction}" 
@@ -155,7 +156,7 @@ fun Application.configureRouting() {
                             "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
                         },
                         waterTempC = cached?.sst?.value,
-                        swellHeightFt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt },
+                        swellHeightFt = cached?.swell?.value?.let { (it.correctedHeightFt ?: it.heightFt).roundToInt().toDouble() },
                         windSpeedKts = cached?.wind?.value?.speedKnots
                     )
                 }
@@ -963,7 +964,7 @@ fun Application.configureRouting() {
                             visibility = spotService.resolveVisibilityLabel(cached),
                             swell = cached?.swell?.value?.let { s ->
                                 val ht = s.correctedHeightFt ?: s.heightFt
-                                "${ht.toInt()}ft @ ${s.periodSec.toInt()}s ${s.direction}"
+                                "${ht.roundToInt()}ft @ ${s.periodSec.roundToInt()}s ${s.direction}"
                             },
                             wind = cached?.wind?.value?.let { 
                                 "${it.speedKnots.toInt()} kts ${it.direction}" 
@@ -972,7 +973,7 @@ fun Application.configureRouting() {
                                 "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
                             },
                             waterTempC = cached?.sst?.value,
-                            swellHeightFt = cached?.swell?.value?.let { it.correctedHeightFt ?: it.heightFt },
+                            swellHeightFt = cached?.swell?.value?.let { (it.correctedHeightFt ?: it.heightFt).roundToInt().toDouble() },
                             windSpeedKts = cached?.wind?.value?.speedKnots
                         )
                     },
