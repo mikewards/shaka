@@ -2694,8 +2694,6 @@ CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_location_idx ON fishing_int
 INSERT INTO fishing_intel_sources (source_id, name, base_url, trust_tier, rate_limit_rps) VALUES
     ('socal-fish-reports', 'SoCalFishReports', 'https://www.socalfishreports.com', 'B', 1.0),
     ('san-diego-fish-reports', 'SanDiegoFishReports', 'https://www.sandiegofishreports.com', 'B', 1.0),
-    ('976-tuna', '976-TUNA', 'https://www.976-tuna.com', 'B', 1.0),
-    ('976-tuna-longrange', '976-TUNA Long Range', 'https://www.976-tuna.com', 'B', 1.0),
     ('22nd-street', '22nd Street Landing', 'https://www.22ndstreet.com', 'A', 0.5),
     ('fishermans-landing', 'Fisherman''s Landing', 'https://www.fishermanslanding.com', 'A', 0.5),
     ('seaforth', 'Seaforth Sportfishing', 'https://www.seaforthlanding.com', 'A', 0.5)

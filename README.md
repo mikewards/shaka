@@ -253,7 +253,7 @@ Data Sources
 |--------|------|----------|
 | SoCalFishReports | Dock totals | LA to San Diego |
 | SanDiegoFishReports | Dock totals | San Diego |
-| 976-TUNA | Daily counts, landing data | SoCal region |
+
 | 22nd Street Landing | Boat reports | San Pedro |
 | Fishermans Landing | Boat reports | Point Loma |
 | Seaforth Landing | Boat reports | Mission Bay |

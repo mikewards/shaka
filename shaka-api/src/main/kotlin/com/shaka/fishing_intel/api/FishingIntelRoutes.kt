@@ -26,8 +26,6 @@ object FishingIntelRoutes {
     private val logger = LoggerFactory.getLogger(FishingIntelRoutes::class.java)
     
     private val sourceNames = mapOf(
-        "976-tuna" to "976-TUNA",
-        "976-tuna-longrange" to "976-TUNA Long Range",
         "bd-outdoors" to "BD Outdoors Forums"
     )
     
@@ -189,9 +187,9 @@ object FishingIntelRoutes {
         val allReports = FishingIntelDb.getReportsForRegion(normalizedRegionId, hoursBack = 168)
         if (allReports.isEmpty()) return null
 
-        // Dedupe: for DOCK_TOTAL reports (976-tuna daily totals), keep only the LATEST
-        // report per (sourceId, date) since each scrape supersedes the previous one.
-        // For other types (BD narratives, long-range), keep all (each is a distinct event).
+        // Dedupe: for DOCK_TOTAL reports, keep only the LATEST report per (sourceId, date)
+        // since each scrape supersedes the previous one.
+        // For other types (BD narratives), keep all (each is a distinct event).
         val dedupedReports = dedupeByLatest(allReports)
 
         // Compare two equal 3-day windows starting from YESTERDAY (excludes incomplete today).

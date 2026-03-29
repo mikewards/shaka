@@ -230,16 +230,6 @@ object RateLimiters {
     )
     
     /**
-     * 976-TUNA - independent site, be conservative
-     * 1 request/second with burst of 3
-     */
-    val tuna976 = RateLimiter(
-        name = "976-tuna",
-        requestsPerSecond = 1.0,
-        burstSize = 3
-    )
-
-    /**
      * Land/water classification service (is-on-water).
      * Light usage, but keep it fast and respectful.
      */
@@ -281,7 +271,7 @@ object RateLimiters {
         "solunar" to solunar.getStats(),
         "socalFishReports" to socalFishReports.getStats(),
         "sanDiegoFishReports" to sanDiegoFishReports.getStats(),
-        "tuna976" to tuna976.getStats(),
+
         "landWater" to landWater.getStats(),
         "nceiDem" to nceiDem.getStats(),
         "gebcoWms" to gebcoWms.getStats()

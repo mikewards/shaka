@@ -31,12 +31,12 @@ This plan fixes both: correct categorization (no more chum/bait/freezer as “ca
 
 Not all fishing intel is the same. The plan treats them differently.
 
-**Numeric / structured reports** (fish counts, dock totals, landing pages, 976-TUNA counts, etc.) are **already solid.** They come from parsers that extract numbers and species from known formats. We **do not** use AI to rewrite, “improve,” or generate these. We don’t want AI making things up for numbers we know are true. If we ever use AI around numeric data at all, it would only be for **anomaly detection** (e.g. flagging a possible typo or outlier for human review)—not for changing or inventing counts.
+**Numeric / structured reports** (fish counts, dock totals, landing pages, etc.) are **already solid.** They come from parsers that extract numbers and species from known formats. We **do not** use AI to rewrite, “improve,” or generate these. We don’t want AI making things up for numbers we know are true. If we ever use AI around numeric data at all, it would only be for **anomaly detection** (e.g. flagging a possible typo or outlier for human review)—not for changing or inventing counts.
 
 **Narrative content** (BD Outdoors threads and replies—free-form text from anglers) is where AI really helps. Here we need to distinguish “caught” from “mentioned” (chum, bait, freezer) and generate a short TL;DR. So:
 
 - **AI applies only to narrative sources** (e.g. `bd-outdoors` posts that go through the ingest endpoint with title + content + speciesMentioned/speciesCaught).
-- **AI never runs on** dock totals, 976-TUNA counts, landing scrapes, or any other numeric/structured pipeline. Those stay rule-based and unchanged.
+- **AI never runs on** dock totals, landing scrapes, or any other numeric/structured pipeline. Those stay rule-based and unchanged.
 
 The rest of this plan keeps that boundary explicit wherever AI is mentioned.
 
@@ -64,7 +64,7 @@ We need to **parse the title** for these tags and treat them as general location
   - Run a **one-time migration** (or script) that updates `fishing_intel_reports`: for rows where `source_id = 'bd-outdoors'` and `thread_zone` is null, parse `title`, set `thread_zone` and replace `title` with the cleaned string; or
   - **On read:** When building narrative insights (or any response that shows title), if `thread_zone` is null and title starts with a known tag, strip the tag for display and derive zone for that request. Storing the cleaned data is better so geo and filters work everywhere.
 
-**Note:** The Kotlin **prefetch job** (FishingIntelPrefetchJob) handles 976-TUNA, dock totals, landings, etc.—not BD. BD data comes from the **Python scraper** and the **ingest endpoint** (`POST /v1/intel/ingest`). So the change belongs in the **scraper** and/or the **ingest handler** in `SpotRoutes.kt`, not in the prefetch job. A one-time backfill can be a small script or a dedicated migration that runs once.
+**Note:** The Kotlin **prefetch job** (FishingIntelPrefetchJob) handles dock totals, landings, etc.—not BD. BD data comes from the **Python scraper** and the **ingest endpoint** (`POST /v1/intel/ingest`). So the change belongs in the **scraper** and/or the **ingest handler** in `SpotRoutes.kt`, not in the prefetch job. A one-time backfill can be a small script or a dedicated migration that runs once.
 
 ---
 
@@ -240,7 +240,7 @@ For the “AI in the API” path below, the API generates and stores the TL;DR, 
 
 Use a single cheap model and call it **only for narrative content** (BD Outdoors threads/replies). Goal: correct “caught” list + one strong TL;DR per post, at ~$0.01–0.05 per ingest run.
 
-**Important:** AI is **not** used for numeric or structured reports (fish counts, dock totals, 976-TUNA, landings). Those remain rule-based; we don’t want AI altering or inventing numbers we already know are true. AI is strictly for narrative text where interpretation and summarization add value.
+**Important:** AI is **not** used for numeric or structured reports (fish counts, dock totals, landings). Those remain rule-based; we don’t want AI altering or inventing numbers we already know are true. AI is strictly for narrative text where interpretation and summarization add value.
 
 #### C1. Model and configuration
 
@@ -258,7 +258,7 @@ If AI is disabled or the key is missing, ingest should behave as in Phase A: CAT
 #### C2. When to call the model
 
 - **Only for BD Outdoors narrative posts.** The ingest endpoint that receives scraper payloads (threadUrl, title, content, speciesMentioned, speciesCaught) is the only place we consider AI. Do **not** invoke the model for:
-  - 976-TUNA counts or dock totals
+  - Dock totals
   - Landing-page scrapes
   - Any other numeric or structured ingestion
   Those pipelines stay as-is; their numbers are trusted.

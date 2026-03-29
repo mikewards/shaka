@@ -93,11 +93,11 @@ object FishingIntelDb {
     }
     
     /**
-     * Active sources: only 976-tuna (daily totals), 976-tuna-longrange, and bd-outdoors.
+     * Active sources: only bd-outdoors (ingested via external scraper POST endpoint).
      * All per-boat aggregator sources (socal-fish-reports, san-diego-fish-reports,
      * 22nd-street, fishermans-landing, seaforth) are disabled to prevent double-counting.
      */
-    private val ACTIVE_SOURCES = setOf("976-tuna", "976-tuna-longrange", "bd-outdoors")
+    private val ACTIVE_SOURCES = setOf("bd-outdoors")
 
     /**
      * Seed initial data sources (upsert — safe to call on every startup).
@@ -106,8 +106,6 @@ object FishingIntelDb {
     fun seedSources() {
         transaction {
             val sources = listOf(
-                SourceConfig("976-tuna", "976-TUNA", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
-                SourceConfig("976-tuna-longrange", "976-TUNA Long Range", "https://www.976-tuna.com", TrustTier.B, 1.0, "so_cal"),
                 SourceConfig("bd-outdoors", "BD Outdoors Forums", "https://www.bdoutdoors.com/forums/", TrustTier.B, 0.5, "so_cal")
             )
             
