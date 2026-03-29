@@ -1187,45 +1187,25 @@ fun Application.configureRouting() {
                 val result = FishingIntelRoutes.toggleSource(sourceId, enabled)
                 call.respond(result)
             }
-            
+
             /**
-             * Explore BD Outdoors forums for data analysis (admin endpoint).
-             * Returns raw forum data for schema design.
-             * 
-             * Can use either:
-             * - cookies parameter (full cookie string from browser)
-             * - Individual cookie params: bdo_user, bdo_session, bdo_csrf, cf_clearance
-             * - username/password (may fail due to Cloudflare)
+             * Manually trigger fishing intel scraper (admin endpoint).
+             * Bypasses the deploy guard. Use after deploy to populate data.
              */
-            get("/admin/fishing-intel/explore-bdoutdoors") {
-                // Try cookies first (most reliable)
-                val cookies = call.parameters["cookies"]
-                val bdoUser = call.parameters["bdo_user"] ?: System.getenv("BDO_USER")
-                val bdoSession = call.parameters["bdo_session"] ?: System.getenv("BDO_SESSION")
-                val bdoCsrf = call.parameters["bdo_csrf"] ?: System.getenv("BDO_CSRF")
-                val cfClearance = call.parameters["cf_clearance"] ?: System.getenv("CF_CLEARANCE")
-                
-                val result = if (cookies != null) {
-                    com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoorsWithCookies(cookies)
-                } else if (bdoUser != null && bdoSession != null && bdoCsrf != null) {
-                    com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoorsWithCookies(
-                        "bdo_user=$bdoUser; bdo_session=$bdoSession; bdo_csrf=$bdoCsrf" +
-                        (if (cfClearance != null) "; cf_clearance=$cfClearance" else "")
-                    )
-                } else {
-                    // Fall back to login attempt
-                    val username = call.parameters["username"] ?: System.getenv("BD_USERNAME")
-                    val password = call.parameters["password"] ?: System.getenv("BD_PASSWORD")
-                    
-                    if (username != null && password != null) {
-                        com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.exploreBDOutdoors(username, password)
-                    } else {
-                        "Error: Provide either 'cookies' param, individual cookie params (bdo_user, bdo_session, bdo_csrf), or username/password"
-                    }
+            post("/admin/fishing-intel/scrape") {
+                try {
+                    com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.run(force = true)
+                    val stats = FishingIntelDb.getSourceStats()
+                    call.respond(mapOf("status" to "ok", "sources" to stats))
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, mapOf(
+                        "status" to "error",
+                        "message" to (e.message ?: "Unknown error")
+                    ))
                 }
-                
-                call.respondText(result, ContentType.Text.Plain)
             }
+            
+            
             
             /**
              * Ingest fishing intel from local BD Outdoors scraper.

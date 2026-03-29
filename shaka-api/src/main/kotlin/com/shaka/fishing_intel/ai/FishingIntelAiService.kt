@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory
  */
 object FishingIntelAiService {
     private val logger = LoggerFactory.getLogger(FishingIntelAiService::class.java)
-    private const val TIMEOUT_MS = 15_000L
+    private const val TIMEOUT_MS = 25_000L
     private const val MAX_CONTENT_CHARS = 4000
 
     private const val DEFAULT_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -191,10 +191,14 @@ Generate 3 to 5 key insights as a JSON array of strings. Each insight max 2 line
                 val first = choices.firstOrNull()?.jsonObject ?: return@withTimeoutOrNull null
                 val message = first["message"]?.jsonObject ?: return@withTimeoutOrNull null
                 val contentStr = message["content"]?.jsonPrimitive?.content ?: return@withTimeoutOrNull null
-                val arr = Json.parseToJsonElement(contentStr.trim().removeSurrounding("```json", "```").trim()).jsonArray
+                val cleaned = contentStr.trim()
+                    .removeSurrounding("```json", "```")
+                    .removeSurrounding("```", "```")
+                    .trim()
+                val arr = Json.parseToJsonElement(cleaned).jsonArray
                 arr.mapNotNull { it.jsonPrimitive?.content?.trim()?.take(200)?.takeIf { s -> s.length in 5..200 } }
             } catch (e: Exception) {
-                logger.warn("Region insights AI failed: ${e.message}")
+                logger.warn("Region insights AI failed: ${e.message}", e)
                 null
             }
         }

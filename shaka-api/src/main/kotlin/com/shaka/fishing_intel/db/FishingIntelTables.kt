@@ -50,6 +50,7 @@ object FishingIntelReportsTable : IntIdTable("fishing_intel_reports", "report_id
     val contentType = varchar("content_type", 30).nullable()
     val lastActivityAt = datetime("last_activity_at").nullable()
     val threadUrl = varchar("thread_url", 512).nullable()
+    val region = varchar("region", 50).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
 }
 

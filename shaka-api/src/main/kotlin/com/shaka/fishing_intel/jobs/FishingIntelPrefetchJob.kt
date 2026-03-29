@@ -1,37 +1,70 @@
 package com.shaka.fishing_intel.jobs
 
+import com.shaka.data.client.RateLimiters
 import com.shaka.fishing_intel.api.FishingIntelRoutes
 import com.shaka.fishing_intel.db.FishingIntelDb
+import com.shaka.fishing_intel.models.*
+import com.shaka.fishing_intel.parsing.CountsParser
+import com.shaka.fishing_intel.parsing.DateParser
+import com.shaka.fishing_intel.processing.Deduplicator
 import kotlinx.coroutines.*
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import org.slf4j.LoggerFactory
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 
-/**
- * Scheduled job that scrapes fishing report sources.
- * Runs every 2 hours from Application.kt.
- */
 object FishingIntelPrefetchJob {
     private val logger = LoggerFactory.getLogger(FishingIntelPrefetchJob::class.java)
     
     const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    
-    /**
-     * Run a full scrape of all enabled sources.
-     */
-    suspend fun run() {
-        logger.info("Starting fishing intel scrape...")
-        
+
+    private val PACIFIC = ZoneId.of("America/Los_Angeles")
+
+    private val SFR_REGION_MAP = mapOf(
+        "Washington Coast" to "wa_coast",
+        "Oregon Coast" to "or_coast",
+        "Northern California" to "norcal",
+        "North Coast" to "north_coast",
+        "Bay Area" to "bay_area",
+        "Central Coast" to "central_coast",
+        "Ventura Coast" to "ventura",
+        "Los Angeles" to "la",
+        "Orange" to "orange",
+        "San Diego" to "san_diego",
+        "Baja California Sur" to "baja"
+    )
+
+    suspend fun run(force: Boolean = false) {
+        if (!force) {
+            val lastFetch = FishingIntelDb.getSourceLastFetch("sportfishing-report")
+            if (lastFetch != null) {
+                val minutesSince = Duration.between(lastFetch, Instant.now()).toMinutes()
+                if (minutesSince < 90) {
+                    logger.info("Skipping fishing intel scrape — last run ${minutesSince}m ago")
+                    prefetchGlobalInsights()
+                    return
+                }
+            }
+        }
+
+        logger.info("Starting fishing intel scrape${if (force) " (forced)" else ""}...")
+
         val sources = FishingIntelDb.getEnabledSources()
         logger.info("Found ${sources.size} enabled sources")
-        
+
         var totalReports = 0
         var totalClaims = 0
-        
+
         for (source in sources) {
             try {
                 val (reports, claims) = when (source.id) {
-                    // bd-outdoors is ingested via external scraper POST endpoint, not here
+                    "sportfishing-report" -> scrapeSportFishingReport()
                     else -> {
                         logger.debug("Skipping source with no active scraper: ${source.id}")
                         0 to 0
@@ -44,20 +77,163 @@ object FishingIntelPrefetchJob {
                 logger.error("Failed to scrape ${source.id}: ${e.message}", e)
             }
         }
-        
+
         logger.info("Fishing intel scrape complete: $totalReports reports, $totalClaims claims")
 
-        // Pre-generate AI insights for the current time slot so the request path never blocks on AI
+        prefetchGlobalInsights()
+    }
+
+    private suspend fun prefetchGlobalInsights() {
         try {
-            FishingIntelRoutes.prefetchRegionInsights("so_cal")
+            FishingIntelRoutes.prefetchGlobalInsights()
         } catch (e: Exception) {
-            logger.warn("Region insight pre-generation failed: ${e.message}")
+            logger.warn("Global insight pre-generation failed: ${e.message}")
         }
     }
-    
-    /**
-     * Fetch HTML with rate limiting and retries.
-     */
+
+    // =========================================================================
+    // SportFishingReport.com Dock Totals Scraper
+    // =========================================================================
+
+    private suspend fun scrapeSportFishingReport(): Pair<Int, Int> {
+        val url = "https://www.sportfishingreport.com/dock_totals/"
+        val doc = fetchWithRetry(url, RateLimiters.sportFishingReport) ?: run {
+            logger.error("Failed to fetch sportfishingreport.com dock totals")
+            return 0 to 0
+        }
+
+        val dateStr = doc.selectFirst("h1")?.text()
+            ?.substringAfter("-")?.trim()
+        val reportDate = dateStr?.let { DateParser.parseSoCalFishReports(it) }
+            ?: LocalDate.now(PACIFIC)
+        val publishedAt = reportDate.atStartOfDay(PACIFIC).toInstant()
+        val publishedAtLdt = LocalDateTime.ofInstant(publishedAt, ZoneOffset.UTC)
+
+        logger.info("Scraping sportfishingreport.com dock totals for $reportDate")
+
+        var totalReports = 0
+        var totalClaims = 0
+
+        val h2s = doc.select("h2.text-center")
+        for (h2 in h2s) {
+            val headerText = h2.text().trim()
+            if (!headerText.endsWith("Dock Totals")) continue
+
+            val regionName = headerText.removeSuffix("Dock Totals").trim()
+            val regionId = SFR_REGION_MAP[regionName]
+            if (regionId == null) {
+                logger.warn("Unknown sportfishingreport region: '$regionName'")
+                continue
+            }
+
+            // Collect landing row divs between this H2 and the next H2 (or end)
+            val landingRows = mutableListOf<Element>()
+            var sibling = h2.nextElementSibling()
+            while (sibling != null && sibling.tagName() != "h2") {
+                val landingLink = sibling.selectFirst("a[href*=/landings/]")
+                if (landingLink != null) {
+                    landingRows.add(sibling)
+                }
+                sibling = sibling.nextElementSibling()
+            }
+
+            for (landingDiv in landingRows) {
+                try {
+                    val (r, c) = parseLandingRow(landingDiv, regionId, reportDate, publishedAt, publishedAtLdt)
+                    totalReports += r
+                    totalClaims += c
+                } catch (e: Exception) {
+                    logger.warn("Failed to parse landing row in $regionName: ${e.message}")
+                }
+            }
+        }
+
+        logger.info("SportFishingReport scrape done: $totalReports reports, $totalClaims claims for $reportDate")
+        return totalReports to totalClaims
+    }
+
+    private fun parseLandingRow(
+        div: Element,
+        regionId: String,
+        reportDate: LocalDate,
+        publishedAt: Instant,
+        publishedAtLdt: LocalDateTime
+    ): Pair<Int, Int> {
+        val landingLink = div.selectFirst("a[href*=/landings/]") ?: return 0 to 0
+        val landingName = landingLink.text().trim()
+
+        // City is the text node after the first <br/> in the col-md-4 div
+        val landingCol = landingLink.parent() ?: div.selectFirst(".col-md-4") ?: div
+        val cityText = landingCol.html()
+            .substringAfter("<br/>", "")
+            .substringAfter("<br>", "")
+            .substringBefore("<br", "")
+            .replace(Regex("<[^>]*>"), "")
+            .trim()
+        val landingCity = cityText.takeIf { it.isNotBlank() }
+
+        // Dock totals: the col-md-pull-5 div
+        val countsDiv = div.selectFirst(".col-md-pull-5")
+            ?: div.selectFirst("[class*=col-md-3][class*=col-md-pull-5]")
+        val countsText = countsDiv?.text()?.trim() ?: ""
+
+        if (countsText.isBlank()) return 0 to 0
+
+        val fishCounts = CountsParser.parse(countsText)
+        if (fishCounts.isEmpty()) return 0 to 0
+
+        // Anglers count (optional)
+        val anglersDiv = div.select(".col-md-push-3").getOrNull(1)
+        val anglerCount = anglersDiv?.text()?.trim()
+            ?.replace(Regex("[^0-9]"), "")
+            ?.toIntOrNull()
+
+        val fingerprint = Deduplicator.buildFingerprint(
+            landingName, null, null, reportDate,
+            anglerCount, fishCounts.sortedBy { it.species }
+        )
+
+        // Replace-on-scrape: delete previous report for this source+date, then insert fresh
+        FishingIntelDb.deleteReportsForSourceAndDate("sportfishing-report", publishedAtLdt)
+
+        val reportUrl = "https://www.sportfishingreport.com/dock_totals/"
+        val report = FishingReport(
+            sourceId = "sportfishing-report",
+            url = reportUrl,
+            publishedAt = publishedAt,
+            observedAt = publishedAt,
+            reportType = ReportType.DOCK_TOTAL,
+            title = "$landingName - ${landingCity ?: regionId}",
+            rawExcerpt = countsText,
+            fingerprint = fingerprint,
+            confidence = 1.0,
+            region = regionId
+        )
+
+        val reportId = FishingIntelDb.saveReport(report)
+        var claimCount = 0
+
+        for (fc in fishCounts) {
+            val claim = FishingClaim(
+                claimType = ClaimType.CATCH,
+                species = fc.species,
+                countKept = fc.kept,
+                countReleased = fc.released,
+                landingName = landingName,
+                landingCity = landingCity,
+                anglerCount = anglerCount
+            )
+            FishingIntelDb.saveClaim(reportId, claim)
+            claimCount++
+        }
+
+        return 1 to claimCount
+    }
+
+    // =========================================================================
+    // HTTP Helpers
+    // =========================================================================
+
     private suspend fun fetchWithRetry(
         url: String,
         rateLimiter: com.shaka.data.client.RateLimiter,
@@ -66,26 +242,26 @@ object FishingIntelPrefetchJob {
         repeat(maxRetries) { attempt ->
             try {
                 rateLimiter.acquire()
-                
+
                 val response = Jsoup.connect(url)
                     .userAgent(USER_AGENT)
                     .timeout(30_000)
                     .followRedirects(true)
                     .ignoreHttpErrors(true)
                     .execute()
-                
+
                 if (response.statusCode() == 429) {
                     val backoff = (attempt + 1) * 5000L
                     logger.warn("Rate limited on $url, backing off ${backoff}ms")
                     delay(backoff)
                     return@repeat
                 }
-                
+
                 if (response.statusCode() != 200) {
                     logger.warn("Got status ${response.statusCode()} for $url")
                     return@repeat
                 }
-                
+
                 return response.parse()
             } catch (e: Exception) {
                 logger.warn("Fetch attempt ${attempt + 1} failed for $url: ${e.message}")
@@ -95,210 +271,5 @@ object FishingIntelPrefetchJob {
             }
         }
         return null
-    }
-    
-    // =============================================================================
-    // BD Outdoors Forum Explorer (for data analysis)
-    // =============================================================================
-    
-    /**
-     * Explore BD Outdoors forum structure and dump sample data for analysis.
-     * This is a development/analysis function, not for production scraping.
-     */
-    /**
-     * Explore BD Outdoors using pre-exported cookies (bypasses Cloudflare).
-     */
-    suspend fun exploreBDOutdoorsWithCookies(cookieString: String): String {
-        val results = StringBuilder()
-        results.appendLine("=== BD Outdoors Forum Exploration (Cookie Mode) ===\n")
-        
-        val session = com.shaka.fishing_intel.auth.BDOutdoorsSession
-        val cookiesLoaded = session.setCookiesFromString(cookieString)
-        results.appendLine("Cookies loaded: ${if (cookiesLoaded) "SUCCESS" else "FAILED"}")
-        results.appendLine("Cookies: ${session.getCookies().keys}\n")
-        
-        if (!cookiesLoaded) {
-            return results.toString()
-        }
-        
-        return exploreBDOutdoorsInternal(results, session)
-    }
-    
-    suspend fun exploreBDOutdoors(username: String, password: String): String {
-        val results = StringBuilder()
-        results.appendLine("=== BD Outdoors Forum Exploration (Login Mode) ===\n")
-        
-        // Login
-        val session = com.shaka.fishing_intel.auth.BDOutdoorsSession
-        val loginSuccess = session.login(username, password)
-        results.appendLine("Login: ${if (loginSuccess) "SUCCESS" else "FAILED"}")
-        
-        // Include debug info
-        results.appendLine("\n--- Login Debug Info ---")
-        results.appendLine(session.lastLoginDebug)
-        results.appendLine("--- End Debug Info ---\n")
-        
-        if (!loginSuccess) {
-            return results.toString()
-        }
-        
-        return exploreBDOutdoorsInternal(results, session)
-    }
-    
-    private suspend fun exploreBDOutdoorsInternal(
-        results: StringBuilder,
-        session: com.shaka.fishing_intel.auth.BDOutdoorsSession
-    ): String {
-        
-        // Delay to be polite
-        delay(2000)
-        
-        // Fishing Reports category page
-        val fishingReportsUrl = "https://www.bdoutdoors.com/forums/categories/fishing-reports.399/"
-        results.appendLine("--- Fishing Reports Category ---")
-        results.appendLine("URL: $fishingReportsUrl\n")
-        
-        val categoryPage = session.fetchAuthenticated(fishingReportsUrl)
-        if (categoryPage == null) {
-            results.appendLine("FAILED to fetch category page")
-            results.appendLine("Error: ${session.lastFetchError}")
-            return results.toString()
-        }
-        
-        // Debug: show page info
-        results.appendLine("Page title: ${categoryPage.title()}")
-        results.appendLine("Body length: ${categoryPage.body().text().length} chars")
-        
-        // Find ALL links on the page for debugging
-        val allLinks = categoryPage.select("a[href]").toList().take(30)
-        results.appendLine("\nFirst 30 links on page:")
-        allLinks.forEach { results.appendLine("  ${it.text().take(50)} -> ${it.attr("href")}") }
-        results.appendLine("")
-        
-        // List all sub-forums in this category
-        val subForums = categoryPage.select("a[href*='/forums/']")
-            .toList()
-            .filter { it.attr("href").contains("/forums/forums/") || it.attr("href").matches(Regex(".*/forums/[a-z-]+\\.\\d+/")) }
-            .map { it.text().trim() to it.attr("href") }
-            .filter { it.first.isNotBlank() }
-            .distinctBy { it.second }
-        
-        results.appendLine("Sub-forums found: ${subForums.size}")
-        subForums.forEach { (name, url) -> results.appendLine("  - $name: $url") }
-        results.appendLine("")
-        
-        // Try to find Southern California related forums
-        val socalForums = subForums.filter { (name, _) -> 
-            name.contains("southern", ignoreCase = true) || 
-            name.contains("socal", ignoreCase = true) ||
-            name.contains("california", ignoreCase = true)
-        }
-        results.appendLine("SoCal forums: ${socalForums.size}")
-        socalForums.forEach { (name, url) -> results.appendLine("  - $name: $url") }
-        results.appendLine("")
-        
-        // Fetch first SoCal forum or first available forum
-        val targetForum = socalForums.firstOrNull() ?: subForums.firstOrNull()
-        if (targetForum == null) {
-            results.appendLine("No forums found to explore")
-            return results.toString()
-        }
-        
-        delay(3000)  // Polite delay
-        
-        val (forumName, forumUrl) = targetForum
-        val fullForumUrl = if (forumUrl.startsWith("http")) forumUrl else "https://www.bdoutdoors.com$forumUrl"
-        results.appendLine("--- Exploring: $forumName ---")
-        results.appendLine("URL: $fullForumUrl\n")
-        
-        val forumPage = session.fetchAuthenticated(fullForumUrl)
-        if (forumPage == null) {
-            results.appendLine("FAILED to fetch forum page")
-            results.appendLine("Error: ${session.lastFetchError}")
-            return results.toString()
-        }
-        
-        // Find thread listings
-        val threads = forumPage.select(".structItem--thread, .structItem, [class*=thread]")
-        results.appendLine("Found ${threads.size} thread elements\n")
-        
-        // Debug: show HTML structure if no threads found
-        if (threads.isEmpty()) {
-            results.appendLine("DEBUG - Page title: ${forumPage.title()}")
-            results.appendLine("DEBUG - Body classes: ${forumPage.body().className()}")
-            val allDivs = forumPage.select("div[class]").take(20)
-            results.appendLine("DEBUG - First 20 div classes:")
-            allDivs.forEach { results.appendLine("  ${it.className()}") }
-        }
-        
-        // Analyze first 5 threads
-        for ((index, thread) in threads.take(5).withIndex()) {
-            results.appendLine("--- Thread ${index + 1} ---")
-            
-            // Title
-            val titleEl = thread.selectFirst("a[href*='/threads/']")
-            val title = titleEl?.text() ?: "NO TITLE"
-            val threadUrl = titleEl?.absUrl("href") ?: ""
-            results.appendLine("Title: $title")
-            results.appendLine("URL: $threadUrl")
-            
-            // Author
-            val author = thread.selectFirst("a.username, [class*=username]")?.text() ?: "unknown"
-            results.appendLine("Author: $author")
-            
-            // Date
-            val dateEl = thread.selectFirst("time")
-            val date = dateEl?.attr("datetime") ?: dateEl?.text() ?: "unknown"
-            results.appendLine("Date: $date")
-            
-            results.appendLine("")
-        }
-        
-        // Now fetch one thread to see post structure
-        val firstThreadUrl = threads.firstOrNull()?.selectFirst("a[href*='/threads/']")?.absUrl("href")
-        if (firstThreadUrl != null && firstThreadUrl.isNotBlank()) {
-            delay(3000)  // Polite delay
-            
-            results.appendLine("\n=== SAMPLE POST DETAIL ===")
-            results.appendLine("Fetching: $firstThreadUrl\n")
-            
-            val threadPage = session.fetchAuthenticated(firstThreadUrl)
-            if (threadPage != null) {
-                // First post content
-                val firstPost = threadPage.selectFirst("article.message, .message--post, [class*=message]")
-                if (firstPost != null) {
-                    // Post author
-                    val postAuthor = firstPost.selectFirst("a.username, [class*=username]")?.text() ?: "unknown"
-                    results.appendLine("Post Author: $postAuthor")
-                    
-                    // Post date
-                    val postDate = firstPost.selectFirst("time")?.attr("datetime") ?: "unknown"
-                    results.appendLine("Post Date: $postDate")
-                    
-                    // Post content
-                    val content = firstPost.selectFirst(".message-body, .bbWrapper, [class*=content]")?.text() ?: firstPost.text()
-                    results.appendLine("\nPost Content (first 1500 chars):")
-                    results.appendLine(content.take(1500))
-                    
-                    // Look for any structured data (images, attachments)
-                    val images = firstPost.select("img")
-                    results.appendLine("\nImages found: ${images.size}")
-                    
-                    // Check for location tags or other metadata
-                    val tags = threadPage.select(".tagList a, .p-tags a, [class*=tag] a")
-                    if (tags.isNotEmpty()) {
-                        results.appendLine("Tags: ${tags.joinToString(", ") { it.text() }}")
-                    }
-                } else {
-                    results.appendLine("Could not find post content element")
-                    results.appendLine("DEBUG - Page title: ${threadPage.title()}")
-                }
-            } else {
-                results.appendLine("FAILED to fetch thread page")
-                results.appendLine("Error: ${session.lastFetchError}")
-            }
-        }
-        
-        return results.toString()
     }
 }

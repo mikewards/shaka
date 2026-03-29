@@ -258,6 +258,12 @@ object RateLimiters {
         requestsPerSecond = 1.0,
         burstSize = 2
     )
+
+    val sportFishingReport = RateLimiter(
+        name = "sportfishing-report",
+        requestsPerSecond = 1.0,
+        burstSize = 2
+    )
     
     /**
      * Get stats for all rate limiters.
@@ -274,7 +280,8 @@ object RateLimiters {
 
         "landWater" to landWater.getStats(),
         "nceiDem" to nceiDem.getStats(),
-        "gebcoWms" to gebcoWms.getStats()
+        "gebcoWms" to gebcoWms.getStats(),
+        "sportFishingReport" to sportFishingReport.getStats()
     )
     
     /**

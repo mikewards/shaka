@@ -71,7 +71,8 @@ data class FishingReport(
     val lastActivityAt: Instant? = null,
     val threadUrl: String? = null,
     val tldr: String? = null,
-    val isCatchIntel: Boolean? = null
+    val isCatchIntel: Boolean? = null,
+    val region: String? = null
 )
 
 /**

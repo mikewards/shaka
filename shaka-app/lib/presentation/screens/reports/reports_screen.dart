@@ -30,13 +30,18 @@ class _ReportsScreenState extends State<ReportsScreen>
   static const _separatorIndent =
       _speciesRowHPad + _trendColumnWidth + _trendToNameGap + 10.0;
 
-  /// Region list: SoCal first; add more here as backend supports them.
   static const _regions = [
-    _Region(id: 'socal', label: 'SoCal'),
-    // Future regions — just uncomment when ready:
-    // _Region(id: 'norcal', label: 'NorCal'),
-    // _Region(id: 'baja', label: 'Baja'),
-    // _Region(id: 'hawaii', label: 'Hawaii'),
+    _Region(id: 'san_diego', label: 'San Diego'),
+    _Region(id: 'orange', label: 'Orange'),
+    _Region(id: 'la', label: 'Los Angeles'),
+    _Region(id: 'ventura', label: 'Ventura'),
+    _Region(id: 'central_coast', label: 'Central Coast'),
+    _Region(id: 'bay_area', label: 'Bay Area'),
+    _Region(id: 'norcal', label: 'NorCal'),
+    _Region(id: 'north_coast', label: 'North Coast'),
+    _Region(id: 'or_coast', label: 'OR Coast'),
+    _Region(id: 'wa_coast', label: 'WA Coast'),
+    _Region(id: 'baja', label: 'Baja'),
   ];
 
   String _selectedRegion = _regions.first.id;

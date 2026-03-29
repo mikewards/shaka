@@ -199,7 +199,13 @@ X-Device-ID: abc123
 
 ### Fishing Intel
 
-Real-time fishing reports scraped from SoCal sources.
+Real-time dock totals scraped from sportfishingreport.com across 11 West Coast regions (WA to Baja).
+
+```
+GET /v1/regions/{regionId}/intel?since=72h&tzOffset=-8
+```
+
+Returns species trends, recent catches, and AI-generated global insights. Region IDs: `san_diego`, `orange`, `la`, `ventura`, `central_coast`, `bay_area`, `norcal`, `north_coast`, `or_coast`, `wa_coast`, `baja`.
 
 ```
 GET /v1/spots/{spotId}/intel?since=72h
@@ -208,22 +214,16 @@ GET /v1/spots/{spotId}/intel?since=72h
 Returns fishing highlights, species summary, and bait status for spots near the location.
 
 ```
-GET /v1/spots/{spotId}/intel/evidence?species=yellowtail
-```
-
-Raw evidence cards filtered by optional species.
-
-```
-GET /v1/regions/socal/trending?hours=72
-```
-
-Trending species based on recent report frequency.
-
-```
 GET /v1/admin/fishing-intel/health
 ```
 
 Scraper status and source statistics.
+
+```
+POST /v1/admin/fishing-intel/scrape
+```
+
+Manually trigger the scraper (bypasses deploy guard).
 
 ### Health Check
 
@@ -245,18 +245,13 @@ Data Sources
 | True Color | NASA GIBS MODIS/VIIRS | Daily |
 | SST, Visibility | Copernicus Marine | Daily |
 | Currents, Waves | Copernicus Marine | 6 hours |
-| Fishing Intel | SoCal Fish Reports | Every 2 hours |
+| Fishing Intel | SportFishingReport.com | Every 2 hours |
 
 ### Fishing Intel Sources
 
 | Source | Type | Coverage |
 |--------|------|----------|
-| SoCalFishReports | Dock totals | LA to San Diego |
-| SanDiegoFishReports | Dock totals | San Diego |
-
-| 22nd Street Landing | Boat reports | San Pedro |
-| Fishermans Landing | Boat reports | Point Loma |
-| Seaforth Landing | Boat reports | Mission Bay |
+| SportFishingReport.com | Dock totals | WA Coast to Baja (11 regions) |
 
 Pre-fetch System
 ----------------

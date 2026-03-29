@@ -2633,6 +2633,7 @@ CREATE TABLE IF NOT EXISTS fishing_intel_reports (
     content_type VARCHAR(30),
     last_activity_at TIMESTAMP,
     thread_url VARCHAR(512),
+    region VARCHAR(50),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -2681,6 +2682,7 @@ CREATE INDEX IF NOT EXISTS fishing_intel_reports_source_idx ON fishing_intel_rep
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_fingerprint_idx ON fishing_intel_reports(canonical_fingerprint);
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_published_idx ON fishing_intel_reports(published_at DESC);
 CREATE INDEX IF NOT EXISTS fishing_intel_reports_thread_url_idx ON fishing_intel_reports(thread_url);
+CREATE INDEX IF NOT EXISTS fishing_intel_reports_region_idx ON fishing_intel_reports(region);
 CREATE INDEX IF NOT EXISTS fishing_intel_claims_report_idx ON fishing_intel_claims(report_id);
 CREATE INDEX IF NOT EXISTS fishing_intel_claims_species_idx ON fishing_intel_claims(species);
 CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_report_idx ON fishing_intel_report_geos(report_id);
@@ -2692,11 +2694,7 @@ CREATE INDEX IF NOT EXISTS fishing_intel_report_geos_location_idx ON fishing_int
 
 -- Seed initial sources
 INSERT INTO fishing_intel_sources (source_id, name, base_url, trust_tier, rate_limit_rps) VALUES
-    ('socal-fish-reports', 'SoCalFishReports', 'https://www.socalfishreports.com', 'B', 1.0),
-    ('san-diego-fish-reports', 'SanDiegoFishReports', 'https://www.sandiegofishreports.com', 'B', 1.0),
-    ('22nd-street', '22nd Street Landing', 'https://www.22ndstreet.com', 'A', 0.5),
-    ('fishermans-landing', 'Fisherman''s Landing', 'https://www.fishermanslanding.com', 'A', 0.5),
-    ('seaforth', 'Seaforth Sportfishing', 'https://www.seaforthlanding.com', 'A', 0.5)
+    ('sportfishing-report', 'SportFishingReport.com', 'https://www.sportfishingreport.com', 'B', 1.0)
 ON CONFLICT (source_id) DO NOTHING;
 
 -- Seed SoCal landings
