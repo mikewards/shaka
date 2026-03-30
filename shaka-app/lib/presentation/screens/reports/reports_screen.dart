@@ -184,57 +184,56 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   Widget _buildRegionChips({String? freshness}) {
     final freshnessLabel = freshness != null ? _formatFreshness(freshness) : '';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _regions.map((r) {
-                  final isSelected = r.id == _selectedRegion;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (!isSelected) {
-                          HapticFeedback.lightImpact();
-                          setState(() => _selectedRegion = r.id);
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.info.withOpacity(0.15)
-                              : _cardColor,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? AppColors.info : _borderColor,
-                          ),
-                        ),
-                        child: Text(
-                          r.label,
-                          style: TextStyle(
-                            color: isSelected ? AppColors.info : AppColors.darkTextSecondary,
-                            fontSize: 13,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w400,
-                          ),
-                        ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Row(
+            children: _regions.map((r) {
+              final isSelected = r.id == _selectedRegion;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    if (!isSelected) {
+                      HapticFeedback.lightImpact();
+                      setState(() => _selectedRegion = r.id);
+                    }
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.info.withOpacity(0.15)
+                          : _cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? AppColors.info : _borderColor,
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-            ),
+                    child: Text(
+                      r.label,
+                      style: TextStyle(
+                        color: isSelected ? AppColors.info : AppColors.darkTextSecondary,
+                        fontSize: 13,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
-          if (freshnessLabel.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Row(
+        ),
+        if (freshnessLabel.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
@@ -256,9 +255,9 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
               ],
             ),
-          ],
-        ],
-      ),
+          ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 

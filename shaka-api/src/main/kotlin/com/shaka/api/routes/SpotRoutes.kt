@@ -1195,13 +1195,13 @@ fun Application.configureRouting() {
             post("/admin/fishing-intel/scrape") {
                 try {
                     com.shaka.fishing_intel.jobs.FishingIntelPrefetchJob.run(force = true)
-                    val stats = FishingIntelDb.getSourceStats()
-                    call.respond(mapOf("status" to "ok", "sources" to stats))
+                    call.respondText("""{"status":"ok"}""", io.ktor.http.ContentType.Application.Json)
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, mapOf(
-                        "status" to "error",
-                        "message" to (e.message ?: "Unknown error")
-                    ))
+                    call.respondText(
+                        """{"status":"error","message":"${e.message?.replace("\"", "'") ?: "Unknown error"}"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        status = HttpStatusCode.InternalServerError
+                    )
                 }
             }
             
