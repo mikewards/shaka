@@ -96,20 +96,42 @@ object FishingIntelPrefetchJob {
     // =========================================================================
 
     private suspend fun scrapeSportFishingReport(): Pair<Int, Int> {
-        val url = "https://www.sportfishingreport.com/dock_totals/"
+        val today = LocalDate.now(PACIFIC)
+        val daysBack = 7
+        var totalReports = 0
+        var totalClaims = 0
+
+        for (dayOffset in 0 until daysBack) {
+            val targetDate = today.minusDays(dayOffset.toLong())
+            try {
+                val (r, c) = scrapeSingleDay(targetDate)
+                totalReports += r
+                totalClaims += c
+            } catch (e: Exception) {
+                logger.error("Failed to scrape sportfishingreport for $targetDate: ${e.message}", e)
+            }
+            if (dayOffset < daysBack - 1) delay(1500)
+        }
+
+        logger.info("SportFishingReport scrape complete: $totalReports reports, $totalClaims claims across $daysBack days")
+        return totalReports to totalClaims
+    }
+
+    private suspend fun scrapeSingleDay(targetDate: LocalDate): Pair<Int, Int> {
+        val dateParam = String.format("%02d-%02d-%04d", targetDate.monthValue, targetDate.dayOfMonth, targetDate.year)
+        val url = "https://www.sportfishingreport.com/dock_totals/?select=$dateParam&region_id=0"
         val doc = fetchWithRetry(url, RateLimiters.sportFishingReport) ?: run {
-            logger.error("Failed to fetch sportfishingreport.com dock totals")
+            logger.warn("Failed to fetch sportfishingreport.com for $targetDate")
             return 0 to 0
         }
 
-        val dateStr = doc.selectFirst("h1")?.text()
-            ?.substringAfter("-")?.trim()
-        val reportDate = dateStr?.let { DateParser.parseSoCalFishReports(it) }
-            ?: LocalDate.now(PACIFIC)
-        val publishedAt = reportDate.atStartOfDay(PACIFIC).toInstant()
+        val publishedAt = targetDate.atStartOfDay(PACIFIC).toInstant()
         val publishedAtLdt = LocalDateTime.ofInstant(publishedAt, ZoneOffset.UTC)
 
-        logger.info("Scraping sportfishingreport.com dock totals for $reportDate")
+        // Delete all existing reports for this source+date ONCE before inserting
+        FishingIntelDb.deleteReportsForSourceAndDate("sportfishing-report", publishedAtLdt)
+
+        logger.info("Scraping sportfishingreport.com dock totals for $targetDate")
 
         var totalReports = 0
         var totalClaims = 0
@@ -126,7 +148,6 @@ object FishingIntelPrefetchJob {
                 continue
             }
 
-            // Collect landing row divs between this H2 and the next H2 (or end)
             val landingRows = mutableListOf<Element>()
             var sibling = h2.nextElementSibling()
             while (sibling != null && sibling.tagName() != "h2") {
@@ -139,7 +160,7 @@ object FishingIntelPrefetchJob {
 
             for (landingDiv in landingRows) {
                 try {
-                    val (r, c) = parseLandingRow(landingDiv, regionId, reportDate, publishedAt, publishedAtLdt)
+                    val (r, c) = parseLandingRow(landingDiv, regionId, targetDate, publishedAt, publishedAtLdt)
                     totalReports += r
                     totalClaims += c
                 } catch (e: Exception) {
@@ -148,7 +169,7 @@ object FishingIntelPrefetchJob {
             }
         }
 
-        logger.info("SportFishingReport scrape done: $totalReports reports, $totalClaims claims for $reportDate")
+        logger.info("SportFishingReport day $targetDate: $totalReports reports, $totalClaims claims")
         return totalReports to totalClaims
     }
 
@@ -192,9 +213,6 @@ object FishingIntelPrefetchJob {
             landingName, null, null, reportDate,
             anglerCount, fishCounts.sortedBy { it.species }
         )
-
-        // Replace-on-scrape: delete previous report for this source+date, then insert fresh
-        FishingIntelDb.deleteReportsForSourceAndDate("sportfishing-report", publishedAtLdt)
 
         val reportUrl = "https://www.sportfishingreport.com/dock_totals/"
         val report = FishingReport(
