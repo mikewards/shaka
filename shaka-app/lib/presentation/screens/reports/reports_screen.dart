@@ -109,7 +109,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     final regionLabel =
         _regions.firstWhere((r) => r.id == _selectedRegion).label;
     final intel = _intelByRegion[_selectedRegion];
-    final freshness = intel?.dataFreshness;
     final canManageFish = (intel?.speciesList.isNotEmpty ?? false);
 
     return Scaffold(
@@ -171,7 +170,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       ),
       body: Column(
         children: [
-          _buildRegionChips(freshness: freshness),
+          _buildRegionChips(),
           Expanded(
             child: _buildRegionContent(_selectedRegion, regionLabel),
           ),
@@ -182,82 +181,49 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   // ─── Region Chips ───────────────────────────────────────────────────
 
-  Widget _buildRegionChips({String? freshness}) {
-    final freshnessLabel = freshness != null ? _formatFreshness(freshness) : '';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: Row(
-            children: _regions.map((r) {
-              final isSelected = r.id == _selectedRegion;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    if (!isSelected) {
-                      HapticFeedback.lightImpact();
-                      setState(() => _selectedRegion = r.id);
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.info.withOpacity(0.15)
-                          : _cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected ? AppColors.info : _borderColor,
-                      ),
-                    ),
-                    child: Text(
-                      r.label,
-                      style: TextStyle(
-                        color: isSelected ? AppColors.info : AppColors.darkTextSecondary,
-                        fontSize: 13,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
+  Widget _buildRegionChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Row(
+        children: _regions.map((r) {
+          final isSelected = r.id == _selectedRegion;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () {
+                if (!isSelected) {
+                  HapticFeedback.lightImpact();
+                  setState(() => _selectedRegion = r.id);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.info.withOpacity(0.15)
+                      : _cardColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? AppColors.info : _borderColor,
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-        ),
-        if (freshnessLabel.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: AppColors.info,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  freshnessLabel,
+                child: Text(
+                  r.label,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    color: isSelected ? AppColors.info : AppColors.darkTextSecondary,
+                    fontSize: 13,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        const SizedBox(height: 12),
-      ],
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -410,34 +376,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     });
 
     return visible;
-  }
-
-  // ─── Freshness Banner ──────────────────────────────────────────────
-
-  Widget _buildFreshnessBanner(String raw) {
-    final label = _formatFreshness(raw);
-    if (label.isEmpty) return const SizedBox.shrink();
-    return Row(
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: AppColors.info,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
   }
 
   // ─── Section Header ─────────────────────────────────────────────────
@@ -1049,21 +987,6 @@ class _ReportsScreenState extends State<ReportsScreen>
         ],
       ),
     );
-  }
-
-  /// Parse ISO-8601 dataFreshness timestamp into a human-readable label.
-  String _formatFreshness(String raw) {
-    try {
-      final dt = DateTime.parse(raw);
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 2) return 'Updated just now';
-      if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return 'Updated ${diff.inHours}hr ago';
-      if (diff.inDays == 1) return 'Updated yesterday';
-      return 'Updated ${diff.inDays}d ago';
-    } catch (_) {
-      return '';
-    }
   }
 
   String _formatInsightDate(String publishedAt) {
