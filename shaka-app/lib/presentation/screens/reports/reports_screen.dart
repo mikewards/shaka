@@ -317,7 +317,10 @@ class _ReportsScreenState extends State<ReportsScreen>
             delegate: SliverChildListDelegate(
               [
                 if (intel.keyInsights.isNotEmpty) ...[
-                  _buildSectionHeader('INSIGHTS'),
+                  _buildSectionHeader(
+                    'WEST COAST OVERVIEW',
+                    trailing: _buildBadge('ALL REGIONS'),
+                  ),
                   const SizedBox(height: 10),
                   _buildInsightsCard(intel.keyInsights),
                   const SizedBox(height: 24),
@@ -357,13 +360,10 @@ class _ReportsScreenState extends State<ReportsScreen>
               ),
             ),
           ),
-        if (speciesList.isNotEmpty)
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-            sliver: SliverToBoxAdapter(
-              child: _buildSourcesFooter(intel),
-            ),
-          ),
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: 32),
+          sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
+        ),
       ],
     );
   }
@@ -981,67 +981,6 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   // ─── Sources Footer ─────────────────────────────────────────────────
-
-  /// Structured sources footer: report count, source chips, methodology line.
-  Widget _buildSourcesFooter(FishingIntelResponse intel) {
-    final sources =
-        intel.sourcesUsed.isNotEmpty ? intel.sourcesUsed : ['Regional reports'];
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: report count
-          Text(
-            '${intel.totalReports} reports analyzed',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Row 2: source chips
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: sources.map((source) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _borderColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  source,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          // Row 3: methodology note
-          Text(
-            'Recent 3 days vs previous 3 days (excludes today)',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.25),
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ─── Narrative Card (kept for future use) ───────────────────────────
 
