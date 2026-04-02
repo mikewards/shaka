@@ -125,7 +125,19 @@ object FishingIntelPrefetchJob {
             return 0 to 0
         }
 
-        val publishedAt = targetDate.atStartOfDay(PACIFIC).toInstant()
+        // Parse actual date from the H1 (e.g. "Party Boat Scores - March 16, 2026")
+        // If the page returns a different date than requested, use the page's date
+        // to avoid storing duplicate data under the wrong date.
+        val h1Text = doc.selectFirst("h1")?.text() ?: ""
+        val pageDate = h1Text.substringAfter("-").trim().let { DateParser.parseSoCalFishReports(it) }
+            ?: targetDate
+
+        if (pageDate != targetDate) {
+            logger.info("Requested $targetDate but page shows $pageDate — skipping to avoid duplicates")
+            return 0 to 0
+        }
+
+        val publishedAt = pageDate.atStartOfDay(PACIFIC).toInstant()
         val publishedAtLdt = LocalDateTime.ofInstant(publishedAt, ZoneOffset.UTC)
 
         // Delete all existing reports for this source+date ONCE before inserting

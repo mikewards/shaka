@@ -563,18 +563,19 @@ object FishingIntelRoutes {
 
     /**
      * Dedupe reports so rolling daily totals don't stack.
-     * DOCK_TOTAL reports: keep only ONE per (sourceId, date).
-     *   The scraper now does replace-on-scrape (delete+insert), so there should normally
-     *   be only one DOCK_TOTAL per (source, date). maxBy(reportId) is a safety net:
-     *   the highest reportId = the most recent insert = the most up-to-date rolling total.
-     * All other types (NARRATIVE, FISH_COUNT): keep all — each represents a distinct event.
+     * DOCK_TOTAL reports: keep only ONE per (sourceId, date, title).
+     *   Each landing is a separate report with a distinct title, so the key
+     *   must include the title to avoid collapsing all landings into one.
+     *   The scraper does replace-on-scrape (delete+insert per day), so this
+     *   is a safety net only.
+     * All other types (NARRATIVE, FISH_COUNT): keep all — each is a distinct event.
      */
     private fun dedupeByLatest(reports: List<ReportWithClaims>): List<ReportWithClaims> {
         val (dockTotals, others) = reports.partition { it.reportType == ReportType.DOCK_TOTAL }
 
         val latestDockTotals = dockTotals.groupBy { report ->
             val date = report.publishedAt?.atZone(ZoneOffset.UTC)?.toLocalDate() ?: LocalDate.now(ZoneOffset.UTC)
-            "${report.sourceId}|$date"
+            "${report.sourceId}|$date|${report.title ?: report.reportId}"
         }.values.map { group ->
             group.maxByOrNull { it.reportId } ?: group.first()
         }
