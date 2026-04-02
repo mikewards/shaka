@@ -317,18 +317,9 @@ object FishingIntelRoutes {
         return response
     }
 
-    /** Morning 03:00–11:59, afternoon 12:00–19:59, night 20:00–02:59. Returns e.g. "2025-02-08_afternoon". */
     private fun insightSlotKey(tzOffsetHours: Int): String {
         val zone = ZoneOffset.ofHours(tzOffsetHours)
-        val now = ZonedDateTime.now(zone)
-        val hour = now.hour
-        val (slotName, date) = when {
-            hour in 3..11 -> "morning" to now.toLocalDate()
-            hour in 12..19 -> "afternoon" to now.toLocalDate()
-            hour >= 20 -> "night" to now.toLocalDate()
-            else -> "night" to now.toLocalDate().minusDays(1) // 00–02:59 = previous day's night
-        }
-        return "${date}_$slotName"
+        return ZonedDateTime.now(zone).toLocalDate().toString()
     }
 
     /**
@@ -337,12 +328,6 @@ object FishingIntelRoutes {
      */
     suspend fun prefetchGlobalInsights(tzOffsetHours: Int = -8) {
         val slotKey = insightSlotKey(tzOffsetHours)
-
-        val existing = FishingIntelDb.getRegionInsights("all_regions", slotKey)
-        if (!existing.isNullOrEmpty()) {
-            logger.info("Global insights already cached for slot=$slotKey")
-            return
-        }
 
         val allReports = FishingIntelDb.getAllReportsRecent(hoursBack = 168)
         if (allReports.isEmpty()) {
@@ -369,6 +354,7 @@ object FishingIntelRoutes {
         val recentCounts = countSpecies(recent3d)
         val baselineCounts = countSpecies(baseline3d)
         val allSpeciesKeys = (recentCounts.keys + baselineCounts.keys).distinct()
+            .sortedBy { SpeciesOrder.sortKey(it) }
 
         val speciesSummary = allSpeciesKeys.mapNotNull { species ->
             if (species.contains("total_fish") || species.contains("released.")) return@mapNotNull null
