@@ -21,6 +21,7 @@ import io.ktor.server.response.*
 import io.ktor.util.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
+import io.sentry.Sentry
 import org.slf4j.LoggerFactory
 
 val PrefetchJobsKey = AttributeKey<DataPrefetchJobs>("PrefetchJobs")
@@ -28,6 +29,17 @@ val PrefetchJobsKey = AttributeKey<DataPrefetchJobs>("PrefetchJobs")
 private val logger = LoggerFactory.getLogger("Application")
 
 fun main() {
+    val sentryDsn = System.getenv("SENTRY_DSN")
+    if (!sentryDsn.isNullOrBlank()) {
+        Sentry.init { options ->
+            options.dsn = sentryDsn
+            options.environment = System.getenv("RAILWAY_ENVIRONMENT") ?: "production"
+            options.sampleRate = 1.0
+            options.tracesSampleRate = 0.0
+        }
+        println("Sentry initialized (env=${System.getenv("RAILWAY_ENVIRONMENT") ?: "production"})")
+    }
+
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
     println("Starting Shaka API on port $port")
     

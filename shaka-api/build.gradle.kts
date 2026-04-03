@@ -20,6 +20,7 @@ repositories {
 val ktorVersion = "2.3.7"
 val kotlinVersion = "1.9.22"
 val logbackVersion = "1.4.14"
+val sentryVersion = "8.16.0"
 
 dependencies {
     // Ktor Server
@@ -46,6 +47,10 @@ dependencies {
 
     // Logging
     implementation("ch.qos.logback:logback-classic:$logbackVersion")
+
+    // Monitoring — Sentry error tracking
+    implementation("io.sentry:sentry:$sentryVersion")
+    implementation("io.sentry:sentry-logback:$sentryVersion")
 
     // Cache
     implementation("io.lettuce:lettuce-core:6.3.1.RELEASE")
