@@ -52,6 +52,9 @@ dependencies {
     implementation("io.sentry:sentry:$sentryVersion")
     implementation("io.sentry:sentry-logback:$sentryVersion")
 
+    // Structured JSON logging for Better Stack log drain
+    implementation("net.logstash.logback:logstash-logback-encoder:8.1")
+
     // Cache
     implementation("io.lettuce:lettuce-core:6.3.1.RELEASE")
 
