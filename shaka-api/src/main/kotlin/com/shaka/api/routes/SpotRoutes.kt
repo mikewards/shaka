@@ -59,6 +59,56 @@ fun Application.configureRouting() {
                 call.respond(mapOf("status" to "ok", "service" to "shaka-api"))
             }
             
+            get("/health/freshness") {
+                val cache = com.shaka.data.cache.SpotDataCache
+                val allIds = cache.getAllSpotIds()
+                val now = java.time.Instant.now()
+
+                data class TypeFreshness(
+                    val coverage: String,
+                    val oldestMinAgo: Long?,
+                    val newestMinAgo: Long?,
+                    val medianMinAgo: Long?
+                )
+
+                fun <T> freshness(name: String, extract: (com.shaka.data.cache.SpotDataCache.SpotData) -> com.shaka.data.cache.SpotDataCache.CachedValue<T>?): Pair<String, TypeFreshness> {
+                    val ages = allIds.mapNotNull { id ->
+                        cache.get(id)?.let(extract)?.fetchedAt?.let {
+                            java.time.Duration.between(it, now).toMinutes()
+                        }
+                    }.sorted()
+                    return name to TypeFreshness(
+                        coverage = "${ages.size}/${allIds.size}",
+                        oldestMinAgo = ages.lastOrNull(),
+                        newestMinAgo = ages.firstOrNull(),
+                        medianMinAgo = ages.getOrNull(ages.size / 2)
+                    )
+                }
+
+                val types = mapOf(
+                    freshness("tide") { it.tide },
+                    freshness("swell") { it.swell },
+                    freshness("wind") { it.wind },
+                    freshness("sst") { it.sst },
+                    freshness("visibility") { it.visibility },
+                    freshness("chlorophyll") { it.chlorophyll },
+                    freshness("gibs_satellite") { it.gibsChlorophyll },
+                    freshness("mpa") { it.mpa },
+                    freshness("vessel") { it.vessel },
+                    freshness("solunar") { it.solunar }
+                )
+
+                val staleTypes = types.filter { (_, v) -> v.oldestMinAgo != null && v.oldestMinAgo > 720 }
+                val status = if (staleTypes.isEmpty()) "ok" else "stale"
+
+                call.respond(mapOf(
+                    "status" to status,
+                    "totalSpots" to allIds.size,
+                    "staleTypes" to staleTypes.keys,
+                    "types" to types
+                ))
+            }
+
             // Detailed health with external service checks
             // Used by Flutter app to auto-degrade features
             get("/health/detailed") {
