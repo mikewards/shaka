@@ -2,7 +2,7 @@ name: Surfline Benchmark
 
 on:
   schedule:
-    - cron: '0 14 * * 1'  # Every Monday at 2pm UTC (midday swell window)
+    - cron: '0 14 * * *'  # Every day at 2pm UTC (midday swell window)
   workflow_dispatch:       # Manual trigger
 
 jobs:

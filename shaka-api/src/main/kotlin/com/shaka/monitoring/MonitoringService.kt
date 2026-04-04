@@ -38,6 +38,9 @@ object MonitoringService {
     private val logger = LoggerFactory.getLogger(MonitoringService::class.java)
     private const val THRESHOLD = 0.99
 
+    private val betterStackUrl: String? = System.getenv("BETTERSTACK_SOURCE_URL")
+    private val betterStackToken: String? = System.getenv("BETTERSTACK_SOURCE_TOKEN")
+
     private val heartbeatUrls: Map<String, String> by lazy {
         System.getenv("HEARTBEAT_URLS")?.split(",")
             ?.mapNotNull { entry ->
@@ -103,6 +106,7 @@ object MonitoringService {
             reportBreach(result)
         }
 
+        sendToBetterStack(result)
         pingHeartbeat(jobName)
 
         return result
@@ -165,9 +169,28 @@ object MonitoringService {
             reportBreach(result)
         }
 
+        sendToBetterStack(result)
         pingHeartbeat(jobName)
 
         return result
+    }
+
+    private fun sendToBetterStack(result: JobRunResult) {
+        val url = betterStackUrl ?: return
+        val token = betterStackToken ?: return
+        try {
+            val topErrors = result.failures.take(5).joinToString("; ") { "${it.itemName}: ${it.errorClass}" }
+            val body = """{"dt":"${result.finishedAt}","message":"job_run ${result.jobName}: ${result.status}","job":"${result.jobName}","total":${result.total},"succeeded":${result.succeeded},"failed":${result.failed},"success_rate":${String.format("%.4f", result.successRate)},"duration_ms":${result.durationMs},"status":"${result.status}","top_errors":"${topErrors.replace("\"", "'")}"}"""
+            val req = HttpRequest.newBuilder(URI.create(url))
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer $token")
+                .timeout(Duration.ofSeconds(5))
+                .build()
+            httpClient.sendAsync(req, HttpResponse.BodyHandlers.discarding())
+        } catch (e: Exception) {
+            logger.warn("Better Stack log send failed: ${e.message}")
+        }
     }
 
     private fun pingHeartbeat(jobName: String) {
