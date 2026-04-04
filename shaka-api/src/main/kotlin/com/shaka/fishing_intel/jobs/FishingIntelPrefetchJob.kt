@@ -11,6 +11,8 @@ import kotlinx.coroutines.*
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import com.shaka.monitoring.ItemFailure
+import com.shaka.monitoring.MonitoringService
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
@@ -60,6 +62,7 @@ object FishingIntelPrefetchJob {
 
         var totalReports = 0
         var totalClaims = 0
+        val failures = mutableListOf<ItemFailure>()
 
         for (source in sources) {
             try {
@@ -75,10 +78,12 @@ object FishingIntelPrefetchJob {
                 FishingIntelDb.updateSourceLastFetch(source.id)
             } catch (e: Exception) {
                 logger.error("Failed to scrape ${source.id}: ${e.message}", e)
+                MonitoringService.captureItemFailure("fishing_intel_scrape", source.id, source.id, e)
+                failures.add(ItemFailure(source.id, source.id, e.message ?: "unknown", MonitoringService.classifyError(e)))
             }
         }
 
-        logger.info("Fishing intel scrape complete: $totalReports reports, $totalClaims claims")
+        MonitoringService.reportRun("fishing_intel_scrape", sources.size, sources.size - failures.size, failures, 0)
 
         prefetchGlobalInsights()
     }

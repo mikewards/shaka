@@ -86,6 +86,7 @@ class DataPrefetchJobs(
         val startTime = System.currentTimeMillis()
         var successCount = 0
         var errorCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
             val results = batch.map { spot ->
@@ -120,6 +121,10 @@ class DataPrefetchJobs(
                         }
                     } catch (e: Exception) {
                         logger.debug("Tide fetch failed for ${spot.name}: ${e.message}")
+                        MonitoringService.captureItemFailure("tide_prefetch", spot.id, spot.name, e)
+                        synchronized(failures) {
+                            failures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                        }
                         false
                     }
                 }
@@ -134,7 +139,7 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("TIDE prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
+        MonitoringService.reportRun("tide_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
         logRateLimiterStats()
     }
 
@@ -149,6 +154,7 @@ class DataPrefetchJobs(
         var persisted = 0
         var skipped = 0
         var errors = 0
+        val failures = mutableListOf<ItemFailure>()
 
         for (spot in allSpots) {
             val localToday = spotLocalDate(spot.coordinates.lon)
@@ -184,6 +190,8 @@ class DataPrefetchJobs(
                     }
                 } catch (e: Exception) {
                     logger.debug("Tide chart failed for ${spot.name}/$day: ${e.message}")
+                    MonitoringService.captureItemFailure("tide_chart_materialize", "${spot.id}/$day", "${spot.name}/$day", e)
+                    failures.add(ItemFailure("${spot.id}/$day", "${spot.name}/$day", e.message ?: "unknown", MonitoringService.classifyError(e)))
                     errors++
                 }
                 delay(5000)
@@ -233,6 +241,8 @@ class DataPrefetchJobs(
                     }
                 } catch (e: Exception) {
                     logger.debug("Tide chart failed for user spot ${spot.name}/$day: ${e.message}")
+                    MonitoringService.captureItemFailure("tide_chart_materialize", "$cacheId/$day", "${spot.name}/$day", e)
+                    failures.add(ItemFailure("$cacheId/$day", "${spot.name}/$day", e.message ?: "unknown", MonitoringService.classifyError(e)))
                     errors++
                 }
                 delay(5000)
@@ -240,7 +250,8 @@ class DataPrefetchJobs(
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("TIDE CHART materialization complete: ${allSpots.size} catalog + ${userSpots.size} user spots — $persisted persisted, $skipped skipped, $errors errors in ${elapsed}ms")
+        val totalAttempted = persisted + errors
+        MonitoringService.reportRun("tide_chart_materialize", totalAttempted, persisted, failures, elapsed)
     }
 
     // ==================== EVERY 10 MIN: Tide Chart Catch-Up ====================
@@ -253,6 +264,7 @@ class DataPrefetchJobs(
 
         var persisted = 0
         var errors = 0
+        val failures = mutableListOf<ItemFailure>()
 
         for ((spotId, coords) in missing) {
             try {
@@ -281,12 +293,14 @@ class DataPrefetchJobs(
                 }
             } catch (e: Exception) {
                 logger.debug("Tide chart catch-up failed for $spotId: ${e.message}")
+                MonitoringService.captureItemFailure("tide_chart_catchup", spotId, spotId, e)
+                failures.add(ItemFailure(spotId, spotId, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 errors++
             }
             delay(5000)
         }
 
-        logger.info("TIDE CHART catch-up complete: $persisted persisted, $errors errors")
+        MonitoringService.reportRun("tide_chart_catchup", missing.size, persisted, failures, 0)
     }
 
     fun cleanupOldTideDays() {
@@ -506,6 +520,7 @@ class DataPrefetchJobs(
         var successCount = 0
         var errorCount = 0
         var skippedCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         // Health check with circuit breaker awareness
         logger.info("Testing Copernicus connectivity...")
@@ -624,6 +639,8 @@ class DataPrefetchJobs(
                 
             } catch (e: Exception) {
                 logger.debug("Satellite fetch failed for ${spot.name}: ${e.message}")
+                MonitoringService.captureItemFailure("satellite_prefetch", spot.id, spot.name, e)
+                failures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 errorCount++
             }
             
@@ -636,7 +653,7 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("SATELLITE prefetch complete: $successCount success, $errorCount errors, $skippedCount skipped in ${elapsed}ms")
+        MonitoringService.reportRun("satellite_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
 
         // SST backfill pass: fill spots still missing SST from buoys and neighbors
         val allSpotIds = allSpots.map { it.id }
@@ -712,6 +729,7 @@ class DataPrefetchJobs(
         val startTime = System.currentTimeMillis()
         var successCount = 0
         var errorCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         // Process sequentially with small delays (conservative rate limiting for Esri API)
         spotsToUpdate.forEachIndexed { index, spot ->
@@ -760,6 +778,8 @@ class DataPrefetchJobs(
                 }
             } catch (e: Exception) {
                 logger.debug("MPA fetch failed for ${spot.name}: ${e.message}")
+                MonitoringService.captureItemFailure("mpa_prefetch", spot.id, spot.name, e)
+                failures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 errorCount++
             }
             
@@ -773,7 +793,7 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("MPA prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
+        MonitoringService.reportRun("mpa_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
     }
     
     // ==================== DAILY: Fishing Intel Prefetch ====================
@@ -810,6 +830,7 @@ class DataPrefetchJobs(
         var vesselSuccess = 0
         var solunarSuccess = 0
         var errorCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         // Process in batches to avoid overwhelming APIs
         spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
@@ -874,6 +895,13 @@ class DataPrefetchJobs(
                         SpotDataCache.saveToDatabase(spot.id)
                     }
                     
+                    if (!gotVessel && !gotSolunar) {
+                        MonitoringService.captureItemFailure("fishing_intel_prefetch", spot.id, spot.name, Exception("Both vessel and solunar fetch failed"))
+                        synchronized(failures) {
+                            failures.add(ItemFailure(spot.id, spot.name, "Both vessel and solunar fetch failed", "complete_failure"))
+                        }
+                    }
+                    
                     Pair(gotVessel, gotSolunar)
                 }
             }.awaitAll()
@@ -888,7 +916,8 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("FISHING INTEL prefetch complete: vessels=$vesselSuccess, solunar=$solunarSuccess, errors=$errorCount in ${elapsed}ms")
+        val effectiveSuccess = spotsToUpdate.size - errorCount
+        MonitoringService.reportRun("fishing_intel_prefetch", spotsToUpdate.size, effectiveSuccess, failures, elapsed)
         logRateLimiterStats()
     }
     
@@ -917,6 +946,7 @@ class DataPrefetchJobs(
         var successCount = 0
         var skippedCount = 0
         var errorCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         // Register coordinates for user spots (enables in-memory nearest-SST lookups)
         for (spot in userSpots) {
@@ -1104,6 +1134,8 @@ class DataPrefetchJobs(
                 
             } catch (e: Exception) {
                 logger.warn("User spot prefetch failed for ${spot.name}: ${e.message}")
+                MonitoringService.captureItemFailure("user_spots_prefetch", cacheId, spot.name, e)
+                failures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 errorCount++
             }
         }
@@ -1140,7 +1172,8 @@ class DataPrefetchJobs(
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("USER SPOTS prefetch complete: $successCount updated, $skippedCount skipped (fresh), $errorCount errors out of ${userSpots.size} total in ${elapsed}ms")
+        val processed = userSpots.size - skippedCount
+        MonitoringService.reportRun("user_spots_prefetch", processed, successCount, failures, elapsed)
     }
     
     // ==================== Full Prefetch (Startup) ====================
@@ -1250,6 +1283,7 @@ class DataPrefetchJobs(
         var success = 0
         var skipped = 0
         var failed = 0
+        val failures = mutableListOf<ItemFailure>()
         
         for (batch in buoyStationsCache.chunked(BATCH_SIZE)) {
             coroutineScope {
@@ -1266,6 +1300,10 @@ class DataPrefetchJobs(
                                 skipped++
                             }
                         } catch (e: Exception) {
+                            MonitoringService.captureItemFailure("buoy_readings", station.stationId, station.stationId, e)
+                            synchronized(failures) {
+                                failures.add(ItemFailure(station.stationId, station.stationId, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                            }
                             failed++
                         }
                         Unit
@@ -1275,7 +1313,8 @@ class DataPrefetchJobs(
             delay(BATCH_DELAY_MS)
         }
         
-        logger.info("Buoy readings: $success successful, $skipped no wave data, $failed errors")
+        val total = success + failed
+        MonitoringService.reportRun("buoy_readings", total, success, failures, 0)
     }
 
 }

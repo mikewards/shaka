@@ -1,5 +1,6 @@
 package com.shaka.service
 
+import com.shaka.monitoring.MonitoringService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -69,17 +70,24 @@ object WeatherTileService {
 
                 val output = process.inputStream.bufferedReader().readText()
                 val exitCode = process.waitFor()
-                val elapsed = (System.currentTimeMillis() - startTime) / 1000
+                val elapsedMs = System.currentTimeMillis() - startTime
 
                 if (exitCode == 0) {
-                    logger.info("Weather pipeline completed in ${elapsed}s:\n$output")
+                    logger.info("Weather pipeline completed in ${elapsedMs / 1000}s:\n$output")
                     lastRun = Instant.now()
                     reloadCatalog()
+                    MonitoringService.reportRun("weather_tile_pipeline", 1, 1, emptyList(), elapsedMs)
                 } else {
-                    logger.error("Weather pipeline failed (exit=$exitCode, ${elapsed}s):\n$output")
+                    logger.error("Weather pipeline failed (exit=$exitCode, ${elapsedMs / 1000}s):\n$output")
+                    val ex = Exception("Weather pipeline exit code $exitCode")
+                    MonitoringService.captureItemFailure("weather_tile_pipeline", "pipeline", "weather_pipeline.py", ex)
+                    MonitoringService.reportRun("weather_tile_pipeline", 1, 0, listOf(
+                        com.shaka.monitoring.ItemFailure("pipeline", "weather_pipeline.py", "exit_code=$exitCode", "process_failed")
+                    ), elapsedMs)
                 }
             } catch (e: Exception) {
                 logger.error("Weather pipeline exception: ${e.message}", e)
+                MonitoringService.captureItemFailure("weather_tile_pipeline", "pipeline", "weather_pipeline.py", e)
             }
         }
     }
