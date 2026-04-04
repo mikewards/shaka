@@ -123,7 +123,44 @@ object MonitoringService {
         }
     }
 
-    private fun classifyError(e: Exception): String = when {
+    fun reportRun(jobName: String, total: Int, succeeded: Int, failures: List<ItemFailure>, durationMs: Long): JobRunResult {
+        val now = Instant.now()
+        val result = JobRunResult(
+            jobName = jobName,
+            startedAt = now.minusMillis(durationMs),
+            finishedAt = now,
+            total = total,
+            succeeded = succeeded,
+            failures = failures
+        )
+
+        MDC.put("job", jobName)
+        logger.info(
+            "job_run event={} job={} total={} succeeded={} failed={} success_rate={} duration_ms={} status={}",
+            "job_run", jobName, result.total, result.succeeded, result.failed,
+            String.format("%.4f", result.successRate), result.durationMs, result.status
+        )
+        MDC.remove("job")
+
+        if (result.successRate < THRESHOLD) {
+            reportBreach(result)
+        }
+
+        return result
+    }
+
+    fun captureItemFailure(jobName: String, itemId: String, itemName: String, exception: Exception) {
+        Sentry.withScope { scope ->
+            scope.setTag("job", jobName)
+            scope.setTag("item_id", itemId)
+            scope.setTag("item_name", itemName)
+            scope.setTag("error_class", classifyError(exception))
+            scope.fingerprint = listOf(jobName, classifyError(exception))
+            Sentry.captureException(exception)
+        }
+    }
+
+    fun classifyError(e: Exception): String = when {
         e is java.net.SocketTimeoutException -> "timeout"
         e is java.net.ConnectException -> "connection_refused"
         e.message?.contains("429") == true -> "rate_limited"

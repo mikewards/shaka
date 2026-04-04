@@ -3,6 +3,8 @@ package com.shaka.service
 import com.shaka.data.cache.SpotDataCache
 import com.shaka.data.client.*
 import com.shaka.model.*
+import com.shaka.monitoring.ItemFailure
+import com.shaka.monitoring.MonitoringService
 import kotlinx.coroutines.*
 import kotlinx.serialization.builtins.ListSerializer
 import org.slf4j.LoggerFactory
@@ -334,6 +336,7 @@ class DataPrefetchJobs(
         val startTime = System.currentTimeMillis()
         var successCount = 0
         var errorCount = 0
+        val failures = mutableListOf<ItemFailure>()
         
         spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
             val results = batch.map { spot ->
@@ -449,6 +452,10 @@ class DataPrefetchJobs(
                         }
                     } catch (e: Exception) {
                         logger.debug("Weather fetch failed for ${spot.name}: ${e.message}")
+                        MonitoringService.captureItemFailure("weather_prefetch", spot.cacheId, spot.name, e)
+                        synchronized(failures) {
+                            failures.add(ItemFailure(spot.cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                        }
                         false
                     }
                 }
@@ -463,7 +470,7 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        logger.info("WEATHER prefetch complete: $successCount success, $errorCount errors in ${elapsed}ms")
+        MonitoringService.reportRun("weather_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
         logRateLimiterStats()
     }
     
