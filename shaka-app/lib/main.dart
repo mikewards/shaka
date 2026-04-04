@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'data/api/shaka_api_client.dart';
@@ -21,11 +22,14 @@ import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/reports/reports_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
 
+const _sentryDsn = String.fromEnvironment(
+  'SENTRY_DSN',
+  defaultValue: '',
+);
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Set status bar style (synchronous, OK here)
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -34,11 +38,24 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  
-  // Start app FIRST - never block with async
+
+  if (_sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = _sentryDsn;
+        options.environment = const String.fromEnvironment('ENV', defaultValue: 'production');
+        options.tracesSampleRate = 0.0;
+      },
+      appRunner: () => _startApp(),
+    );
+  } else {
+    _startApp();
+  }
+}
+
+void _startApp() {
   runApp(const ShakaApp());
-  
-  // Initialize async services AFTER app starts
+
   Future.microtask(() async {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
