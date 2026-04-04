@@ -6,6 +6,11 @@ import io.sentry.SentryLevel
 import io.sentry.protocol.Message
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import java.time.Instant
 
 data class ItemFailure(
@@ -32,6 +37,18 @@ data class JobRunResult(
 object MonitoringService {
     private val logger = LoggerFactory.getLogger(MonitoringService::class.java)
     private const val THRESHOLD = 0.99
+
+    private val heartbeatUrls: Map<String, String> by lazy {
+        System.getenv("HEARTBEAT_URLS")?.split(",")
+            ?.mapNotNull { entry ->
+                val parts = entry.split("=", limit = 2)
+                if (parts.size == 2) parts[0].trim() to parts[1].trim() else null
+            }?.toMap() ?: emptyMap()
+    }
+
+    private val httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .build()
 
     suspend fun <T> trackJob(
         jobName: String,
@@ -85,6 +102,8 @@ object MonitoringService {
         if (result.successRate < THRESHOLD) {
             reportBreach(result)
         }
+
+        pingHeartbeat(jobName)
 
         return result
     }
@@ -146,7 +165,23 @@ object MonitoringService {
             reportBreach(result)
         }
 
+        pingHeartbeat(jobName)
+
         return result
+    }
+
+    private fun pingHeartbeat(jobName: String) {
+        val url = heartbeatUrls[jobName] ?: return
+        try {
+            val req = HttpRequest.newBuilder(URI.create(url))
+                .GET()
+                .timeout(Duration.ofSeconds(5))
+                .build()
+            httpClient.sendAsync(req, HttpResponse.BodyHandlers.discarding())
+            logger.debug("Heartbeat pinged for $jobName")
+        } catch (e: Exception) {
+            logger.warn("Heartbeat ping failed for $jobName: ${e.message}")
+        }
     }
 
     fun captureItemFailure(jobName: String, itemId: String, itemName: String, exception: Exception) {
