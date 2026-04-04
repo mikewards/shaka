@@ -31,12 +31,15 @@ void main() async {
 ```dart
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ShakaApp());
-  Future.microtask(() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+  SystemChrome.setSystemUIOverlayStyle(...);  // synchronous, OK
+  runApp(const ShakaApp());                   // App starts FIRST
+  Future.microtask(() async {
+    // Sentry + all async init goes AFTER runApp
+    if (_sentryDsn.isNotEmpty) {
+      await SentryFlutter.init((options) { ... });
+    }
+    await SystemChrome.setPreferredOrientations([...]);
+    // other async services...
   });
 }
 ```
@@ -44,7 +47,7 @@ void main() {
 **Key points:**
 - `main()` must NOT be `async`
 - No `await` calls before `runApp()`
-- Use `Future.microtask()` for post-startup initialization
+- Use `Future.microtask()` for post-startup initialization (including Sentry)
 - `WidgetsFlutterBinding.ensureInitialized()` is fine (it's synchronous)
 
 ## Rule 2: LaunchScreen Background Must Be Dark
@@ -74,15 +77,15 @@ The iOS Simulator and physical devices behave differently:
 This single command **replaces** the old `flutter clean && flutter pub get && flutter build ios --release && flutter install` chain. It builds, installs, launches, and streams all log output to the terminal:
 
 ```bash
-cd shaka-app && flutter run --profile -d iPhone
+cd shaka-app && flutter run --profile -d iPhone --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272
 ```
 
-No separate clean/pub get/build/install steps needed. The Xcode build takes 30-90 seconds — wait for it.
+No separate clean/pub get/build/install steps needed. The `--dart-define` enables Sentry crash reporting (omit to build without it). The Xcode build takes 30-90 seconds — wait for it.
 
 For release builds with no logging (final verification only):
 
 ```bash
-cd shaka-app && flutter clean && flutter pub get && flutter build ios --release && flutter install -d iPhone
+cd shaka-app && flutter clean && flutter pub get && flutter build ios --release --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272 && flutter install -d iPhone
 ```
 
 **NEVER** use `flutter run` without `--profile` or `--release`. Debug mode uses JIT compilation which iOS 26 blocks (`mprotect` permission denied).

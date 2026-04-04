@@ -654,6 +654,48 @@ def print_summary(results):
 # Main
 # ---------------------------------------------------------------------------
 
+THRESHOLDS = {
+    "mae_max": 2.5,
+    "rmse_max": 3.5,
+    "bias_abs_max": 1.5,
+    "in_range_pct_min": 30.0,
+}
+
+
+def check_thresholds(results):
+    """Check benchmark results against thresholds. Returns (passed, violations)."""
+    if not results:
+        return False, ["No results to evaluate"]
+
+    abs_range_errors = [r["abs_error_range"] for r in results]
+    range_errors = [r["error_vs_range"] for r in results]
+
+    mae = float(np.mean(abs_range_errors))
+    rmse = float(np.sqrt(np.mean([e**2 for e in range_errors])))
+    bias = float(np.mean(range_errors))
+    in_range = sum(1 for e in range_errors if e == 0)
+    in_range_pct = in_range / len(results) * 100
+
+    violations = []
+    if mae > THRESHOLDS["mae_max"]:
+        violations.append(f"MAE {mae:.2f}ft > {THRESHOLDS['mae_max']}ft")
+    if rmse > THRESHOLDS["rmse_max"]:
+        violations.append(f"RMSE {rmse:.2f}ft > {THRESHOLDS['rmse_max']}ft")
+    if abs(bias) > THRESHOLDS["bias_abs_max"]:
+        violations.append(f"|Bias| {abs(bias):.2f}ft > {THRESHOLDS['bias_abs_max']}ft")
+    if in_range_pct < THRESHOLDS["in_range_pct_min"]:
+        violations.append(f"In-range {in_range_pct:.0f}% < {THRESHOLDS['in_range_pct_min']}%")
+
+    if violations:
+        print("\n[THRESHOLD CHECK] FAILED:")
+        for v in violations:
+            print(f"  - {v}")
+    else:
+        print("\n[THRESHOLD CHECK] PASSED: All metrics within acceptable bounds")
+
+    return len(violations) == 0, violations
+
+
 def main():
     print("\n" + "=" * 60)
     print("SURFLINE vs SHAKA SWELL BENCHMARK")
@@ -680,6 +722,11 @@ def main():
     write_csv(results)
     print()
     print_summary(results)
+
+    # Step 7: Threshold check (exit 1 if regression detected)
+    passed, _ = check_thresholds(results)
+    if not passed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

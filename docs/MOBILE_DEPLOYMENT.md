@@ -26,12 +26,16 @@ void main() {
   SystemChrome.setSystemUIOverlayStyle(...);  // OK - synchronous
   runApp(const ShakaApp());                   // App starts FIRST
   Future.microtask(() async {
-    // Async stuff goes HERE, after runApp
+    // Sentry init + other async stuff goes HERE, after runApp
+    if (_sentryDsn.isNotEmpty) {
+      await SentryFlutter.init((options) { ... });
+    }
   });
 }
 ```
 
 - If you see `void main() async` or any `await` before `runApp()` — **fix it first** or the iOS app will hang on physical devices.
+- Sentry is initialized AFTER `runApp()` inside `Future.microtask()` to comply with this rule.
 
 ---
 
@@ -44,8 +48,10 @@ There are two workflows. **Option A is the default** — use it any time you nee
 This is a **single command** that replaces the entire old `flutter clean && flutter pub get && flutter build ios --release && flutter install -d iPhone` chain. It builds your code, installs it to the iPhone, launches the app, and streams all log output to the terminal:
 
 ```bash
-cd shaka-app && flutter run --profile -d iPhone
+cd shaka-app && flutter run --profile -d iPhone --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272
 ```
+
+The `--dart-define=SENTRY_DSN=...` flag enables Sentry crash reporting. Omit it to build without Sentry (app works normally either way).
 
 That's it. No `flutter clean`, no `flutter pub get`, no `flutter build`, no `flutter install` as separate steps. `flutter run --profile` does all of it.
 
@@ -64,7 +70,7 @@ To stop: press `q` in the terminal, or Ctrl+C.
 Only use this when you need a production release build and do NOT need any log output:
 
 ```bash
-cd shaka-app && flutter clean && flutter pub get && flutter build ios --release && flutter install -d iPhone
+cd shaka-app && flutter clean && flutter pub get && flutter build ios --release --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272 && flutter install -d iPhone
 ```
 
 Then launch manually by tapping the app icon on the iPhone. There is no way to see logs from a release build.
@@ -149,13 +155,13 @@ After deploying, verify the app works:
 
 ```bash
 # iOS — deploy with logging (DEFAULT for testing)
-cd shaka-app && flutter run --profile -d iPhone
+cd shaka-app && flutter run --profile -d iPhone --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272
 
 # iOS — release build (no logging, final verification only)
-cd shaka-app && flutter clean && flutter pub get && flutter build ios --release && flutter install -d iPhone
+cd shaka-app && flutter clean && flutter pub get && flutter build ios --release --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272 && flutter install -d iPhone
 
 # Android — full rebuild and deploy
-cd shaka-app && flutter clean && flutter pub get && flutter build apk --release && adb install -r build/app/outputs/flutter-apk/app-release.apk
+cd shaka-app && flutter clean && flutter pub get && flutter build apk --release --dart-define=SENTRY_DSN=https://0e717012843b4398a94a7456604b24cc@o4511065956679680.ingest.us.sentry.io/4511067354038272 && adb install -r build/app/outputs/flutter-apk/app-release.apk
 
 # Check connected devices
 flutter devices

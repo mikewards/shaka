@@ -27,7 +27,7 @@ const _sentryDsn = String.fromEnvironment(
   defaultValue: '',
 );
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -39,24 +39,16 @@ Future<void> main() async {
     ),
   );
 
-  if (_sentryDsn.isNotEmpty) {
-    await SentryFlutter.init(
-      (options) {
-        options.dsn = _sentryDsn;
-        options.environment = const String.fromEnvironment('ENV', defaultValue: 'production');
-        options.tracesSampleRate = 0.0;
-      },
-      appRunner: () => _startApp(),
-    );
-  } else {
-    _startApp();
-  }
-}
-
-void _startApp() {
   runApp(const ShakaApp());
 
   Future.microtask(() async {
+    if (_sentryDsn.isNotEmpty) {
+      await SentryFlutter.init((options) {
+        options.dsn = _sentryDsn;
+        options.environment = const String.fromEnvironment('ENV', defaultValue: 'production');
+        options.tracesSampleRate = 0.0;
+      });
+    }
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
