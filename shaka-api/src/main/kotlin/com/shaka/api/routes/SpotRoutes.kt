@@ -64,49 +64,43 @@ fun Application.configureRouting() {
                 val allIds = cache.getAllSpotIds()
                 val now = java.time.Instant.now()
 
-                data class TypeFreshness(
-                    val coverage: String,
-                    val oldestMinAgo: Long?,
-                    val newestMinAgo: Long?,
-                    val medianMinAgo: Long?
-                )
-
-                fun <T> freshness(name: String, extract: (com.shaka.data.cache.SpotDataCache.SpotData) -> com.shaka.data.cache.SpotDataCache.CachedValue<T>?): Pair<String, TypeFreshness> {
+                fun <T> freshJson(name: String, extract: (com.shaka.data.cache.SpotDataCache.SpotData) -> com.shaka.data.cache.SpotDataCache.CachedValue<T>?): Pair<String, String> {
                     val ages = allIds.mapNotNull { id ->
                         cache.get(id)?.let(extract)?.fetchedAt?.let {
                             java.time.Duration.between(it, now).toMinutes()
                         }
                     }.sorted()
-                    return name to TypeFreshness(
-                        coverage = "${ages.size}/${allIds.size}",
-                        oldestMinAgo = ages.lastOrNull(),
-                        newestMinAgo = ages.firstOrNull(),
-                        medianMinAgo = ages.getOrNull(ages.size / 2)
-                    )
+                    val oldest = ages.lastOrNull()
+                    val newest = ages.firstOrNull()
+                    val median = ages.getOrNull(ages.size / 2)
+                    return name to """{"coverage":"${ages.size}/${allIds.size}","oldestMinAgo":${oldest ?: "null"},"newestMinAgo":${newest ?: "null"},"medianMinAgo":${median ?: "null"}}"""
                 }
 
-                val types = mapOf(
-                    freshness("tide") { it.tide },
-                    freshness("swell") { it.swell },
-                    freshness("wind") { it.wind },
-                    freshness("sst") { it.sst },
-                    freshness("visibility") { it.visibility },
-                    freshness("chlorophyll") { it.chlorophyll },
-                    freshness("gibs_satellite") { it.gibsChlorophyll },
-                    freshness("mpa") { it.mpa },
-                    freshness("vessel") { it.vessel },
-                    freshness("solunar") { it.solunar }
+                val types = listOf(
+                    freshJson("tide") { it.tide },
+                    freshJson("swell") { it.swell },
+                    freshJson("wind") { it.wind },
+                    freshJson("sst") { it.sst },
+                    freshJson("visibility") { it.visibility },
+                    freshJson("chlorophyll") { it.chlorophyll },
+                    freshJson("gibs_satellite") { it.gibsChlorophyll },
+                    freshJson("mpa") { it.mpa },
+                    freshJson("vessel") { it.vessel },
+                    freshJson("solunar") { it.solunar }
                 )
 
-                val staleTypes = types.filter { (_, v) -> v.oldestMinAgo != null && v.oldestMinAgo > 720 }
-                val status = if (staleTypes.isEmpty()) "ok" else "stale"
+                val stale = types.filter { (_, json) ->
+                    val match = Regex(""""oldestMinAgo":(\d+)""").find(json)
+                    match != null && match.groupValues[1].toLong() > 720
+                }.map { "\"${it.first}\"" }
 
-                call.respond(mapOf(
-                    "status" to status,
-                    "totalSpots" to allIds.size,
-                    "staleTypes" to staleTypes.keys,
-                    "types" to types
-                ))
+                val status = if (stale.isEmpty()) "ok" else "stale"
+                val typesJson = types.joinToString(",") { "\"${it.first}\":${it.second}" }
+
+                call.respondText(
+                    """{"status":"$status","totalSpots":${allIds.size},"staleTypes":[${stale.joinToString(",")}],"types":{$typesJson}}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
             }
 
             // Detailed health with external service checks
