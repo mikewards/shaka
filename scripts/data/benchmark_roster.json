@@ -1,0 +1,2165 @@
+[
+  {
+    "spot_id": "5842041f4e65fad6a77088dd",
+    "name": "Brooks Street",
+    "lat": 33.5326591767067,
+    "lon": -117.77764,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088ce",
+    "name": "Coronado Beach",
+    "lat": 32.67443657790586,
+    "lon": -117.17421,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708970",
+    "name": "Princeton Jetty",
+    "lat": 37.49899,
+    "lon": -122.47099,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bbb",
+    "name": "Willow Creek",
+    "lat": 35.89412279173619,
+    "lon": -121.462380148047,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770895a",
+    "name": "Mussel Shoals (aka Little Rincon)",
+    "lat": 34.35513640390276,
+    "lon": -119.4400589884255,
+    "region": "California"
+  },
+  {
+    "spot_id": "68acb79f23dc16a22f510562",
+    "name": "Rincon (Indicator)",
+    "lat": 34.37257,
+    "lon": -119.47743,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708941",
+    "name": "Marina State Beach",
+    "lat": 36.69388179265737,
+    "lon": -121.81289,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708828",
+    "name": "C St.",
+    "lat": 34.272041739333,
+    "lon": -119.29976,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bbc",
+    "name": "Lovers Point",
+    "lat": 36.6260658643635,
+    "lon": -121.91548,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770896c",
+    "name": "Campus Point",
+    "lat": 34.405117655616,
+    "lon": -119.84317,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708820",
+    "name": "Seal Beach Jetty",
+    "lat": 33.73954373690184,
+    "lon": -118.11414,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770897c",
+    "name": "Sharp Park",
+    "lat": 37.63422542967464,
+    "lon": -122.4951,
+    "region": "California"
+  },
+  {
+    "spot_id": "5af21bc9177e44001a8cc60b",
+    "name": "Santa Monica Beach North",
+    "lat": 34.012794079166625,
+    "lon": -118.50756,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708837",
+    "name": "Tamarack",
+    "lat": 33.14948100706,
+    "lon": -117.35029,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708945",
+    "name": "Oil Piers",
+    "lat": 34.35113017313915,
+    "lon": -119.426921498899,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3fb645190585df9cb724",
+    "name": "Wilson Creek Beach",
+    "lat": 41.5987,
+    "lon": -124.1008,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204204e65fad6a770938c",
+    "name": "Dillon Beach",
+    "lat": 38.249,
+    "lon": -122.972,
+    "region": "California"
+  },
+  {
+    "spot_id": "5b84820982d0de001a33fa79",
+    "name": "Outer Waters",
+    "lat": 33.00031381345169,
+    "lon": -121.50089,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088e7",
+    "name": "Surfside",
+    "lat": 33.728733,
+    "lon": -118.08982,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204204e65fad6a77096b1",
+    "name": "Ventura Point",
+    "lat": 34.27166936557063,
+    "lon": -119.30202,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770889f",
+    "name": "Grandview",
+    "lat": 33.07541383424675,
+    "lon": -117.3105,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708986",
+    "name": "Natural Bridges",
+    "lat": 36.94905295955728,
+    "lon": -122.06118,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bb8",
+    "name": "Ghost Tree",
+    "lat": 36.56037685095311,
+    "lon": -121.9516152313922,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709994",
+    "name": "Torrey Pines State Beach",
+    "lat": 32.92712825415561,
+    "lon": -117.2599,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708980",
+    "name": "Waddell Creek",
+    "lat": 37.09520872681598,
+    "lon": -122.2805474707768,
+    "region": "California"
+  },
+  {
+    "spot_id": "5af211c8bb6fd9001a25054a",
+    "name": "Torrance Beach",
+    "lat": 33.81120874378085,
+    "lon": -118.39274,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708920",
+    "name": "Haggerty's",
+    "lat": 33.80282,
+    "lon": -118.39989,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708830",
+    "name": "T-Street",
+    "lat": 33.41800974113613,
+    "lon": -117.61952,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708842",
+    "name": "Mission Beach",
+    "lat": 32.776636,
+    "lon": -117.25514,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770899c",
+    "name": "Moonstone",
+    "lat": 35.5730538161116,
+    "lon": -121.1143362345574,
+    "region": "California"
+  },
+  {
+    "spot_id": "5c008f5313603c0001df5318",
+    "name": "Pipes",
+    "lat": 33.02460487110932,
+    "lon": -117.28879,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bbf",
+    "name": "Moss Landing",
+    "lat": 36.80821791915616,
+    "lon": -121.79055,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770888b",
+    "name": "Church",
+    "lat": 33.379622288757,
+    "lon": -117.57894,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770895e",
+    "name": "Summer Beach",
+    "lat": 34.28991757054902,
+    "lon": -119.3366646794652,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f7d606c450749b098e4",
+    "name": "White Point",
+    "lat": 33.717517,
+    "lon": -118.32243,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089bf",
+    "name": "Cronkhite",
+    "lat": 37.8289474958188,
+    "lon": -122.53768,
+    "region": "California"
+  },
+  {
+    "spot_id": "6765aba377ba0ce29f21fb4d",
+    "name": "Mesa Lane",
+    "lat": 34.39645,
+    "lon": -119.73124,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bb1",
+    "name": "Sand Dollar Beach",
+    "lat": 35.92499624829542,
+    "lon": -121.46957,
+    "region": "California"
+  },
+  {
+    "spot_id": "6418e48193265ba4351912cb",
+    "name": "Wind and Sea",
+    "lat": 36.9536,
+    "lon": -121.9762,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f9b99dd443c370330cb",
+    "name": "Virgin Creek",
+    "lat": 39.4635,
+    "lon": -123.81,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f8845190582e79caafd",
+    "name": "Silver Strand",
+    "lat": 34.1515,
+    "lon": -119.221,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770892d",
+    "name": "PV Cove",
+    "lat": 33.79294656286144,
+    "lon": -118.40703,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088f3",
+    "name": "Corona del Mar",
+    "lat": 33.58982984726977,
+    "lon": -117.87713,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709115",
+    "name": "Blackies",
+    "lat": 33.60891872680435,
+    "lon": -117.93112,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089c9",
+    "name": "Black Point Beach",
+    "lat": 38.6845180197959,
+    "lon": -123.4322714291198,
+    "region": "California"
+  },
+  {
+    "spot_id": "5bec658795aee10001fadde5",
+    "name": "Forster St. Oceanside",
+    "lat": 33.18234248788874,
+    "lon": -117.37465,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770897f",
+    "name": "Ano Nuevo",
+    "lat": 37.11578956919415,
+    "lon": -122.3147,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770897d",
+    "name": "Pescadero",
+    "lat": 37.27312,
+    "lon": -122.41274,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089c7",
+    "name": "Russian Rivermouth",
+    "lat": 38.45077228660809,
+    "lon": -123.13008,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088e8",
+    "name": "Bolsa Chica State Beach",
+    "lat": 33.68760321488161,
+    "lon": -118.04236,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088a5",
+    "name": "Ponto",
+    "lat": 33.08685865930869,
+    "lon": -117.31532,
+    "region": "California"
+  },
+  {
+    "spot_id": "5d6562fdca83aa00012b47af",
+    "name": "Bay St.",
+    "lat": 34.00514319989036,
+    "lon": -118.49229,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088a0",
+    "name": "Beacons",
+    "lat": 33.065267421296596,
+    "lon": -117.30577,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3fb899dd4432a00338f6",
+    "name": "Tolowa Dunes State Park",
+    "lat": 41.8691,
+    "lon": -124.214,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f804eb375e33a945550",
+    "name": "RAT Beach",
+    "lat": 33.80930828074364,
+    "lon": -118.39332,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708832",
+    "name": "Oceanside Harbor",
+    "lat": 33.202391008646,
+    "lon": -117.39475,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708961",
+    "name": "Refugio",
+    "lat": 34.46052293893899,
+    "lon": -120.07328,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f794eb37508e5945334",
+    "name": "Agate Street",
+    "lat": 33.5278,
+    "lon": -117.773,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f83e920301f5b9dd492",
+    "name": "Staircase Beach",
+    "lat": 34.0456,
+    "lon": -118.948,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708960",
+    "name": "Leadbetter Point",
+    "lat": 34.3984,
+    "lon": -119.70207,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204204e65fad6a770904d",
+    "name": "Mondos",
+    "lat": 34.32027598405835,
+    "lon": -119.37698,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770883a",
+    "name": "Birdrock",
+    "lat": 32.813094,
+    "lon": -117.27381,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088cb",
+    "name": "Tijuana Slough",
+    "lat": 32.557056711256,
+    "lon": -117.1327445020322,
+    "region": "California"
+  },
+  {
+    "spot_id": "5c0060aa12c17b0001a78941",
+    "name": "The Rock, Oceanside",
+    "lat": 33.18195637639852,
+    "lon": -117.37531,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770897e",
+    "name": "Pigeon Point",
+    "lat": 37.18138,
+    "lon": -122.39266,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708976",
+    "name": "Linda Mar",
+    "lat": 37.59881852720143,
+    "lon": -122.50463,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088b8",
+    "name": "San Elijo State Beach",
+    "lat": 33.02090944350196,
+    "lon": -117.28535,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708bb7",
+    "name": "Asilomar",
+    "lat": 36.61880091818895,
+    "lon": -121.94225,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f9599dd44782b032f46",
+    "name": "Blacks Beach",
+    "lat": 36.96001,
+    "lon": -121.99468,
+    "region": "California"
+  },
+  {
+    "spot_id": "640a3f73b6d7693ba4512a83",
+    "name": "Solana Beach",
+    "lat": 32.98938,
+    "lon": -117.2743,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708983",
+    "name": "Davenport",
+    "lat": 37.02350229387179,
+    "lon": -122.21908,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708887",
+    "name": "Upper Trestles",
+    "lat": 33.38445596302903,
+    "lon": -117.59445,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770883b",
+    "name": "Blacks",
+    "lat": 32.88338,
+    "lon": -117.25571,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709d1a",
+    "name": "George's",
+    "lat": 33.01113550717834,
+    "lon": -117.28030529109606,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088e5",
+    "name": "Ray Bay",
+    "lat": 33.73933701820233,
+    "lon": -118.117,
+    "region": "California"
+  },
+  {
+    "spot_id": "5b17281e4a274e001a11fcc3",
+    "name": "Hermosa Beach Pier",
+    "lat": 33.863543271422984,
+    "lon": -118.40649,
+    "region": "California"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709b9f",
+    "name": "Malibu First Point",
+    "lat": 34.03577735818882,
+    "lon": -118.67668,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708914",
+    "name": "Sunset Point",
+    "lat": 34.038053387863464,
+    "lon": -118.5532,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708936",
+    "name": "Point Dume",
+    "lat": 34.0016731994772,
+    "lon": -118.80456,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708962",
+    "name": "Devereux",
+    "lat": 34.40754276777778,
+    "lon": -119.87639,
+    "region": "California"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e00",
+    "name": "Ewa Beach",
+    "lat": 21.302,
+    "lon": -158.002,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e18",
+    "name": "Lopa Beach",
+    "lat": 20.804,
+    "lon": -156.807,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6418dc919a43c4dc6136f3cc",
+    "name": "Windmills",
+    "lat": 21.0239,
+    "lon": -156.628,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b2b",
+    "name": "Dumps",
+    "lat": 20.613,
+    "lon": -156.438,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708df2",
+    "name": "Turtle Bay West",
+    "lat": 21.705402859819525,
+    "lon": -158.00333,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "644307ceabaf74e0cd52271f",
+    "name": "Freddieland",
+    "lat": 21.682872,
+    "lon": -158.03326,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708892",
+    "name": "Rockpile",
+    "lat": 21.662,
+    "lon": -158.057,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de8",
+    "name": "Ho'okipa",
+    "lat": 20.936,
+    "lon": -156.359,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770888d",
+    "name": "Sunset Beach",
+    "lat": 21.679,
+    "lon": -158.042,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e06",
+    "name": "Kaiolohia Bay/Shipwreck Beach",
+    "lat": 20.918,
+    "lon": -156.901,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e05",
+    "name": "Kepuhi Bay",
+    "lat": 21.189,
+    "lon": -157.249,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e15",
+    "name": "Kolekole",
+    "lat": 19.884,
+    "lon": -155.117,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "640f37e374a71b7f86295289",
+    "name": "Shipwrecks",
+    "lat": 21.874,
+    "lon": -159.4372,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "640f37c26d5ecc82715b1e36",
+    "name": "Launiupoko",
+    "lat": 20.84204,
+    "lon": -156.65284,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e30",
+    "name": "Sand Island",
+    "lat": 21.299,
+    "lon": -157.875,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de4",
+    "name": "Honolua Bay",
+    "lat": 21.018,
+    "lon": -156.641,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708894",
+    "name": "Off The Wall",
+    "lat": 21.66203493640557,
+    "lon": -158.05495,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708da5",
+    "name": "Ma'alaea Harbor",
+    "lat": 20.791,
+    "lon": -156.509,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "601b285ce17c8b3c17b65e2c",
+    "name": "Tracks",
+    "lat": 21.3596,
+    "lon": -158.133,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dee",
+    "name": "Magic Sands Beach",
+    "lat": 19.594,
+    "lon": -155.973,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "68acb8de6d6fe8c89c97b761",
+    "name": "Point Panic",
+    "lat": 21.29001,
+    "lon": -157.86177,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "64bbf6d76914b76a8170b24d",
+    "name": "Ukumehame",
+    "lat": 20.795589300073612,
+    "lon": -156.58179,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de3",
+    "name": "Rainbows",
+    "lat": 20.948,
+    "lon": -156.693,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770889d",
+    "name": "Banyans",
+    "lat": 19.606,
+    "lon": -155.978,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dfe",
+    "name": "Barbers Point",
+    "lat": 21.295,
+    "lon": -158.107,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dff",
+    "name": "Ma'ili",
+    "lat": 21.417,
+    "lon": -158.185,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dea",
+    "name": "Hana Bay",
+    "lat": 20.76,
+    "lon": -155.983,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770888e",
+    "name": "Rocky Point",
+    "lat": 21.670550036401,
+    "lon": -158.0482,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b2d",
+    "name": "Ha'Ena Bay (Cannons/Tunnels)",
+    "lat": 22.225,
+    "lon": -159.567,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770889e",
+    "name": "Kawaihae",
+    "lat": 20.029,
+    "lon": -155.831,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6335eab2d305aa6b0692cd5f",
+    "name": "The Wall",
+    "lat": 21.271082,
+    "lon": -157.82401,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77088a2",
+    "name": "Diamond Head",
+    "lat": 21.252,
+    "lon": -157.805,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b35",
+    "name": "Canoes",
+    "lat": 21.27394674233747,
+    "lon": -157.82777,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b3d",
+    "name": "Three's",
+    "lat": 21.276618032562773,
+    "lon": -157.83386,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5e5033c97818a8bcb2976f75",
+    "name": "Lyman's",
+    "lat": 19.602998314865218,
+    "lon": -155.97515,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708df3",
+    "name": "Mana Point",
+    "lat": 22.013,
+    "lon": -159.785,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708891",
+    "name": "Backdoor",
+    "lat": 21.665,
+    "lon": -158.054,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b34",
+    "name": "Black Point",
+    "lat": 21.25460513357954,
+    "lon": -157.79432,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de7",
+    "name": "Honokohau Bay",
+    "lat": 21.024,
+    "lon": -156.61,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e16",
+    "name": "Pohoiki",
+    "lat": 19.456,
+    "lon": -154.842,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "60428c564d813d3a2bb40d2c",
+    "name": "Castles",
+    "lat": 21.420918,
+    "lon": -157.74242,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dfd",
+    "name": "Makaha",
+    "lat": 21.475,
+    "lon": -158.227,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6466ad9b1b12f5c98eb72499",
+    "name": "The LineUp at Wai Kai",
+    "lat": 21.308209,
+    "lon": -158.04112,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de2",
+    "name": "La Perouse Bay",
+    "lat": 20.591,
+    "lon": -156.415,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "653b83b84f42f85b45263e14",
+    "name": "Ehukai Beach Park",
+    "lat": 21.66558,
+    "lon": -158.05185,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770889c",
+    "name": "Ala Moana Beach Park",
+    "lat": 21.286357895152136,
+    "lon": -157.8515,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708896",
+    "name": "Hultin's",
+    "lat": 21.622,
+    "lon": -158.087,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e12",
+    "name": "Kamalino, Niihau",
+    "lat": 21.812,
+    "lon": -160.246,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6418dc67a34c3349c417505f",
+    "name": "Kailua",
+    "lat": 21.41,
+    "lon": -157.74,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e03",
+    "name": "Kawa",
+    "lat": 21.201,
+    "lon": -157.152,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708899",
+    "name": "Chun's",
+    "lat": 21.625,
+    "lon": -158.083,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e01",
+    "name": "Kaunakakai (The Wharf)",
+    "lat": 21.079,
+    "lon": -157.031,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de9",
+    "name": "Peahi (Jaws)",
+    "lat": 20.945,
+    "lon": -156.298,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b37",
+    "name": "Lahaina Harbor - Breakwall",
+    "lat": 20.869,
+    "lon": -156.679,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6418e2caa34c33681818a7a9",
+    "name": "Laie Beach Park",
+    "lat": 21.6312,
+    "lon": -157.921,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709057",
+    "name": "Pua'ena Point",
+    "lat": 21.604,
+    "lon": -158.109,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "584204204e65fad6a770999d",
+    "name": "Tavares Bay",
+    "lat": 20.922,
+    "lon": -156.374,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e14",
+    "name": "Manele Bay",
+    "lat": 20.736,
+    "lon": -156.894,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b30",
+    "name": "Poipu Outer Reef",
+    "lat": 21.872,
+    "lon": -159.462,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6328ed0ed05d38031be2733c",
+    "name": "Waiehu Beach",
+    "lat": 20.917024,
+    "lon": -156.49129,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708de0",
+    "name": "Olowalu",
+    "lat": 20.808,
+    "lon": -156.624,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5e502d5939f578f30180d591",
+    "name": "Kaiwi Point",
+    "lat": 19.658207410571208,
+    "lon": -156.03269406981858,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "640f37d874a71b18f7294fe3",
+    "name": "Kauapea Beach",
+    "lat": 22.2242,
+    "lon": -159.4098,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708df6",
+    "name": "Sandy Beach",
+    "lat": 21.284,
+    "lon": -157.673,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "640f37ab326c174fb15b6718",
+    "name": "Oneuli Beach",
+    "lat": 20.6412,
+    "lon": -156.4462,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b2c",
+    "name": "Hanalei Bay",
+    "lat": 22.216,
+    "lon": -159.502,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b39",
+    "name": "Rockpiles",
+    "lat": 21.280537020769913,
+    "lon": -157.84107,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b32",
+    "name": "Populars",
+    "lat": 21.272,
+    "lon": -157.832,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708893",
+    "name": "Log Cabins",
+    "lat": 21.65870453806827,
+    "lon": -158.06058,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dec",
+    "name": "Honoli'i",
+    "lat": 19.756,
+    "lon": -155.09,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708897",
+    "name": "Jocko's",
+    "lat": 21.623,
+    "lon": -158.085,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708dfa",
+    "name": "Crouching Lion",
+    "lat": 21.566,
+    "lon": -157.861,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e02",
+    "name": "Halawa Bay",
+    "lat": 21.159,
+    "lon": -156.736,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "62edbf02cd146e464e382b97",
+    "name": "Honokohau Beach",
+    "lat": 19.67443,
+    "lon": -156.02707,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708df8",
+    "name": "Mokuleia",
+    "lat": 21.586,
+    "lon": -158.191,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e07",
+    "name": "Pohakuloa",
+    "lat": 20.931,
+    "lon": -156.997,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "640f37ef326c179b795b7627",
+    "name": "Kalapaki Beach",
+    "lat": 21.9600952,
+    "lon": -159.35027,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b2a",
+    "name": "Little Beach",
+    "lat": 20.63474,
+    "lon": -156.45211,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "6418dd176478f05439f99dad",
+    "name": "Pavilions",
+    "lat": 20.9374,
+    "lon": -156.356,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e13",
+    "name": "Halena Beach",
+    "lat": 21.085,
+    "lon": -157.245,
+    "region": "Hawaii"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a8f",
+    "name": "Huguenot Park (North Jetty)",
+    "lat": 30.40517712722211,
+    "lon": -81.40074116169004,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b6a",
+    "name": "Sunrise",
+    "lat": 26.72114353296791,
+    "lon": -80.03310374527736,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b77",
+    "name": "Jupiter Inlet",
+    "lat": 26.94256932088346,
+    "lon": -80.07057,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5cd9d8134cc9790001e88b16",
+    "name": "Peters Point",
+    "lat": 30.599466508881527,
+    "lon": -81.44293,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a770887d",
+    "name": "Deerfield Beach Pier",
+    "lat": 26.31724,
+    "lon": -80.07425,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b7d",
+    "name": "Toilet Bowls",
+    "lat": 29.68231979841189,
+    "lon": -85.30627194238092,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708879",
+    "name": "Reef Road",
+    "lat": 26.76346795333825,
+    "lon": -80.03607,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708adf",
+    "name": "Boynton Beach Inlet (Northside)",
+    "lat": 26.54593873498907,
+    "lon": -80.04104359585143,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708ab1",
+    "name": "Vero Pier",
+    "lat": 27.670121806659253,
+    "lon": -80.36026954650879,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e1a",
+    "name": "Ocean Ave.",
+    "lat": 28.06856278147022,
+    "lon": -80.55487,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a87",
+    "name": "Anastasia Park (The Entrance)",
+    "lat": 29.86618162637438,
+    "lon": -81.2662150259608,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b21",
+    "name": "Redfish Pass",
+    "lat": 26.55130241615096,
+    "lon": -82.20222762415648,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a9d",
+    "name": "Ponce Inlet",
+    "lat": 29.08257353385602,
+    "lon": -80.92137,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b17",
+    "name": "Venice Pier",
+    "lat": 27.07249378831575,
+    "lon": -82.4530285256104,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708af5",
+    "name": "Jetty East",
+    "lat": 30.38090573159031,
+    "lon": -86.50655,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708aa2",
+    "name": "Daytona Beach",
+    "lat": 29.21860397328164,
+    "lon": -81.0019,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709d12",
+    "name": "Pelican Beach Park",
+    "lat": 28.167607,
+    "lon": -80.58634,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b14",
+    "name": "Turtles",
+    "lat": 27.21907878229092,
+    "lon": -82.51813937562073,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "584204204e65fad6a77096c1",
+    "name": "Honeymoon Island",
+    "lat": 28.060771,
+    "lon": -82.830148,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b75",
+    "name": "Stuart Public Beach",
+    "lat": 27.21467611230439,
+    "lon": -80.17308,
+    "region": "Florida"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a49",
+    "name": "Carolina Beach Pier",
+    "lat": 34.05683595651973,
+    "lon": -77.88128,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a4b",
+    "name": "Topsail Beach",
+    "lat": 34.35752,
+    "lon": -77.63458,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709464",
+    "name": "Bath House",
+    "lat": 36.01599221232585,
+    "lon": -75.65344,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a42",
+    "name": "First Street",
+    "lat": 36.03043116489792,
+    "lon": -75.66413,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709a9e",
+    "name": "Jennette's Pier, Northside",
+    "lat": 35.91081086393117,
+    "lon": -75.59549,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a3f",
+    "name": "Pea Island",
+    "lat": 35.71680821253768,
+    "lon": -75.49243,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "5c8c13f0635df600015e2785",
+    "name": "Black Pelican",
+    "lat": 36.065420513718614,
+    "lon": -75.68848,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "600b4dd0127c757fc86564f1",
+    "name": "Loggerhead St.",
+    "lat": 35.94173501,
+    "lon": -75.61366,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "600f46359af50552cf55c292",
+    "name": "Onslow Beach",
+    "lat": 34.5704,
+    "lon": -77.2686,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "600f692089fb0f186a4a687d",
+    "name": "Blockade Runner",
+    "lat": 34.20249978,
+    "lon": -77.79675,
+    "region": "North Carolina"
+  },
+  {
+    "spot_id": "61ddc89c7c0a2277bc22e488",
+    "name": "Ocean Beach",
+    "lat": 40.643419,
+    "lon": -73.15463,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089f5",
+    "name": "Laurelton Blvd",
+    "lat": 40.58270702399518,
+    "lon": -73.67252,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5b2bd450dccc83001b2945d1",
+    "name": "Fair Harbor",
+    "lat": 40.63650785479496,
+    "lon": -73.18305,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089f6",
+    "name": "Terrace",
+    "lat": 41.033752854071416,
+    "lon": -71.93696,
+    "region": "New York"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709595",
+    "name": "Sodus Point",
+    "lat": 43.27416,
+    "lon": -76.97938,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089e8",
+    "name": "Cupsogue",
+    "lat": 40.76653118828782,
+    "lon": -72.7458,
+    "region": "New York"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709597",
+    "name": "Webster Park",
+    "lat": 43.26137,
+    "lon": -77.45145,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089fb",
+    "name": "Breezy Point",
+    "lat": 40.54698301868125,
+    "lon": -73.9268,
+    "region": "New York"
+  },
+  {
+    "spot_id": "5b02fe338bd590001bf55485",
+    "name": "8th Street",
+    "lat": 39.27482,
+    "lon": -74.56697,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a16",
+    "name": "Lavallette",
+    "lat": 39.98313468342945,
+    "lon": -74.06265685577506,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "625611325cd9822674fe5031",
+    "name": "Ocean Grove",
+    "lat": 40.213,
+    "lon": -74.0009,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089ff",
+    "name": "Bradley Beach",
+    "lat": 40.1974229100932,
+    "lon": -74.00650533798255,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708a17",
+    "name": "Bay Head",
+    "lat": 40.0699319967757,
+    "lon": -74.04145,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089fa",
+    "name": "Sea Girt",
+    "lat": 40.1319,
+    "lon": -74.02788,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5b03095ee967b4001b33027f",
+    "name": "Sea Isle City",
+    "lat": 39.15891,
+    "lon": -74.68445,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b65",
+    "name": "Poverty Beach",
+    "lat": 38.942757,
+    "lon": -74.88079,
+    "region": "New Jersey"
+  },
+  {
+    "spot_id": "60493024f796349dd9e7b100",
+    "name": "Cape Kiwanda",
+    "lat": 45.2164,
+    "lon": -123.977,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709d25",
+    "name": "Manzanita",
+    "lat": 45.712165,
+    "lon": -123.94459,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709d23",
+    "name": "Beverly Beach",
+    "lat": 44.724734,
+    "lon": -124.060801,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089b1",
+    "name": "Port Orford",
+    "lat": 42.74071837900346,
+    "lon": -124.4983727491047,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "6092eed4298a480a6db997de",
+    "name": "Yachats",
+    "lat": 44.307722,
+    "lon": -124.10708,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a77089b5",
+    "name": "Newport",
+    "lat": 44.63792761362982,
+    "lon": -124.0657,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "663bbdf943ff32b94e42ee17",
+    "name": "South Beach OR",
+    "lat": 44.6060665247462,
+    "lon": -124.06937,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "584204214e65fad6a7709d27",
+    "name": "Agate Beach",
+    "lat": 44.658023,
+    "lon": -124.06324,
+    "region": "Oregon"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e36",
+    "name": "33rd St",
+    "lat": 29.281,
+    "lon": -94.797,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "584204204e65fad6a77099fb",
+    "name": "28th St",
+    "lat": 29.284244,
+    "lon": -94.792182,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b8c",
+    "name": "61st Street",
+    "lat": 29.26596874354759,
+    "lon": -94.82556,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b8d",
+    "name": "37th Street",
+    "lat": 29.27981563979864,
+    "lon": -94.80146,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708889",
+    "name": "Surfside",
+    "lat": 28.944414,
+    "lon": -95.28883,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b8f",
+    "name": "A-Frames",
+    "lat": 29.4702751255731,
+    "lon": -94.59146640261427,
+    "region": "Texas"
+  },
+  {
+    "spot_id": "640a450099dd448ebd048c83",
+    "name": "Kikita Beach",
+    "lat": 18.477525,
+    "lon": -66.26229,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "640a45064eb375857795b7e2",
+    "name": "El Cocal",
+    "lat": 18.015089,
+    "lon": -65.84623,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "640a44ec99dd440e6c04871b",
+    "name": "Las Dunas",
+    "lat": 18.5148,
+    "lon": -67.0467,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "640a44f5606c4528f5b1f82c",
+    "name": "Steps Beach",
+    "lat": 18.349624,
+    "lon": -67.2643,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "640a44f299dd4412920488b8",
+    "name": "Ruins",
+    "lat": 18.4888,
+    "lon": -67.16264,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c4c",
+    "name": "Chambers",
+    "lat": 18.46090012303478,
+    "lon": -67.16701,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c55",
+    "name": "Domes",
+    "lat": 18.36591901691329,
+    "lon": -67.27131,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "640a44ee606c456b2fb1f654",
+    "name": "Motones",
+    "lat": 18.5146,
+    "lon": -67.0666,
+    "region": "Puerto Rico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709394",
+    "name": "Morna Point",
+    "lat": -32.789,
+    "lon": 152.076,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709303",
+    "name": "Iluka Bar",
+    "lat": -29.423,
+    "lon": 153.369,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c04",
+    "name": "Golf Course Reef",
+    "lat": -35.34604167,
+    "lon": 150.4773361,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709362",
+    "name": "Wallabi Point",
+    "lat": -31.998,
+    "lon": 152.576,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c01",
+    "name": "Merimbula Bar",
+    "lat": -36.89662778,
+    "lon": 149.92144,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709421",
+    "name": "The Farm",
+    "lat": -34.604,
+    "lon": 150.867,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708be5",
+    "name": "Snapper Rocks",
+    "lat": -28.16143481052803,
+    "lon": 153.55066,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b94c99b6fab02d52e8cf3",
+    "name": "Culburra Beach",
+    "lat": -34.9235,
+    "lon": 150.7679,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "584204204e65fad6a77093d3",
+    "name": "Bungan",
+    "lat": -33.665,
+    "lon": 151.321,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b936b4878eb4b211c08bc",
+    "name": "Bherwherre Beach",
+    "lat": -35.1641,
+    "lon": 150.6575,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b91bbe920303885df0b6d",
+    "name": "Farm",
+    "lat": -38.4859,
+    "lon": 145.1527,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b949fde81d5c16e0c44ec",
+    "name": "Quondolo Beach",
+    "lat": -36.9673,
+    "lon": 149.9311,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709445",
+    "name": "Mill Point",
+    "lat": -35.667,
+    "lon": 150.307,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b95904878eb55a41c87d9",
+    "name": "Treachery Beach",
+    "lat": -32.4543,
+    "lon": 152.512,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "640b93d8de81d57e360c1646",
+    "name": "Brou Beach",
+    "lat": -36.1288,
+    "lon": 150.1262,
+    "region": "Australia"
+  },
+  {
+    "spot_id": "60520e838cd1df7ad30436c1",
+    "name": "Praia do Burgau",
+    "lat": 37.0716,
+    "lon": -8.7754,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "591b423c1907e50013cd93cc",
+    "name": "Praia do Pego",
+    "lat": 38.29512369,
+    "lon": -8.78031,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "602d538c79cfa2fee3504d6e",
+    "name": "Mindelo",
+    "lat": 41.3116168,
+    "lon": -8.74003,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "60185298bf006fc3a6a23cec",
+    "name": "Foz do Arelho",
+    "lat": 39.43523,
+    "lon": -9.23271,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "584204204e65fad6a77099da",
+    "name": "Praia dos Mosteiros",
+    "lat": 37.895,
+    "lon": -25.825,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "584204204e65fad6a77099ee",
+    "name": "Santa Catarina",
+    "lat": 38.708,
+    "lon": -27.044,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "640b9cda4878ebfad81e2b72",
+    "name": "S\u00e3o Juli\u00e3o",
+    "lat": 38.93263,
+    "lon": -9.42251,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "640b8b0f451905d197dc20f5",
+    "name": "Ponta Paul",
+    "lat": 32.7656,
+    "lon": -17.2382,
+    "region": "Portugal"
+  },
+  {
+    "spot_id": "584204204e65fad6a7708fdf",
+    "name": "Les Casernes",
+    "lat": 43.725,
+    "lon": -1.435,
+    "region": "France"
+  },
+  {
+    "spot_id": "6418e1249702725a2e87656b",
+    "name": "La Courance",
+    "lat": 47.2424,
+    "lon": -2.3156,
+    "region": "France"
+  },
+  {
+    "spot_id": "640f804638476e3d73e60034",
+    "name": "Pointe des Trois-Bassins",
+    "lat": -21.1121,
+    "lon": 55.2512,
+    "region": "France"
+  },
+  {
+    "spot_id": "6418e31b970272810687ceb0",
+    "name": "Plage des Nonnes",
+    "lat": 45.561,
+    "lon": -0.966,
+    "region": "France"
+  },
+  {
+    "spot_id": "6418de886478f0407ef9ed73",
+    "name": "Algajola",
+    "lat": 42.6102,
+    "lon": 8.8712,
+    "region": "France"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709029",
+    "name": "Grand Village",
+    "lat": 45.85,
+    "lon": -1.263,
+    "region": "France"
+  },
+  {
+    "spot_id": "6418e0ece072f833cc0272ac",
+    "name": "Le Lizay",
+    "lat": 46.2564,
+    "lon": -1.5163,
+    "region": "France"
+  },
+  {
+    "spot_id": "6418dcac9a43c4047236f8f1",
+    "name": "Gavres",
+    "lat": 47.6937,
+    "lon": -3.3247,
+    "region": "France"
+  },
+  {
+    "spot_id": "5a8f1e23b0f634001ada0b11",
+    "name": "Worthing",
+    "lat": 50.80675369833302,
+    "lon": -0.37285,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "614153d4b363db00b9c0375f",
+    "name": "Gulberwick",
+    "lat": 60.1287,
+    "lon": -1.2009,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "613fc71ee22bc76e93ddc007",
+    "name": "Silecroft",
+    "lat": 54.2167,
+    "lon": -3.3514,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "61410f6cde9dac27ca06a59e",
+    "name": "Lunan Bay",
+    "lat": 56.6518,
+    "lon": -2.5017,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "6140cfe08c7d86d8f879b1ef",
+    "name": "The Ayre",
+    "lat": 54.4069,
+    "lon": -4.4136,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708e1f",
+    "name": "Kimmeridge Bay",
+    "lat": 50.6111,
+    "lon": -2.133,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "6140f3cea12541681e613a53",
+    "name": "Sango Bay",
+    "lat": 58.5692,
+    "lon": -4.7383,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c9c",
+    "name": "Sandsend",
+    "lat": 54.49852,
+    "lon": -0.65568,
+    "region": "United Kingdom"
+  },
+  {
+    "spot_id": "640a6859e920300c21a7a5ab",
+    "name": "Tanjung Bloam",
+    "lat": -8.8794,
+    "lon": 116.5704,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708d3a",
+    "name": "Balangan",
+    "lat": -8.794,
+    "lon": 115.12,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708d57",
+    "name": "Scar Reef",
+    "lat": -8.854444444,
+    "lon": 116.75806,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "640a64bb4eb3753c419d50cc",
+    "name": "Babah Nipah",
+    "lat": 4.8057,
+    "lon": 95.4354,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "640a6882451905adb7a6860f",
+    "name": "Dedjoeng Wane",
+    "lat": -8.826,
+    "lon": 118.628,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "640a652f99dd440cfa0c4399",
+    "name": "The Hole",
+    "lat": -3.246,
+    "lon": 100.519,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "640a662f4eb375ecb79da925",
+    "name": "Pantai Glagah Indah",
+    "lat": -7.9136,
+    "lon": 110.0661,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708d36",
+    "name": "Macaronis",
+    "lat": -2.789,
+    "lon": 99.99,
+    "region": "Indonesia"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709206",
+    "name": "Millers Landing",
+    "lat": 28.484,
+    "lon": -114.078,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709208",
+    "name": "Cuyutlan",
+    "lat": 18.915,
+    "lon": -104.073,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709227",
+    "name": "La Barrita",
+    "lat": 17.411,
+    "lon": -101.185,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a770922c",
+    "name": "Punta Marquez",
+    "lat": 23.956,
+    "lon": -110.883,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709248",
+    "name": "Punta Gasparino",
+    "lat": 23.179,
+    "lon": -110.145,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "640a43f9b6d769a6d9524db6",
+    "name": "Playa Boca Chica",
+    "lat": 17.1309,
+    "lon": -100.65,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709b74",
+    "name": "Destapador",
+    "lat": 19.162,
+    "lon": -96.101,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709222",
+    "name": "Las Barrancas",
+    "lat": 26.014,
+    "lon": -112.23,
+    "region": "Mexico"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708ce9",
+    "name": "Saquarema",
+    "lat": -22.93640833,
+    "lon": -42.48141,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708ed4",
+    "name": "Ponta das Canas",
+    "lat": -27.394819,
+    "lon": -48.43571,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708f60",
+    "name": "Mirante da Sirena",
+    "lat": -9.430906,
+    "lon": -35.503683,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "640a35cc4eb375f32a91d1c9",
+    "name": "Praia Barra do Caponga",
+    "lat": -4.0507,
+    "lon": -38.1844,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "640a4ce64eb3756b0c97b113",
+    "name": "Praia do Cristo",
+    "lat": -14.8044,
+    "lon": -39.0333,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "640a57d6606c454bb1b69320",
+    "name": "Praia Grande",
+    "lat": -25.5511,
+    "lon": -48.2967,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708f89",
+    "name": "Cocoa das Lavadeiras",
+    "lat": -5.066515,
+    "lon": -35.862005,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708ed6",
+    "name": "Camboriu",
+    "lat": -26.987505,
+    "lon": -48.630341,
+    "region": "Brazil"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708d05",
+    "name": "Sunrise",
+    "lat": -29.52800833,
+    "lon": 31.22666389,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "640a1c41451905917f93e84b",
+    "name": "Bikini Beach (Gordon's Bay)",
+    "lat": -34.1656,
+    "lon": 18.858,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "640a1c26e92030a57d951009",
+    "name": "Addington Beach",
+    "lat": -29.8619,
+    "lon": 31.0435,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "640a1c62606c45e9fea7e50e",
+    "name": "Kampstrand",
+    "lat": -28.7939,
+    "lon": 32.106,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "640a1be54eb37511738b80b9",
+    "name": "Silverstroomstrand",
+    "lat": -33.5813,
+    "lon": 18.3568,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "640a1c57b6d769038048747d",
+    "name": "Alkantstrand Beach",
+    "lat": -28.7985,
+    "lon": 32.1012,
+    "region": "South Africa"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709870",
+    "name": "Wakimoto",
+    "lat": 32.0746,
+    "lon": 130.2014,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709733",
+    "name": "Toyoumi",
+    "lat": 35.5072,
+    "lon": 140.4368,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "584204204e65fad6a770995b",
+    "name": "Doubutsuenura",
+    "lat": 31.981889,
+    "lon": 131.484965,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "584204204e65fad6a77097a4",
+    "name": "Komaba",
+    "lat": 34.6472,
+    "lon": 137.8128,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709881",
+    "name": "Takezaki",
+    "lat": 30.374106,
+    "lon": 130.94848,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709739",
+    "name": "Shidashita",
+    "lat": 35.33656,
+    "lon": 140.3962,
+    "region": "Japan"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708c33",
+    "name": "Cahuita",
+    "lat": 9.746222222,
+    "lon": -82.85211111,
+    "region": "Costa Rica"
+  },
+  {
+    "spot_id": "640a2d5999dd443c90fe895c",
+    "name": "Boca Damas",
+    "lat": 9.4538,
+    "lon": -84.219,
+    "region": "Costa Rica"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b9b",
+    "name": "Tamarindo",
+    "lat": 10.29970304257365,
+    "lon": -85.84398,
+    "region": "Costa Rica"
+  },
+  {
+    "spot_id": "584204204e65fad6a7709140",
+    "name": "Camaronal",
+    "lat": 9.861,
+    "lon": -85.444,
+    "region": "Costa Rica"
+  },
+  {
+    "spot_id": "640a2d2e4eb37546ff8fa917",
+    "name": "Playa Manzanillo",
+    "lat": 9.6984,
+    "lon": -85.2118,
+    "region": "Costa Rica"
+  },
+  {
+    "spot_id": "5842041f4e65fad6a7708b9a",
+    "name": "Mal Pais",
+    "lat": 9.570222044864844,
+    "lon": -85.14184,
+    "region": "Costa Rica"
+  }
+]

@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """
-Surfline vs Shaka Swell Comparison Benchmark (Phase A)
+Surfline vs Shaka Swell Comparison Benchmark
 
-Fetches Surfline wave heights via Apify, computes Shaka's attenuated swell
-for the same coordinates, compares them, and produces a review report.
+Compares Shaka's attenuated swell model against Surfline forecasts
+for a curated roster of spots. Produces a detailed report with
+regional breakdowns and threshold checks.
+
+Usage:
+  python surfline_benchmark.py                                     # use defaults
+  python surfline_benchmark.py --roster data/benchmark_roster.json # explicit roster
 """
 
+import argparse
 import json
 import math
 import os
-import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,150 +30,66 @@ DATA_DIR.mkdir(exist_ok=True)
 SURFLINE_CACHE = DATA_DIR / "surfline_snapshot.json"
 OPENMETEO_CACHE = DATA_DIR / "openmeteo_snapshot.json"
 EXPOSURE_CACHE = DATA_DIR / "exposure_cache.json"
+ROSTER_FILE = DATA_DIR / "benchmark_roster.json"
 RESULTS_CSV = DATA_DIR / "benchmark_results.csv"
 SUMMARY_FILE = DATA_DIR / "benchmark_summary.txt"
 
 METERS_TO_FEET = 3.28084
-NUM_DIRECTIONS = 16
-DIRECTION_STEP_DEG = 360.0 / NUM_DIRECTIONS
-RING_DISTANCES_KM = [1.0, 2.0, 5.0]
-OPEN = -1.0
 
 # ---------------------------------------------------------------------------
-# Surfline data via Apify
+# Surfline data loading
 # ---------------------------------------------------------------------------
 
-LOCATION_QUERIES = [
-    ("Pipeline", "Hawaii", 5),
-    ("Sunset Beach", "Hawaii", 5),
-    ("Waikiki", "Hawaii", 5),
-    ("Hookipa", "Hawaii", 3),
-    ("Hanalei", "Hawaii", 3),
-    ("Huntington Beach", "California", 5),
-    ("Malibu", "California", 3),
-    ("Trestles", "California", 3),
-    ("Blacks Beach", "California", 3),
-    ("Rincon", "California", 3),
-    ("Ocean Beach San Francisco", "California", 3),
-    ("Santa Cruz", "California", 5),
-    ("Ventura", "California", 3),
-    ("San Clemente", "California", 3),
-    ("Oceanside", "California", 3),
-    ("Pacifica", "California", 3),
-    ("Mavericks", "California", 2),
-    ("Outer Banks", "East Coast", 5),
-    ("Cocoa Beach", "East Coast", 3),
-    ("Wrightsville Beach", "East Coast", 3),
-    ("Montauk", "East Coast", 3),
-    ("Asbury Park", "East Coast", 3),
-    ("Hossegor", "Europe", 3),
-    ("Nazare", "Europe", 3),
-    ("Peniche", "Europe", 3),
-    ("Snapper Rocks", "Australia", 3),
-    ("Bells Beach", "Australia", 3),
-    ("Uluwatu", "Indonesia", 3),
-    ("Puerto Escondido", "Mexico", 3),
-    ("Sayulita", "Mexico", 2),
-]
-
-
-def fetch_surfline_data(force=False):
-    """Fetch Surfline forecasts for ~100 spots via Apify locationSearch."""
-    if SURFLINE_CACHE.exists() and not force:
-        print(f"[Surfline] Using cached data from {SURFLINE_CACHE}")
-        with open(SURFLINE_CACHE) as f:
-            return json.load(f)
-
-    token = os.environ.get("APIFY_API_TOKEN")
-    if not token:
-        print("[Surfline] ERROR: APIFY_API_TOKEN not set in environment.")
-        print("  Run: export $(cat .env | xargs)  (from repo root)")
+def load_surfline_data():
+    """Load Surfline forecasts from the scraper snapshot."""
+    if not SURFLINE_CACHE.exists():
+        print("[Surfline] ERROR: No snapshot found. Run surfline_scraper.py first.")
         sys.exit(1)
-
-    from apify_client import ApifyClient
-    client = ApifyClient(token)
-
-    all_spots = []
-    seen_ids = set()
-
-    for query, region_tag, max_spots in LOCATION_QUERIES:
-        print(f"[Surfline] Searching '{query}' (max {max_spots})...")
-        try:
-            run = client.actor("fortuitous_pirate/surfline-forecast").call(
-                run_input={
-                    "locationSearch": query,
-                    "maxSpots": max_spots,
-                    "days": 1,
-                    "proxyConfiguration": {
-                        "useApifyProxy": True,
-                        "apifyProxyGroups": ["RESIDENTIAL"],
-                    },
-                },
-                timeout_secs=120,
-            )
-
-            for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-                spot_info = item.get("spot", {})
-                spot_id = spot_info.get("id", "")
-                if spot_id in seen_ids:
-                    continue
-                seen_ids.add(spot_id)
-                item["_region_tag"] = region_tag
-                all_spots.append(item)
-
-        except Exception as e:
-            print(f"  WARNING: Failed for '{query}': {e}")
-
-    snapshot = {
-        "fetched_at_utc": datetime.now(timezone.utc).isoformat(),
-        "total_spots": len(all_spots),
-        "spots": all_spots,
-    }
-
-    with open(SURFLINE_CACHE, "w") as f:
-        json.dump(snapshot, f)
-    print(f"[Surfline] Cached {len(all_spots)} spots to {SURFLINE_CACHE}")
-
-    return snapshot
+    print(f"[Surfline] Using cached data from {SURFLINE_CACHE}")
+    with open(SURFLINE_CACHE) as f:
+        return json.load(f)
 
 
-def select_benchmark_spots(surfline_data, seed=42, max_spots=500):
-    """Select a diverse subset of spots for benchmarking.
-
-    Supports both scraper format (flat: name, lat, lon, spot_id, region)
-    and legacy Apify format (nested: spot.{id, name, lat, lon}).
-    Picks the closest forecast entry to now for each spot.
-    """
+def build_benchmark_spots(surfline_data, roster_path=None):
+    """Match Surfline forecasts to roster spots, pick closest-to-now entry."""
     raw_spots = surfline_data.get("spots", [])
     if not raw_spots:
         print("[Select] ERROR: No spots in Surfline data")
         sys.exit(1)
 
-    print(f"[Select] Total Surfline spots available: {len(raw_spots)}")
+    # Build lookup by spot_id
+    by_id = {}
+    for s in raw_spots:
+        sid = s.get("spot_id", s.get("spot", {}).get("id", ""))
+        if sid:
+            by_id[sid] = s
+
+    # Load roster
+    rpath = Path(roster_path) if roster_path else ROSTER_FILE
+    if not rpath.is_absolute():
+        rpath = Path(__file__).parent / roster_path if roster_path else ROSTER_FILE
+    if not rpath.exists():
+        print(f"[Select] ERROR: Roster file not found: {rpath}")
+        sys.exit(1)
+
+    with open(rpath) as f:
+        roster = json.load(f)
+    print(f"[Select] Roster: {len(roster)} spots from {rpath.name}")
 
     now_utc = int(datetime.now(timezone.utc).timestamp())
     valid = []
+    missing = 0
 
-    for s in raw_spots:
-        if "spot" in s and isinstance(s["spot"], dict):
-            spot_info = s["spot"]
-            lat = spot_info.get("lat")
-            lon = spot_info.get("lon")
-            name = spot_info.get("name", "Unknown")
-            region = s.get("_region_tag", spot_info.get("subregion", "Unknown"))
-            spot_id = spot_info.get("id", "")
-        else:
-            lat = s.get("lat")
-            lon = s.get("lon")
-            name = s.get("name", "Unknown")
-            region = s.get("region", "Unknown")
-            spot_id = s.get("spot_id", "")
-
-        if lat is None or lon is None:
+    for r in roster:
+        sid = r["spot_id"]
+        s = by_id.get(sid)
+        if not s:
+            missing += 1
             continue
 
         forecast = s.get("forecast", [])
         if not forecast:
+            missing += 1
             continue
 
         best = None
@@ -182,39 +104,33 @@ def select_benchmark_spots(surfline_data, seed=42, max_spots=500):
                 best = entry
 
         if best is None:
+            missing += 1
             continue
 
         sl_min = best.get("wave_min_ft")
         sl_max = best.get("wave_max_ft")
         if sl_min is None or sl_max is None:
+            missing += 1
             continue
         sl_min, sl_max = float(sl_min), float(sl_max)
         if sl_min <= 0 and sl_max <= 0:
+            missing += 1
             continue
 
         valid.append({
-            "name": name,
-            "region": region,
-            "lat": float(lat),
-            "lon": float(lon),
+            "name": r["name"],
+            "region": r["region"],
+            "lat": float(r["lat"]),
+            "lon": float(r["lon"]),
             "surfline_min": sl_min,
             "surfline_max": sl_max,
             "surfline_mid": (sl_min + sl_max) / 2.0,
             "surfline_timestamp": best.get("timestamp", now_utc),
-            "surfline_swell_height": best.get("swell_height_ft", best.get("swell_height")),
-            "surfline_swell_period": best.get("swell_period_s", best.get("swell_period")),
-            "surfline_swell_direction": best.get("swell_direction_deg", best.get("swell_direction")),
-            "spot_id": spot_id,
+            "surfline_swell_height": best.get("swell_height_ft"),
+            "surfline_swell_period": best.get("swell_period_s"),
+            "surfline_swell_direction": best.get("swell_direction_deg"),
+            "spot_id": sid,
         })
-
-    print(f"[Select] Spots with valid wave data + coords: {len(valid)}")
-
-    rng = random.Random(seed)
-    rng.shuffle(valid)
-
-    if max_spots and len(valid) > max_spots:
-        valid = valid[:max_spots]
-        print(f"[Select] Capped to {max_spots} spots for benchmark")
 
     holdout_count = max(1, len(valid) * 30 // 100)
     for i, sp in enumerate(valid):
@@ -222,49 +138,38 @@ def select_benchmark_spots(surfline_data, seed=42, max_spots=500):
 
     train = sum(1 for s in valid if not s["is_holdout"])
     holdout = sum(1 for s in valid if s["is_holdout"])
-    print(f"[Select] Selected {len(valid)} spots: {train} train, {holdout} holdout")
+    print(f"[Select] Matched {len(valid)} spots ({missing} missing/invalid)")
+    print(f"[Select] Split: {train} train, {holdout} holdout")
 
     return valid
 
 
 # ---------------------------------------------------------------------------
-# Open-Meteo raw swell
+# Open-Meteo raw swell (parallel)
 # ---------------------------------------------------------------------------
 
-def fetch_openmeteo_swell(spots, force=False):
-    """Fetch raw swell data from Open-Meteo for each spot."""
-    if OPENMETEO_CACHE.exists() and not force:
-        print(f"[OpenMeteo] Using cached data from {OPENMETEO_CACHE}")
-        with open(OPENMETEO_CACHE) as f:
-            return json.load(f)
+def _fetch_one_openmeteo(sp):
+    """Fetch Open-Meteo data for a single spot. Returns (key, result_or_None)."""
+    key = f"{sp['lat']:.4f},{sp['lon']:.4f}"
+    params = {
+        "latitude": sp["lat"],
+        "longitude": sp["lon"],
+        "hourly": "wave_height,wave_period,wave_direction,"
+                  "swell_wave_height,swell_wave_period,swell_wave_direction",
+        "forecast_days": 1,
+        "timeformat": "unixtime",
+    }
 
-    results = {}
-    total = len(spots)
+    now_utc = int(datetime.now(timezone.utc).timestamp())
+    target_ts = sp.get("surfline_timestamp", now_utc) or now_utc
 
-    for i, sp in enumerate(spots):
-        key = f"{sp['lat']:.4f},{sp['lon']:.4f}"
-        if key in results:
-            continue
-
-        params = {
-            "latitude": sp["lat"],
-            "longitude": sp["lon"],
-            "hourly": "wave_height,wave_period,wave_direction,"
-                      "swell_wave_height,swell_wave_period,swell_wave_direction",
-            "forecast_days": 1,
-            "timeformat": "unixtime",
-        }
-
+    for attempt in range(2):
         try:
             r = requests.get("https://marine-api.open-meteo.com/v1/marine",
-                             params=params, timeout=15)
+                             params=params, timeout=5)
             r.raise_for_status()
             data = r.json()
             hourly = data.get("hourly", {})
-
-            now_utc = int(datetime.now(timezone.utc).timestamp())
-            sl_ts = sp.get("surfline_timestamp", now_utc)
-            target_ts = sl_ts if sl_ts else now_utc
 
             times = hourly.get("time", [])
             best_idx = 0
@@ -281,7 +186,7 @@ def fetch_openmeteo_swell(spots, force=False):
                     return v if v is not None else 0.0
                 return 0.0
 
-            results[key] = {
+            return key, {
                 "matched_timestamp": times[best_idx] if times else None,
                 "time_delta_sec": best_delta,
                 "wave_height_m": safe_get(hourly.get("wave_height"), best_idx),
@@ -291,114 +196,91 @@ def fetch_openmeteo_swell(spots, force=False):
                 "swell_period_s": safe_get(hourly.get("swell_wave_period"), best_idx),
                 "swell_direction_deg": safe_get(hourly.get("swell_wave_direction"), best_idx),
             }
-
         except Exception as e:
-            print(f"  WARNING: OpenMeteo failed for {sp['name']}: {e}")
-            results[key] = None
+            if attempt == 0:
+                time.sleep(1)
+            else:
+                return key, None, str(e)
 
-        if (i + 1) % 10 == 0 or i == total - 1:
-            print(f"[OpenMeteo] {i+1}/{total} spots fetched")
+    return key, None, "max retries"
 
-        time.sleep(0.2)
+
+def fetch_openmeteo_swell(spots):
+    """Fetch raw swell data from Open-Meteo for each spot using parallel workers."""
+    results = {}
+    total = len(spots)
+    ok = 0
+    fail = 0
+    errors = []
+
+    # Deduplicate by coordinate key
+    seen_keys = set()
+    unique_spots = []
+    for sp in spots:
+        key = f"{sp['lat']:.4f},{sp['lon']:.4f}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            unique_spots.append(sp)
+
+    print(f"[OpenMeteo] Fetching {len(unique_spots)} unique locations (10 workers, 5s timeout)...")
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_fetch_one_openmeteo, sp): sp for sp in unique_spots}
+        for future in as_completed(futures):
+            result = future.result()
+            key = result[0]
+            if len(result) == 2:
+                results[key] = result[1]
+                ok += 1
+            else:
+                results[key] = None
+                fail += 1
+                errors.append(f"{futures[future]['name']}: {result[2]}")
+
+            done = ok + fail
+            if done % 50 == 0 or done == len(unique_spots):
+                print(f"  [{done}/{len(unique_spots)}] ok={ok} fail={fail}")
+
+    if errors:
+        print(f"[OpenMeteo] {len(errors)} failures:")
+        for e in errors[:5]:
+            print(f"  WARNING: {e}")
+        if len(errors) > 5:
+            print(f"  ... and {len(errors) - 5} more")
 
     with open(OPENMETEO_CACHE, "w") as f:
         json.dump(results, f)
-    print(f"[OpenMeteo] Cached {len(results)} results to {OPENMETEO_CACHE}")
+    print(f"[OpenMeteo] Done: {ok} ok, {fail} failed")
 
     return results
 
 
 # ---------------------------------------------------------------------------
-# Exposure profiles (land/water checks)
+# Exposure profiles (pre-computed, cache only)
 # ---------------------------------------------------------------------------
 
-def offset_point(lat, lon, bearing_deg, distance_km):
-    """Compute lat/lon at a given bearing and distance from a point."""
-    R = 6371.0
-    lat_r = math.radians(lat)
-    lon_r = math.radians(lon)
-    b_r = math.radians(bearing_deg)
-    d = distance_km / R
+def load_exposure_profiles(spots):
+    """Load pre-computed exposure profiles from cache. No live API calls."""
+    if not EXPOSURE_CACHE.exists():
+        print("[Exposure] ERROR: No exposure cache found. Pre-compute locally first.")
+        sys.exit(1)
 
-    new_lat = math.asin(math.sin(lat_r) * math.cos(d) +
-                        math.cos(lat_r) * math.sin(d) * math.cos(b_r))
-    new_lon = lon_r + math.atan2(math.sin(b_r) * math.sin(d) * math.cos(lat_r),
-                                  math.cos(d) - math.sin(lat_r) * math.sin(new_lat))
-    return math.degrees(new_lat), math.degrees(new_lon)
+    with open(EXPOSURE_CACHE) as f:
+        cache = json.load(f)
 
-
-def is_water(lat, lon):
-    """Check if a point is water via the land/water API."""
-    url = f"https://is-on-water.balbona.me/api/v1/get/{lat:.6f}/{lon:.6f}"
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get("isWater", None)
-    except Exception:
-        pass
-    return None
-
-
-def compute_exposure(lat, lon):
-    """Compute 16-direction land distance profile for a spot."""
-    land_dist = [OPEN] * NUM_DIRECTIONS
-
-    for i in range(NUM_DIRECTIONS):
-        bearing = i * DIRECTION_STEP_DEG
-        for ring_km in RING_DISTANCES_KM:
-            s_lat, s_lon = offset_point(lat, lon, bearing, ring_km)
-            result = is_water(s_lat, s_lon)
-            if result is False:
-                land_dist[i] = ring_km
-                break
-
-    return land_dist
-
-
-def fetch_exposure_profiles(spots, force=False):
-    """Compute exposure profiles for all spots using parallel workers."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    cache = {}
-    if EXPOSURE_CACHE.exists() and not force:
-        with open(EXPOSURE_CACHE) as f:
-            cache = json.load(f)
-
-    to_compute = []
+    missing = []
     for sp in spots:
         key = f"{sp['lat']:.4f},{sp['lon']:.4f}"
         if key not in cache:
-            to_compute.append(sp)
+            missing.append(sp["name"])
 
-    if not to_compute:
-        print(f"[Exposure] All {len(cache)} profiles loaded from cache")
-        return cache
-
-    print(f"[Exposure] Need to compute {len(to_compute)} new profiles ({len(cache)} cached)")
-    computed = 0
-
-    def worker(sp):
-        return (
-            f"{sp['lat']:.4f},{sp['lon']:.4f}",
-            sp["name"],
-            compute_exposure(sp["lat"], sp["lon"]),
-        )
-
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(worker, sp): sp for sp in to_compute}
-        for future in as_completed(futures):
-            key, name, profile = future.result()
-            cache[key] = profile
-            computed += 1
-            if computed % 20 == 0 or computed == len(to_compute):
-                print(f"[Exposure] {computed}/{len(to_compute)} computed")
-                with open(EXPOSURE_CACHE, "w") as f:
-                    json.dump(cache, f)
-
-    with open(EXPOSURE_CACHE, "w") as f:
-        json.dump(cache, f)
-    print(f"[Exposure] Done: {computed} new + {len(cache)-computed} cached = {len(cache)} total")
+    if missing:
+        print(f"[Exposure] WARNING: {len(missing)} spots missing from cache")
+        if len(missing) <= 10:
+            for name in missing:
+                print(f"  - {name}")
+    else:
+        print(f"[Exposure] All {len(spots)} spots found in cache ({len(cache)} total profiles)")
 
     return cache
 
@@ -541,6 +423,34 @@ def write_csv(results):
     print(f"[Output] Results CSV: {RESULTS_CSV}")
 
 
+def _print_metrics(out, subset, label):
+    """Print standard metrics for a subset of results."""
+    if not subset:
+        return
+    out(f"\n--- {label} ({len(subset)} spots) ---")
+
+    range_errors = [r["error_vs_range"] for r in subset]
+    abs_range_errors = [r["abs_error_range"] for r in subset]
+
+    mae = np.mean(abs_range_errors)
+    rmse = np.sqrt(np.mean([e**2 for e in range_errors]))
+    bias = np.mean(range_errors)
+    mean_obs = np.mean([r["surfline_mid"] for r in subset])
+    scatter_idx = rmse / mean_obs if mean_obs > 0 else float("inf")
+
+    in_range = sum(1 for e in range_errors if e == 0)
+    in_range_pct = in_range / len(subset) * 100
+
+    out(f"  MAE (vs range):     {mae:.2f} ft")
+    out(f"  RMSE (vs range):    {rmse:.2f} ft")
+    out(f"  Bias:               {bias:+.2f} ft {'(over-predicts)' if bias > 0 else '(under-predicts)'}")
+    out(f"  Scatter Index:      {scatter_idx:.3f}")
+    out(f"  Within SL range:    {in_range}/{len(subset)} ({in_range_pct:.0f}%)")
+    out(f"  Mean Surfline mid:  {mean_obs:.1f} ft")
+    out(f"  Mean Shaka:         {np.mean([r['shaka_corrected_ft'] for r in subset]):.1f} ft")
+    out(f"  Mean OpenMeteo raw: {np.mean([r['openmeteo_raw_ft'] for r in subset]):.1f} ft")
+
+
 def print_summary(results):
     """Print and save analysis summary."""
     lines = []
@@ -549,7 +459,7 @@ def print_summary(results):
         print(s)
 
     out("=" * 70)
-    out("SURFLINE vs SHAKA SWELL BENCHMARK -- PHASE A REPORT")
+    out("SURFLINE vs SHAKA SWELL BENCHMARK")
     out(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     out("=" * 70)
 
@@ -560,32 +470,22 @@ def print_summary(results):
     out(f"  Training set: {len(train)}")
     out(f"  Holdout set:  {len(holdout)}")
 
-    for label, subset in [("ALL SPOTS", results), ("TRAINING SET", train), ("HOLDOUT SET", holdout)]:
-        if not subset:
+    _print_metrics(out, results, "ALL SPOTS")
+    _print_metrics(out, train, "TRAINING SET")
+    _print_metrics(out, holdout, "HOLDOUT SET")
+
+    # Breakdown by region
+    out("\n--- ERROR BY REGION ---")
+    regions = sorted(set(r["region"] for r in results))
+    for region in regions:
+        sub = [r for r in results if r["region"] == region]
+        if not sub:
             continue
-        out(f"\n--- {label} ({len(subset)} spots) ---")
-
-        range_errors = [r["error_vs_range"] for r in subset]
-        abs_range_errors = [r["abs_error_range"] for r in subset]
-        mid_errors = [r["error_vs_mid"] for r in subset]
-
-        mae = np.mean(abs_range_errors)
-        rmse = np.sqrt(np.mean([e**2 for e in range_errors]))
-        bias = np.mean(range_errors)
-        mean_obs = np.mean([r["surfline_mid"] for r in subset])
-        scatter_idx = rmse / mean_obs if mean_obs > 0 else float("inf")
-
-        in_range = sum(1 for e in range_errors if e == 0)
-        in_range_pct = in_range / len(subset) * 100
-
-        out(f"  MAE (vs range):     {mae:.2f} ft")
-        out(f"  RMSE (vs range):    {rmse:.2f} ft")
-        out(f"  Bias:               {bias:+.2f} ft {'(over-predicts)' if bias > 0 else '(under-predicts)'}")
-        out(f"  Scatter Index:      {scatter_idx:.3f}")
-        out(f"  Within SL range:    {in_range}/{len(subset)} ({in_range_pct:.0f}%)")
-        out(f"  Mean Surfline mid:  {mean_obs:.1f} ft")
-        out(f"  Mean Shaka:         {np.mean([r['shaka_corrected_ft'] for r in subset]):.1f} ft")
-        out(f"  Mean OpenMeteo raw: {np.mean([r['openmeteo_raw_ft'] for r in subset]):.1f} ft")
+        mae = np.mean([r["abs_error_range"] for r in sub])
+        bias = np.mean([r["error_vs_range"] for r in sub])
+        in_range = sum(1 for r in sub if r["error_vs_range"] == 0)
+        pct = in_range / len(sub) * 100
+        out(f"  {region:<20s}: n={len(sub):3d}  MAE={mae:.2f}ft  Bias={bias:+.2f}ft  InRange={pct:.0f}%")
 
     # Breakdown by exposure type
     out("\n--- ERROR BY EXPOSURE TYPE ---")
@@ -625,24 +525,23 @@ def print_summary(results):
     # Worst discrepancies
     out("\n--- TOP 15 WORST DISCREPANCIES ---")
     sorted_by_err = sorted(results, key=lambda r: abs(r["error_vs_range"]), reverse=True)
-    out(f"  {'Spot':<30s} {'SL Range':>10s} {'Shaka':>7s} {'Raw':>7s} {'Err':>7s} {'Factor':>7s} {'Type'}")
-    out(f"  {'-'*30} {'-'*10} {'-'*7} {'-'*7} {'-'*7} {'-'*7} {'-'*15}")
+    out(f"  {'Spot':<30s} {'Region':<15s} {'SL Range':>10s} {'Shaka':>7s} {'Raw':>7s} {'Err':>7s} {'Factor':>7s} {'Type'}")
+    out(f"  {'-'*30} {'-'*15} {'-'*10} {'-'*7} {'-'*7} {'-'*7} {'-'*7} {'-'*15}")
     for r in sorted_by_err[:15]:
         sl = f"{r['surfline_min']:.0f}-{r['surfline_max']:.0f}ft"
-        out(f"  {r['name']:<30s} {sl:>10s} {r['shaka_corrected_ft']:>6.1f}f {r['openmeteo_raw_ft']:>6.1f}f {r['error_vs_range']:>+6.1f}f {r['attenuation_factor']:>6.2f} {r['exposure_type']}")
+        out(f"  {r['name']:<30s} {r['region']:<15s} {sl:>10s} {r['shaka_corrected_ft']:>6.1f}f {r['openmeteo_raw_ft']:>6.1f}f {r['error_vs_range']:>+6.1f}f {r['attenuation_factor']:>6.2f} {r['exposure_type']}")
 
     # Best matches
     out("\n--- TOP 10 BEST MATCHES (within Surfline range) ---")
     in_range_spots = [r for r in results if r["error_vs_range"] == 0]
     in_range_spots.sort(key=lambda r: r["surfline_mid"], reverse=True)
-    out(f"  {'Spot':<30s} {'SL Range':>10s} {'Shaka':>7s} {'Factor':>7s} {'Type'}")
+    out(f"  {'Spot':<30s} {'Region':<15s} {'SL Range':>10s} {'Shaka':>7s} {'Factor':>7s} {'Type'}")
     for r in in_range_spots[:10]:
         sl = f"{r['surfline_min']:.0f}-{r['surfline_max']:.0f}ft"
-        out(f"  {r['name']:<30s} {sl:>10s} {r['shaka_corrected_ft']:>6.1f}f {r['attenuation_factor']:>6.2f} {r['exposure_type']}")
+        out(f"  {r['name']:<30s} {r['region']:<15s} {sl:>10s} {r['shaka_corrected_ft']:>6.1f}f {r['attenuation_factor']:>6.2f} {r['exposure_type']}")
 
     out("\n" + "=" * 70)
-    out("END OF PHASE A REPORT")
-    out("Review these results before proceeding to Phase B (model tuning).")
+    out("END OF BENCHMARK REPORT")
     out("=" * 70)
 
     with open(SUMMARY_FILE, "w") as f:
@@ -697,33 +596,28 @@ def check_thresholds(results):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Surfline vs Shaka benchmark")
+    parser.add_argument("--roster", type=str, default=None,
+                        help="Path to benchmark roster JSON")
+    args = parser.parse_args()
+
     print("\n" + "=" * 60)
     print("SURFLINE vs SHAKA SWELL BENCHMARK")
     print("=" * 60)
 
-    # Step 1: Load Surfline data (from scraper or Apify cache)
-    surfline = fetch_surfline_data()
-
-    # Step 2: Select benchmark spots (200 diverse spots)
-    spots = select_benchmark_spots(surfline, max_spots=200)
-
-    # Step 3: Fetch Open-Meteo raw swell
+    surfline = load_surfline_data()
+    spots = build_benchmark_spots(surfline, roster_path=args.roster)
     openmeteo = fetch_openmeteo_swell(spots)
+    exposure = load_exposure_profiles(spots)
 
-    # Step 4: Compute exposure profiles
-    exposure = fetch_exposure_profiles(spots)
-
-    # Step 5: Run comparison
     print("\n[Compare] Running comparison...")
     results = run_comparison(spots, openmeteo, exposure)
     print(f"[Compare] {len(results)} spots compared successfully")
 
-    # Step 6: Output
     write_csv(results)
     print()
     print_summary(results)
 
-    # Step 7: Threshold check (exit 1 if regression detected)
     passed, _ = check_thresholds(results)
     if not passed:
         sys.exit(1)

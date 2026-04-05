@@ -8,6 +8,7 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +23,7 @@ jobs:
           python -m playwright install chromium
 
       - name: Scrape fresh Surfline data
-        run: python scripts/surfline_scraper.py
+        run: python scripts/surfline_scraper.py --roster data/benchmark_roster.json
 
       - name: Run benchmark
         run: python scripts/surfline_benchmark.py

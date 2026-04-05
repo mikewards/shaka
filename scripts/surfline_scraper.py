@@ -5,8 +5,13 @@ Surfline Spot Scraper via Playwright
 Uses a headless browser to bypass Cloudflare and access Surfline's
 undocumented API. Collects spot IDs + lat/lon from the taxonomy,
 then fetches wave forecasts for each spot.
+
+Usage:
+  python surfline_scraper.py                          # scrape all 4755 spots
+  python surfline_scraper.py --roster data/benchmark_roster.json  # scrape only roster spots
 """
 
+import argparse
 import asyncio
 import json
 import sys
@@ -144,6 +149,11 @@ async def fetch_wave_forecasts(page, spots, batch_size=50):
 
 
 async def main():
+    parser = argparse.ArgumentParser(description="Surfline spot scraper")
+    parser.add_argument("--roster", type=str, default=None,
+                        help="Path to benchmark roster JSON (only scrape these spots)")
+    args = parser.parse_args()
+
     print("\n" + "=" * 60)
     print("SURFLINE SCRAPER (Playwright)")
     print("=" * 60)
@@ -165,6 +175,17 @@ async def main():
             with open(SPOT_CATALOG_FILE, "w") as f:
                 json.dump(spots, f)
             print(f"  Saved {len(spots)} spots to {SPOT_CATALOG_FILE}")
+
+        # Filter to roster if provided
+        if args.roster:
+            roster_path = Path(args.roster)
+            if not roster_path.is_absolute():
+                roster_path = Path(__file__).parent / args.roster
+            with open(roster_path) as f:
+                roster = json.load(f)
+            roster_ids = {r["spot_id"] for r in roster}
+            spots = [s for s in spots if s["spot_id"] in roster_ids]
+            print(f"  Filtered to {len(spots)} roster spots (from {len(roster_ids)} in roster)")
 
         # Phase 2: Fetch wave forecasts
         print(f"\n[Phase 2] Fetching wave forecasts for {len(spots)} spots...")
