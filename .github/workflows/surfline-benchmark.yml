@@ -27,6 +27,61 @@ jobs:
       - name: Run benchmark
         run: python scripts/surfline_benchmark.py
 
+      - name: Report to Better Stack
+        if: always()
+        env:
+          BETTERSTACK_SOURCE_URL: ${{ secrets.BETTERSTACK_SOURCE_URL }}
+          BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
+        run: |
+          python -c "
+          import json, os, re, urllib.request, datetime
+
+          url = os.environ.get('BETTERSTACK_SOURCE_URL', '')
+          token = os.environ.get('BETTERSTACK_SOURCE_TOKEN', '')
+          if not url or not token:
+              print('Better Stack secrets not configured, skipping')
+              exit(0)
+
+          summary = open('scripts/data/benchmark_summary.txt').read()
+
+          def extract(pattern, text, default='0'):
+              m = re.search(pattern, text)
+              return m.group(1) if m else default
+
+          section = summary.split('ALL SPOTS')[1].split('---')[0] if 'ALL SPOTS' in summary else summary
+          mae = extract(r'MAE.*?:\s+([\d.]+)', section)
+          rmse = extract(r'RMSE.*?:\s+([\d.]+)', section)
+          bias = extract(r'Bias:\s+([+\-\d.]+)', section)
+          in_range = extract(r'Within SL range:.*?(\d+)%', section)
+          n_spots = extract(r'(\d+) spots\)', section)
+
+          status = 'PASS' if 'PASSED' in summary else 'FAIL'
+          violations = ''
+          if 'FAILED' in summary:
+              v = re.findall(r'  - (.+)', summary.split('THRESHOLD CHECK')[1]) if 'THRESHOLD CHECK' in summary else []
+              violations = '; '.join(v)
+
+          event = {
+              'dt': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'message': f'surfline_benchmark: {status} (MAE={mae}ft, in-range={in_range}%)',
+              'job': 'surfline_benchmark',
+              'status': status,
+              'mae_ft': float(mae),
+              'rmse_ft': float(rmse),
+              'bias_ft': float(bias),
+              'in_range_pct': float(in_range),
+              'spots_compared': int(n_spots),
+              'violations': violations,
+          }
+
+          body = json.dumps(event).encode()
+          req = urllib.request.Request(url, data=body, method='POST')
+          req.add_header('Content-Type', 'application/json')
+          req.add_header('Authorization', f'Bearer {token}')
+          resp = urllib.request.urlopen(req, timeout=10)
+          print(f'Sent to Better Stack: {resp.status} — {status}')
+          "
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
