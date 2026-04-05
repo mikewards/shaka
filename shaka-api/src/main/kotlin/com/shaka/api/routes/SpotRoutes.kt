@@ -117,6 +117,32 @@ fun Application.configureRouting() {
                 )
             }
 
+            get("/health/jobs") {
+                val runs = com.shaka.monitoring.MonitoringService.getAllLatestRuns()
+                val json = runs.entries.sortedBy { it.key }.joinToString(",") { (name, r) ->
+                    "\"$name\":{\"status\":\"${r.status}\",\"total\":${r.total},\"succeeded\":${r.succeeded},\"failed\":${r.failed},\"successRate\":${String.format("%.4f", r.successRate)},\"durationMs\":${r.durationMs},\"lastRun\":\"${r.finishedAt}\"}"
+                }
+                call.respondText("{$json}", io.ktor.http.ContentType.Application.Json)
+            }
+
+            get("/health/jobs/{name}") {
+                val name = call.parameters["name"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "name required"))
+                val r = com.shaka.monitoring.MonitoringService.getLatestRun(name)
+                if (r == null) {
+                    call.respondText(
+                        """{"status":"unknown","job":"$name"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.NotFound
+                    )
+                } else {
+                    call.respondText(
+                        """{"status":"${r.status}","total":${r.total},"succeeded":${r.succeeded},"failed":${r.failed},"successRate":${String.format("%.4f", r.successRate)},"durationMs":${r.durationMs},"lastRun":"${r.finishedAt}"}""",
+                        io.ktor.http.ContentType.Application.Json
+                    )
+                }
+            }
+
             // Detailed health with external service checks
             // Used by Flutter app to auto-degrade features
             get("/health/detailed") {

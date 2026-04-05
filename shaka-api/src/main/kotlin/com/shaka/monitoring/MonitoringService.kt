@@ -12,6 +12,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 data class ItemFailure(
     val itemId: String,
@@ -37,6 +38,11 @@ data class JobRunResult(
 object MonitoringService {
     private val logger = LoggerFactory.getLogger(MonitoringService::class.java)
     private const val THRESHOLD = 0.99
+
+    private val latestRuns = ConcurrentHashMap<String, JobRunResult>()
+
+    fun getLatestRun(jobName: String): JobRunResult? = latestRuns[jobName]
+    fun getAllLatestRuns(): Map<String, JobRunResult> = latestRuns.toMap()
 
     private val betterStackUrl: String? = System.getenv("BETTERSTACK_SOURCE_URL")
     private val betterStackToken: String? = System.getenv("BETTERSTACK_SOURCE_TOKEN")
@@ -102,6 +108,8 @@ object MonitoringService {
         )
         MDC.remove("job")
 
+        latestRuns[jobName] = result
+
         if (result.successRate < THRESHOLD) {
             reportBreach(result)
         }
@@ -164,6 +172,8 @@ object MonitoringService {
             String.format("%.4f", result.successRate), result.durationMs, result.status
         )
         MDC.remove("job")
+
+        latestRuns[jobName] = result
 
         if (result.successRate < THRESHOLD) {
             reportBreach(result)
