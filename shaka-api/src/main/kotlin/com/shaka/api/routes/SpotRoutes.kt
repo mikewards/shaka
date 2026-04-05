@@ -89,9 +89,23 @@ fun Application.configureRouting() {
                     freshJson("solunar") { it.solunar }
                 )
 
-                val stale = types.filter { (_, json) ->
-                    val match = Regex(""""oldestMinAgo":(\d+)""").find(json)
-                    match != null && match.groupValues[1].toLong() > 720
+                val staleThresholds = mapOf(
+                    "tide" to 180L,
+                    "swell" to 480L,
+                    "wind" to 480L,
+                    "sst" to 1500L,
+                    "visibility" to 1500L,
+                    "chlorophyll" to 1500L,
+                    "gibs_satellite" to 1500L,
+                    "mpa" to 64800L,
+                    "vessel" to 1800L,
+                    "solunar" to 1800L
+                )
+
+                val stale = types.filter { (name, json) ->
+                    val threshold = staleThresholds[name] ?: 720L
+                    val match = Regex(""""medianMinAgo":(\d+)""").find(json)
+                    match != null && match.groupValues[1].toLong() > threshold
                 }.map { "\"${it.first}\"" }
 
                 val status = if (stale.isEmpty()) "ok" else "stale"
