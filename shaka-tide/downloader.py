@@ -12,6 +12,7 @@ import ftplib
 import logging
 import lzma
 import pathlib
+import time
 
 logger = logging.getLogger("downloader")
 
@@ -20,6 +21,13 @@ CHUNK_SIZE = 1 << 20  # 1 MiB read chunks
 AVISO_HOST = "ftp-access.aviso.altimetry.fr"
 REMOTE_DIR = "/auxiliary/tide_model/fes2022b/ocean_tide_extrapolated"
 EXPECTED_FILE_COUNT = 34
+
+# AVISO FTP is flaky: the March 2026 local download needed 20 attempts
+# over ~5 hours. Retry at the whole-run level; file-level resume makes
+# each retry cheap (completed files are skipped).
+MAX_ATTEMPTS = 40
+BACKOFF_BASE_S = 15
+BACKOFF_MAX_S = 300
 
 
 class StreamingXzWriter:
@@ -91,8 +99,8 @@ def _fetch_one(ftp: ftplib.FTP, remote_name: str, dest_dir: pathlib.Path) -> Non
     )
 
 
-def download_all(data_dir: str, user: str, password: str) -> None:
-    """Download every FES2022 extrapolated constituent, skipping complete files."""
+def _download_pass(data_dir: str, user: str, password: str) -> None:
+    """One full pass over the remote file list; skips complete files."""
     dest_dir = pathlib.Path(data_dir) / "fes2022b" / "ocean_tide_extrapolated"
     dest_dir.mkdir(parents=True, exist_ok=True)
     # Clean up partials from a previous crashed run
@@ -110,3 +118,25 @@ def download_all(data_dir: str, user: str, password: str) -> None:
             ftp.quit()
         except Exception:
             ftp.close()
+
+
+def download_all(data_dir: str, user: str, password: str) -> None:
+    """Download every FES2022 constituent, retrying the run until complete.
+
+    File-level resume means each attempt only re-fetches what is missing,
+    so transient FTP drops cost one file at most.
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            _download_pass(data_dir, user, password)
+            return
+        except Exception as e:  # ftplib raises a wide variety here
+            last_error = e
+            backoff = min(BACKOFF_BASE_S * attempt, BACKOFF_MAX_S)
+            logger.warning(
+                "Download attempt %d/%d failed (%s); retrying in %ds",
+                attempt, MAX_ATTEMPTS, e, backoff,
+            )
+            time.sleep(backoff)
+    raise RuntimeError(f"FES2022 download failed after {MAX_ATTEMPTS} attempts") from last_error
