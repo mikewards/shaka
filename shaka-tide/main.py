@@ -53,7 +53,15 @@ app = FastAPI(title="Shaka Tide Service", version="1.0.0", lifespan=lifespan)
 @app.get("/health")
 async def health():
     if not _ready.is_set():
-        return {"status": "loading", "detail": "Downloading FES2022 data..."}
+        from downloader import progress
+        return {
+            "status": "loading",
+            "detail": "Downloading FES2022 data...",
+            "files_done": progress["files_done"],
+            "files_total": progress["files_total"],
+            "current_file": progress["current_file"],
+            "attempt": progress["attempt"],
+        }
     return {"status": "ok", "model": "FES2022"}
 
 

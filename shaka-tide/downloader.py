@@ -29,6 +29,9 @@ MAX_ATTEMPTS = 40
 BACKOFF_BASE_S = 15
 BACKOFF_MAX_S = 300
 
+# Live progress for the /health endpoint (read-only elsewhere)
+progress: dict = {"files_done": 0, "files_total": None, "current_file": None, "attempt": 0}
+
 
 class StreamingXzWriter:
     """Incrementally decompress .xz bytes to a file without buffering.
@@ -111,8 +114,18 @@ def _download_pass(data_dir: str, user: str, password: str) -> None:
     try:
         remote_files = _list_remote_files(ftp)
         logger.info("AVISO lists %d constituent files", len(remote_files))
+        progress["files_total"] = len(remote_files)
+        progress["files_done"] = sum(
+            1 for n in remote_files
+            if (dest_dir / n.removesuffix(".xz")).exists()
+        )
         for name in remote_files:
+            progress["current_file"] = name
             _fetch_one(ftp, name, dest_dir)
+            progress["files_done"] = sum(
+                1 for n in remote_files
+                if (dest_dir / n.removesuffix(".xz")).exists()
+            )
     finally:
         try:
             ftp.quit()
@@ -128,6 +141,7 @@ def download_all(data_dir: str, user: str, password: str) -> None:
     """
     last_error: Exception | None = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        progress["attempt"] = attempt
         try:
             _download_pass(data_dir, user, password)
             return
