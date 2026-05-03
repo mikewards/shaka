@@ -25,23 +25,20 @@ def fes_data_ready(data_dir: str) -> bool:
 
 
 def download_fes2022(data_dir: str, user: str, password: str) -> None:
-    """Download FES2022 ocean_tide + ocean_tide_extrapolated from AVISO FTP via pyTMD."""
-    import pyTMD.datasets
+    """Download FES2022 ocean_tide_extrapolated from AVISO FTP.
 
-    logger.info("Starting FES2022 download to %s (this may take 15-30 minutes)...", data_dir)
+    Uses the streaming downloader (constant memory) instead of
+    pyTMD.datasets.fetch_aviso_fes, which decompresses ~1GB .xz files
+    in memory and OOMs the Railway container.
+    """
+    import downloader
+
+    logger.info("Starting FES2022 streaming download to %s ...", data_dir)
     os.makedirs(data_dir, exist_ok=True)
 
     start = time.time()
     try:
-        pyTMD.datasets.fetch_aviso_fes(
-            "FES2022",
-            directory=data_dir,
-            user=user,
-            password=password,
-            extrapolated=True,
-            compressed=False,
-            timeout=360,
-        )
+        downloader.download_all(data_dir, user, password)
         elapsed = time.time() - start
         logger.info("FES2022 download complete in %.0f seconds", elapsed)
     except Exception:
