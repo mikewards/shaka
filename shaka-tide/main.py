@@ -25,15 +25,30 @@ logger = logging.getLogger("main")
 _ready = threading.Event()
 
 
+def _rss_mb() -> float:
+    """Current process RSS in MB (Linux; returns 0 elsewhere)."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024
+    except OSError:
+        pass
+    return 0.0
+
+
 def _init():
     try:
+        logger.info("RSS at boot: %.0f MB", _rss_mb())
         ensure_fes_data(FES_DATA_DIR, AVISO_USER, AVISO_PASS)
+        logger.info("RSS after download: %.0f MB", _rss_mb())
         load_model(FES_DATA_DIR)
+        logger.info("RSS after model load: %.0f MB", _rss_mb())
         logger.info("Warming up prediction pipeline...")
         import datetime
         today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
         predict_chart(0.0, -160.0, today, days=1, step_minutes=30)
-        logger.info("Warm-up complete")
+        logger.info("Warm-up complete; RSS %.0f MB", _rss_mb())
         _ready.set()
         logger.info("Tide service ready")
     except Exception:
