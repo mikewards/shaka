@@ -79,6 +79,20 @@ def _list_remote_files(ftp: ftplib.FTP) -> list[str]:
     return sorted(n.rsplit("/", 1)[-1] for n in names if n.endswith(".nc.xz"))
 
 
+def _is_valid_netcdf(path: pathlib.Path) -> bool:
+    """Cheap integrity check: a truncated download won't open as NetCDF.
+
+    Needed because the volume may hold files written by the old pyTMD
+    downloader, which an OOM kill could have truncated mid-write.
+    """
+    try:
+        import netCDF4
+        with netCDF4.Dataset(path, "r"):
+            return True
+    except Exception:
+        return False
+
+
 def _fetch_one(ftp: ftplib.FTP, remote_name: str, dest_dir: pathlib.Path) -> None:
     """Stream one .nc.xz file from FTP, decompressing to <name>.nc on disk.
 
@@ -87,8 +101,11 @@ def _fetch_one(ftp: ftplib.FTP, remote_name: str, dest_dir: pathlib.Path) -> Non
     """
     final_path = dest_dir / remote_name.removesuffix(".xz")
     if final_path.exists() and final_path.stat().st_size > 0:
-        logger.info("Skipping %s (already present)", final_path.name)
-        return
+        if _is_valid_netcdf(final_path):
+            logger.info("Skipping %s (already present)", final_path.name)
+            return
+        logger.warning("Removing corrupt %s and re-downloading", final_path.name)
+        final_path.unlink()
 
     tmp_path = final_path.with_suffix(final_path.suffix + ".part")
     with StreamingXzWriter(tmp_path) as writer:
