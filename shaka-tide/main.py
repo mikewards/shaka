@@ -19,6 +19,7 @@ from tide_engine import load_model, predict_chart, predict_summary
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,  # uvicorn's log config otherwise swallows init-thread logs
 )
 logger = logging.getLogger("main")
 
@@ -112,4 +113,4 @@ async def tide_summary(
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_config=None)
