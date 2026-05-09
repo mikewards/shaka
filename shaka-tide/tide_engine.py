@@ -56,7 +56,10 @@ def load_model(data_dir: str = FES_DATA_DIR) -> None:
     m = pyTMD.io.model(data_dir).from_database(MODEL_NAME)
     n_files = len(m.z.model_file) if isinstance(m.z.model_file, list) else 1
     logger.info("Opening dataset (%d constituent files)...", n_files)
-    _dataset = m.open_dataset(group="z", chunks={})
+    # chunks="auto" caps dask chunks at ~128MB tiles. chunks={} made one
+    # chunk per file, so any prediction pulled entire ~1.5GB constituent
+    # arrays into memory at once -- the OOM behind the Apr/Jun crash loops.
+    _dataset = m.open_dataset(group="z", chunks="auto")
     _corrections = m.corrections
     _minor = m.minor
     logger.info("FES2022 dataset opened and ready")
