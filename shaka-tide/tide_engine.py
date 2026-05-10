@@ -89,6 +89,17 @@ def _get_mllw_offset_ft(lat: float, lon: float) -> float:
     return val * METERS_TO_FEET
 
 
+def _log_rss(stage: str) -> None:
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    logger.info("RSS %s: %.0f MB", stage, int(line.split()[1]) / 1024)
+                    return
+    except OSError:
+        pass
+
+
 def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
     """
     Predict tide heights (meters, MSL) for an array of datetime64 times.
@@ -100,7 +111,9 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
 
     xmin, xmax = float(np.min(X)), float(np.max(X))
     ymin, ymax = float(np.min(Y)), float(np.max(Y))
+    _log_rss("before crop")
     ds_crop = _dataset.tmd.crop([xmin, xmax, ymin, ymax], buffer=0.5)
+    _log_rss("after crop")
 
     ts = timescale.time.Timescale.from_datetime(times)
     if _corrections in ("OTIS", "ATLAS", "TMD3", "netcdf"):
@@ -109,10 +122,13 @@ def _predict_heights(lat: float, lon: float, times: np.ndarray) -> np.ndarray:
         deltat = ts.tt_ut1
 
     local = ds_crop.tmd.interp(X, Y, method="linear", extrapolate=True, cutoff=10.0)
+    _log_rss("after interp")
     tpred = local.tmd.predict(ts.tide, deltat=deltat, corrections=_corrections)
+    _log_rss("after predict")
     tinfer = local.tmd.infer(
         ts.tide, deltat=deltat, corrections=_corrections, minor=_minor,
     )
+    _log_rss("after infer")
     tpred += tinfer
     return np.asarray(tpred).flatten()
 
