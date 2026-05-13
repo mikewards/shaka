@@ -1,6 +1,9 @@
 fastapi>=0.110.0,<1
 uvicorn>=0.29.0,<1
-pyTMD>=3.0.0,<4
+# Pinned exactly: 3.0.4+ introduced a crop-path memory blowup that OOMs
+# the container during warm-up (Apr 2026 crash loop). 3.0.3 = the last
+# version the working March image was built with.
+pyTMD==3.0.3
 numpy>=1.26.0,<3
 scipy>=1.12.0,<2
 timezonefinder>=6.4.0,<8
