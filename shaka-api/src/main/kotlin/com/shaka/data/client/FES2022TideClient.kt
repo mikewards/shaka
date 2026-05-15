@@ -6,6 +6,8 @@ import com.shaka.model.TideExtreme
 import com.shaka.model.TidePoint
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import java.time.LocalDate
@@ -28,6 +30,15 @@ class FES2022TideClient : TideClient {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val baseUrl = System.getenv("TIDE_SERVICE_URL") ?: "http://localhost:8000"
+
+    companion object {
+        // Hard cap on in-flight requests to the tide service. Prefetch jobs
+        // run 10-way concurrent batches; uncapped, concurrent FES predictions
+        // ballooned the Python service's memory until Railway OOM-killed it
+        // (the April 2026 crash loop). Predictions are ~2s each, so 2 permits
+        // keep throughput fine while bounding the service's working set.
+        private val requestPermits = Semaphore(2)
+    }
 
     // Simple circuit breaker: trip after 5 consecutive failures, reset after 60s
     private val consecutiveFailures = AtomicInteger(0)
@@ -62,10 +73,12 @@ class FES2022TideClient : TideClient {
         }
 
         return try {
-            val response: String = client.get("$baseUrl/tide/summary") {
-                parameter("lat", lat)
-                parameter("lon", lon)
-            }.bodyAsText()
+            val response: String = requestPermits.withPermit {
+                client.get("$baseUrl/tide/summary") {
+                    parameter("lat", lat)
+                    parameter("lon", lon)
+                }.bodyAsText()
+            }
 
             val obj = json.parseToJsonElement(response).jsonObject
             recordSuccess()
@@ -96,13 +109,15 @@ class FES2022TideClient : TideClient {
         }
 
         return try {
-            val response: String = client.get("$baseUrl/tide/chart") {
-                parameter("lat", lat)
-                parameter("lon", lon)
-                parameter("date", date)
-                parameter("days", 1)
-                parameter("step_minutes", 30)
-            }.bodyAsText()
+            val response: String = requestPermits.withPermit {
+                client.get("$baseUrl/tide/chart") {
+                    parameter("lat", lat)
+                    parameter("lon", lon)
+                    parameter("date", date)
+                    parameter("days", 1)
+                    parameter("step_minutes", 30)
+                }.bodyAsText()
+            }
 
             val obj = json.parseToJsonElement(response).jsonObject
             recordSuccess()
