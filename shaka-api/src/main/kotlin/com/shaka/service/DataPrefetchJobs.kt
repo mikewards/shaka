@@ -61,6 +61,63 @@ class DataPrefetchJobs(
         return Instant.now().atZone(ZoneOffset.ofHours(offsetHours)).toLocalDate()
     }
 
+    /**
+     * Derive the current tide summary from a materialized spot_tide_days
+     * chart. Tide curves are deterministic, so the hourly refresh is pure
+     * interpolation over stored points -- no call to the tide service.
+     */
+    private fun deriveTideFromChart(spotId: String, lon: Double): TideData? {
+        return try {
+            val today = spotLocalDate(lon).toString()
+            val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val points: List<TidePoint> = row.pointsJson?.let { json.decodeFromString(it) } ?: return null
+            if (points.size < 2) return null
+            val extremes: List<TideExtreme> = row.extremesJson?.let { json.decodeFromString(it) } ?: emptyList()
+
+            val nowMs = System.currentTimeMillis()
+            var before: TidePoint? = null
+            var after: TidePoint? = null
+            for (p in points) {
+                if (p.epochMs <= nowMs) before = p
+                if (p.epochMs > nowMs && after == null) after = p
+            }
+            // Chart day is over (or hasn't started); let the fallback refetch
+            if (before == null || after == null) return null
+
+            val fraction = (nowMs - before.epochMs).toDouble() / (after.epochMs - before.epochMs)
+            val currentHeight = before.heightFt + fraction * (after.heightFt - before.heightFt)
+
+            val zoneId = row.timezoneId?.takeIf { it.isNotEmpty() }
+                ?.let { try { java.time.ZoneId.of(it) } catch (_: Exception) { null } }
+                ?: java.time.ZoneId.systemDefault()
+            fun fmt(e: TideExtreme): String {
+                val time = Instant.ofEpochMilli(e.epochMs).atZone(zoneId)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("h:mma"))
+                return "$time (${String.format("%.1f", e.heightFt)}ft)"
+            }
+            val nextHigh = extremes.filter { it.type == "H" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
+            val nextLow = extremes.filter { it.type == "L" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
+            val state = when {
+                nextHigh != null && (nextLow == null || nextHigh.epochMs < nextLow.epochMs) -> "rising"
+                nextLow != null -> "falling"
+                else -> return null
+            }
+
+            TideData(
+                currentHeight = (currentHeight * 100).toInt() / 100.0,
+                nextHighTide = nextHigh?.let { fmt(it) } ?: "N/A",
+                nextLowTide = nextLow?.let { fmt(it) } ?: "N/A",
+                tideState = state,
+                nextHighTideTime = nextHigh?.epochMs,
+                nextLowTideTime = nextLow?.epochMs
+            )
+        } catch (e: Exception) {
+            logger.debug("Chart-derived tide failed for $spotId: ${e.message}")
+            null
+        }
+    }
+
     // ==================== HOURLY: Tide Prefetch ====================
     
     /**
@@ -94,11 +151,15 @@ class DataPrefetchJobs(
                     try {
                         withTimeout(SPOT_TIMEOUT_MS) {
                             val spotToday = spotLocalDate(spot.coordinates.lon).toString()
-                            val tideData = tidesClient.getTideData(
-                                spot.coordinates.lat,
-                                spot.coordinates.lon,
-                                spotToday
-                            )
+                            // Tides are deterministic: prefer interpolating the
+                            // materialized chart over re-querying the tide service.
+                            // Live fetch remains as the path for spots without charts.
+                            val tideData = deriveTideFromChart(spot.id, spot.coordinates.lon)
+                                ?: tidesClient.getTideData(
+                                    spot.coordinates.lat,
+                                    spot.coordinates.lon,
+                                    spotToday
+                                )
                             
                             SpotDataCache.updateTide(
                                 spot.id,
