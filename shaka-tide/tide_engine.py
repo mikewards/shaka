@@ -56,10 +56,11 @@ def load_model(data_dir: str = FES_DATA_DIR) -> None:
     m = pyTMD.io.model(data_dir).from_database(MODEL_NAME)
     n_files = len(m.z.model_file) if isinstance(m.z.model_file, list) else 1
     logger.info("Opening dataset (%d constituent files)...", n_files)
-    # chunks="auto" caps dask chunks at ~128MB tiles. chunks={} made one
-    # chunk per file, so any prediction pulled entire ~1.5GB constituent
-    # arrays into memory at once -- the OOM behind the Apr/Jun crash loops.
-    _dataset = m.open_dataset(group="z", chunks="auto")
+    # chunks={} with pyTMD==3.0.3 is the proven production combination
+    # (Mar-Apr 2026). The Apr/Jun OOM crash loops were a pyTMD>=3.0.4
+    # regression, not a chunking issue; chunks="auto" avoided the OOM but
+    # made interpolation ~150s per location and ~10GB resident.
+    _dataset = m.open_dataset(group="z", chunks={})
     _corrections = m.corrections
     _minor = m.minor
     logger.info("FES2022 dataset opened and ready")
