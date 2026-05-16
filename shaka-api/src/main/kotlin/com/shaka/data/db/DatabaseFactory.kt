@@ -19,6 +19,12 @@ object DatabaseFactory {
     private val logger = LoggerFactory.getLogger(DatabaseFactory::class.java)
     private var dataSource: HikariDataSource? = null
 
+    init {
+        // Bounds the raw DriverManager.getConnection calls (SpotDataCache
+        // admin helpers) that otherwise block indefinitely on a hung DB.
+        java.sql.DriverManager.setLoginTimeout(5)
+    }
+
     /**
      * Initialize the database connection from application config.
      */
@@ -39,7 +45,11 @@ object DatabaseFactory {
             maximumPoolSize = 10
             minimumIdle = 2
             idleTimeout = 60000
-            connectionTimeout = 30000
+            // Fail fast when the DB is unreachable. At 30s, Exposed's 3
+            // transaction retries stacked into 90s+ request hangs during the
+            // Jun 2026 Postgres outage; requests must error quickly instead.
+            connectionTimeout = 5000
+            validationTimeout = 3000
             maxLifetime = 1800000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_READ_COMMITTED"
@@ -81,7 +91,9 @@ object DatabaseFactory {
             this.password = dbPassword
             maximumPoolSize = 15
             minimumIdle = 2
-            connectionTimeout = 30000
+            // Fail fast when the DB is unreachable (see init() above)
+            connectionTimeout = 5000
+            validationTimeout = 3000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_READ_COMMITTED"
             validate()
