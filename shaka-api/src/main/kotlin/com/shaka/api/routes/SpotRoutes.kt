@@ -54,9 +54,33 @@ fun Application.configureRouting() {
 
     routing {
         route("/v1") {
-            // Health check - keep simple for Railway healthcheck
+            /**
+             * Railway healthcheck. Includes a bounded DB ping so a hung
+             * Postgres (Jun 2026 outage: pool exhausted, requests blocked
+             * forever while this endpoint kept returning ok) makes Railway
+             * restart/alert instead of serving a zombie API.
+             */
             get("/health") {
-                call.respond(mapOf("status" to "ok", "service" to "shaka-api"))
+                val dbOk = if (!com.shaka.data.db.DatabaseFactory.isConnected()) {
+                    true  // in-memory mode (no DATABASE_URL): nothing to ping
+                } else try {
+                    kotlinx.coroutines.withTimeout(2000) {
+                        com.shaka.data.db.DatabaseFactory.dbQuery {
+                            org.jetbrains.exposed.sql.transactions.TransactionManager.current()
+                                .exec("SELECT 1") { rs -> rs.next() } ?: false
+                        }
+                    }
+                } catch (e: Exception) {
+                    false
+                }
+                if (dbOk) {
+                    call.respond(mapOf("status" to "ok", "service" to "shaka-api", "db" to "ok"))
+                } else {
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        mapOf("status" to "unhealthy", "service" to "shaka-api", "db" to "unreachable")
+                    )
+                }
             }
             
             get("/health/freshness") {
