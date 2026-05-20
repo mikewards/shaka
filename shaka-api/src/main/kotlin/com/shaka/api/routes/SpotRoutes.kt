@@ -44,6 +44,25 @@ private fun parseBdTitleForLocationTag(title: String?): Pair<String?, String?> {
     return zone to rest.ifBlank { null }
 }
 
+/**
+ * Bound a route handler's total time. Slow dependencies (hung DB, dead
+ * upstream) must surface as a fast 503 the app can render, not an
+ * infinite spinner (Jun 2026 outage mode).
+ */
+private suspend fun io.ktor.server.application.ApplicationCall.respondWithDeadline(
+    timeoutMs: Long = 15_000,
+    block: suspend () -> Unit
+) {
+    try {
+        kotlinx.coroutines.withTimeout(timeoutMs) { block() }
+    } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+        respond(
+            HttpStatusCode.ServiceUnavailable,
+            mapOf("error" to "Request timed out; backing data temporarily unavailable")
+        )
+    }
+}
+
 fun Application.configureRouting() {
     val spotService = SpotService()
     val forecastService = ForecastService()
@@ -281,11 +300,13 @@ fun Application.configureRouting() {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "id required"))
                 val date = call.parameters["date"] ?: java.time.LocalDate.now().toString()
 
-                val spot = spotService.getSpotDetail(spotId, date)
-                if (spot != null) {
-                    call.respond(spot)
-                } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Spot not found"))
+                call.respondWithDeadline {
+                    val spot = spotService.getSpotDetail(spotId, date)
+                    if (spot != null) {
+                        call.respond(spot)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, mapOf("error" to "Spot not found"))
+                    }
                 }
             }
 
@@ -1050,7 +1071,7 @@ fun Application.configureRouting() {
                         HttpStatusCode.BadRequest,
                         mapOf("error" to "X-Device-ID header required")
                     )
-                
+                call.respondWithDeadline {
                 val spots = userSpotRepository.findByDeviceId(deviceId)
                 val response = UserSpotListResponse(
                     spots = spots.map { spot ->
@@ -1090,6 +1111,7 @@ fun Application.configureRouting() {
                 )
                 
                 call.respond(response)
+                }
             }
             
             /**
@@ -1163,15 +1185,17 @@ fun Application.configureRouting() {
                     )
                 
                 // Get detailed conditions using the service
-                val cacheId = userSpotRepository.getCacheId(spotId)
-                val spotDetail = spotService.getUserSpotDetail(userSpot, cacheId, date)
-                
-                val response = UserSpotDetailResponse(
-                    spot = spotDetail,
-                    isUserSpot = true
-                )
-                
-                call.respond(response)
+                call.respondWithDeadline {
+                    val cacheId = userSpotRepository.getCacheId(spotId)
+                    val spotDetail = spotService.getUserSpotDetail(userSpot, cacheId, date)
+
+                    val response = UserSpotDetailResponse(
+                        spot = spotDetail,
+                        isUserSpot = true
+                    )
+
+                    call.respond(response)
+                }
             }
             
             /**
@@ -1217,20 +1241,22 @@ fun Application.configureRouting() {
              * Get fishing intel for a spot.
              * Returns highlights, species summary, and bait status.
              */
-            get("/spots/{spotId}/intel") {
+            get("/spots/{spotId}/intel") intelHandler@{
                 val spotId = call.parameters["spotId"]
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
+                    ?: return@intelHandler call.respond(HttpStatusCode.BadRequest, mapOf("error" to "spotId required"))
                 val since = call.parameters["since"] ?: "72h"
                 val tzOffset = call.parameters["tzOffset"]?.toIntOrNull()
-                
-                val intel = FishingIntelRoutes.getSpotIntel(spotId, since, tzOffset)
-                if (intel != null) {
-                    call.respond(intel)
-                } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf(
-                        "error" to "No fishing intel available for this spot",
-                        "spotId" to spotId
-                    ))
+
+                call.respondWithDeadline {
+                    val intel = FishingIntelRoutes.getSpotIntel(spotId, since, tzOffset)
+                    if (intel != null) {
+                        call.respond(intel)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, mapOf(
+                            "error" to "No fishing intel available for this spot",
+                            "spotId" to spotId
+                        ))
+                    }
                 }
             }
             
@@ -1256,14 +1282,16 @@ fun Application.configureRouting() {
                 val since = call.parameters["since"] ?: "72h"
                 val tzOffset = call.parameters["tzOffset"]?.toIntOrNull()
 
-                val intel = FishingIntelRoutes.getIntelForRegion(regionId, since, tzOffset)
-                if (intel != null) {
-                    call.respond(intel)
-                } else {
-                    call.respond(HttpStatusCode.NotFound, mapOf(
-                        "error" to "No fishing intel available for this region",
-                        "regionId" to regionId
-                    ))
+                call.respondWithDeadline {
+                    val intel = FishingIntelRoutes.getIntelForRegion(regionId, since, tzOffset)
+                    if (intel != null) {
+                        call.respond(intel)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, mapOf(
+                            "error" to "No fishing intel available for this region",
+                            "regionId" to regionId
+                        ))
+                    }
                 }
             }
 
