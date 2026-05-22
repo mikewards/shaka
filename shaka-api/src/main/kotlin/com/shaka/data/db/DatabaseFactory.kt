@@ -53,6 +53,11 @@ object DatabaseFactory {
             maxLifetime = 1800000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_READ_COMMITTED"
+            // pgjdbc default socketTimeout is infinite: when Postgres hung on
+            // Jun 3 2026, in-flight reads blocked forever and froze every
+            // scheduled job mid-iteration for 8 days. 120s bounds any query.
+            addDataSourceProperty("socketTimeout", "120")
+            addDataSourceProperty("connectTimeout", "5")
             validate()
         }
 
@@ -96,6 +101,8 @@ object DatabaseFactory {
             validationTimeout = 3000
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_READ_COMMITTED"
+            addDataSourceProperty("socketTimeout", "120")
+            addDataSourceProperty("connectTimeout", "5")
             validate()
         }
 
