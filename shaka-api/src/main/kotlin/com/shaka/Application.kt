@@ -136,6 +136,39 @@ private fun Application.configureScheduledJobs() {
     
     // Create isolated scope for background jobs - failures won't affect other jobs or the app
     val backgroundScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    /**
+     * Run a job on a fixed cadence with a per-iteration watchdog.
+     *
+     * Hardening from the Jun 2026 outage: a hung dependency froze job
+     * coroutines mid-iteration for 8 days (no timeout), and anything
+     * escaping the old catch(Exception) would have killed the loop.
+     * Each iteration is bounded by maxRunMs and survives Throwable.
+     */
+    fun scheduleJob(
+        name: String,
+        initialDelayMs: Long,
+        intervalMs: Long,
+        maxRunMs: Long = intervalMs * 4,
+        runImmediately: Boolean = false,
+        job: suspend () -> Unit
+    ) {
+        backgroundScope.launch {
+            delay(initialDelayMs)
+            if (!runImmediately) delay(intervalMs)
+            while (true) {
+                try {
+                    logger.info("Running scheduled job: $name")
+                    withTimeout(maxRunMs) { job() }
+                } catch (e: TimeoutCancellationException) {
+                    logger.error("Scheduled job $name exceeded ${maxRunMs}ms watchdog; iteration aborted")
+                } catch (e: Throwable) {
+                    logger.error("Scheduled job $name failed: ${e.message}", e)
+                }
+                delay(intervalMs)
+            }
+        }
+    }
     
     // Run full prefetch on startup (after a brief delay to let the app initialize)
     backgroundScope.launch {
@@ -169,144 +202,60 @@ private fun Application.configureScheduledJobs() {
     }
     
     // HOURLY: Tide refresh
-    backgroundScope.launch {
-        delay(60_000)  // Initial 1 minute delay (after startup prefetch starts)
-        while (true) {
-            delay(3_600_000)  // 1 hour = 3,600,000 ms
-            try {
-                logger.info("Running scheduled TIDE prefetch")
-                prefetchJobs.prefetchTides()
-            } catch (e: Exception) {
-                logger.error("Scheduled tide prefetch failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("tide_prefetch", initialDelayMs = 60_000, intervalMs = 3_600_000) {
+        prefetchJobs.prefetchTides()
     }
-    
+
     // EVERY 3 HOURS: Weather/swell refresh
-    backgroundScope.launch {
-        delay(120_000)  // Initial 2 minute delay
-        while (true) {
-            delay(10_800_000)  // 3 hours = 10,800,000 ms
-            try {
-                logger.info("Running scheduled WEATHER prefetch")
-                prefetchJobs.prefetchWeather()
-            } catch (e: Exception) {
-                logger.error("Scheduled weather prefetch failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("weather_prefetch", initialDelayMs = 120_000, intervalMs = 10_800_000) {
+        prefetchJobs.prefetchWeather()
     }
-    
-    // EVERY 6 HOURS: Satellite data refresh
-    backgroundScope.launch {
-        delay(180_000)  // Initial 3 minute delay
-        while (true) {
-            delay(21_600_000)  // 6 hours = 21,600,000 ms
-            try {
-                logger.info("Running scheduled SATELLITE prefetch")
-                prefetchJobs.prefetchSatelliteData()
-            } catch (e: Exception) {
-                logger.error("Scheduled satellite prefetch failed: ${e.message}", e)
-            }
-        }
+
+    // EVERY 6 HOURS: Satellite data refresh (rate-limited, can run very long)
+    scheduleJob("satellite_prefetch", initialDelayMs = 180_000, intervalMs = 21_600_000, maxRunMs = 86_400_000) {
+        prefetchJobs.prefetchSatelliteData()
     }
-    
+
     // EVERY 3 HOURS: User spots refresh (same as weather)
-    backgroundScope.launch {
-        delay(240_000)  // Initial 4 minute delay (after startup prefetch)
-        while (true) {
-            delay(10_800_000)  // 3 hours = 10,800,000 ms
-            try {
-                logger.info("Running scheduled USER SPOTS prefetch")
-                prefetchJobs.prefetchUserSpots()
-            } catch (e: Exception) {
-                logger.error("Scheduled user spots prefetch failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("user_spots_prefetch", initialDelayMs = 240_000, intervalMs = 10_800_000, maxRunMs = 86_400_000) {
+        prefetchJobs.prefetchUserSpots()
     }
-    
+
     // EVERY 12 HOURS: Solunar + vessel data refresh (runs 2x/day)
-    // Solunar feeding windows shift through the day, so twice-daily keeps data fresh.
-    // Startup prefetchAll() handles the initial run; this handles recurring refreshes.
-    backgroundScope.launch {
-        delay(300_000)  // Initial 5 minute delay (startup prefetchAll already runs it)
-        while (true) {
-            delay(43_200_000)  // 12 hours = 43,200,000 ms
-            try {
-                logger.info("Running scheduled SOLUNAR + VESSEL prefetch")
-                prefetchJobs.prefetchFishingIntel()
-            } catch (e: Exception) {
-                logger.error("Scheduled solunar prefetch failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("solunar_vessel_prefetch", initialDelayMs = 300_000, intervalMs = 43_200_000) {
+        prefetchJobs.prefetchFishingIntel()
     }
-    
+
     // HOURLY: Buoy readings refresh
-    backgroundScope.launch {
-        delay(360_000)  // Initial 6 minute delay
-        while (true) {
-            delay(3_600_000)  // 1 hour
-            try {
-                logger.info("Running scheduled BUOY READINGS prefetch")
-                prefetchJobs.prefetchBuoyReadings()
-            } catch (e: Exception) {
-                logger.error("Scheduled buoy readings prefetch failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("buoy_readings", initialDelayMs = 360_000, intervalMs = 3_600_000) {
+        prefetchJobs.prefetchBuoyReadings()
     }
-    
+
     // EVERY 6 HOURS: Tide chart materialization (today + tomorrow)
-    backgroundScope.launch {
-        delay(420_000)  // Initial 7 minute delay
-        while (true) {
-            try {
-                logger.info("Running scheduled TIDE CHART materialization")
-                prefetchJobs.materializeTideCharts()
-            } catch (e: Exception) {
-                logger.error("Scheduled tide chart materialization failed: ${e.message}", e)
-            }
-            delay(21_600_000)  // 6 hours
-        }
+    scheduleJob("tide_chart_materialize", initialDelayMs = 420_000, intervalMs = 21_600_000, runImmediately = true) {
+        prefetchJobs.materializeTideCharts()
     }
 
     // EVERY 10 MINUTES: Tide chart catch-up (missing spots)
-    backgroundScope.launch {
-        delay(480_000)  // Initial 8 minute delay
-        while (true) {
-            try {
-                prefetchJobs.catchUpMissingTideCharts()
-            } catch (e: Exception) {
-                logger.error("Tide chart catch-up failed: ${e.message}", e)
-            }
-            delay(600_000)  // 10 minutes
-        }
+    scheduleJob("tide_chart_catchup", initialDelayMs = 480_000, intervalMs = 600_000, maxRunMs = 21_600_000, runImmediately = true) {
+        prefetchJobs.catchUpMissingTideCharts()
+    }
+
+    // WEEKLY: MPA boundary refresh. Previously only reachable via the dead
+    // prefetchAll() path, so MPA data silently aged for months.
+    scheduleJob("mpa_prefetch", initialDelayMs = 900_000, intervalMs = 604_800_000, maxRunMs = 86_400_000, runImmediately = true) {
+        prefetchJobs.prefetchMPA()
     }
 
     // NIGHTLY: Tide chart cleanup (old rows)
-    backgroundScope.launch {
-        delay(600_000)  // Initial 10 minute delay
-        while (true) {
-            try {
-                prefetchJobs.cleanupOldTideDays()
-            } catch (e: Exception) {
-                logger.error("Tide chart cleanup failed: ${e.message}", e)
-            }
-            delay(86_400_000)  // 24 hours
-        }
+    scheduleJob("tide_chart_cleanup", initialDelayMs = 600_000, intervalMs = 86_400_000, runImmediately = true) {
+        prefetchJobs.cleanupOldTideDays()
     }
 
     // ==================== WEATHER TILES (Ocean Forecast) ====================
     // Runs the Copernicus CMEMS pipeline every 6 hours to generate PNG tiles
-    backgroundScope.launch {
-        delay(30_000)  // 30 second initial delay
-        while (true) {
-            try {
-                logger.info("Running scheduled WEATHER TILE pipeline")
-                WeatherTileService.runPipeline()
-            } catch (e: Exception) {
-                logger.error("Weather tile pipeline failed: ${e.message}", e)
-            }
-            delay(21_600_000)  // 6 hours
-        }
+    scheduleJob("weather_tile_pipeline", initialDelayMs = 30_000, intervalMs = 21_600_000, runImmediately = true) {
+        WeatherTileService.runPipeline()
     }
 
     // ==================== FISHING INTEL (ISOLATED) ====================
@@ -326,27 +275,8 @@ private fun Application.configureScheduledJobs() {
     }
     
     // Schedule scraping job (delayed start, then every 2 hours)
-    backgroundScope.launch {
-        delay(300_000)  // 5 minute initial delay before first scrape
-        
-        // Run initial scrape
-        try {
-            logger.info("Running initial FISHING INTEL scrape")
-            FishingIntelPrefetchJob.run()
-        } catch (e: Exception) {
-            logger.error("Initial fishing intel scrape failed: ${e.message}", e)
-        }
-        
-        // Schedule every 2 hours
-        while (true) {
-            delay(7_200_000)  // 2 hours = 7,200,000 ms
-            try {
-                logger.info("Running scheduled FISHING INTEL scrape")
-                FishingIntelPrefetchJob.run()
-            } catch (e: Exception) {
-                logger.error("Scheduled fishing intel scrape failed: ${e.message}", e)
-            }
-        }
+    scheduleJob("fishing_intel_scrape", initialDelayMs = 300_000, intervalMs = 7_200_000, runImmediately = true) {
+        FishingIntelPrefetchJob.run()
     }
     
     logger.info("Fishing intel job configured: every 2 hours")
