@@ -29,11 +29,15 @@ class NOAAClient {
     private val client = HttpClientFactory.shared
 
     companion object {
-        // NOAA CoastWatch ERDDAP - MUR SST (0.01° resolution, daily)
-        private const val MUR_SST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.json"
+        // NOAA GeoPolar Blended SST day+night (5km global daily, analysed_sst).
+        // Replaces jplMURSST41 on coastwatch.pfeg.noaa.gov: that host became
+        // unreachable from Railway (verified Jun 2026: connect timeout from
+        // the container while coastwatch.noaa.gov answers in 42ms), which
+        // silently starved SST for ~3 months.
+        private const val MUR_SST_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwBLENDEDsstDNDaily.json"
         
-        // NOAA GHRSST Level 4 (alternative, global coverage)
-        private const val GHRSST_URL = "https://coastwatch.pfeg.noaa.gov/erddap/griddap/nceiPH53sstd1day.json"
+        // Fallback: GeoPolar Blended SST day-only variant (same host/schema)
+        private const val GHRSST_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwBLENDEDsstDaily.json"
         
         // NOAA CoastWatch VIIRS Chlorophyll-a (daily, ~4km resolution)
         private const val VIIRS_CHL_URL = "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSchlaDaily.json"
@@ -245,7 +249,7 @@ class NOAAClient {
             val lonMin = lon - radius
             val lonMax = lon + radius
             
-            val url = "$GHRSST_URL?sea_surface_temperature[($queryDate)][($latMin):($latMax)][($lonMin):($lonMax)]"
+            val url = "$GHRSST_URL?analysed_sst[(${queryDate}T12:00:00Z)][($latMin):($latMax)][($lonMin):($lonMax)]"
             
             val response: String = client.get(url).bodyAsText()
             parseSSTFromERDDAP(response)

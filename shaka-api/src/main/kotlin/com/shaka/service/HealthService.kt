@@ -118,7 +118,8 @@ class HealthService {
     private suspend fun checkNoaa(): ServiceStatus {
         return try {
             // Check NOAA ERDDAP
-            val response = client.get("https://coastwatch.pfeg.noaa.gov/erddap/info/index.html")
+            // Must match the host NOAAClient actually uses (pfeg host is unreachable from Railway)
+            val response = client.get("https://coastwatch.noaa.gov/erddap/info/index.html")
             if (response.status.value in 200..299) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {
