@@ -15,7 +15,7 @@
 -- Step 1: review what would be cleaned
 SELECT COUNT(*) AS fabricated_rows
 FROM spot_cache
-WHERE ABS(wind_speed_knots - 5.39957) < 0.0001
+WHERE ABS(wind_speed_kts - 5.39957) < 0.0001
   AND wind_direction = 'E'
   AND swell_period_sec = 8.0
   AND swell_direction = 'W';
@@ -23,14 +23,14 @@ WHERE ABS(wind_speed_knots - 5.39957) < 0.0001
 -- Step 2: clear the fabricated values (run manually after review)
 -- BEGIN;
 -- UPDATE spot_cache
--- SET wind_speed_knots = NULL,
+-- SET wind_speed_kts = NULL,
 --     wind_direction = NULL,
 --     swell_height_ft = NULL,
 --     swell_corrected_height_ft = NULL,
 --     swell_period_sec = NULL,
 --     swell_direction = NULL,
 --     weather_fetched_at = NULL
--- WHERE ABS(wind_speed_knots - 5.39957) < 0.0001
+-- WHERE ABS(wind_speed_kts - 5.39957) < 0.0001
 --   AND wind_direction = 'E'
 --   AND swell_period_sec = 8.0
 --   AND swell_direction = 'W';
