@@ -28,11 +28,21 @@ cd shaka-api
 
 Server starts at `http://localhost:8080`. Requires PostgreSQL with PostGIS extension.
 
-Environment variables:
+Environment variables (see `EnvValidation.kt` for the full audited list):
 ```
 DATABASE_URL=postgresql://localhost:5432/shaka
-COPERNICUS_USER=your_username      # optional
-COPERNICUS_PASSWORD=your_password  # optional
+COPERNICUS_CLIENT_ID=...            # optional - CDSE OAuth (realtime clarity)
+COPERNICUS_CLIENT_SECRET=...        # optional
+COPERNICUSMARINE_SERVICE_USERNAME=... # optional - weather tile pipeline
+COPERNICUSMARINE_SERVICE_PASSWORD=...
+TIDE_SOURCE=fes2022                 # noaa | fes2022
+TIDE_SERVICE_URL=http://...:8000    # required when TIDE_SOURCE=fes2022
+FISHING_INTEL_AI_ENABLED=true       # optional - AI region insights (Groq)
+FISHING_INTEL_AI_API_KEY=...
+SENTRY_DSN=...                      # optional - error tracking
+BETTERSTACK_SOURCE_URL=...          # optional - log shipping
+BETTERSTACK_SOURCE_TOKEN=...
+HEARTBEAT_URLS=job=url,...          # optional - job heartbeat pings
 ```
 
 ### Mobile App
@@ -240,7 +250,7 @@ Data Sources
 |-----------|----------|------------------|
 | Weather | Open-Meteo | Hourly |
 | Tides | NOAA CO-OPS | Real-time |
-| SST (High-Res) | NASA GIBS MUR/GHRSST | Daily |
+| SST | NOAA GeoPolar Blended (coastwatch.noaa.gov ERDDAP) | Daily |
 | Chlorophyll-a | NASA GIBS PACE/VIIRS | Daily |
 | True Color | NASA GIBS MODIS/VIIRS | Daily |
 | SST, Visibility | Copernicus Marine | Daily |
@@ -256,16 +266,22 @@ Data Sources
 Pre-fetch System
 ----------------
 
-The backend pre-fetches conditions for all 789 spots on startup and maintains freshness via scheduled jobs:
+The backend restores the previous cache from PostgreSQL on startup, then
+maintains freshness via in-process scheduled jobs (all wrapped with a
+per-iteration watchdog so a hung dependency cannot kill a loop):
 
 | Data | Refresh Interval |
 |------|------------------|
-| Tides | Hourly |
+| Tides | Hourly (derived from materialized charts; FES service only for missing spots) |
+| Tide charts | Every 6 hours + 10-min catch-up |
 | Weather/Swell | Every 3 hours |
 | SST/Visibility | Every 6 hours |
+| Solunar/Buoys | 12h / hourly |
+| MPA boundaries | Weekly |
 | Fishing Intel | Every 2 hours |
 
-Initial cache warmup takes approximately 45 seconds. During warmup, requests fall through to live API calls.
+There is no blocking warmup; until jobs converge, missing data is reported
+as "Unavailable" rather than substituted with defaults.
 
 Scoring Algorithm
 -----------------
