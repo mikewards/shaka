@@ -103,7 +103,10 @@ class HealthService {
     
     private suspend fun checkGibs(): ServiceStatus {
         return try {
-            val response = client.head("https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-01-01/250m/0/0/0.jpg")
+            // Probe a recent tile, not a frozen historical date: the hardcoded
+            // 2024-01-01 tile could keep passing while current-day layers fail.
+            val recentDate = java.time.LocalDate.now().minusDays(2).toString()
+            val response = client.head("https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/$recentDate/250m/0/0/0.jpg")
             if (response.status.value in 200..299) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {
@@ -133,7 +136,9 @@ class HealthService {
     
     private suspend fun checkCopernicus(): ServiceStatus {
         return try {
-            val response = client.head("https://wmts.marine.copernicus.eu/teroWmts")
+            // A bare request returns 400 (missing WMTS params) even when the
+            // service is healthy; probe GetCapabilities like a real client.
+            val response = client.head("https://wmts.marine.copernicus.eu/teroWmts?SERVICE=WMTS&REQUEST=GetCapabilities")
             if (response.status.value in 200..399) {
                 ServiceStatus("ok", lastChecked = Instant.now().toString())
             } else {
