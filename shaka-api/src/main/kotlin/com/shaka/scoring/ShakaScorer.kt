@@ -73,7 +73,8 @@ object ShakaScorer {
      *  25 kts = 46 km/h    Rough, marginal
      *  25+ kts              Stay home
      */
-    fun scoreWeather(windSpeedKmh: Double): Int {
+    fun scoreWeather(windSpeedKmh: Double?): Int {
+        if (windSpeedKmh == null) return 50  // Unknown = neutral, not fabricated-calm
         return when {
             windSpeedKmh <= 9  -> 100  // 0-5 kts: glass
             windSpeedKmh <= 18 -> 85   // 5-10 kts: light breeze
@@ -87,7 +88,8 @@ object ShakaScorer {
     /**
      * Calculate swell score based on wave height in meters.
      */
-    fun scoreSwell(waveHeightM: Double): Int {
+    fun scoreSwell(waveHeightM: Double?): Int {
+        if (waveHeightM == null) return 50  // Unknown = neutral
         val waveHeightFt = waveHeightM * 3.28084
 
         return when {
@@ -175,8 +177,8 @@ object ShakaScorer {
      */
     fun generateScore(
         targetDate: String,
-        windSpeedKmh: Double,
-        waveHeightM: Double,
+        windSpeedKmh: Double?,
+        waveHeightM: Double?,
         chlorophyllMgM3: Double?,
         solunarDayRating: Int?,
         moonPhase: String?
@@ -188,9 +190,14 @@ object ShakaScorer {
             solunar = scoreSolunar(solunarDayRating, moonPhase)
         )
 
+        // Missing core factors reduce confidence: the score is a guess for
+        // that component, and the user should be able to tell.
+        val missingPenalty = listOf(windSpeedKmh, waveHeightM, chlorophyllMgM3)
+            .count { it == null } * 15
+
         return ShakaScore(
             overall = calculateOverall(breakdown),
-            confidence = confidenceForDate(targetDate),
+            confidence = (confidenceForDate(targetDate) - missingPenalty).coerceAtLeast(10),
             breakdown = breakdown
         )
     }
