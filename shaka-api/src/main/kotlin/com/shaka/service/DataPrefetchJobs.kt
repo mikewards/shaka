@@ -1237,44 +1237,6 @@ class DataPrefetchJobs(
         MonitoringService.reportRun("user_spots_prefetch", processed, successCount, failures, elapsed)
     }
     
-    // ==================== Full Prefetch (Startup) ====================
-    
-    /**
-     * Run all prefetch jobs in sequence.
-     * Used on startup to populate the cache quickly.
-     */
-    suspend fun prefetchAll() {
-        logger.info("Starting FULL prefetch for all data types")
-        logger.info("Rate limiter config: ${RateLimiters.getAllStats()}")
-        
-        val startTime = System.currentTimeMillis()
-        
-        // Run in sequence to avoid overwhelming APIs
-        prefetchTides()
-        delay(3000)
-        
-        prefetchWeather()
-        delay(3000)
-        
-        prefetchSatelliteData()
-        delay(3000)
-        
-        prefetchMPA()
-        delay(3000)
-        
-        // Fishing intel health check (vessels and solunar are fetched live)
-        prefetchFishingIntel()
-        delay(1000)
-        
-        // Also prefetch user spots
-        prefetchUserSpots()
-        
-        val elapsed = System.currentTimeMillis() - startTime
-        logger.info("FULL prefetch complete in ${elapsed}ms. Cache now has ${SpotDataCache.size()} spots")
-        logger.info("Cache stats: ${SpotDataCache.getStats()}")
-        logRateLimiterStats()
-    }
-    
     // ==================== Utilities ====================
     
     /**
