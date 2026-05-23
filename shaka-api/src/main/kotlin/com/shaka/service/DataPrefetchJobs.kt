@@ -587,17 +587,16 @@ class DataPrefetchJobs(
         var skippedCount = 0
         val failures = mutableListOf<ItemFailure>()
         
-        // Health check with circuit breaker awareness
-        logger.info("Testing Copernicus connectivity...")
+        // Informational connectivity check only. This used to ABORT the whole
+        // 6-hourly run on any single failure -- one transient error to one
+        // coordinate could starve visibility/chlorophyll/SST for every spot
+        // for weeks (observed May-Jun 2026). Per-spot calls already degrade
+        // gracefully via the circuit breaker, so never skip the run here.
         try {
             val testResult = copernicus.getWaterQuality(26.5, -77.5, today)
-            logger.info("Copernicus health check passed (vis=${testResult.visibility}, chl=${testResult.chlorophyllA})")
-        } catch (e: CircuitBreakerOpenException) {
-            logger.warn("Copernicus circuit breaker is OPEN - skipping satellite prefetch entirely")
-            return@withContext
+            logger.info("Copernicus connectivity check (vis=${testResult.visibility}, chl=${testResult.chlorophyllA})")
         } catch (e: Exception) {
-            logger.warn("Copernicus health check failed: ${e.message} - skipping satellite prefetch")
-            return@withContext
+            logger.warn("Copernicus connectivity check failed (continuing anyway): ${e.message}")
         }
         
         // Register coordinates for all spots (enables in-memory nearest-SST lookups)
