@@ -731,7 +731,9 @@ fun Application.configureRouting() {
                                 userSpotRepository.findById(userSpotId)?.coordinates ?: continue
                             }
                             val ocean = openMeteo.getMarineData(coords.lat, coords.lon, today)
+                                ?: error("Open-Meteo marine data unavailable")
                             val weather = openMeteo.getWeather(coords.lat, coords.lon, today)
+                                ?: error("Open-Meteo weather unavailable")
                             val now = java.time.Instant.now()
                             
                             com.shaka.data.cache.SpotDataCache.updateSwell(

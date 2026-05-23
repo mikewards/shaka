@@ -28,8 +28,11 @@ class OpenMeteoClient {
 
     /**
      * Get weather forecast for a location and date.
+     * Returns null on failure -- callers must degrade visibly. The old
+     * hardcoded fallback (25C, 10 km/h) fabricated identical "real-looking"
+     * conditions across every spot for the entire Jun 2026 outage.
      */
-    suspend fun getWeather(lat: Double, lon: Double, date: String): WeatherData {
+    suspend fun getWeather(lat: Double, lon: Double, date: String): WeatherData? {
         return try {
             // Rate limit
             RateLimiters.openMeteo.acquire()
@@ -57,23 +60,16 @@ class OpenMeteoClient {
             )
         } catch (e: Exception) {
             logger.warn("Open-Meteo weather API failed for ($lat, $lon): ${e.message}")
-            // Return default values if API fails
-            WeatherData(
-                temperature = 25.0,
-                windSpeed = 10.0,
-                windDirection = 90,
-                precipitation = 0.0,
-                cloudCover = 30,
-                visibility = 10000.0
-            )
+            null
         }
     }
 
     /**
      * Get marine/ocean data for a location and date.
      * Now includes REAL sea surface temperature from Open-Meteo!
+     * Returns null on failure -- no fabricated swell (see getWeather).
      */
-    suspend fun getMarineData(lat: Double, lon: Double, date: String): OceanData {
+    suspend fun getMarineData(lat: Double, lon: Double, date: String): OceanData? {
         return try {
             // Rate limit
             RateLimiters.openMeteo.acquire()
@@ -120,14 +116,7 @@ class OpenMeteoClient {
             )
         } catch (e: Exception) {
             logger.warn("Open-Meteo Marine API failed for ($lat, $lon): ${e.message}")
-            OceanData(
-                waveHeight = 1.0,
-                wavePeriod = 8.0,
-                waveDirection = 270,
-                waterTemperature = 15.0,
-                swellHeight = 0.5,
-                swellDirection = 270
-            )
+            null
         }
     }
     

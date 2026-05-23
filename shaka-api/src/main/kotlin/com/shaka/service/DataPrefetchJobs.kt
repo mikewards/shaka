@@ -437,8 +437,12 @@ class DataPrefetchJobs(
                             // Depth retry disabled — NCEI ArcGIS is fragile.
                             // Use /admin/depth/refetch with conservative pacing instead.
 
+                            // Null means Open-Meteo failed: record an item failure
+                            // instead of persisting fabricated conditions.
                             val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
+                                ?: error("Open-Meteo marine data unavailable")
                             val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
+                                ?: error("Open-Meteo weather unavailable")
                             
                             val now = Instant.now()
                             

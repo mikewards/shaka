@@ -100,21 +100,19 @@ class SpotService {
             
             val weatherDeferred = async {
                 withTimeoutOrNull(5000) {
-                    OceanDataCache.getWeather(lat, lon, date) ?: run {
-                        val data = openMeteo.getWeather(lat, lon, date)
-                        OceanDataCache.putWeather(lat, lon, date, data)
-                        data
-                    }
+                    OceanDataCache.getWeather(lat, lon, date)
+                        ?: openMeteo.getWeather(lat, lon, date)?.also {
+                            OceanDataCache.putWeather(lat, lon, date, it)
+                        }
                 }
             }
             
             val oceanDeferred = async {
                 withTimeoutOrNull(5000) {
-                    OceanDataCache.getOcean(lat, lon, date) ?: run {
-                        val data = openMeteo.getMarineData(lat, lon, date)
-                        OceanDataCache.putOcean(lat, lon, date, data)
-                        data
-                    }
+                    OceanDataCache.getOcean(lat, lon, date)
+                        ?: openMeteo.getMarineData(lat, lon, date)?.also {
+                            OceanDataCache.putOcean(lat, lon, date, it)
+                        }
                 }
             }
             
@@ -387,21 +385,19 @@ class SpotService {
             
             val weatherDeferred = async {
                 withTimeoutOrNull(5000) {
-                    OceanDataCache.getWeather(lat, lon, date) ?: run {
-                        val data = openMeteo.getWeather(lat, lon, date)
-                        OceanDataCache.putWeather(lat, lon, date, data)
-                        data
-                    }
+                    OceanDataCache.getWeather(lat, lon, date)
+                        ?: openMeteo.getWeather(lat, lon, date)?.also {
+                            OceanDataCache.putWeather(lat, lon, date, it)
+                        }
                 }
             }
             
             val oceanDeferred = async {
                 withTimeoutOrNull(5000) {
-                    OceanDataCache.getOcean(lat, lon, date) ?: run {
-                        val data = openMeteo.getMarineData(lat, lon, date)
-                        OceanDataCache.putOcean(lat, lon, date, data)
-                        data
-                    }
+                    OceanDataCache.getOcean(lat, lon, date)
+                        ?: openMeteo.getMarineData(lat, lon, date)?.also {
+                            OceanDataCache.putOcean(lat, lon, date, it)
+                        }
                 }
             }
             
@@ -769,19 +765,19 @@ class SpotService {
             val lon = spot.coordinates.lon
             
             try {
-                // Fetch weather data (with caching)
-                val weather = OceanDataCache.getWeather(lat, lon, date) ?: run {
-                    val data = openMeteo.getWeather(lat, lon, date)
-                    OceanDataCache.putWeather(lat, lon, date, data)
-                    data
-                }
+                // Fetch weather data (with caching); skip spot if unavailable
+                val weather = OceanDataCache.getWeather(lat, lon, date)
+                    ?: openMeteo.getWeather(lat, lon, date)?.also {
+                        OceanDataCache.putWeather(lat, lon, date, it)
+                    }
+                    ?: return@mapNotNull null
                 
-                // Fetch ocean/swell data (with caching)
-                val ocean = OceanDataCache.getOcean(lat, lon, date) ?: run {
-                    val data = openMeteo.getMarineData(lat, lon, date)
-                    OceanDataCache.putOcean(lat, lon, date, data)
-                    data
-                }
+                // Fetch ocean/swell data (with caching); skip spot if unavailable
+                val ocean = OceanDataCache.getOcean(lat, lon, date)
+                    ?: openMeteo.getMarineData(lat, lon, date)?.also {
+                        OceanDataCache.putOcean(lat, lon, date, it)
+                    }
+                    ?: return@mapNotNull null
                 
                 // Fetch water quality
                 val waterQuality = copernicus.getWaterQuality(lat, lon, date)
@@ -1781,7 +1777,11 @@ class SpotService {
         
         val weatherDeferred = async {
             val data = withTimeoutOrNull(10000) {
-                try { openMeteo.getMarineData(lat, lon, today) to openMeteo.getWeather(lat, lon, today) }
+                try {
+                    val ocean = openMeteo.getMarineData(lat, lon, today)
+                    val weather = openMeteo.getWeather(lat, lon, today)
+                    if (ocean != null && weather != null) ocean to weather else null
+                }
                 catch (e: Exception) { logger.warn("Weather fetch failed for $spotId: ${e.message}"); null }
             }
             if (data != null) {
