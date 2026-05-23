@@ -49,7 +49,9 @@ fun main() {
 
 fun Application.module() {
     println("Initializing Shaka API module...")
-    
+
+    com.shaka.config.EnvValidation.validateAndReport()
+
     // Try database connection (non-blocking - app works without it)
     tryInitDatabase()
     
