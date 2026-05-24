@@ -8,14 +8,14 @@ Paste this into a new agent when starting work on this project.
 
 Shaka is a spearfishing spot finder app - a Flutter mobile app + Kotlin backend that ranks dive spots by weather, ocean conditions, and fish patterns.
 
-**GitHub:** https://github.com/wardmic4/shaka
+**GitHub:** https://github.com/mikewards/shaka
 
 **Stack:**
 - Backend: Kotlin/Ktor (`shaka-api/`)
 - Mobile: Flutter/Dart (`shaka-app/`)
 - Database: PostgreSQL + PostGIS (not yet connected)
 
-**Git:** All commits must show as **wardmic4** on GitHub. This repo has `user.name=wardmic4` and `user.email=zmikewardz@gmail.com` set locally; do not use "cursoragent" or any other author when making commits.
+**Git:** All commits must show as **mikewards** on GitHub. This repo has `user.name=mikewards` and `user.email=zmikewardz@gmail.com` set locally; do not use "cursoragent" or any other author when making commits.
 
 ## Directory Structure
 

@@ -1,7 +1,17 @@
 Shaka
 =====
 
-Spearfishing conditions app. Aggregates real-time ocean data from NASA, NOAA, and Copernicus satellites to score dive locations. Scrapes SoCal fishing intel from multiple sources. Multi-platform Flutter client backed by a Kotlin API server.
+**Should you dive today?** Shaka answers that question for 789 curated spearfishing spots by fusing real-time satellite and ocean data — NASA imagery, NOAA tides and sea-surface temperature, Copernicus visibility and currents — into a single 0–100 dive score, alongside live fishing intelligence scraped from West Coast dock reports and summarized with AI.
+
+Why it exists: spearfishers check five different sites (swell, tides, visibility, wind, fish counts) before every dive and still guess. Shaka collapses that into one screen.
+
+Highlights:
+
+- **Six-factor scoring engine** — visibility, weather, swell, fish activity, accessibility, safety — with per-day forecast confidence decay
+- **Satellite data pipelines** from NASA GIBS (chlorophyll, true color), NOAA ERDDAP (SST), Copernicus Marine (visibility, currents, waves), Open-Meteo (weather/swell) — cached, rate-limited, watchdog-supervised
+- **Live fishing intel** scraped every 2 hours across 11 regions (WA to Baja), deduplicated, species-normalized, with AI-generated regional insights
+- **Graceful degradation everywhere** — any upstream source can die without taking down a feature
+- Flutter app (iOS + Android) backed by Kotlin/Ktor + PostgreSQL/PostGIS on Railway, with Sentry, structured log shipping, and job heartbeats
 
 Download
 --------
