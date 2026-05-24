@@ -15,7 +15,7 @@ from pathlib import Path
 import psycopg2
 import requests
 
-GOOGLE_API_KEY = "AIzaSyDIQRZK3dCvkQTRisfj4T12BboyFejMWeg"
+GOOGLE_API_KEY = os.environ.get("GOOGLE_ELEVATION_API_KEY", "")
 GOOGLE_ELEVATION_URL = "https://maps.googleapis.com/maps/api/elevation/json"
 BATCH_SIZE = 10
 BATCH_DELAY = 0.1

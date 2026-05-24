@@ -53,3 +53,6 @@ __pycache__/
 
 # Docker
 postgres_data/
+
+# Data-provider credential script (contains AVISO/Copernicus login) - never publish
+shaka-tide/scripts/download_fes2022.sh
