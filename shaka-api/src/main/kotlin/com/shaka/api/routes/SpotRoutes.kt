@@ -1567,5 +1567,8 @@ fun Application.configureRouting() {
             }
             
         }
+
+        // Public legal pages at root level (outside /v1): /legal, /legal/privacy, /legal/terms
+        legalRoutes()
     }
 }
