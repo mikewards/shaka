@@ -489,6 +489,22 @@ Recent Changes
 - Unified date picker across chart views
 - Dynamic legends extracted from data sources
 
+Legal
+-----
+
+The Privacy Policy and Terms of Service are served as public pages by the API
+(see `shaka-api/src/main/resources/legal/` and `LegalRoutes.kt`). Canonical
+markdown sources and the App Store "App Privacy" answers live in `docs/legal/`.
+
+| Page | URL |
+|------|-----|
+| Legal index | `https://shaka-production.up.railway.app/legal` |
+| Privacy Policy | `https://shaka-production.up.railway.app/legal/privacy` |
+| Terms of Service | `https://shaka-production.up.railway.app/legal/terms` |
+
+Use the Privacy Policy URL in App Store Connect. The in-app first-launch
+disclaimer requires acceptance, recorded server-side (`legal_acceptances`).
+
 License
 -------
 
