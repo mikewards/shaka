@@ -21,6 +21,8 @@ import 'presentation/screens/spot_detail/spot_detail_screen.dart';
 import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/reports/reports_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
+import 'presentation/screens/legal/legal_document_screen.dart';
+import 'core/legal/legal_content.dart';
 
 const _sentryDsn = String.fromEnvironment(
   'SENTRY_DSN',
@@ -202,6 +204,24 @@ final _router = GoRouter(
           spotName: extra?['spotName'] as String?,
         );
       },
+    ),
+
+    // Legal documents (full-screen, above shell)
+    GoRoute(
+      path: '/legal/privacy',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const LegalDocumentScreen(
+        title: 'Privacy Policy',
+        url: LegalContent.privacyUrl,
+      ),
+    ),
+    GoRoute(
+      path: '/legal/terms',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const LegalDocumentScreen(
+        title: 'Terms of Service',
+        url: LegalContent.termsUrl,
+      ),
     ),
   ],
 );
