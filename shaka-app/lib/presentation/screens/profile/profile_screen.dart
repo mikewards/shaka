@@ -6,6 +6,7 @@ import '../../../data/models/spot_models.dart';
 import '../../../data/services/map_home_service.dart';
 import '../../../data/services/unit_preference_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/legal/legal_content.dart';
 import '../../widgets/location_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -146,6 +147,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await context.push('/profile/saved-spots');
               if (mounted) _loadSavedSpotsCount();
             },
+          ),
+          const SizedBox(height: 24),
+          // Legal section label
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'LEGAL',
+              style: TextStyle(
+                color: AppColors.darkTextMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          _ProfileRow(
+            icon: Icons.privacy_tip_outlined,
+            iconColor: AppColors.info,
+            title: 'Privacy Policy',
+            subtitle: 'How Shaka handles your data',
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/legal/privacy');
+            },
+          ),
+          const SizedBox(height: 12),
+          _ProfileRow(
+            icon: Icons.description_outlined,
+            iconColor: AppColors.info,
+            title: 'Terms of Service',
+            subtitle: 'Planning aid — not a safety device',
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/legal/terms');
+            },
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Terms version ${LegalContent.currentLegalVersion}',
+              style: const TextStyle(
+                color: AppColors.darkTextHint,
+                fontSize: 11,
+              ),
+            ),
           ),
         ],
       ),
