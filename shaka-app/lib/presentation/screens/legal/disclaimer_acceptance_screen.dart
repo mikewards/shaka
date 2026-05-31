@@ -51,6 +51,33 @@ class _DisclaimerAcceptanceScreenState
     if (mounted) widget.onAccepted();
   }
 
+  // No account exists, so declining simply means the app stays gated. We
+  // explain that rather than silently doing nothing on the disabled button.
+  void _decline() {
+    HapticFeedback.lightImpact();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkSurface,
+        title: const Text('Agreement required',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'You can only use Shaka after accepting the Terms of Service and '
+          'Privacy Policy. You can review them above, then check the box and '
+          'tap "I Agree" to continue.',
+          style: TextStyle(color: AppColors.darkTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK',
+                style: TextStyle(color: AppColors.darkAccent)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -210,6 +237,13 @@ class _DisclaimerAcceptanceScreenState
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _submitting ? null : _decline,
+                    child: const Text(
+                      'Decline',
+                      style: TextStyle(color: AppColors.darkTextMuted),
                     ),
                   ),
                 ],
