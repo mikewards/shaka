@@ -910,23 +910,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Your spots are stored securely on this device and are never shared with anyone. '
-                              'This is why we don\'t ask for account information — your data stays on your phone.',
+                              'Your saved spots sync to Shaka\'s servers so they\'re backed up and available across the app. '
+                              'They\'re tied only to an anonymous ID for this install — never to your name, email, or an account, '
+                              'and we don\'t sell or share them. You can delete a spot any time from My Spots.',
                               style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 14),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'If this device is lost or reset, your spots will be lost too.',
-                                    style: TextStyle(color: AppColors.warning, fontSize: 12, height: 1.4),
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
