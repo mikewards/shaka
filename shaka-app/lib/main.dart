@@ -22,6 +22,8 @@ import 'presentation/screens/charts/charts_hub_screen.dart';
 import 'presentation/screens/reports/reports_screen.dart';
 import 'presentation/screens/charts/gibs_imagery_screen.dart';
 import 'presentation/screens/legal/legal_document_screen.dart';
+import 'presentation/screens/legal/disclaimer_acceptance_screen.dart';
+import 'data/services/legal_acceptance_service.dart';
 import 'core/legal/legal_content.dart';
 
 const _sentryDsn = String.fromEnvironment(
@@ -61,11 +63,51 @@ void main() {
   });
 }
 
-class ShakaApp extends StatelessWidget {
+class ShakaApp extends StatefulWidget {
   const ShakaApp({super.key});
 
   @override
+  State<ShakaApp> createState() => _ShakaAppState();
+}
+
+class _ShakaAppState extends State<ShakaApp> {
+  // null = still loading; false = must accept; true = accepted.
+  bool? _accepted;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAcceptance();
+  }
+
+  Future<void> _loadAcceptance() async {
+    final accepted = await LegalAcceptanceService.hasAcceptedCurrent();
+    if (mounted) setState(() => _accepted = accepted);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Still resolving acceptance: dark splash to avoid flashing the app.
+    if (_accepted == null) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: ColoredBox(color: AppColors.darkBackground),
+      );
+    }
+
+    // First launch (or after a Terms version bump): require acceptance first.
+    if (_accepted == false) {
+      return MaterialApp(
+        title: 'Shaka',
+        theme: AppTheme.darkTheme,
+        debugShowCheckedModeBanner: false,
+        home: DisclaimerAcceptanceScreen(
+          onAccepted: () => setState(() => _accepted = true),
+        ),
+      );
+    }
+
+    // Accepted: the full app.
     final apiClient = ShakaApiClient();
     final spotRepository = SpotRepository(apiClient);
 
