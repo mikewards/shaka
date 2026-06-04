@@ -172,6 +172,37 @@ flutter analyze
 
 ---
 
+## App Store Submission — Privacy
+
+### Privacy manifest (`PrivacyInfo.xcprivacy`)
+
+`shaka-app/ios/Runner/PrivacyInfo.xcprivacy` declares `NSPrivacyTracking=false`,
+no tracking domains, and the required-reason APIs the app uses (UserDefaults,
+file timestamps). Most plugins ship their own manifests.
+
+One-time Xcode step: open `ios/Runner.xcodeproj`, select the **Runner** target,
+and ensure `PrivacyInfo.xcprivacy` is included in **Build Phases → Copy Bundle
+Resources** (add it if it is not listed). It must be bundled to satisfy App
+Store privacy requirements.
+
+### App Privacy answers (App Store Connect)
+
+Enter the answers exactly as specified in
+[docs/legal/app-store-privacy.md](legal/app-store-privacy.md):
+App Store Connect → your app → **App Privacy**. Summary: Tracking = **No**;
+collected = Device ID (linked, app functionality + legal record-keeping),
+Precise Location (linked, app functionality), Other User Content (saved-spot
+names, linked), Crash/Performance Data (not linked). No IP collected.
+
+### Privacy Policy URL
+
+In App Store Connect, set the **Privacy Policy URL** to:
+`https://shaka-production.up.railway.app/legal/privacy`
+
+Confirm the URL loads before submitting.
+
+---
+
 ## What NOT To Do
 
 - **NEVER** use `flutter run` without `--profile` or `--release` on iOS 26+ physical devices. Debug mode uses JIT compilation which iOS 26 blocks via `mprotect`.
