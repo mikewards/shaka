@@ -203,6 +203,42 @@ Confirm the URL loads before submitting.
 
 ---
 
+## Legal pages & first-launch acceptance (deploy + verify)
+
+### Hosted legal pages (Railway)
+
+The Privacy Policy and Terms are served by the API at `/legal/privacy`,
+`/legal/terms`, and `/legal`. They ship automatically: the API auto-deploys on
+push to `main` (see `.cursor/rules/railway.mdc`). After a deploy, verify:
+
+```bash
+curl -sI https://shaka-production.up.railway.app/legal/privacy | head -1
+curl -sI https://shaka-production.up.railway.app/legal/terms   | head -1
+```
+
+Both should return `HTTP/.. 200`. If you change the legal markdown in
+`docs/legal/`, also update the matching HTML in
+`shaka-api/src/main/resources/legal/` and push.
+
+### First-launch acceptance gate (app)
+
+On first launch (and after a Terms version bump) the app shows a clickwrap
+that must be accepted before `/explore`. Acceptance is recorded server-side in
+the `legal_acceptances` table (keyed to the anonymous device ID). The version
+lives in `shaka-app/lib/core/legal/legal_content.dart`
+(`currentLegalVersion`); bump it when the Terms change to re-prompt users.
+
+After rebuilding/redeploying the app (see iOS/Android sections above), verify:
+
+1. Fresh install shows the disclaimer; the "I Agree" button is disabled until
+   the checkbox is ticked.
+2. Tapping the Terms / Privacy links opens the hosted pages.
+3. After accepting, the app routes to `/explore`; relaunching does **not**
+   show the disclaimer again.
+4. Profile → LEGAL shows Privacy Policy and Terms links and the Terms version.
+
+---
+
 ## What NOT To Do
 
 - **NEVER** use `flutter run` without `--profile` or `--release` on iOS 26+ physical devices. Debug mode uses JIT compilation which iOS 26 blocks via `mprotect`.
