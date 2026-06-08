@@ -33,6 +33,17 @@ Enter the Privacy Policy URL in App Store Connect.
 - Resolve the open questions in [data-practices.md](data-practices.md)
   (Railway access logs; Sentry `sendDefaultPii`).
 
+## Build & deploy
+
+- Hosted legal pages ship via Railway, which auto-deploys the API on push to
+  `main` (see [.cursor/rules/railway.mdc](../../.cursor/rules/railway.mdc)).
+- App rebuild/redeploy and the App Store "App Privacy" + acceptance-gate
+  verification steps are in
+  [docs/MOBILE_DEPLOYMENT.md](../MOBILE_DEPLOYMENT.md).
+- iOS startup constraints for the acceptance gate (no `await` before
+  `runApp()`) are in
+  [.cursor/rules/ios-deployment.mdc](../../.cursor/rules/ios-deployment.mdc).
+
 ## Attorney review (recommended, non-blocking)
 A short attorney review (~$350–750) of the Terms and Privacy Policy is recommended
 before launch — particularly the limitation-of-liability cap, the assumption-of-risk
