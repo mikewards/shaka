@@ -2586,6 +2586,26 @@ CREATE INDEX IF NOT EXISTS user_spots_location_idx ON user_spots USING GIST (
 CREATE INDEX IF NOT EXISTS user_spots_name_idx ON user_spots(name);
 
 -- ============================================
+-- LEGAL ACCEPTANCE RECORDS
+-- ============================================
+-- Append-only record that a given install accepted the Terms/Privacy.
+-- Authoritative (court-grade) proof of assent; the app also keeps a local
+-- mirror for the first-launch gate. Keyed to the anonymous device id only —
+-- no name/email/account, and intentionally NO IP or user-agent captured.
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id VARCHAR(64) NOT NULL,
+    legal_version VARCHAR(32) NOT NULL,
+    document VARCHAR(32) NOT NULL DEFAULT 'tos_privacy',
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    app_version VARCHAR(32),
+    platform VARCHAR(16)
+);
+
+-- Index for fast lookup of a device's latest acceptance
+CREATE INDEX IF NOT EXISTS legal_acceptances_device_idx ON legal_acceptances(device_id);
+
+-- ============================================
 -- FISHING INTEL TABLES (ISOLATED)
 -- SoCal fishing report aggregation
 -- ============================================
