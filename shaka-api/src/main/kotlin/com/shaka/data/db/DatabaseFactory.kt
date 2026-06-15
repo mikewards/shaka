@@ -66,7 +66,7 @@ object DatabaseFactory {
 
         // Create tables if they don't exist
         transaction {
-            SchemaUtils.create(SpotsTable, ReportsTable, UserSpotsTable)
+            SchemaUtils.create(SpotsTable, ReportsTable, UserSpotsTable, LegalAcceptancesTable)
         }
         
         // Seed spots data if table is empty
@@ -112,7 +112,7 @@ object DatabaseFactory {
         logger.info("Database connected, creating tables if needed...")
 
         transaction {
-            SchemaUtils.create(SpotsTable, ReportsTable, UserSpotsTable)
+            SchemaUtils.create(SpotsTable, ReportsTable, UserSpotsTable, LegalAcceptancesTable)
         }
         
         // Seed spots data if table is empty
