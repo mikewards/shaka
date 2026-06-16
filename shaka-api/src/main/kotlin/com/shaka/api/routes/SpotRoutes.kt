@@ -6,6 +6,7 @@ import com.shaka.data.client.CopernicusClient
 import com.shaka.data.client.LandWaterClient
 import com.shaka.data.client.SpotDatabase
 import com.shaka.data.db.UserSpotRepository
+import com.shaka.data.db.LegalAcceptanceRepository
 import com.shaka.model.*
 import com.shaka.fishing_intel.api.FishingIntelRoutes
 import com.shaka.fishing_intel.api.IngestPostRequest
@@ -69,6 +70,7 @@ fun Application.configureRouting() {
     val copernicusClient = CopernicusClient()
     val healthService = HealthService()
     val userSpotRepository = UserSpotRepository()
+    val legalAcceptanceRepository = LegalAcceptanceRepository()
     val landWaterClient = LandWaterClient()
 
     routing {
@@ -1565,7 +1567,9 @@ fun Application.configureRouting() {
                     call.respondFile(file)
                 }
             }
-            
+
+            // Legal acceptance records (anonymous device id via X-Device-ID)
+            legalAcceptanceRoutes(legalAcceptanceRepository)
         }
 
         // Public legal pages at root level (outside /v1): /legal, /legal/privacy, /legal/terms
