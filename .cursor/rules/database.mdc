@@ -29,6 +29,7 @@ source .env && psql "$DATABASE_URL" -c "YOUR QUERY HERE"
 | `spot_cache` | Cached conditions for all spots (swell, wind, tide, exposure, corrected swell, etc.) |
 | `spot_exposure` | 16-direction land distance profiles + depth/bearing/width per spot |
 | `user_spots` | User-created spots (id, name, lat, lon, user_id) |
+| `legal_acceptances` | Append-only Terms/Privacy acceptance records (device_id, legal_version, accepted_at, app_version, platform); no IP/PII |
 | `spots` | Built-in spot catalog |
 | `buoy_stations` | NDBC buoy station registry (id, lat, lon, name, active) |
 | `buoy_readings` | Hourly buoy wave readings (station_id, wave_height, period, direction) |
