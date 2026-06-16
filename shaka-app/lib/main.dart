@@ -60,6 +60,8 @@ void main() {
     HealthProvider().checkHealthInBackground();
     MapBackgroundService().init();
     UnitPreferenceService().init();
+    // Retry any legal acceptance that failed to reach the server (offline).
+    LegalAcceptanceService.syncPendingIfNeeded();
   });
 }
 
