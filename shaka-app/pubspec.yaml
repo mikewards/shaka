@@ -56,7 +56,7 @@ dependencies:
   uuid: ^4.2.1
 
   # Monitoring
-  sentry_flutter: ^8.12.0
+  sentry_flutter: ^9.17.0
 
 dev_dependencies:
   flutter_test:
