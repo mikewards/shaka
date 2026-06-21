@@ -607,7 +607,18 @@ class SpotService {
 
     private fun loadTideChartData(spotId: String, lon: Double): TideChartData? {
         return try {
-            val today = spotLocalDate(spotId, lon).toString()
+            // One series lookup serves both the local-date boundary (real IANA
+            // tz) and the chart metadata (station/datum/tz), so the per-day rows
+            // only need to carry the time-varying points/extremes.
+            val series = SpotDataCache.getTideSeries(spotId, tidesClient.provider)
+            val today = run {
+                val tzId = series?.timezoneId
+                if (!tzId.isNullOrEmpty()) {
+                    try { return@run Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate() }
+                    catch (_: Exception) { /* fall through */ }
+                }
+                spotLocalDate(lon)
+            }.toString()
             val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
 
             val json = Json { ignoreUnknownKeys = true }
@@ -625,11 +636,11 @@ class SpotService {
 
             TideChartData(
                 provider = row.provider,
-                stationId = row.stationId ?: "",
-                stationName = row.stationName ?: "",
-                stationDistanceMi = row.stationDistanceMi ?: 0.0,
-                datum = row.datum ?: "MLLW",
-                timezoneId = row.timezoneId ?: "",
+                stationId = series?.stationId ?: row.stationId ?: "",
+                stationName = series?.stationName ?: row.stationName ?: "",
+                stationDistanceMi = series?.stationDistanceMi ?: row.stationDistanceMi ?: 0.0,
+                datum = row.datum ?: series?.datum ?: "MLLW",
+                timezoneId = row.timezoneId ?: series?.timezoneId ?: "",
                 points = points,
                 extremes = extremes,
                 currentHeightFt = currentHeight,
