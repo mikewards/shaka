@@ -54,7 +54,17 @@ class DataPrefetchJobs(
         const val MPA_STALE_HOURS = 168     // Weekly (168 hours) - MPA boundaries rarely change
         const val VESSEL_STALE_HOURS = 24   // Daily - GFW updates daily
         const val SOLUNAR_STALE_HOURS = 12  // Twice daily - solunar feeding windows shift through the day
+
+        // Tide horizon top-up tuning. Tide curves are deterministic, so once a
+        // year is materialized we only regenerate as the horizon nears expiry.
+        const val HORIZON_TARGET_DAYS = 365        // regenerate a full year at a time
+        const val HORIZON_REFRESH_DAYS = 45        // refresh when < 45 days of horizon remain
+        const val TOPUP_TIME_BUDGET_MS = 90 * 60 * 1000L  // bound each scheduled run to ~90 min of FES work
     }
+
+    // Guards against overlapping horizon top-up runs (each FES year prediction
+    // holds a ~5GB working set; concurrent runs would OOM the single instance).
+    private val tideTopUpRunning = java.util.concurrent.atomic.AtomicBoolean(false)
     
     private fun spotLocalDate(lon: Double): LocalDate {
         val offsetHours = (lon / 15).toInt().coerceIn(-12, 14)
@@ -394,6 +404,24 @@ class DataPrefetchJobs(
      * Strictly serial (concurrency=1): the FES model has a ~5GB working set, so
      * overlapping year predictions would OOM-kill the Python service.
      */
+    private data class TideTarget(val spotId: String, val lat: Double, val lon: Double, val name: String)
+
+    /** Catalog + user spots as tide-materialization targets. */
+    private suspend fun tideTargets(): List<TideTarget> {
+        val catalog = spotDb.getAllSpots().map {
+            TideTarget(it.id, it.coordinates.lat, it.coordinates.lon, it.name)
+        }
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
+                TideTarget("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
+            }
+        } catch (e: Exception) {
+            logger.warn("TIDE targets: failed to load user spots: ${e.message}")
+            emptyList()
+        }
+        return catalog + userSpots
+    }
+
     suspend fun backfillTideYears(days: Int = 365) = withContext(Dispatchers.IO) {
         val fes = tidesClient as? FES2022TideClient
         if (fes == null) {
@@ -401,19 +429,7 @@ class DataPrefetchJobs(
             return@withContext
         }
 
-        data class Target(val spotId: String, val lat: Double, val lon: Double, val name: String)
-        val catalog = spotDb.getAllSpots().map {
-            Target(it.id, it.coordinates.lat, it.coordinates.lon, it.name)
-        }
-        val userSpots = try {
-            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
-                Target("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
-            }
-        } catch (e: Exception) {
-            logger.warn("TIDE YEAR backfill: failed to load user spots: ${e.message}")
-            emptyList()
-        }
-        val all = catalog + userSpots
+        val all = tideTargets()
 
         logger.info("TIDE YEAR backfill: ${all.size} spots x $days days (serial, concurrency=1)")
         val startTime = System.currentTimeMillis()
@@ -492,6 +508,70 @@ class DataPrefetchJobs(
 
         logger.info("Tide year materialized for $spotId: ${result.tideDays.size} days ($from..$through)")
         return true
+    }
+
+    /**
+     * Horizon top-up: (re)generate a full year for any spot whose precomputed
+     * tide horizon is missing or within HORIZON_REFRESH_DAYS of expiry. Replaces
+     * the old 6-hourly materialize + 10-minute catch-up jobs.
+     *
+     * Bounded by TOPUP_TIME_BUDGET_MS per run and strictly serial, so the first
+     * deploy (no horizons yet) fills the whole catalog over several runs without
+     * any single run starving the FES instance or tripping the job watchdog.
+     * Once filled, runs are near-no-ops until the horizon nears expiry.
+     */
+    suspend fun topUpTideHorizons() = withContext(Dispatchers.IO) {
+        if (!tideTopUpRunning.compareAndSet(false, true)) {
+            logger.info("TIDE horizon top-up already running; skipping this trigger")
+            return@withContext
+        }
+        try {
+            val fes = tidesClient as? FES2022TideClient
+            if (fes == null) {
+                logger.warn("TIDE horizon top-up requires the FES2022 client; skipping")
+                return@withContext
+            }
+
+            val threshold = LocalDate.now().plusDays(HORIZON_REFRESH_DAYS.toLong())
+            val needy = tideTargets().filter { t ->
+                val through = SpotDataCache.getTideSeries(t.spotId)?.generatedThrough
+                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                through == null || through.isBefore(threshold)
+            }
+
+            if (needy.isEmpty()) {
+                logger.info("TIDE horizon top-up: all spots have >= $HORIZON_REFRESH_DAYS days of horizon")
+                return@withContext
+            }
+
+            logger.info("TIDE horizon top-up: ${needy.size} spots need a fresh year (budget ${TOPUP_TIME_BUDGET_MS / 60000}min, serial)")
+            val startTime = System.currentTimeMillis()
+            var done = 0
+            var failed = 0
+            val failures = mutableListOf<ItemFailure>()
+
+            for (t in needy) {
+                if (System.currentTimeMillis() - startTime > TOPUP_TIME_BUDGET_MS) {
+                    logger.info("TIDE horizon top-up: time budget reached after $done spots; ${needy.size - done} deferred to next run")
+                    break
+                }
+                try {
+                    if (backfillTideYear(fes, t.spotId, t.lat, t.lon, HORIZON_TARGET_DAYS)) done++ else failed++
+                } catch (e: Exception) {
+                    logger.warn("TIDE horizon top-up failed for ${t.name}: ${e.message}")
+                    MonitoringService.captureItemFailure("tide_horizon_topup", t.spotId, t.name, e)
+                    failures.add(ItemFailure(t.spotId, t.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                    failed++
+                }
+                delay(2000)
+            }
+
+            val elapsed = System.currentTimeMillis() - startTime
+            MonitoringService.reportRun("tide_horizon_topup", done + failed, done, failures, elapsed)
+            logger.info("TIDE horizon top-up: $done generated, $failed failed in ${elapsed / 1000}s")
+        } finally {
+            tideTopUpRunning.set(false)
+        }
     }
 
     // ==================== EVERY 3 HOURS: Weather Prefetch ====================

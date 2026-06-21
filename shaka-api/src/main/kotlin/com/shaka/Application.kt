@@ -233,14 +233,14 @@ private fun Application.configureScheduledJobs() {
         prefetchJobs.prefetchBuoyReadings()
     }
 
-    // EVERY 6 HOURS: Tide chart materialization (today + tomorrow)
-    scheduleJob("tide_chart_materialize", initialDelayMs = 420_000, intervalMs = 21_600_000, runImmediately = true) {
-        prefetchJobs.materializeTideCharts()
-    }
-
-    // EVERY 10 MINUTES: Tide chart catch-up (missing spots)
-    scheduleJob("tide_chart_catchup", initialDelayMs = 480_000, intervalMs = 600_000, maxRunMs = 21_600_000, runImmediately = true) {
-        prefetchJobs.catchUpMissingTideCharts()
+    // EVERY 3 HOURS: Tide horizon top-up. Tide curves are deterministic, so we
+    // precompute a full year per spot and only regenerate as the horizon nears
+    // expiry. This replaces the old 6-hourly materialize + 10-minute catch-up
+    // jobs, which re-hit the FES2022 service daily and triggered the OOM crash
+    // loop. Each run is bounded to ~90 min of FES work (see TOPUP_TIME_BUDGET_MS),
+    // so the initial catalog-wide fill spreads across several runs.
+    scheduleJob("tide_horizon_topup", initialDelayMs = 420_000, intervalMs = 10_800_000, maxRunMs = 6_000_000, runImmediately = true) {
+        prefetchJobs.topUpTideHorizons()
     }
 
     // WEEKLY: MPA boundary refresh. Previously only reachable via the dead
