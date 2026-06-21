@@ -368,6 +368,117 @@ class DataPrefetchJobs(
         SpotDataCache.cleanupOldTideDays()
     }
 
+    // ==================== UPFRONT: Full-Year Tide Backfill ====================
+
+    /**
+     * Materialize a full year (default 365 days) of tide data for every catalog
+     * and user spot, one spot at a time. Tide curves are deterministic, so this
+     * runs ONCE and the daily/hourly jobs then read from spot_tide_days instead
+     * of hammering the FES2022 service every day (the cause of the OOM crashes).
+     *
+     * Strictly serial (concurrency=1): the FES model has a ~5GB working set, so
+     * overlapping year predictions would OOM-kill the Python service.
+     */
+    suspend fun backfillTideYears(days: Int = 365) = withContext(Dispatchers.IO) {
+        val fes = tidesClient as? FES2022TideClient
+        if (fes == null) {
+            logger.warn("TIDE YEAR backfill requires the FES2022 client; skipping")
+            return@withContext
+        }
+
+        data class Target(val spotId: String, val lat: Double, val lon: Double, val name: String)
+        val catalog = spotDb.getAllSpots().map {
+            Target(it.id, it.coordinates.lat, it.coordinates.lon, it.name)
+        }
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
+                Target("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
+            }
+        } catch (e: Exception) {
+            logger.warn("TIDE YEAR backfill: failed to load user spots: ${e.message}")
+            emptyList()
+        }
+        val all = catalog + userSpots
+
+        logger.info("TIDE YEAR backfill: ${all.size} spots x $days days (serial, concurrency=1)")
+        val startTime = System.currentTimeMillis()
+        var done = 0
+        var failed = 0
+        val failures = mutableListOf<ItemFailure>()
+
+        for (target in all) {
+            try {
+                val ok = backfillTideYear(fes, target.spotId, target.lat, target.lon, days)
+                if (ok) done++ else { failed++ }
+            } catch (e: Exception) {
+                logger.warn("TIDE YEAR backfill failed for ${target.name}: ${e.message}")
+                MonitoringService.captureItemFailure("tide_year_backfill", target.spotId, target.name, e)
+                failures.add(ItemFailure(target.spotId, target.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                failed++
+            }
+            // Brief pause between spots so the single FES instance can reclaim memory.
+            delay(2000)
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        MonitoringService.reportRun("tide_year_backfill", all.size, done, failures, elapsed)
+        logger.info("TIDE YEAR backfill complete: $done ok, $failed failed in ${elapsed / 1000}s")
+    }
+
+    /**
+     * Generate and persist a full-year horizon for a single spot. Upserts each
+     * day into spot_tide_days and records the horizon in spot_tide_series.
+     */
+    suspend fun backfillTideYear(
+        fes: FES2022TideClient,
+        spotId: String,
+        lat: Double,
+        lon: Double,
+        days: Int = 365
+    ): Boolean {
+        val result = fes.getTideYear(lat, lon, null, days) ?: return false
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+        for (day in result.tideDays) {
+            SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                spotId = spotId,
+                localDate = day.localDate,
+                provider = "fes2022",
+                stationId = "",
+                stationName = "FES2022",
+                stationDistanceMi = 0.0,
+                timezoneId = result.timezoneId,
+                datum = result.datum,
+                pointsJson = json.encodeToString(ListSerializer(TidePoint.serializer()), day.points),
+                extremesJson = json.encodeToString(ListSerializer(TideExtreme.serializer()), day.extremes),
+                fetchedAt = Instant.now()
+            ))
+        }
+
+        val from = result.tideDays.firstOrNull()?.localDate
+        val through = result.tideDays.lastOrNull()?.localDate
+        SpotDataCache.upsertTideSeries(SpotDataCache.TideSeriesRow(
+            spotId = spotId,
+            provider = "fes2022",
+            lat = lat,
+            lon = lon,
+            timezoneId = result.timezoneId,
+            datum = result.datum,
+            stationId = null,
+            stationName = "FES2022",
+            stationDistanceMi = null,
+            modelVersion = "FES2022",
+            stepMinutes = result.stepMinutes,
+            generatedFrom = from,
+            generatedThrough = through,
+            generatedAt = Instant.now(),
+            status = "ready"
+        ))
+
+        logger.info("Tide year materialized for $spotId: ${result.tideDays.size} days ($from..$through)")
+        return true
+    }
+
     // ==================== EVERY 3 HOURS: Weather Prefetch ====================
     
     /**

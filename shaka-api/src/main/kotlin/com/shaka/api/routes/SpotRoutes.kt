@@ -666,6 +666,35 @@ fun Application.configureRouting() {
                 )
             }
             
+            // Upfront full-year tide backfill: materialize a year of tide data
+            // for every catalog + user spot (serial, concurrency=1). Run once;
+            // the daily/hourly jobs then read from spot_tide_days instead of
+            // re-hitting the FES2022 service every day.
+            post("/admin/tide/backfill-year") {
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                if (prefetchJobs == null) {
+                    call.respondText(
+                        """{"status":"error","message":"PrefetchJobs not initialized yet"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.ServiceUnavailable
+                    )
+                    return@post
+                }
+                val days = call.request.queryParameters["days"]?.toIntOrNull()?.coerceIn(1, 400) ?: 365
+                GlobalScope.launch {
+                    try {
+                        prefetchJobs.backfillTideYears(days)
+                    } catch (e: Exception) {
+                        org.slf4j.LoggerFactory.getLogger("AdminTideYearBackfill")
+                            .error("Tide year backfill failed: ${e.message}", e)
+                    }
+                }
+                call.respondText(
+                    """{"status":"started","days":$days,"message":"Full-year tide backfill started in background (serial). This runs for a long time; watch logs for 'TIDE YEAR backfill complete'."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+
             // Force-run the ocean forecast tile pipeline (ECMWF + CMEMS → WebP)
             post("/admin/weather/tiles/trigger") {
                 kotlinx.coroutines.GlobalScope.launch {

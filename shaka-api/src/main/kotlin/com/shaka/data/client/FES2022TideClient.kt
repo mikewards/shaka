@@ -4,6 +4,8 @@ import com.shaka.model.TideChartData
 import com.shaka.model.TideData
 import com.shaka.model.TideExtreme
 import com.shaka.model.TidePoint
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import kotlinx.coroutines.sync.Semaphore
@@ -38,6 +40,10 @@ class FES2022TideClient : TideClient {
         // (the April 2026 crash loop). Predictions are ~2s each, so 2 permits
         // keep throughput fine while bounding the service's working set.
         private val requestPermits = Semaphore(2)
+
+        // Full-year predictions are long-running (monthly chunks); give them a
+        // generous ceiling so the HTTP call outlives the FES computation.
+        private const val YEAR_REQUEST_TIMEOUT_MS = 1_800_000L  // 30 minutes
     }
 
     // Simple circuit breaker: trip after 5 consecutive failures, reset after 60s
@@ -180,6 +186,101 @@ class FES2022TideClient : TideClient {
 
     override suspend fun getTideChartData(lat: Double, lon: Double, date: String): TideChartData? {
         return getChartWithSummary(lat, lon, date)?.first
+    }
+
+    data class TideYearDay(
+        val localDate: String,
+        val points: List<TidePoint>,
+        val extremes: List<TideExtreme>
+    )
+
+    data class TideYearResult(
+        val datum: String,
+        val timezoneId: String,
+        val stepMinutes: Int,
+        val startDate: String,
+        val days: Int,
+        val tideDays: List<TideYearDay>
+    )
+
+    // A full-year prediction runs the FES model in ~12 monthly chunks and can
+    // take several minutes per spot -- far beyond the shared client's 30s
+    // request timeout. Use a dedicated long-timeout client just for /tide/year.
+    private val yearClient: HttpClient by lazy {
+        HttpClient(CIO) {
+            engine {
+                requestTimeout = YEAR_REQUEST_TIMEOUT_MS
+                endpoint {
+                    connectTimeout = 10_000
+                    requestTimeout = YEAR_REQUEST_TIMEOUT_MS
+                    socketTimeout = YEAR_REQUEST_TIMEOUT_MS
+                }
+            }
+        }
+    }
+
+    /**
+     * Fetch a full precomputed tide horizon (default 365 days) for a spot,
+     * grouped into per-local-date buckets. Used by the upfront backfill and
+     * monthly horizon top-up -- not the hot read path.
+     *
+     * Deliberately does NOT consult or trip the circuit breaker: this is an
+     * explicit, long-running operation and a slow/failed year call must not
+     * disable the hourly summary path for every other spot.
+     */
+    suspend fun getTideYear(
+        lat: Double,
+        lon: Double,
+        startDate: String? = null,
+        days: Int = 365,
+        stepMinutes: Int = 30
+    ): TideYearResult? {
+        return try {
+            val response: String = yearClient.get("$baseUrl/tide/year") {
+                parameter("lat", lat)
+                parameter("lon", lon)
+                if (startDate != null) parameter("start_date", startDate)
+                parameter("days", days)
+                parameter("step_minutes", stepMinutes)
+            }.bodyAsText()
+
+            val obj = json.parseToJsonElement(response).jsonObject
+            val tideDays = obj["tide_days"]?.jsonArray?.mapNotNull { dayEl ->
+                val d = dayEl.jsonObject
+                val localDate = d["local_date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val points = d["points"]?.jsonArray?.mapNotNull { el ->
+                    val p = el.jsonObject
+                    val epochMs = p["epoch_ms"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+                    val heightFt = p["height_ft"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                    TidePoint(epochMs = epochMs, heightFt = heightFt)
+                } ?: emptyList()
+                val extremes = d["extremes"]?.jsonArray?.mapNotNull { el ->
+                    val e = el.jsonObject
+                    val epochMs = e["epoch_ms"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
+                    val heightFt = e["height_ft"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                    val type = e["type"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    TideExtreme(epochMs = epochMs, heightFt = heightFt, type = type)
+                } ?: emptyList()
+                if (points.isEmpty()) null else TideYearDay(localDate, points, extremes)
+            } ?: emptyList()
+
+            if (tideDays.isEmpty()) {
+                logger.warn("FES2022 year prediction returned no days for ($lat, $lon)")
+                return null
+            }
+
+            TideYearResult(
+                datum = obj["datum"]?.jsonPrimitive?.contentOrNull ?: "MSL",
+                timezoneId = obj["timezoneId"]?.jsonPrimitive?.contentOrNull ?: "Etc/UTC",
+                stepMinutes = obj["step_minutes"]?.jsonPrimitive?.intOrNull ?: stepMinutes,
+                startDate = obj["start_date"]?.jsonPrimitive?.contentOrNull ?: (startDate ?: ""),
+                days = obj["days"]?.jsonPrimitive?.intOrNull ?: days,
+                tideDays = tideDays
+            )
+        } catch (e: Exception) {
+            logger.warn("FES2022 year prediction failed for ($lat, $lon): ${e.message}")
+            null
+        }
     }
 
     private fun formatTideText(obj: JsonObject, ftKey: String, msKey: String): String {
