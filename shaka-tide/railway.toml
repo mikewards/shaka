@@ -2,6 +2,12 @@
 builder = "dockerfile"
 
 [deploy]
+# Single warm instance: the FES2022 model holds a ~5 GB working set, so each
+# replica is expensive and horizontal fan-out would multiply memory and risk
+# OOM. Keep exactly one always-on instance; predictions are serialized in-app
+# (concurrency=1 via the single-token threadpool). Provision ~6 GB RAM for this
+# service in the Railway dashboard (cannot be set here).
+numReplicas = 1
 healthcheckPath = "/health"
 healthcheckTimeout = 600
 restartPolicyType = "on_failure"

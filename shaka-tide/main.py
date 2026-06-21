@@ -9,6 +9,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 
+import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 
@@ -58,6 +59,12 @@ def _init():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Enforce concurrency=1 for FES predictions. All prediction endpoints are
+    # sync `def`, so FastAPI runs them in this threadpool; capping it at a single
+    # token serializes every prediction (year/chart/summary). The FES model holds
+    # a ~5 GB working set, so overlapping predictions would OOM the instance (the
+    # April/June 2026 crash loop). /health stays async and so remains responsive.
+    anyio.to_thread.current_default_thread_limiter().total_tokens = 1
     thread = threading.Thread(target=_init, daemon=True)
     thread.start()
     yield
@@ -81,8 +88,10 @@ async def health():
     return {"status": "ok", "model": "FES2022"}
 
 
+# Sync `def` (not async): runs in the single-token threadpool so it is
+# serialized with every other prediction (see lifespan).
 @app.get("/tide/chart")
-async def tide_chart(
+def tide_chart(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     date: str = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
@@ -98,8 +107,9 @@ async def tide_chart(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Sync `def` (not async): serialized with every other prediction (see lifespan).
 @app.get("/tide/summary")
-async def tide_summary(
+def tide_summary(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
 ):
@@ -112,11 +122,10 @@ async def tide_summary(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# NOTE: declared as a sync `def` (not `async def`) on purpose. FastAPI runs
-# sync path operations in a threadpool, so this multi-minute generation does
-# not block the event loop and /health stays responsive during a backfill.
-# Caller is responsible for serializing requests (concurrency 1) — the engine
-# computes in bounded monthly windows but still holds the ~5 GB model resident.
+# Sync `def` on purpose: FastAPI runs it in the single-token threadpool, so this
+# multi-minute generation is serialized with all other predictions and never
+# blocks the event loop (so /health stays responsive during a backfill). The
+# engine computes in bounded monthly windows but holds the ~5 GB model resident.
 @app.get("/tide/year")
 def tide_year(
     lat: float = Query(..., ge=-90, le=90),

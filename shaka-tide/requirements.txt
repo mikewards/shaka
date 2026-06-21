@@ -1,5 +1,8 @@
 fastapi>=0.110.0,<1
 uvicorn>=0.29.0,<1
+# Transitive via starlette, but imported directly to pin the prediction
+# threadpool to a single token (concurrency=1).
+anyio>=4.0.0,<5
 # Pinned exactly: 3.0.4+ introduced a crop-path memory blowup that OOMs
 # the container during warm-up (Apr 2026 crash loop). 3.0.3 = the last
 # version the working March image was built with.
