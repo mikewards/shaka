@@ -1666,6 +1666,65 @@ object SpotDataCache {
             } catch (e: Exception) {
                 logger.warn("Failed to create spot_tide_days table: ${e.message}")
             }
+
+            // Tide series table: one row per (spot, provider) holding metadata +
+            // the precomputed-horizon bookkeeping (generated_from/through). Drives
+            // the upfront backfill and monthly top-up so we stop recomputing the
+            // deterministic FES2022 curve every day.
+            try {
+                transaction {
+                    val seriesConn = this.connection.connection as java.sql.Connection
+                    val seriesTable = """
+                        CREATE TABLE IF NOT EXISTS spot_tide_series (
+                            spot_id VARCHAR(100) NOT NULL,
+                            provider VARCHAR(20) NOT NULL DEFAULT 'fes2022',
+                            lat DOUBLE PRECISION,
+                            lon DOUBLE PRECISION,
+                            timezone_id VARCHAR(50),
+                            datum VARCHAR(20) DEFAULT 'MLLW',
+                            station_id VARCHAR(20),
+                            station_name VARCHAR(200),
+                            station_distance_mi DOUBLE PRECISION,
+                            model_version VARCHAR(20) NOT NULL DEFAULT 'FES2022',
+                            step_minutes SMALLINT NOT NULL DEFAULT 30,
+                            generated_from DATE,
+                            generated_through DATE,
+                            generated_at TIMESTAMP,
+                            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                            PRIMARY KEY (spot_id, provider)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_spot_tide_series_horizon
+                            ON spot_tide_series (generated_through);
+                    """.trimIndent()
+                    seriesConn.createStatement().use { stmt ->
+                        seriesTable.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                            stmt.execute(sql.trim())
+                        }
+                    }
+
+                    // Idempotent backfill: seed a series row for every spot that
+                    // already has materialized tide days, deriving the current
+                    // horizon from MIN/MAX(local_date). ON CONFLICT DO NOTHING makes
+                    // this safe to run on every boot; new spots upsert their own row.
+                    val backfilled = seriesConn.createStatement().executeUpdate("""
+                        INSERT INTO spot_tide_series
+                            (spot_id, provider, timezone_id, datum, station_id, station_name,
+                             station_distance_mi, generated_from, generated_through, generated_at, status)
+                        SELECT spot_id, provider,
+                               MAX(timezone_id), MAX(datum), MAX(station_id), MAX(station_name),
+                               MAX(station_distance_mi), MIN(local_date), MAX(local_date), NOW(), 'ready'
+                        FROM spot_tide_days
+                        GROUP BY spot_id, provider
+                        ON CONFLICT (spot_id, provider) DO NOTHING
+                    """.trimIndent())
+                    if (backfilled > 0) {
+                        logger.info("Backfilled $backfilled spot_tide_series rows from existing tide days")
+                    }
+                }
+                logger.info("spot_tide_series table ready")
+            } catch (e: Exception) {
+                logger.warn("Failed to create spot_tide_series table: ${e.message}")
+            }
         } catch (e: Exception) {
             logger.error("Failed to create spot_cache table: ${e.message}")
         }
@@ -2280,6 +2339,111 @@ object SpotDataCache {
         val extremesJson: String?,
         val fetchedAt: Instant
     )
+
+    data class TideSeriesRow(
+        val spotId: String,
+        val provider: String,
+        val lat: Double?,
+        val lon: Double?,
+        val timezoneId: String?,
+        val datum: String?,
+        val stationId: String?,
+        val stationName: String?,
+        val stationDistanceMi: Double?,
+        val modelVersion: String = "FES2022",
+        val stepMinutes: Int = 30,
+        val generatedFrom: String?,
+        val generatedThrough: String?,
+        val generatedAt: Instant?,
+        val status: String = "ready"
+    )
+
+    fun upsertTideSeries(row: TideSeriesRow) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    INSERT INTO spot_tide_series
+                        (spot_id, provider, lat, lon, timezone_id, datum, station_id, station_name,
+                         station_distance_mi, model_version, step_minutes, generated_from,
+                         generated_through, generated_at, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::date, ?::date, ?, ?)
+                    ON CONFLICT (spot_id, provider) DO UPDATE SET
+                        lat = EXCLUDED.lat,
+                        lon = EXCLUDED.lon,
+                        timezone_id = EXCLUDED.timezone_id,
+                        datum = EXCLUDED.datum,
+                        station_id = EXCLUDED.station_id,
+                        station_name = EXCLUDED.station_name,
+                        station_distance_mi = EXCLUDED.station_distance_mi,
+                        model_version = EXCLUDED.model_version,
+                        step_minutes = EXCLUDED.step_minutes,
+                        generated_from = EXCLUDED.generated_from,
+                        generated_through = EXCLUDED.generated_through,
+                        generated_at = EXCLUDED.generated_at,
+                        status = EXCLUDED.status
+                """).use { stmt ->
+                    stmt.setString(1, row.spotId)
+                    stmt.setString(2, row.provider)
+                    if (row.lat != null) stmt.setDouble(3, row.lat) else stmt.setNull(3, java.sql.Types.DOUBLE)
+                    if (row.lon != null) stmt.setDouble(4, row.lon) else stmt.setNull(4, java.sql.Types.DOUBLE)
+                    stmt.setString(5, row.timezoneId)
+                    stmt.setString(6, row.datum)
+                    stmt.setString(7, row.stationId)
+                    stmt.setString(8, row.stationName)
+                    if (row.stationDistanceMi != null) stmt.setDouble(9, row.stationDistanceMi) else stmt.setNull(9, java.sql.Types.DOUBLE)
+                    stmt.setString(10, row.modelVersion)
+                    stmt.setInt(11, row.stepMinutes)
+                    stmt.setString(12, row.generatedFrom)
+                    stmt.setString(13, row.generatedThrough)
+                    stmt.setTimestamp(14, row.generatedAt?.let { Timestamp.from(it) })
+                    stmt.setString(15, row.status)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to upsert tide series for ${row.spotId}: ${e.message}")
+        }
+    }
+
+    fun getTideSeries(spotId: String, provider: String = "fes2022"): TideSeriesRow? {
+        if (!DatabaseFactory.isConnected()) return null
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    "SELECT * FROM spot_tide_series WHERE spot_id = ? AND provider = ?"
+                ).use { stmt ->
+                    stmt.setString(1, spotId)
+                    stmt.setString(2, provider)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        TideSeriesRow(
+                            spotId = rs.getString("spot_id"),
+                            provider = rs.getString("provider"),
+                            lat = rs.getDouble("lat").takeIf { !rs.wasNull() },
+                            lon = rs.getDouble("lon").takeIf { !rs.wasNull() },
+                            timezoneId = rs.getString("timezone_id"),
+                            datum = rs.getString("datum"),
+                            stationId = rs.getString("station_id"),
+                            stationName = rs.getString("station_name"),
+                            stationDistanceMi = rs.getDouble("station_distance_mi").takeIf { !rs.wasNull() },
+                            modelVersion = rs.getString("model_version"),
+                            stepMinutes = rs.getInt("step_minutes"),
+                            generatedFrom = rs.getDate("generated_from")?.toString(),
+                            generatedThrough = rs.getDate("generated_through")?.toString(),
+                            generatedAt = rs.getTimestamp("generated_at")?.toInstant(),
+                            status = rs.getString("status")
+                        )
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Failed to read tide series for $spotId: ${e.message}")
+            null
+        }
+    }
 
     fun upsertTideDay(row: TideDayRow) {
         if (!DatabaseFactory.isConnected()) return
