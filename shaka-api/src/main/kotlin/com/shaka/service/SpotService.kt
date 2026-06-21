@@ -588,9 +588,26 @@ class SpotService {
         return Instant.now().atZone(ZoneOffset.ofHours(offsetHours)).toLocalDate()
     }
 
+    /**
+     * Today's date in the spot's real local timezone. Prefers the IANA tz
+     * recorded in spot_tide_series (set during year backfill); the longitude
+     * approximation is only a fallback for spots without a series row yet.
+     * The crude lon/15 offset could pick the wrong calendar day near tz
+     * boundaries and ignores DST, so the materialized day would not be found.
+     */
+    private fun spotLocalDate(spotId: String, lon: Double): LocalDate {
+        val tzId = SpotDataCache.getTideSeries(spotId)?.timezoneId
+        if (!tzId.isNullOrEmpty()) {
+            try {
+                return Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate()
+            } catch (_: Exception) { /* fall through to lon approximation */ }
+        }
+        return spotLocalDate(lon)
+    }
+
     private fun loadTideChartData(spotId: String, lon: Double): TideChartData? {
         return try {
-            val today = spotLocalDate(lon).toString()
+            val today = spotLocalDate(spotId, lon).toString()
             val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
 
             val json = Json { ignoreUnknownKeys = true }

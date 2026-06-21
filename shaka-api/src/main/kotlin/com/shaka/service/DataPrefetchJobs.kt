@@ -62,13 +62,28 @@ class DataPrefetchJobs(
     }
 
     /**
+     * Today's date in the spot's real local timezone, preferring the IANA tz
+     * recorded in spot_tide_series. Falls back to the longitude approximation
+     * for spots not yet backfilled.
+     */
+    private fun spotLocalDate(spotId: String, lon: Double): LocalDate {
+        val tzId = SpotDataCache.getTideSeries(spotId)?.timezoneId
+        if (!tzId.isNullOrEmpty()) {
+            try {
+                return Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate()
+            } catch (_: Exception) { /* fall through */ }
+        }
+        return spotLocalDate(lon)
+    }
+
+    /**
      * Derive the current tide summary from a materialized spot_tide_days
      * chart. Tide curves are deterministic, so the hourly refresh is pure
      * interpolation over stored points -- no call to the tide service.
      */
     private fun deriveTideFromChart(spotId: String, lon: Double): TideData? {
         return try {
-            val today = spotLocalDate(lon).toString()
+            val today = spotLocalDate(spotId, lon).toString()
             val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
             val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
             val points: List<TidePoint> = row.pointsJson?.let { json.decodeFromString(it) } ?: return null
