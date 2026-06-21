@@ -397,6 +397,101 @@ def predict_chart(
     }
 
 
+_YEAR_CHUNK_DAYS = 31  # generate the year in bounded windows to cap peak memory
+
+
+def predict_year(
+    lat: float,
+    lon: float,
+    start_date: Optional[str] = None,
+    days: int = 365,
+    step_minutes: int = 30,
+) -> dict:
+    """
+    Precompute a long tide horizon (default 365 days) for one location and
+    return the curve grouped into per-spot-local-date buckets.
+
+    Memory safety: the horizon is computed in bounded ``_YEAR_CHUNK_DAYS``
+    windows (one spatial crop each) and streamed into day buckets, so peak
+    memory never scales with the horizon length. This is the path used by the
+    upfront backfill / monthly top-up; it deliberately bypasses the per-day
+    ``lru_cache`` so year-sized results never pollute it.
+
+    Day bucketing uses the spot's real IANA timezone (not a longitude
+    approximation), so each calendar day's points/extremes are correct across
+    DST and timezone boundaries.
+    """
+    tz_id = get_timezone(lat, lon)
+    tz = ZoneInfo(tz_id)
+
+    if start_date is None:
+        start_date = datetime.datetime.now(tz).strftime("%Y-%m-%d")
+    start = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_exclusive = start + datetime.timedelta(days=days)
+
+    subsample = max(1, step_minutes // _FINE_STEP)
+
+    day_points: dict[str, list[dict]] = {}
+    day_extremes: dict[str, list[dict]] = {}
+    seen_point_ms: set[int] = set()
+    seen_ext: set[tuple] = set()
+
+    def local_date_of(epoch_ms: int) -> str:
+        return datetime.datetime.fromtimestamp(epoch_ms / 1000, tz).strftime("%Y-%m-%d")
+
+    def in_range(local_date: str) -> bool:
+        return start.isoformat() <= local_date < end_exclusive.isoformat()
+
+    generated = 0
+    while generated < days:
+        chunk = min(_YEAR_CHUNK_DAYS, days - generated)
+        chunk_start = (start + datetime.timedelta(days=generated)).strftime("%Y-%m-%d")
+        # Bypass _cached_predict on purpose (see docstring).
+        result = _do_predict(lat, lon, chunk_start, chunk)
+
+        for p in result["points"][::subsample]:
+            ms = p["epoch_ms"]
+            if ms in seen_point_ms:
+                continue
+            seen_point_ms.add(ms)
+            d = local_date_of(ms)
+            if in_range(d):
+                day_points.setdefault(d, []).append(p)
+
+        for e in result["extremes"]:
+            key = (e["epoch_ms"], e["type"])
+            if key in seen_ext:
+                continue
+            seen_ext.add(key)
+            d = local_date_of(e["epoch_ms"])
+            if in_range(d):
+                day_extremes.setdefault(d, []).append(e)
+
+        generated += chunk
+
+    datum = "MLLW" if _mllw_interpolator is not None else "MSL"
+    tide_days = [
+        {
+            "local_date": d,
+            "points": sorted(day_points[d], key=lambda x: x["epoch_ms"]),
+            "extremes": sorted(day_extremes.get(d, []), key=lambda x: x["epoch_ms"]),
+        }
+        for d in sorted(day_points.keys())
+    ]
+
+    return {
+        "lat": round(lat, COORD_PRECISION),
+        "lon": round(lon, COORD_PRECISION),
+        "start_date": start_date,
+        "days": days,
+        "datum": datum,
+        "model": "FES2022",
+        "timezoneId": tz_id,
+        "step_minutes": step_minutes,
+        "tide_days": tide_days,
+    }
+
+
 def predict_summary(lat: float, lon: float) -> dict:
     """
     Predict current tide state: height, rising/falling, next high and low.

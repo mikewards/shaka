@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 
 from config import AVISO_PASS, AVISO_USER, FES_DATA_DIR, PORT
 from startup import ensure_fes_data
-from tide_engine import load_model, predict_chart, predict_summary
+from tide_engine import load_model, predict_chart, predict_summary, predict_year
 
 logging.basicConfig(
     level=logging.INFO,
@@ -109,6 +109,28 @@ async def tide_summary(
         return predict_summary(lat, lon)
     except Exception as e:
         logger.exception("Summary prediction failed for (%s, %s)", lat, lon)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# NOTE: declared as a sync `def` (not `async def`) on purpose. FastAPI runs
+# sync path operations in a threadpool, so this multi-minute generation does
+# not block the event loop and /health stays responsive during a backfill.
+# Caller is responsible for serializing requests (concurrency 1) — the engine
+# computes in bounded monthly windows but still holds the ~5 GB model resident.
+@app.get("/tide/year")
+def tide_year(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    start_date: str = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    days: int = Query(365, ge=1, le=400),
+    step_minutes: int = Query(30, ge=6, le=60),
+):
+    if not _ready.is_set():
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        return predict_year(lat, lon, start_date, days, step_minutes)
+    except Exception as e:
+        logger.exception("Year prediction failed for (%s, %s)", lat, lon)
         raise HTTPException(status_code=500, detail=str(e))
 
 
