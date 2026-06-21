@@ -605,6 +605,56 @@ class SpotService {
         return spotLocalDate(lon)
     }
 
+    /**
+     * Materialize a full-year tide horizon for a single (new) spot, mirroring
+     * the catalog backfill: each day to spot_tide_days plus the horizon in
+     * spot_tide_series. Run fire-and-forget on spot creation so a brand-new
+     * spot stops re-hitting the FES service on every later read.
+     */
+    private suspend fun materializeTideYearForSpot(
+        fesClient: com.shaka.data.client.FES2022TideClient,
+        spotId: String,
+        lat: Double,
+        lon: Double,
+        days: Int = 365
+    ) {
+        val result = fesClient.getTideYear(lat, lon, null, days) ?: return
+        val jsonEncoder = Json { ignoreUnknownKeys = true }
+        for (day in result.tideDays) {
+            SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
+                spotId = spotId,
+                localDate = day.localDate,
+                provider = "fes2022",
+                stationId = "",
+                stationName = "FES2022",
+                stationDistanceMi = 0.0,
+                timezoneId = result.timezoneId,
+                datum = result.datum,
+                pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), day.points),
+                extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), day.extremes),
+                fetchedAt = Instant.now()
+            ))
+        }
+        SpotDataCache.upsertTideSeries(SpotDataCache.TideSeriesRow(
+            spotId = spotId,
+            provider = "fes2022",
+            lat = lat,
+            lon = lon,
+            timezoneId = result.timezoneId,
+            datum = result.datum,
+            stationId = null,
+            stationName = "FES2022",
+            stationDistanceMi = null,
+            modelVersion = "FES2022",
+            stepMinutes = result.stepMinutes,
+            generatedFrom = result.tideDays.firstOrNull()?.localDate,
+            generatedThrough = result.tideDays.lastOrNull()?.localDate,
+            generatedAt = Instant.now(),
+            status = "ready"
+        ))
+        logger.info("Full-year tide materialized for new spot $spotId: ${result.tideDays.size} days")
+    }
+
     private fun loadTideChartData(spotId: String, lon: Double): TideChartData? {
         return try {
             // One series lookup serves both the local-date boundary (real IANA
@@ -1699,7 +1749,6 @@ class SpotService {
     private suspend fun doPrefetchSingleSpot(spotId: String, lat: Double, lon: Double) = coroutineScope {
         val localToday = spotLocalDate(lon)
         val today = localToday.toString()
-        val tomorrow = localToday.plusDays(1).toString()
         val now = Instant.now()
         
         logger.info("Prefetching data for spot $spotId at ($lat, $lon) localDate=$today")
@@ -1744,29 +1793,16 @@ class SpotService {
                         ))
                         logger.info("Tide chart + summary persisted for $spotId (provider=${chartData.provider}, localDate=$localDate)")
 
-                        // Fire-and-forget: pre-warm tomorrow's chart (doesn't block prefetch)
+                        // Fire-and-forget: materialize a full year so this new
+                        // spot becomes a precomputed citizen like the catalog.
+                        // Warm-minimal: today's chart is already persisted above
+                        // for instant display; the year fills in the background
+                        // and never blocks spot creation / scoring.
                         CoroutineScope(Dispatchers.IO).launch {
                             try {
-                                val tomorrowResult = fesClient.getChartWithSummary(lat, lon, tomorrow)
-                                if (tomorrowResult != null) {
-                                    val (tomorrowChart, _) = tomorrowResult
-                                    val tomorrowDate = tomorrowChart.localDate.ifEmpty { tomorrow }
-                                    SpotDataCache.upsertTideDay(SpotDataCache.TideDayRow(
-                                        spotId = spotId,
-                                        localDate = tomorrowDate,
-                                        provider = tomorrowChart.provider,
-                                        stationId = tomorrowChart.stationId,
-                                        stationName = tomorrowChart.stationName,
-                                        stationDistanceMi = tomorrowChart.stationDistanceMi,
-                                        timezoneId = tomorrowChart.timezoneId,
-                                        datum = tomorrowChart.datum,
-                                        pointsJson = jsonEncoder.encodeToString(ListSerializer(TidePoint.serializer()), tomorrowChart.points),
-                                        extremesJson = jsonEncoder.encodeToString(ListSerializer(TideExtreme.serializer()), tomorrowChart.extremes),
-                                        fetchedAt = now
-                                    ))
-                                }
+                                materializeTideYearForSpot(fesClient, spotId, lat, lon)
                             } catch (e: Exception) {
-                                logger.debug("Tomorrow tide prefetch failed for $spotId: ${e.message}")
+                                logger.warn("Full-year tide backfill failed for new spot $spotId: ${e.message}")
                             }
                         }
 
