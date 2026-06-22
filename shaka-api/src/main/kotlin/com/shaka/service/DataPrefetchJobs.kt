@@ -86,149 +86,6 @@ class DataPrefetchJobs(
         return spotLocalDate(lon)
     }
 
-    /**
-     * Derive the current tide summary from a materialized spot_tide_days
-     * chart. Tide curves are deterministic, so the hourly refresh is pure
-     * interpolation over stored points -- no call to the tide service.
-     */
-    private fun deriveTideFromChart(spotId: String, lon: Double): TideData? {
-        return try {
-            val today = spotLocalDate(spotId, lon).toString()
-            val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
-            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-            val points: List<TidePoint> = row.pointsJson?.let { json.decodeFromString(it) } ?: return null
-            if (points.size < 2) return null
-            val extremes: List<TideExtreme> = row.extremesJson?.let { json.decodeFromString(it) } ?: emptyList()
-
-            val nowMs = System.currentTimeMillis()
-            var before: TidePoint? = null
-            var after: TidePoint? = null
-            for (p in points) {
-                if (p.epochMs <= nowMs) before = p
-                if (p.epochMs > nowMs && after == null) after = p
-            }
-            // Chart day is over (or hasn't started); let the fallback refetch
-            if (before == null || after == null) return null
-
-            val fraction = (nowMs - before.epochMs).toDouble() / (after.epochMs - before.epochMs)
-            val currentHeight = before.heightFt + fraction * (after.heightFt - before.heightFt)
-
-            val zoneId = row.timezoneId?.takeIf { it.isNotEmpty() }
-                ?.let { try { java.time.ZoneId.of(it) } catch (_: Exception) { null } }
-                ?: java.time.ZoneId.systemDefault()
-            fun fmt(e: TideExtreme): String {
-                val time = Instant.ofEpochMilli(e.epochMs).atZone(zoneId)
-                    .format(java.time.format.DateTimeFormatter.ofPattern("h:mma"))
-                return "$time (${String.format("%.1f", e.heightFt)}ft)"
-            }
-            val nextHigh = extremes.filter { it.type == "H" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
-            val nextLow = extremes.filter { it.type == "L" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
-            val state = when {
-                nextHigh != null && (nextLow == null || nextHigh.epochMs < nextLow.epochMs) -> "rising"
-                nextLow != null -> "falling"
-                else -> return null
-            }
-
-            TideData(
-                currentHeight = (currentHeight * 100).toInt() / 100.0,
-                nextHighTide = nextHigh?.let { fmt(it) } ?: "N/A",
-                nextLowTide = nextLow?.let { fmt(it) } ?: "N/A",
-                tideState = state,
-                nextHighTideTime = nextHigh?.epochMs,
-                nextLowTideTime = nextLow?.epochMs
-            )
-        } catch (e: Exception) {
-            logger.debug("Chart-derived tide failed for $spotId: ${e.message}")
-            null
-        }
-    }
-
-    // ==================== HOURLY: Tide Prefetch ====================
-    
-    /**
-     * Prefetch tide data for spots with stale or missing data.
-     * Cache-aware: skips spots with fresh data.
-     */
-    suspend fun prefetchTides() = withContext(Dispatchers.IO) {
-        val allSpots = spotDb.getAllSpots()
-        
-        // Filter to spots that need updating
-        val spotsToUpdate = allSpots.filter { spot ->
-            val cached = SpotDataCache.get(spot.id)
-            cached?.tide == null || isStale(cached.tide.fetchedAt, TIDE_STALE_HOURS)
-        }
-        
-        logger.info("TIDE prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates")
-        
-        if (spotsToUpdate.isEmpty()) {
-            logger.info("TIDE prefetch: All spots have fresh data, skipping")
-            return@withContext
-        }
-        
-        val startTime = System.currentTimeMillis()
-        var successCount = 0
-        var errorCount = 0
-        val failures = mutableListOf<ItemFailure>()
-        
-        spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
-            val results = batch.map { spot ->
-                async {
-                    try {
-                        withTimeout(SPOT_TIMEOUT_MS) {
-                            val spotToday = spotLocalDate(spot.coordinates.lon).toString()
-                            // Tides are deterministic: prefer interpolating the
-                            // materialized chart over re-querying the tide service.
-                            // Live fetch remains as the path for spots without charts.
-                            val tideData = deriveTideFromChart(spot.id, spot.coordinates.lon)
-                                ?: tidesClient.getTideData(
-                                    spot.coordinates.lat,
-                                    spot.coordinates.lon,
-                                    spotToday
-                                )
-                            
-                            SpotDataCache.updateTide(
-                                spot.id,
-                                SpotDataCache.CachedValue(
-                                    value = SpotDataCache.TideInfo(
-                                        state = tideData.tideState,
-                                        nextHighTide = tideData.nextHighTide,
-                                        nextLowTide = tideData.nextLowTide,
-                                        currentHeight = tideData.currentHeight,
-                                        stationId = null,
-                                        nextHighTideTime = tideData.nextHighTideTime?.let { Instant.ofEpochMilli(it) },
-                                        nextLowTideTime = tideData.nextLowTideTime?.let { Instant.ofEpochMilli(it) }
-                                    ),
-                                    fetchedAt = Instant.now(),
-                                    dataValidAt = null
-                                )
-                            )
-                            SpotDataCache.saveToDatabase(spot.id)
-                            true
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Tide fetch failed for ${spot.name}: ${e.message}")
-                        MonitoringService.captureItemFailure("tide_prefetch", spot.id, spot.name, e)
-                        synchronized(failures) {
-                            failures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
-                        }
-                        false
-                    }
-                }
-            }.awaitAll()
-            
-            successCount += results.count { it }
-            errorCount += results.count { !it }
-            
-            if (batchIndex < spotsToUpdate.size / BATCH_SIZE) {
-                delay(BATCH_DELAY_MS)
-            }
-        }
-        
-        val elapsed = System.currentTimeMillis() - startTime
-        MonitoringService.reportRun("tide_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
-        logRateLimiterStats()
-    }
-
     // ==================== EVERY 6 HOURS: Tide Chart Materialization ====================
 
     suspend fun materializeTideCharts() = withContext(Dispatchers.IO) {
@@ -1309,29 +1166,11 @@ class DataPrefetchJobs(
                 var gotData = false
                 val spotToday = spotLocalDate(lon).toString()
                 
-                // Tide
-                try {
-                    val tideData = tidesClient.getTideData(lat, lon, spotToday)
-                    SpotDataCache.updateTide(
-                        cacheId,
-                        SpotDataCache.CachedValue(
-                            value = SpotDataCache.TideInfo(
-                                state = tideData.tideState,
-                                nextHighTide = tideData.nextHighTide,
-                                nextLowTide = tideData.nextLowTide,
-                                currentHeight = tideData.currentHeight,
-                                stationId = null,
-                                nextHighTideTime = tideData.nextHighTideTime?.let { Instant.ofEpochMilli(it) },
-                                nextLowTideTime = tideData.nextLowTideTime?.let { Instant.ofEpochMilli(it) }
-                            ),
-                            fetchedAt = now
-                        )
-                    )
-                    gotData = true
-                } catch (e: Exception) {
-                    logger.debug("User spot tide fetch failed for ${spot.name}: ${e.message}")
-                }
-                
+                // Tide is no longer fetched here. The full-year chart is
+                // materialized on spot creation (prefetchSingleSpot) + the monthly
+                // horizon top-up, and the live now-state is derived on read from
+                // that persisted chart (SpotService.deriveTideData) -- no FES call.
+
                 // Weather/swell handled by prefetchWeather() which covers all spots
                 
                 // SST from NOAA satellite with progressive bbox expansion

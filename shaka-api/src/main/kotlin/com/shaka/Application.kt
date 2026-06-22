@@ -203,11 +203,6 @@ private fun Application.configureScheduledJobs() {
         logger.info("Startup complete — scheduled jobs will refresh stale data on cadence")
     }
     
-    // HOURLY: Tide refresh
-    scheduleJob("tide_prefetch", initialDelayMs = 60_000, intervalMs = 3_600_000) {
-        prefetchJobs.prefetchTides()
-    }
-
     // EVERY 3 HOURS: Weather/swell refresh
     scheduleJob("weather_prefetch", initialDelayMs = 120_000, intervalMs = 10_800_000) {
         prefetchJobs.prefetchWeather()
@@ -233,13 +228,13 @@ private fun Application.configureScheduledJobs() {
         prefetchJobs.prefetchBuoyReadings()
     }
 
-    // EVERY 3 HOURS: Tide horizon top-up. Tide curves are deterministic, so we
-    // precompute a full year per spot and only regenerate as the horizon nears
-    // expiry. This replaces the old 6-hourly materialize + 10-minute catch-up
-    // jobs, which re-hit the FES2022 service daily and triggered the OOM crash
-    // loop. Each run is bounded to ~90 min of FES work (see TOPUP_TIME_BUDGET_MS),
-    // so the initial catalog-wide fill spreads across several runs.
-    scheduleJob("tide_horizon_topup", initialDelayMs = 420_000, intervalMs = 10_800_000, maxRunMs = 6_000_000, runImmediately = true) {
+    // MONTHLY: Tide horizon top-up. Tide curves are deterministic and a full
+    // year is precomputed per spot, so this only regenerates spots whose horizon
+    // has neared expiry. It is the ONLY recurring job that calls FES2022 — the
+    // now-state shown to users is derived on read from the persisted chart (no
+    // FES), and new/user spots are generated on-demand at creation. Each run is
+    // bounded by TOPUP_TIME_BUDGET_MS.
+    scheduleJob("tide_horizon_topup", initialDelayMs = 420_000, intervalMs = 2_592_000_000L, maxRunMs = 6_000_000, runImmediately = true) {
         prefetchJobs.topUpTideHorizons()
     }
 
@@ -299,7 +294,7 @@ private fun Application.configureScheduledJobs() {
         logger.info("Final rate limiter stats: ${RateLimiters.getAllStats()}")
     }
     
-    logger.info("Background prefetch jobs configured: hourly (tide), 3h (weather + user spots), 6h (satellite)")
+    logger.info("Background prefetch jobs configured: 3h (weather + user spots), 6h (satellite), monthly (tide horizon top-up)")
 }
 
 private fun Application.tryInitDatabase() {

@@ -192,21 +192,24 @@ class SpotService {
                 )
             }
             
-            val tideData = if (cached?.tide != null) {
-                TideData(
-                    currentHeight = cached.tide.value.currentHeight,
-                    nextHighTide = cached.tide.value.nextHighTide,
-                    nextLowTide = cached.tide.value.nextLowTide,
-                    tideState = cached.tide.value.state,
-                    nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
-                    nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
-                )
-            } else {
-                fallbackTide ?: TideData(
-                    currentHeight = 0.5, nextHighTide = "Check local source", 
-                    nextLowTide = "Check local source", tideState = "Unknown"
-                )
-            }
+            // Derive the now-state on read from the persisted chart (no FES);
+            // fall back to the cached snapshot only if today's chart is missing.
+            val tideData = deriveTideData(spot.id, spot.coordinates.lon)
+                ?: if (cached?.tide != null) {
+                    TideData(
+                        currentHeight = cached.tide.value.currentHeight,
+                        nextHighTide = cached.tide.value.nextHighTide,
+                        nextLowTide = cached.tide.value.nextLowTide,
+                        tideState = cached.tide.value.state,
+                        nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                        nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
+                    )
+                } else {
+                    fallbackTide ?: TideData(
+                        currentHeight = 0.5, nextHighTide = "Check local source", 
+                        nextLowTide = "Check local source", tideState = "Unknown"
+                    )
+                }
             
             val effectiveChl = resolveChlorophyll(
                 waterQuality?.chlorophyllA, cached?.chlorophyll?.value, cached?.gibsChlorophyll?.value
@@ -374,7 +377,9 @@ class SpotService {
                 dataSource = "Prefetched (updated ${cached.tide.ageString()})"
             )
             
-            tideData = TideData(
+            // Derive the now-state on read from the persisted chart (no FES);
+            // fall back to the cached snapshot only if today's chart is missing.
+            tideData = deriveTideData(spotId, lon) ?: TideData(
                 currentHeight = cached.tide.value.currentHeight,
                 nextHighTide = cached.tide.value.nextHighTide,
                 nextLowTide = cached.tide.value.nextLowTide,
@@ -425,7 +430,9 @@ class SpotService {
             waterQuality = waterQualityDeferred.await() ?: WaterQuality(
                 null, null, null, "Data temporarily unavailable"
             )
-            tideData = tideDeferred.await() ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
+            tideData = deriveTideData(spotId, lon)
+                ?: tideDeferred.await()
+                ?: TideData(0.5, "Check local source", "Check local source", "Unknown")
         }
         
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
@@ -731,6 +738,78 @@ class SpotService {
             height?.let { (it * 100).toInt() / 100.0 },
             stage
         )
+    }
+
+    /**
+     * Derive the live tide now-state (current height, stage, next high/low) by
+     * interpolating the persisted spot_tide_days chart against the current time.
+     * Tide curves are deterministic, so this needs no FES call -- it replaces the
+     * old hourly snapshot-refresh job and is computed on read for the requested
+     * spot only. Returns null when today's chart is missing or already elapsed,
+     * in which case callers fall back to the cached snapshot.
+     */
+    private fun deriveTideData(spotId: String, lon: Double): TideData? {
+        return try {
+            val series = SpotDataCache.getTideSeries(spotId, tidesClient.provider)
+            val today = run {
+                val tzId = series?.timezoneId
+                if (!tzId.isNullOrEmpty()) {
+                    try { return@run Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate() }
+                    catch (_: Exception) { /* fall through */ }
+                }
+                spotLocalDate(lon)
+            }.toString()
+            val row = SpotDataCache.getTideDay(spotId, today, tidesClient.provider) ?: return null
+            val json = Json { ignoreUnknownKeys = true }
+            val points: List<TidePoint> = row.pointsJson?.let {
+                json.decodeFromString<List<TidePoint>>(it)
+            } ?: return null
+            if (points.size < 2) return null
+            val extremes: List<TideExtreme> = row.extremesJson?.let {
+                json.decodeFromString<List<TideExtreme>>(it)
+            } ?: emptyList()
+
+            val nowMs = System.currentTimeMillis()
+            var before: TidePoint? = null
+            var after: TidePoint? = null
+            for (p in points) {
+                if (p.epochMs <= nowMs) before = p
+                if (p.epochMs > nowMs && after == null) after = p
+            }
+            // Chart day is over (or hasn't started); fall back to cached snapshot
+            if (before == null || after == null) return null
+
+            val fraction = (nowMs - before.epochMs).toDouble() / (after.epochMs - before.epochMs)
+            val currentHeight = before.heightFt + fraction * (after.heightFt - before.heightFt)
+
+            val zoneId = (row.timezoneId ?: series?.timezoneId)?.takeIf { it.isNotEmpty() }
+                ?.let { try { java.time.ZoneId.of(it) } catch (_: Exception) { null } }
+                ?: java.time.ZoneId.systemDefault()
+            fun fmt(e: TideExtreme): String {
+                val time = Instant.ofEpochMilli(e.epochMs).atZone(zoneId)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("h:mma"))
+                return "$time (${String.format("%.1f", e.heightFt)}ft)"
+            }
+            val nextHigh = extremes.filter { it.type == "H" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
+            val nextLow = extremes.filter { it.type == "L" && it.epochMs > nowMs }.minByOrNull { it.epochMs }
+            val state = when {
+                nextHigh != null && (nextLow == null || nextHigh.epochMs < nextLow.epochMs) -> "rising"
+                nextLow != null -> "falling"
+                else -> return null
+            }
+
+            TideData(
+                currentHeight = (currentHeight * 100).toInt() / 100.0,
+                nextHighTide = nextHigh?.let { fmt(it) } ?: "N/A",
+                nextLowTide = nextLow?.let { fmt(it) } ?: "N/A",
+                tideState = state,
+                nextHighTideTime = nextHigh?.epochMs,
+                nextLowTideTime = nextLow?.epochMs
+            )
+        } catch (e: Exception) {
+            logger.debug("Chart-derived tide failed for $spotId: ${e.message}")
+            null
+        }
     }
 
     /**
@@ -1539,18 +1618,21 @@ class SpotService {
             dataSource = if (cached?.tide != null) "Prefetched (updated ${cached.tide.ageString()})" else "Loading..."
         )
         
-        val tideData = if (cached?.tide != null) {
-            TideData(
-                currentHeight = cached.tide.value.currentHeight,
-                nextHighTide = cached.tide.value.nextHighTide,
-                nextLowTide = cached.tide.value.nextLowTide,
-                tideState = cached.tide.value.state,
-                nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
-                nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
-            )
-        } else {
-            TideData(0.0, "Loading...", "Loading...", "unknown")
-        }
+        // Derive the now-state on read from the persisted chart (no FES);
+        // fall back to the cached snapshot only if today's chart is missing.
+        val tideData = deriveTideData(cacheId, lon)
+            ?: if (cached?.tide != null) {
+                TideData(
+                    currentHeight = cached.tide.value.currentHeight,
+                    nextHighTide = cached.tide.value.nextHighTide,
+                    nextLowTide = cached.tide.value.nextLowTide,
+                    tideState = cached.tide.value.state,
+                    nextHighTideTime = cached.tide.value.nextHighTideTime?.toEpochMilli(),
+                    nextLowTideTime = cached.tide.value.nextLowTideTime?.toEpochMilli()
+                )
+            } else {
+                TideData(0.0, "Loading...", "Loading...", "unknown")
+            }
         
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
 
