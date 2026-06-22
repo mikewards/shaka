@@ -494,190 +494,8 @@ class DataPrefetchJobs(
         }
     }
 
-    // ==================== EVERY 3 HOURS: Weather Prefetch ====================
-    
-    /**
-     * Prefetch weather data for spots with stale or missing data.
-     * Cache-aware: skips spots with fresh data.
-     */
+    /** Shared spot descriptor for the hourly swell/wind prefetch. */
     private data class WeatherSpot(val cacheId: String, val lat: Double, val lon: Double, val name: String)
-
-    suspend fun prefetchWeather() = withContext(Dispatchers.IO) {
-        val today = LocalDate.now().toString()
-        
-        // Combine curated + user spots into a unified list
-        val curatedSpots = spotDb.getAllSpots().map { 
-            WeatherSpot(it.id, it.coordinates.lat, it.coordinates.lon, it.name) 
-        }
-        val userSpots = try {
-            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
-                WeatherSpot("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
-            }
-        } catch (e: Exception) {
-            logger.warn("Could not load user spots for weather prefetch: ${e.message}")
-            emptyList()
-        }
-        val allSpots = curatedSpots + userSpots
-        
-        // Filter to spots that need updating (including those missing exposure/Phase 3 data)
-        val spotsToUpdate = allSpots.filter { spot ->
-            val cached = SpotDataCache.get(spot.cacheId)
-            cached?.swell == null || cached.wind == null || 
-                cached.exposure == null ||
-                isStale(cached.swell.fetchedAt, WEATHER_STALE_HOURS)
-        }
-        
-        logger.info("WEATHER prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates (${curatedSpots.size} curated + ${userSpots.size} user)")
-        
-        if (spotsToUpdate.isEmpty()) {
-            logger.info("WEATHER prefetch: All spots have fresh data, skipping")
-            return@withContext
-        }
-        
-        val startTime = System.currentTimeMillis()
-        var successCount = 0
-        var errorCount = 0
-        val failures = mutableListOf<ItemFailure>()
-        
-        spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
-            val results = batch.map { spot ->
-                async {
-                    try {
-                        withTimeout(SPOT_TIMEOUT_MS) {
-                            val cached = SpotDataCache.get(spot.cacheId)
-                            var exposure = cached?.exposure
-                            if (exposure == null || exposure.landDistances == null) {
-                                try {
-                                    val result = bathymetryClient.computeExposure(spot.lat, spot.lon)
-                                    if (result != null) {
-                                        exposure = SpotDataCache.ExposureInfo(
-                                            result.bearing, result.width, result.depthM,
-                                            result.directional.landDistanceKm, result.depthSource
-                                        )
-                                        SpotDataCache.updateExposure(spot.cacheId, exposure)
-                                    }
-                                } catch (e: Exception) {
-                                    logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
-                                }
-                            }
-                            // Depth retry disabled — NCEI ArcGIS is fragile.
-                            // Use /admin/depth/refetch with conservative pacing instead.
-
-                            // Null means Open-Meteo failed: record an item failure
-                            // instead of persisting fabricated conditions.
-                            val ocean = openMeteo.getMarineData(spot.lat, spot.lon, today)
-                                ?: error("Open-Meteo marine data unavailable")
-                            val weather = openMeteo.getWeather(spot.lat, spot.lon, today)
-                                ?: error("Open-Meteo weather unavailable")
-                            
-                            val now = Instant.now()
-                            
-                            // Option D: Open-Meteo primary, buoy only at < 1.5nm
-                            val buoyMatch = SpotDataCache.findNearestBuoyReading(spot.lat, spot.lon)
-                            val rawHeightFt: Double
-                            val rawDirectionDeg: Double
-                            val swellSource: String
-                            val periodSec: Double
-                            val directionCardinal: String
-                            val usedBuoy: Boolean
-                            
-                            if (buoyMatch != null) {
-                                rawHeightFt = SpotDataCache.metersToFeet(buoyMatch.reading.waveHeightM!!)
-                                periodSec = buoyMatch.reading.dominantPeriodSec ?: ocean.wavePeriod
-                                rawDirectionDeg = (buoyMatch.reading.meanDirection ?: ocean.waveDirection).toDouble()
-                                directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
-                                swellSource = "ndbc-${buoyMatch.station.stationId}"
-                                usedBuoy = true
-                            } else {
-                                rawHeightFt = SpotDataCache.metersToFeet(ocean.swellHeight)
-                                periodSec = if (ocean.swellPeriod > 0) ocean.swellPeriod else ocean.wavePeriod
-                                rawDirectionDeg = ocean.swellDirection.toDouble()
-                                directionCardinal = SpotDataCache.degreesToCardinal(rawDirectionDeg)
-                                swellSource = "open-meteo"
-                                usedBuoy = false
-                            }
-                            
-                            // Attenuation only for model data; buoy at < 1.5nm already reflects local conditions
-                            val ld = exposure?.landDistances
-                            val correctedHt = if (ld != null && !usedBuoy) {
-                                SpotDataCache.attenuateSwell(
-                                    rawHeightFt, rawDirectionDeg, ld,
-                                    swellPeriodSec = periodSec,
-                                    totalWaveHeightM = ocean.waveHeight,
-                                    swellHeightM = ocean.swellHeight,
-                                    windSpeedKmh = weather.windSpeed,
-                                    windDirectionDeg = weather.windDirection.toDouble()
-                                )
-                            } else null
-                            
-                            // Secondary swell from Open-Meteo (always model data)
-                            val secHtRaw = ocean.secondarySwellHeight?.let { SpotDataCache.metersToFeet(it) }
-                            val secPeriod = ocean.secondarySwellPeriod
-                            val secDirDeg = ocean.secondarySwellDirection?.toDouble()
-                            val secDirCardinal = secDirDeg?.let { SpotDataCache.degreesToCardinal(it) }
-                            val secCorrHt = if (ld != null && secHtRaw != null && secDirDeg != null) {
-                                SpotDataCache.attenuateSwell(secHtRaw, secDirDeg, ld)
-                            } else null
-                            
-                            val swellInfo = SpotDataCache.SwellInfo(
-                                heightFt = rawHeightFt,
-                                periodSec = periodSec,
-                                direction = directionCardinal,
-                                swellHeightFt = rawHeightFt,
-                                source = swellSource,
-                                correctedHeightFt = correctedHt,
-                                secondaryHeightFt = secHtRaw,
-                                secondaryPeriodSec = secPeriod,
-                                secondaryDirection = secDirCardinal,
-                                secondaryCorrectedHeightFt = secCorrHt
-                            )
-                            
-                            SpotDataCache.updateSwell(
-                                spot.cacheId,
-                                SpotDataCache.CachedValue(value = swellInfo, fetchedAt = now, dataValidAt = now)
-                            )
-                            SpotDataCache.updateSwellSource(spot.cacheId, swellInfo.source)
-                            SpotDataCache.updateCorrectedSwell(spot.cacheId, correctedHt, secHtRaw, secPeriod, secDirCardinal, secCorrHt)
-                            
-                            SpotDataCache.updateWind(
-                                spot.cacheId,
-                                SpotDataCache.CachedValue(
-                                    value = SpotDataCache.WindInfo(
-                                        speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
-                                        direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
-                                        gustKnots = null
-                                    ),
-                                    fetchedAt = now,
-                                    dataValidAt = now
-                                )
-                            )
-                            
-                            SpotDataCache.saveToDatabase(spot.cacheId)
-                            true
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Weather fetch failed for ${spot.name}: ${e.message}")
-                        MonitoringService.captureItemFailure("weather_prefetch", spot.cacheId, spot.name, e)
-                        synchronized(failures) {
-                            failures.add(ItemFailure(spot.cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
-                        }
-                        false
-                    }
-                }
-            }.awaitAll()
-            
-            successCount += results.count { it }
-            errorCount += results.count { !it }
-            
-            if (batchIndex < spotsToUpdate.size / BATCH_SIZE) {
-                delay(BATCH_DELAY_MS)
-            }
-        }
-        
-        val elapsed = System.currentTimeMillis() - startTime
-        MonitoringService.reportRun("weather_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
-        logRateLimiterStats()
-    }
 
     // ==================== DAILY: Hourly Swell + Wind Series ====================
 
@@ -752,6 +570,11 @@ class DataPrefetchJobs(
     suspend fun deriveHourlySnapshots() = withContext(Dispatchers.Default) {
         val n = SpotDataCache.deriveAllCurrentHourSnapshots()
         if (n > 0) logger.info("Hourly snapshot tick: re-derived $n spots")
+    }
+
+    /** Nightly cleanup of stale hourly swell/wind day rows. */
+    suspend fun cleanupOldHourly() = withContext(Dispatchers.IO) {
+        SpotDataCache.cleanupOldHourly()
     }
 
     /**
@@ -1344,7 +1167,7 @@ class DataPrefetchJobs(
         for (spot in userSpots) {
             val cacheId = "user-${spot.id}"
             
-            // Check if satellite/SST data is stale (weather/swell is handled by prefetchWeather)
+            // Check if satellite/SST data is stale (swell/wind is handled by prefetchHourlySwellWind)
             val cached = SpotDataCache.get(cacheId)
             if (cached?.sst != null && cached.visibility != null &&
                 !isStale(cached.sst.fetchedAt, SATELLITE_STALE_HOURS)) {
@@ -1364,7 +1187,7 @@ class DataPrefetchJobs(
                 // horizon top-up, and the live now-state is derived on read from
                 // that persisted chart (SpotService.deriveTideData) -- no FES call.
 
-                // Weather/swell handled by prefetchWeather() which covers all spots
+                // Swell/wind handled by prefetchHourlySwellWind() which covers all spots
                 
                 // SST from NOAA satellite with progressive bbox expansion
                 try {

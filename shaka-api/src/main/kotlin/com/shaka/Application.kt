@@ -262,6 +262,11 @@ private fun Application.configureScheduledJobs() {
         prefetchJobs.cleanupOldTideDays()
     }
 
+    // NIGHTLY: Hourly swell/wind series cleanup (old rows)
+    scheduleJob("hourly_series_cleanup", initialDelayMs = 660_000, intervalMs = 86_400_000, runImmediately = true) {
+        prefetchJobs.cleanupOldHourly()
+    }
+
     // ==================== WEATHER TILES (Ocean Forecast) ====================
     // Runs the Copernicus CMEMS pipeline every 6 hours to generate PNG tiles
     scheduleJob("weather_tile_pipeline", initialDelayMs = 30_000, intervalMs = 21_600_000, runImmediately = true) {

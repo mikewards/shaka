@@ -770,78 +770,41 @@ fun Application.configureRouting() {
                 }
                 GlobalScope.launch {
                     try {
-                        prefetchJobs.prefetchWeather()
+                        prefetchJobs.prefetchHourlySwellWind()
                     } catch (e: Exception) {
                         org.slf4j.LoggerFactory.getLogger("AdminWeatherTrigger")
-                            .error("Manual weather prefetch failed: ${e.message}", e)
+                            .error("Manual hourly swell/wind prefetch failed: ${e.message}", e)
                     }
                 }
                 call.respondText(
-                    """{"status":"started","message":"Full V2 weather prefetch triggered in background. Check /admin/cache/stats for progress."}""",
+                    """{"status":"started","message":"Hourly swell/wind prefetch triggered in background. Check /admin/cache/stats for progress."}""",
                     io.ktor.http.ContentType.Application.Json
                 )
             }
 
-            // Trigger weather/swell fetch for all spots without weather data
+            // Trigger a full hourly swell/wind refetch for all spots. Uses the
+            // same daily job that drives the in-memory series + derived snapshot,
+            // replacing the old single-snapshot hour-index refetch.
             post("/admin/weather/refetch") {
-                val spotsToFetch = com.shaka.data.cache.SpotDataCache.getSpotsWithoutWeather()
-                val total = spotsToFetch.size
-                
-                val openMeteo = com.shaka.data.client.OpenMeteoClient()
-                val today = java.time.LocalDate.now().toString()
-                
-                kotlinx.coroutines.GlobalScope.launch {
-                    var success = 0
-                    var failed = 0
-                    for (spotId in spotsToFetch) {
-                        try {
-                            // Look up coordinates from curated spots or user spots
-                            val curatedSpot = SpotDatabase.findSpotById(spotId)
-                            val coords = if (curatedSpot != null) {
-                                curatedSpot.coordinates
-                            } else {
-                                val userSpotId = spotId.removePrefix("user-")
-                                userSpotRepository.findById(userSpotId)?.coordinates ?: continue
-                            }
-                            val ocean = openMeteo.getMarineData(coords.lat, coords.lon, today)
-                                ?: error("Open-Meteo marine data unavailable")
-                            val weather = openMeteo.getWeather(coords.lat, coords.lon, today)
-                                ?: error("Open-Meteo weather unavailable")
-                            val now = java.time.Instant.now()
-                            
-                            com.shaka.data.cache.SpotDataCache.updateSwell(
-                                spotId,
-                                com.shaka.data.cache.SpotDataCache.CachedValue(
-                                    value = com.shaka.data.cache.SpotDataCache.SwellInfo(
-                                        heightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.waveHeight),
-                                        periodSec = ocean.wavePeriod,
-                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                                        swellHeightFt = com.shaka.data.cache.SpotDataCache.metersToFeet(ocean.waveHeight)
-                                    ),
-                                    fetchedAt = now
-                                )
-                            )
-                            com.shaka.data.cache.SpotDataCache.updateWind(
-                                spotId,
-                                com.shaka.data.cache.SpotDataCache.CachedValue(
-                                    value = com.shaka.data.cache.SpotDataCache.WindInfo(
-                                        speedKnots = com.shaka.data.cache.SpotDataCache.kmhToKnots(weather.windSpeed),
-                                        direction = com.shaka.data.cache.SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
-                                    ),
-                                    fetchedAt = now
-                                )
-                            )
-                            com.shaka.data.cache.SpotDataCache.saveToDatabase(spotId)
-                            success++
-                        } catch (e: Exception) {
-                            failed++
-                        }
-                    }
-                    org.slf4j.LoggerFactory.getLogger("WeatherRefetch").info("Weather refetch complete: $success success, $failed failed")
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                if (prefetchJobs == null) {
+                    call.respondText(
+                        """{"status":"error","message":"PrefetchJobs not initialized yet"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.ServiceUnavailable
+                    )
+                    return@post
                 }
-                
+                kotlinx.coroutines.GlobalScope.launch {
+                    try {
+                        prefetchJobs.prefetchHourlySwellWind()
+                    } catch (e: Exception) {
+                        org.slf4j.LoggerFactory.getLogger("WeatherRefetch")
+                            .error("Hourly swell/wind refetch failed: ${e.message}", e)
+                    }
+                }
                 call.respondText(
-                    """{"status":"started","spotsToFetch":$total,"message":"Weather/swell fetch started in background."}""",
+                    """{"status":"started","message":"Hourly swell/wind refetch started in background."}""",
                     io.ktor.http.ContentType.Application.Json
                 )
             }
