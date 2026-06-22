@@ -5,11 +5,14 @@ import com.shaka.data.client.*
 import com.shaka.model.*
 import com.shaka.monitoring.ItemFailure
 import com.shaka.monitoring.MonitoringService
+import com.shaka.util.SpotTime
 import kotlinx.coroutines.*
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
@@ -46,7 +49,8 @@ class DataPrefetchJobs(
         const val BATCH_SIZE = 10
         const val BATCH_DELAY_MS = 500L
         const val SPOT_TIMEOUT_MS = 15000L  // 15s timeout (rate limiter adds delay)
-        
+        const val HOURLY_HORIZON_DAYS = 7   // days of hourly swell/wind to persist per spot
+
         // Cache staleness thresholds
         const val TIDE_STALE_HOURS = 2      // Refetch if older than 2h
         const val WEATHER_STALE_HOURS = 4   // Refetch if older than 4h  
@@ -66,25 +70,16 @@ class DataPrefetchJobs(
     // holds a ~5GB working set; concurrent runs would OOM the single instance).
     private val tideTopUpRunning = java.util.concurrent.atomic.AtomicBoolean(false)
     
-    private fun spotLocalDate(lon: Double): LocalDate {
-        val offsetHours = (lon / 15).toInt().coerceIn(-12, 14)
-        return Instant.now().atZone(ZoneOffset.ofHours(offsetHours)).toLocalDate()
-    }
+    private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)
 
     /**
      * Today's date in the spot's real local timezone, preferring the IANA tz
      * recorded in spot_tide_series. Falls back to the longitude approximation
-     * for spots not yet backfilled.
+     * for spots not yet backfilled. Delegates to the shared SpotTime helper so
+     * all timezone resolution stays in one place.
      */
-    private fun spotLocalDate(spotId: String, lon: Double): LocalDate {
-        val tzId = SpotDataCache.getTideSeries(spotId)?.timezoneId
-        if (!tzId.isNullOrEmpty()) {
-            try {
-                return Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate()
-            } catch (_: Exception) { /* fall through */ }
-        }
-        return spotLocalDate(lon)
-    }
+    private fun spotLocalDate(spotId: String, lon: Double): LocalDate =
+        SpotTime.spotLocalDate(SpotDataCache.getTideSeries(spotId)?.timezoneId, lon)
 
     // ==================== EVERY 6 HOURS: Tide Chart Materialization ====================
 
@@ -683,7 +678,188 @@ class DataPrefetchJobs(
         MonitoringService.reportRun("weather_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
         logRateLimiterStats()
     }
-    
+
+    // ==================== DAILY: Hourly Swell + Wind Series ====================
+
+    private val hourlyJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /**
+     * Fetch and persist the full hourly swell + wind curves (7-day horizon) for
+     * every catalog + user spot, partitioned by the spot's IANA timezone.
+     *
+     * Replaces the per-3h single-snapshot weather prefetch. The displayed
+     * current-hour value is derived in-memory from these tables by the hourly
+     * tick (deriveHourlySnapshots), so reads never hit the DB or an API.
+     *
+     * Corrected (exposure-attenuated) swell is precomputed per hour using that
+     * hour's predicted wind, keeping the swell table self-contained.
+     */
+    suspend fun prefetchHourlySwellWind() = withContext(Dispatchers.IO) {
+        val curatedSpots = spotDb.getAllSpots().map {
+            WeatherSpot(it.id, it.coordinates.lat, it.coordinates.lon, it.name)
+        }
+        val userSpots = try {
+            com.shaka.data.db.UserSpotRepository.getAllUserSpots().map {
+                WeatherSpot("user-${it.id}", it.coordinates.lat, it.coordinates.lon, it.name)
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not load user spots for hourly prefetch: ${e.message}")
+            emptyList()
+        }
+        val allSpots = curatedSpots + userSpots
+
+        logger.info("HOURLY swell/wind prefetch: ${allSpots.size} spots (${curatedSpots.size} curated + ${userSpots.size} user), ${HOURLY_HORIZON_DAYS}-day horizon")
+
+        val startTime = System.currentTimeMillis()
+        var successCount = 0
+        val failures = mutableListOf<ItemFailure>()
+
+        allSpots.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+            val results = batch.map { spot ->
+                async {
+                    try {
+                        withTimeout(SPOT_TIMEOUT_MS * 2) {
+                            persistHourlyForSpot(spot)
+                        }
+                        true
+                    } catch (e: Exception) {
+                        logger.debug("Hourly prefetch failed for ${spot.name}: ${e.message}")
+                        MonitoringService.captureItemFailure("hourly_swell_wind", spot.cacheId, spot.name, e)
+                        synchronized(failures) {
+                            failures.add(ItemFailure(spot.cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                        }
+                        false
+                    }
+                }
+            }.awaitAll()
+
+            successCount += results.count { it }
+            if (batchIndex < allSpots.size / BATCH_SIZE) {
+                delay(BATCH_DELAY_MS)
+            }
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        MonitoringService.reportRun("hourly_swell_wind", allSpots.size, successCount, failures, elapsed)
+        logRateLimiterStats()
+    }
+
+    /**
+     * Fetch the hourly marine + wind series for one spot, compute per-hour
+     * corrected swell, and upsert one row per local_date into both tables.
+     */
+    private suspend fun persistHourlyForSpot(spot: WeatherSpot) {
+        // Ensure exposure for attenuation (compute once if missing).
+        var exposure = SpotDataCache.get(spot.cacheId)?.exposure
+        if (exposure?.landDistances == null) {
+            try {
+                val result = bathymetryClient.computeExposure(spot.lat, spot.lon)
+                if (result != null) {
+                    exposure = SpotDataCache.ExposureInfo(
+                        result.bearing, result.width, result.depthM,
+                        result.directional.landDistanceKm, result.depthSource
+                    )
+                    SpotDataCache.updateExposure(spot.cacheId, exposure)
+                }
+            } catch (e: Exception) {
+                logger.debug("Exposure compute failed for ${spot.name}: ${e.message}")
+            }
+        }
+        val ld = exposure?.landDistances
+
+        val marine = openMeteo.getMarineHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
+            ?: error("Open-Meteo marine hourly unavailable")
+        val weather = openMeteo.getWeatherHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
+            ?: error("Open-Meteo weather hourly unavailable")
+
+        val zone = SpotTime.resolveZone(marine.timezone, spot.lon)
+        val now = Instant.now()
+
+        // Index wind by epoch so per-hour swell attenuation can use the
+        // concurrent predicted wind.
+        val windByEpoch = weather.points.associateBy { it.epochMs }
+
+        val swellPoints = marine.points.filter { it.epochMs > 0 }.map { mp ->
+            val swellM = mp.swellHeightM ?: 0.0
+            val rawHeightFt = SpotDataCache.metersToFeet(swellM)
+            val periodSec = (mp.swellPeriodSec?.takeIf { it > 0 }) ?: (mp.wavePeriodSec ?: 0.0)
+            val dirDeg = mp.swellDirectionDeg ?: 0
+            val wind = windByEpoch[mp.epochMs]
+
+            val correctedHt = if (ld != null) {
+                SpotDataCache.attenuateSwell(
+                    rawHeightFt, dirDeg.toDouble(), ld,
+                    swellPeriodSec = periodSec,
+                    totalWaveHeightM = mp.waveHeightM ?: 0.0,
+                    swellHeightM = swellM,
+                    windSpeedKmh = wind?.windSpeedKmh ?: 0.0,
+                    windDirectionDeg = (wind?.windDirectionDeg ?: 0).toDouble()
+                )
+            } else null
+
+            val secHtFt = mp.secondarySwellHeightM?.let { SpotDataCache.metersToFeet(it) }
+            val secDirDeg = mp.secondarySwellDirectionDeg
+            val secCorrHt = if (ld != null && secHtFt != null && secDirDeg != null) {
+                SpotDataCache.attenuateSwell(secHtFt, secDirDeg.toDouble(), ld)
+            } else null
+
+            SwellHourlyPoint(
+                epochMs = mp.epochMs,
+                heightFt = rawHeightFt,
+                periodSec = periodSec,
+                directionDeg = dirDeg,
+                correctedHeightFt = correctedHt,
+                secondaryHeightFt = secHtFt,
+                secondaryPeriodSec = mp.secondarySwellPeriodSec,
+                secondaryDirectionDeg = secDirDeg,
+                secondaryCorrectedHeightFt = secCorrHt
+            )
+        }
+
+        val windPoints = weather.points.filter { it.epochMs > 0 }.map { wp ->
+            WindHourlyPoint(
+                epochMs = wp.epochMs,
+                speedKts = SpotDataCache.kmhToKnots(wp.windSpeedKmh ?: 0.0),
+                directionDeg = wp.windDirectionDeg ?: 0,
+                gustKts = wp.windGustKmh?.let { SpotDataCache.kmhToKnots(it) }
+            )
+        }
+
+        persistDays(spot.cacheId, marine.timezone, zone, now, swellPoints, windPoints)
+    }
+
+    /** Group hourly points by local date in the spot zone and upsert each day. */
+    private fun persistDays(
+        cacheId: String,
+        timezoneId: String,
+        zone: ZoneId,
+        fetchedAt: Instant,
+        swellPoints: List<SwellHourlyPoint>,
+        windPoints: List<WindHourlyPoint>
+    ) {
+        swellPoints.groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+            .forEach { (date, pts) ->
+                SpotDataCache.upsertSwellDay(SpotDataCache.SwellHourlyRow(
+                    spotId = cacheId,
+                    localDate = date,
+                    timezoneId = timezoneId,
+                    source = "open-meteo",
+                    pointsJson = hourlyJson.encodeToString(ListSerializer(SwellHourlyPoint.serializer()), pts),
+                    fetchedAt = fetchedAt
+                ))
+            }
+        windPoints.groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+            .forEach { (date, pts) ->
+                SpotDataCache.upsertWindDay(SpotDataCache.WindHourlyRow(
+                    spotId = cacheId,
+                    localDate = date,
+                    timezoneId = timezoneId,
+                    pointsJson = hourlyJson.encodeToString(ListSerializer(WindHourlyPoint.serializer()), pts),
+                    fetchedAt = fetchedAt
+                ))
+            }
+    }
+
     // ==================== EVERY 6 HOURS: Satellite Data Prefetch ====================
     
     /**

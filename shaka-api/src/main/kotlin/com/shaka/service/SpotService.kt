@@ -15,6 +15,7 @@ import com.shaka.data.db.UserSpotRepository
 import com.shaka.model.*
 import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
+import com.shaka.util.SpotTime
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.json.Json
@@ -590,26 +591,17 @@ class SpotService {
         )
     }
 
-    private fun spotLocalDate(lon: Double): LocalDate {
-        val offsetHours = (lon / 15).toInt().coerceIn(-12, 14)
-        return Instant.now().atZone(ZoneOffset.ofHours(offsetHours)).toLocalDate()
-    }
+    private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)
 
     /**
      * Today's date in the spot's real local timezone. Prefers the IANA tz
      * recorded in spot_tide_series (set during year backfill); the longitude
      * approximation is only a fallback for spots without a series row yet.
-     * The crude lon/15 offset could pick the wrong calendar day near tz
-     * boundaries and ignores DST, so the materialized day would not be found.
+     * Delegates to the shared SpotTime helper so all timezone resolution stays
+     * in one place.
      */
     private fun spotLocalDate(spotId: String, lon: Double): LocalDate {
-        val tzId = SpotDataCache.getTideSeries(spotId)?.timezoneId
-        if (!tzId.isNullOrEmpty()) {
-            try {
-                return Instant.now().atZone(java.time.ZoneId.of(tzId)).toLocalDate()
-            } catch (_: Exception) { /* fall through to lon approximation */ }
-        }
-        return spotLocalDate(lon)
+        return SpotTime.spotLocalDate(SpotDataCache.getTideSeries(spotId)?.timezoneId, lon)
     }
 
     /**
