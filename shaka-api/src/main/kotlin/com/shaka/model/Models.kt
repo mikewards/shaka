@@ -283,6 +283,36 @@ data class TideChartData(
     val localDate: String = ""
 )
 
+/**
+ * One hourly swell sample. Absolute time (epochMs) makes "now" selection
+ * timezone-agnostic, exactly like TidePoint. correctedHeightFt is the
+ * exposure-attenuated value precomputed for that hour.
+ */
+@Serializable
+data class SwellHourlyPoint(
+    val epochMs: Long,
+    val heightFt: Double,
+    val periodSec: Double,
+    val directionDeg: Int,
+    val correctedHeightFt: Double? = null,
+    val secondaryHeightFt: Double? = null,
+    val secondaryPeriodSec: Double? = null,
+    val secondaryDirectionDeg: Int? = null,
+    val secondaryCorrectedHeightFt: Double? = null
+)
+
+/**
+ * One hourly wind sample. Absolute time (epochMs) for tz-agnostic "now"
+ * selection, mirroring SwellHourlyPoint.
+ */
+@Serializable
+data class WindHourlyPoint(
+    val epochMs: Long,
+    val speedKts: Double,
+    val directionDeg: Int,
+    val gustKts: Double? = null
+)
+
 @Serializable
 data class WaterQuality(
     val chlorophyllA: Double?,        // mg/m³ - algae indicator (0.1-0.5 clear, 1-5 productive, >10 bloom)

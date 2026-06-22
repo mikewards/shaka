@@ -1667,6 +1667,50 @@ object SpotDataCache {
                 logger.warn("Failed to create spot_tide_days table: ${e.message}")
             }
 
+            // Hourly swell + wind series tables. One row per (spot, local_date)
+            // holding the full hourly curve as JSON. Mirrors spot_tide_days:
+            // epochMs per point for tz-agnostic "now" selection, timezone_id for
+            // the local-date boundary. Kept as two separate tables so swell and
+            // wind never conflate.
+            try {
+                transaction {
+                    val hourlyConn = this.connection.connection as java.sql.Connection
+                    val hourlyTables = """
+                        CREATE TABLE IF NOT EXISTS spot_swell_hourly (
+                            id SERIAL PRIMARY KEY,
+                            spot_id VARCHAR(100) NOT NULL,
+                            local_date DATE NOT NULL,
+                            timezone_id VARCHAR(50),
+                            source VARCHAR(40),
+                            points_json TEXT,
+                            fetched_at TIMESTAMP DEFAULT NOW(),
+                            UNIQUE (spot_id, local_date)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_spot_swell_hourly_spot_date
+                            ON spot_swell_hourly (spot_id, local_date);
+                        CREATE TABLE IF NOT EXISTS spot_wind_hourly (
+                            id SERIAL PRIMARY KEY,
+                            spot_id VARCHAR(100) NOT NULL,
+                            local_date DATE NOT NULL,
+                            timezone_id VARCHAR(50),
+                            points_json TEXT,
+                            fetched_at TIMESTAMP DEFAULT NOW(),
+                            UNIQUE (spot_id, local_date)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_spot_wind_hourly_spot_date
+                            ON spot_wind_hourly (spot_id, local_date);
+                    """.trimIndent()
+                    hourlyConn.createStatement().use { stmt ->
+                        hourlyTables.split(";").filter { it.isNotBlank() }.forEach { sql ->
+                            stmt.execute(sql.trim())
+                        }
+                    }
+                }
+                logger.info("spot_swell_hourly + spot_wind_hourly tables ready")
+            } catch (e: Exception) {
+                logger.warn("Failed to create hourly swell/wind tables: ${e.message}")
+            }
+
             // Tide series table: one row per (spot, provider) holding metadata +
             // the precomputed-horizon bookkeeping (generated_from/through). Drives
             // the upfront backfill and monthly top-up so we stop recomputing the
@@ -2533,6 +2577,158 @@ object SpotDataCache {
             }
         } catch (e: Exception) {
             logger.warn("Failed to cleanup old tide days: ${e.message}")
+        }
+    }
+
+    // ==================== Hourly Swell + Wind Persistence ====================
+
+    data class SwellHourlyRow(
+        val spotId: String,
+        val localDate: String,
+        val timezoneId: String?,
+        val source: String?,
+        val pointsJson: String?,
+        val fetchedAt: Instant
+    )
+
+    data class WindHourlyRow(
+        val spotId: String,
+        val localDate: String,
+        val timezoneId: String?,
+        val pointsJson: String?,
+        val fetchedAt: Instant
+    )
+
+    fun upsertSwellDay(row: SwellHourlyRow) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    INSERT INTO spot_swell_hourly
+                        (spot_id, local_date, timezone_id, source, points_json, fetched_at)
+                    VALUES (?, ?::date, ?, ?, ?, ?)
+                    ON CONFLICT (spot_id, local_date) DO UPDATE SET
+                        timezone_id = EXCLUDED.timezone_id,
+                        source = EXCLUDED.source,
+                        points_json = EXCLUDED.points_json,
+                        fetched_at = EXCLUDED.fetched_at
+                """).use { stmt ->
+                    stmt.setString(1, row.spotId)
+                    stmt.setString(2, row.localDate)
+                    stmt.setString(3, row.timezoneId)
+                    stmt.setString(4, row.source)
+                    stmt.setString(5, row.pointsJson)
+                    stmt.setTimestamp(6, Timestamp.from(row.fetchedAt))
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to upsert swell day for ${row.spotId}/${row.localDate}: ${e.message}")
+        }
+    }
+
+    fun getSwellDay(spotId: String, localDate: String): SwellHourlyRow? {
+        if (!DatabaseFactory.isConnected()) return null
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    "SELECT * FROM spot_swell_hourly WHERE spot_id = ? AND local_date = ?::date"
+                ).use { stmt ->
+                    stmt.setString(1, spotId)
+                    stmt.setString(2, localDate)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        SwellHourlyRow(
+                            spotId = rs.getString("spot_id"),
+                            localDate = rs.getDate("local_date").toString(),
+                            timezoneId = rs.getString("timezone_id"),
+                            source = rs.getString("source"),
+                            pointsJson = rs.getString("points_json"),
+                            fetchedAt = rs.getTimestamp("fetched_at").toInstant()
+                        )
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Failed to read swell day for $spotId/$localDate: ${e.message}")
+            null
+        }
+    }
+
+    fun upsertWindDay(row: WindHourlyRow) {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement("""
+                    INSERT INTO spot_wind_hourly
+                        (spot_id, local_date, timezone_id, points_json, fetched_at)
+                    VALUES (?, ?::date, ?, ?, ?)
+                    ON CONFLICT (spot_id, local_date) DO UPDATE SET
+                        timezone_id = EXCLUDED.timezone_id,
+                        points_json = EXCLUDED.points_json,
+                        fetched_at = EXCLUDED.fetched_at
+                """).use { stmt ->
+                    stmt.setString(1, row.spotId)
+                    stmt.setString(2, row.localDate)
+                    stmt.setString(3, row.timezoneId)
+                    stmt.setString(4, row.pointsJson)
+                    stmt.setTimestamp(5, Timestamp.from(row.fetchedAt))
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to upsert wind day for ${row.spotId}/${row.localDate}: ${e.message}")
+        }
+    }
+
+    fun getWindDay(spotId: String, localDate: String): WindHourlyRow? {
+        if (!DatabaseFactory.isConnected()) return null
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    "SELECT * FROM spot_wind_hourly WHERE spot_id = ? AND local_date = ?::date"
+                ).use { stmt ->
+                    stmt.setString(1, spotId)
+                    stmt.setString(2, localDate)
+                    val rs = stmt.executeQuery()
+                    if (rs.next()) {
+                        WindHourlyRow(
+                            spotId = rs.getString("spot_id"),
+                            localDate = rs.getDate("local_date").toString(),
+                            timezoneId = rs.getString("timezone_id"),
+                            pointsJson = rs.getString("points_json"),
+                            fetchedAt = rs.getTimestamp("fetched_at").toInstant()
+                        )
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Failed to read wind day for $spotId/$localDate: ${e.message}")
+            null
+        }
+    }
+
+    fun cleanupOldHourly() {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                val swellDeleted = conn.createStatement().executeUpdate(
+                    "DELETE FROM spot_swell_hourly WHERE local_date < CURRENT_DATE - INTERVAL '3 days'"
+                )
+                val windDeleted = conn.createStatement().executeUpdate(
+                    "DELETE FROM spot_wind_hourly WHERE local_date < CURRENT_DATE - INTERVAL '3 days'"
+                )
+                if (swellDeleted > 0 || windDeleted > 0) {
+                    logger.info("Cleaned up $swellDeleted old swell + $windDeleted old wind hourly rows")
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to cleanup old hourly swell/wind: ${e.message}")
         }
     }
 
