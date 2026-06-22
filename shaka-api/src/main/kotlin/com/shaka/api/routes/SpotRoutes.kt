@@ -313,6 +313,21 @@ fun Application.configureRouting() {
             }
 
             /**
+             * Full hourly swell + wind curves for a spot (intraday chart).
+             * Served from the in-memory series — fast, no API/DB on the hot path.
+             */
+            get("/spots/{id}/hourly") {
+                val spotId = call.parameters["id"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "id required"))
+                val hourly = spotService.getSpotHourly(spotId)
+                if (hourly != null) {
+                    call.respond(hourly)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Hourly data not available"))
+                }
+            }
+
+            /**
              * Get REAL-TIME satellite water clarity data for a spot.
              * 
              * WARNING: This endpoint is SLOW (30-60 seconds) because it processes

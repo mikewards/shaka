@@ -635,6 +635,19 @@ class SpotService {
         return SpotDataCache.CachedValue(info, now, now)
     }
 
+    /**
+     * Full hourly swell + wind curves for a spot, served from the in-memory
+     * series. Returns null if no series is loaded for this spot.
+     */
+    fun getSpotHourly(spotId: String): SpotHourlyResponse? {
+        val cached = SpotDataCache.get(spotId) ?: return null
+        val swell = cached.swellSeries?.points.orEmpty()
+        val wind = cached.windSeries?.points.orEmpty()
+        if (swell.isEmpty() && wind.isEmpty()) return null
+        val tz = cached.swellSeries?.timezoneId ?: cached.windSeries?.timezoneId
+        return SpotHourlyResponse(spotId, tz, swell, wind)
+    }
+
     private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)
 
     /**

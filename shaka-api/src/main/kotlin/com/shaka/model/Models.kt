@@ -316,6 +316,18 @@ data class WindHourlyPoint(
     val gustKts: Double? = null
 )
 
+/**
+ * Full hourly swell + wind curves for a spot (intraday chart / "changes through
+ * the day"). epochMs per point keeps it timezone-agnostic on the client.
+ */
+@Serializable
+data class SpotHourlyResponse(
+    val spotId: String,
+    val timezoneId: String?,
+    val swell: List<SwellHourlyPoint>,
+    val wind: List<WindHourlyPoint>
+)
+
 @Serializable
 data class WaterQuality(
     val chlorophyllA: Double?,        // mg/m³ - algae indicator (0.1-0.5 clear, 1-5 productive, >10 bloom)
