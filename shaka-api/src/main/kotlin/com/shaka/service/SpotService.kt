@@ -26,6 +26,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -332,6 +333,8 @@ class SpotService {
         
         // Check prefetched cache first (instant!)
         val cached = SpotDataCache.get(spotId)
+        // Detail screens prefer near-real-time wind; fall back to the derived snapshot.
+        val effectiveWind = resolveLiveWind(lat, lon) ?: cached?.wind
         
         // Build data from cache or fetch live. Null = genuinely unavailable;
         // never substitute fabricated values (Jun 2026 lesson).
@@ -539,9 +542,9 @@ class SpotService {
                     ?: ocean?.wavePeriod?.roundToInt()?.toDouble()
                 val swellDir = cached?.swell?.value?.direction
                     ?: ocean?.let { SpotDataCache.degreesToCardinal(it.waveDirection.toDouble()) }
-                val windKts = cached?.wind?.value?.speedKnots
+                val windKts = effectiveWind?.value?.speedKnots
                     ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) }
-                val windDir = cached?.wind?.value?.direction
+                val windDir = effectiveWind?.value?.direction
                     ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) }
                 SpotConditions(
                     visibility = getVisibilityLabel(effectiveChl),
@@ -550,7 +553,7 @@ class SpotService {
                         "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
                     } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
                       ?: "Unavailable",
-                    wind = cached?.wind?.let { 
+                    wind = effectiveWind?.let { 
                         "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                     } ?: weather?.let { "${SpotDataCache.kmhToKnots(it.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(it.windDirection.toDouble())}" }
                       ?: "Unavailable",
@@ -589,6 +592,43 @@ class SpotService {
             waterContext = waterContext,
             tide = tideChart
         )
+    }
+
+    // Live-wind override (detail screens only). Open-Meteo's `current` block
+    // updates ~every 15 min, so we cache results in ~0.05deg buckets for the TTL
+    // to avoid an API storm when many spots share coordinates, and bound each
+    // call so a slow API never stalls a detail load (we fall back to the derived
+    // hourly snapshot instead).
+    private val liveWindCache = ConcurrentHashMap<String, Pair<Instant, SpotDataCache.WindInfo>>()
+    private val LIVE_WIND_TTL = Duration.ofMinutes(15)
+    private val LIVE_WIND_TIMEOUT_MS = 2500L
+
+    /**
+     * Resolve near-real-time wind for a detail screen. Returns a fresh live
+     * value (from cache or API) or null to signal the caller to fall back to the
+     * derived hourly snapshot. Never throws and never blocks beyond the timeout.
+     */
+    private suspend fun resolveLiveWind(lat: Double, lon: Double): SpotDataCache.CachedValue<SpotDataCache.WindInfo>? {
+        val key = "${(lat * 20).roundToInt()}:${(lon * 20).roundToInt()}"
+        val now = Instant.now()
+        liveWindCache[key]?.let { (ts, info) ->
+            if (Duration.between(ts, now) < LIVE_WIND_TTL) {
+                return SpotDataCache.CachedValue(info, ts, ts)
+            }
+        }
+        val live = try {
+            withTimeoutOrNull(LIVE_WIND_TIMEOUT_MS) { openMeteo.getCurrentWind(lat, lon) }
+        } catch (e: Exception) {
+            logger.debug("Live wind fetch failed for ($lat,$lon): ${e.message}")
+            null
+        } ?: return null
+        val info = SpotDataCache.WindInfo(
+            speedKnots = SpotDataCache.kmhToKnots(live.speedKmh),
+            direction = SpotDataCache.degreesToCardinal(live.directionDeg.toDouble()),
+            gustKnots = live.gustKmh?.let { SpotDataCache.kmhToKnots(it) }
+        )
+        liveWindCache[key] = now to info
+        return SpotDataCache.CachedValue(info, now, now)
     }
 
     private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)
@@ -1574,6 +1614,8 @@ class SpotService {
         val region = userSpot.region
         
         val cached = SpotDataCache.get(cacheId)
+        // Detail screens prefer near-real-time wind; fall back to the derived snapshot.
+        val effectiveWind = resolveLiveWind(lat, lon) ?: cached?.wind
         logger.debug("Building detail from cache for ${userSpot.name} (cache ${if (cached != null) "hit" else "miss"})")
         
         val weather: WeatherData? = if (cached?.wind != null) {
@@ -1709,7 +1751,7 @@ class SpotService {
                     "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
                 } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
                   ?: "Unavailable",
-                wind = cached?.wind?.let { 
+                wind = effectiveWind?.let { 
                     "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
                 } ?: weather?.let { "${SpotDataCache.kmhToKnots(it.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(it.windDirection.toDouble())}" }
                   ?: "Unavailable",
@@ -1729,9 +1771,9 @@ class SpotService {
                     ?: ocean?.wavePeriod?.roundToInt()?.toDouble(),
                 swellDirection = cached?.swell?.value?.direction
                     ?: ocean?.let { SpotDataCache.degreesToCardinal(it.waveDirection.toDouble()) },
-                windSpeedKts = cached?.wind?.value?.speedKnots
+                windSpeedKts = effectiveWind?.value?.speedKnots
                     ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) },
-                windDirectionCardinal = cached?.wind?.value?.direction
+                windDirectionCardinal = effectiveWind?.value?.direction
                     ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) },
                 waterTempC = sst.tempC
             ),
