@@ -203,6 +203,130 @@ class OpenMeteoClient {
             emptyList()
         }
     }
+
+    /**
+     * Build absolute epoch-millis for each local ISO timestamp using the spot's
+     * IANA zone (DST-correct within the horizon). Falls back to UTC if the zone
+     * is unparseable.
+     */
+    private fun buildEpochList(times: List<String>?, timezone: String?): List<Long> {
+        if (times == null) return emptyList()
+        val zone = try {
+            java.time.ZoneId.of(timezone)
+        } catch (_: Exception) {
+            java.time.ZoneOffset.UTC
+        }
+        return times.map { t ->
+            try {
+                java.time.LocalDateTime.parse(t).atZone(zone).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                0L
+            }
+        }
+    }
+
+    /**
+     * Full hourly marine curve for a multi-day horizon (raw SI units + epochMs).
+     * Used by the daily prefetch job to persist the swell series. Returns null on failure.
+     */
+    suspend fun getMarineHourly(lat: Double, lon: Double, days: Int = 7): MarineHourlySeries? {
+        return try {
+            RateLimiters.openMeteo.acquire()
+
+            val response: OpenMeteoMarineResponse = client.get("https://marine-api.open-meteo.com/v1/marine") {
+                parameter("latitude", lat)
+                parameter("longitude", lon)
+                parameter("forecast_days", days)
+                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,sea_surface_temperature")
+                parameter("timezone", "auto")
+            }.body()
+
+            val h = response.hourly
+            val tz = response.timezone ?: "UTC"
+            val epochs = buildEpochList(h.time, response.timezone)
+            val points = epochs.indices.map { i ->
+                MarineHourPoint(
+                    epochMs = epochs[i],
+                    waveHeightM = h.wave_height?.getOrNull(i),
+                    wavePeriodSec = h.wave_period?.getOrNull(i),
+                    waveDirectionDeg = h.wave_direction?.getOrNull(i)?.toInt(),
+                    swellHeightM = h.swell_wave_height?.getOrNull(i),
+                    swellPeriodSec = h.swell_wave_period?.getOrNull(i),
+                    swellDirectionDeg = h.swell_wave_direction?.getOrNull(i)?.toInt(),
+                    secondarySwellHeightM = h.secondary_swell_wave_height?.getOrNull(i),
+                    secondarySwellPeriodSec = h.secondary_swell_wave_period?.getOrNull(i),
+                    secondarySwellDirectionDeg = h.secondary_swell_wave_direction?.getOrNull(i)?.toInt(),
+                    sstC = h.sea_surface_temperature?.getOrNull(i)
+                )
+            }
+            MarineHourlySeries(timezone = tz, points = points)
+        } catch (e: Exception) {
+            logger.warn("Open-Meteo marine hourly failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Full hourly wind curve for a multi-day horizon (km/h + epochMs).
+     * Used by the daily prefetch job to persist the wind series. Returns null on failure.
+     */
+    suspend fun getWeatherHourly(lat: Double, lon: Double, days: Int = 7): WeatherHourlySeries? {
+        return try {
+            RateLimiters.openMeteo.acquire()
+
+            val response: OpenMeteoWeatherResponse = client.get("https://api.open-meteo.com/v1/forecast") {
+                parameter("latitude", lat)
+                parameter("longitude", lon)
+                parameter("forecast_days", days)
+                parameter("hourly", "windspeed_10m,winddirection_10m,windgusts_10m")
+                parameter("timezone", "auto")
+            }.body()
+
+            val h = response.hourly
+            val tz = response.timezone ?: "UTC"
+            val epochs = buildEpochList(h.time, response.timezone)
+            val points = epochs.indices.map { i ->
+                WindHourPoint(
+                    epochMs = epochs[i],
+                    windSpeedKmh = h.windspeed_10m?.getOrNull(i),
+                    windDirectionDeg = h.winddirection_10m?.getOrNull(i)?.toInt(),
+                    windGustKmh = h.windgusts_10m?.getOrNull(i)
+                )
+            }
+            WeatherHourlySeries(timezone = tz, points = points)
+        } catch (e: Exception) {
+            logger.warn("Open-Meteo weather hourly failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Near-real-time wind from Open-Meteo's 15-minute `current` block.
+     * Used by the detail-screen live-wind override. Returns null on failure.
+     */
+    suspend fun getCurrentWind(lat: Double, lon: Double): CurrentWind? {
+        return try {
+            RateLimiters.openMeteo.acquire()
+
+            val response: OpenMeteoCurrentResponse = client.get("https://api.open-meteo.com/v1/forecast") {
+                parameter("latitude", lat)
+                parameter("longitude", lon)
+                parameter("current", "windspeed_10m,winddirection_10m,windgusts_10m")
+                parameter("timezone", "auto")
+            }.body()
+
+            val c = response.current ?: return null
+            val speed = c.windspeed_10m ?: return null
+            CurrentWind(
+                speedKmh = speed,
+                directionDeg = (c.winddirection_10m ?: 0.0).toInt(),
+                gustKmh = c.windgusts_10m
+            )
+        } catch (e: Exception) {
+            logger.warn("Open-Meteo current wind failed for ($lat, $lon): ${e.message}")
+            null
+        }
+    }
 }
 
 @Serializable
@@ -213,12 +337,68 @@ data class OpenMeteoWeatherResponse(
 
 @Serializable
 data class OpenMeteoHourlyWeather(
+    val time: List<String>? = null,
     val temperature_2m: List<Double>? = null,
     val precipitation: List<Double>? = null,
     val cloudcover: List<Double>? = null,
     val windspeed_10m: List<Double>? = null,
     val winddirection_10m: List<Double>? = null,
+    val windgusts_10m: List<Double>? = null,
     val visibility: List<Double>? = null
+)
+
+@Serializable
+data class OpenMeteoCurrentResponse(
+    val current: OpenMeteoCurrentWind? = null,
+    val timezone: String? = null
+)
+
+@Serializable
+data class OpenMeteoCurrentWind(
+    val time: String? = null,
+    val windspeed_10m: Double? = null,
+    val winddirection_10m: Double? = null,
+    val windgusts_10m: Double? = null
+)
+
+/** Spot timezone + full hourly marine curve (raw SI units, absolute epoch times). */
+data class MarineHourlySeries(
+    val timezone: String,
+    val points: List<MarineHourPoint>
+)
+
+data class MarineHourPoint(
+    val epochMs: Long,
+    val waveHeightM: Double?,
+    val wavePeriodSec: Double?,
+    val waveDirectionDeg: Int?,
+    val swellHeightM: Double?,
+    val swellPeriodSec: Double?,
+    val swellDirectionDeg: Int?,
+    val secondarySwellHeightM: Double?,
+    val secondarySwellPeriodSec: Double?,
+    val secondarySwellDirectionDeg: Int?,
+    val sstC: Double?
+)
+
+/** Spot timezone + full hourly wind curve (km/h, degrees, absolute epoch times). */
+data class WeatherHourlySeries(
+    val timezone: String,
+    val points: List<WindHourPoint>
+)
+
+data class WindHourPoint(
+    val epochMs: Long,
+    val windSpeedKmh: Double?,
+    val windDirectionDeg: Int?,
+    val windGustKmh: Double?
+)
+
+/** Near-real-time wind from Open-Meteo's 15-minute `current` block (km/h). */
+data class CurrentWind(
+    val speedKmh: Double,
+    val directionDeg: Int,
+    val gustKmh: Double?
 )
 
 @Serializable
@@ -229,6 +409,7 @@ data class OpenMeteoMarineResponse(
 
 @Serializable
 data class OpenMeteoHourlyMarine(
+    val time: List<String>? = null,
     val wave_height: List<Double>? = null,
     val wave_period: List<Double>? = null,
     val wave_direction: List<Double>? = null,
