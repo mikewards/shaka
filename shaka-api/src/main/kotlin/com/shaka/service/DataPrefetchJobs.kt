@@ -511,6 +511,74 @@ class DataPrefetchJobs(
     }
 
     /**
+     * On-demand: materialize a full year for only the REMAINING spots whose
+     * precomputed horizon is missing or already expired (generated_through <
+     * today). Unbounded (no time budget) and strictly serial, intended to be
+     * fired manually via POST /admin/tide/topup-remaining to finish the
+     * outstanding spots in one pass. Logs every spot result and full stack
+     * traces on failure so errors are captured.
+     */
+    suspend fun backfillRemainingTideYears() = withContext(Dispatchers.IO) {
+        if (!tideTopUpRunning.compareAndSet(false, true)) {
+            logger.warn("TIDE remaining-backfill: a top-up is already running (tideTopUpRunning=true); not starting another")
+            return@withContext
+        }
+        try {
+            val fes = tidesClient as? FES2022TideClient
+            if (fes == null) {
+                logger.warn("TIDE remaining-backfill requires the FES2022 client; skipping")
+                return@withContext
+            }
+
+            val today = LocalDate.now()
+            val remaining = tideTargets().filter { t ->
+                val through = SpotDataCache.getTideSeries(t.spotId)?.generatedThrough
+                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                through == null || through.isBefore(today)
+            }
+
+            if (remaining.isEmpty()) {
+                logger.info("TIDE remaining-backfill: nothing to do, all spots have a current-or-future horizon")
+                return@withContext
+            }
+
+            logger.info("TIDE remaining-backfill: ${remaining.size} spots remaining (unbounded, serial)")
+            val startTime = System.currentTimeMillis()
+            var done = 0
+            var failed = 0
+            val failures = mutableListOf<ItemFailure>()
+
+            for ((index, t) in remaining.withIndex()) {
+                try {
+                    val ok = backfillTideYear(fes, t.spotId, t.lat, t.lon, HORIZON_TARGET_DAYS)
+                    if (ok) {
+                        done++
+                    } else {
+                        failed++
+                        logger.warn("TIDE remaining-backfill: ${t.spotId} (${t.name}) produced no tide_days (getTideYear returned null)")
+                        failures.add(ItemFailure(t.spotId, t.name, "getTideYear returned null", "no_data"))
+                    }
+                } catch (e: Exception) {
+                    failed++
+                    logger.warn("TIDE remaining-backfill: ${t.spotId} (${t.name}) failed: ${e.message}", e)
+                    MonitoringService.captureItemFailure("tide_remaining_backfill", t.spotId, t.name, e)
+                    failures.add(ItemFailure(t.spotId, t.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                }
+                if ((index + 1) % 20 == 0) {
+                    logger.info("TIDE remaining-backfill progress: ${index + 1}/${remaining.size} ($done ok, $failed failed)")
+                }
+                delay(2000)
+            }
+
+            val elapsed = System.currentTimeMillis() - startTime
+            MonitoringService.reportRun("tide_remaining_backfill", remaining.size, done, failures, elapsed)
+            logger.info("TIDE remaining-backfill COMPLETE: $done ok, $failed failed of ${remaining.size} in ${elapsed / 1000}s")
+        } finally {
+            tideTopUpRunning.set(false)
+        }
+    }
+
+    /**
      * Horizon top-up: (re)generate a full year for any spot whose precomputed
      * tide horizon is missing or within HORIZON_REFRESH_DAYS of expiry. Replaces
      * the old 6-hourly materialize + 10-minute catch-up jobs.

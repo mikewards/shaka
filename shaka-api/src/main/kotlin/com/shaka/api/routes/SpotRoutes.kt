@@ -695,6 +695,33 @@ fun Application.configureRouting() {
                 )
             }
 
+            // Materialize a full year for ONLY the remaining spots (horizon
+            // missing or already expired). Unbounded serial pass; safe to
+            // re-run (idempotent, skips spots already current).
+            post("/admin/tide/topup-remaining") {
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                if (prefetchJobs == null) {
+                    call.respondText(
+                        """{"status":"error","message":"PrefetchJobs not initialized yet"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.ServiceUnavailable
+                    )
+                    return@post
+                }
+                GlobalScope.launch {
+                    try {
+                        prefetchJobs.backfillRemainingTideYears()
+                    } catch (e: Exception) {
+                        org.slf4j.LoggerFactory.getLogger("AdminTideTopupRemaining")
+                            .error("Remaining tide backfill failed: ${e.message}", e)
+                    }
+                }
+                call.respondText(
+                    """{"status":"started","message":"Remaining-spots tide backfill started in background (serial). Watch logs for 'TIDE remaining-backfill'."}""",
+                    io.ktor.http.ContentType.Application.Json
+                )
+            }
+
             // Force-run the ocean forecast tile pipeline (ECMWF + CMEMS → WebP)
             post("/admin/weather/tiles/trigger") {
                 kotlinx.coroutines.GlobalScope.launch {
