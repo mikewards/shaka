@@ -5,7 +5,12 @@ import com.shaka.model.TideData
 import com.shaka.model.OceanData
 import com.shaka.model.WeatherData
 import com.shaka.model.WaterQuality
+import com.shaka.model.SwellHourlyPoint
+import com.shaka.model.WindHourlyPoint
+import com.shaka.util.SpotTime
 import org.jetbrains.exposed.sql.transactions.transaction
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.builtins.ListSerializer
 import org.slf4j.LoggerFactory
 import kotlin.math.cos
 import kotlin.math.sqrt
@@ -200,6 +205,17 @@ object SpotDataCache {
     )
     
     /**
+     * In-memory hourly series for a spot (today + horizon). The displayed
+     * current-hour snapshot (swell/wind below) is derived from this by
+     * deriveCurrentHourSnapshot, so reads never hit the DB or an API.
+     */
+    data class HourlySeries<T>(
+        val points: List<T>,
+        val timezoneId: String?,
+        val fetchedAt: Instant
+    )
+
+    /**
      * All cached data for a single spot.
      * Each field is nullable - data may not be available for all spots.
      */
@@ -214,7 +230,9 @@ object SpotDataCache {
         val mpa: CachedValue<MPACacheInfo?>? = null,      // MPA data (null value = no specific MPA)
         val vessel: CachedValue<VesselInfo>? = null,      // Vessel activity from Global Fishing Watch
         val solunar: CachedValue<SolunarInfo>? = null,    // Moon phase and feeding periods
-        val exposure: ExposureInfo? = null                 // Spot coastal exposure (static, computed once)
+        val exposure: ExposureInfo? = null,                // Spot coastal exposure (static, computed once)
+        val swellSeries: HourlySeries<SwellHourlyPoint>? = null,  // Full hourly swell curve
+        val windSeries: HourlySeries<WindHourlyPoint>? = null     // Full hourly wind curve
     ) {
         /**
          * Get the most recent fetch time across all data types.
@@ -2729,6 +2747,208 @@ object SpotDataCache {
             }
         } catch (e: Exception) {
             logger.warn("Failed to cleanup old hourly swell/wind: ${e.message}")
+        }
+    }
+
+    // ==================== Hourly Snapshot Derivation (in-memory) ====================
+
+    private val hourlyJson = Json { ignoreUnknownKeys = true }
+
+    /** Replace the in-memory hourly swell series for a spot. */
+    fun updateSwellSeries(spotId: String, points: List<SwellHourlyPoint>, timezoneId: String?, fetchedAt: Instant) {
+        if (points.isEmpty()) return
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(
+                swellSeries = HourlySeries(points.sortedBy { it.epochMs }, timezoneId, fetchedAt)
+            )
+        }
+    }
+
+    /** Replace the in-memory hourly wind series for a spot. */
+    fun updateWindSeries(spotId: String, points: List<WindHourlyPoint>, timezoneId: String?, fetchedAt: Instant) {
+        if (points.isEmpty()) return
+        cache.compute(spotId) { _, existing ->
+            (existing ?: SpotData()).copy(
+                windSeries = HourlySeries(points.sortedBy { it.epochMs }, timezoneId, fetchedAt)
+            )
+        }
+    }
+
+    /**
+     * Derive the current-hour swell + wind snapshot from the in-memory series
+     * and write it into the cache.swell/.wind fields that the API reads. Linear
+     * interpolation between bracketing hours; a live buoy within 1.5nm overrides
+     * raw swell height/period/direction (Open-Meteo remains the default).
+     */
+    fun deriveCurrentHourSnapshot(spotId: String) {
+        val data = cache[spotId] ?: return
+        val nowMs = Instant.now().toEpochMilli()
+        val coords = spotCoordinates[spotId]
+
+        val swellCv = data.swellSeries?.let { series ->
+            val buoy = coords?.let { findNearestBuoyReading(it.first, it.second) }
+            deriveSwellInfo(series.points, nowMs, buoy)?.let { (info, validMs) ->
+                CachedValue(info, series.fetchedAt, Instant.ofEpochMilli(validMs))
+            }
+        }
+        val windCv = data.windSeries?.let { series ->
+            deriveWindInfo(series.points, nowMs)?.let { (info, validMs) ->
+                CachedValue(info, series.fetchedAt, Instant.ofEpochMilli(validMs))
+            }
+        }
+        if (swellCv == null && windCv == null) return
+
+        cache.compute(spotId) { _, existing ->
+            val base = existing ?: SpotData()
+            base.copy(
+                swell = swellCv ?: base.swell,
+                wind = windCv ?: base.wind
+            )
+        }
+    }
+
+    /** Re-derive current-hour snapshots for every spot holding a series (hourly tick). */
+    fun deriveAllCurrentHourSnapshots(): Int {
+        var derived = 0
+        for (spotId in cache.keys) {
+            val d = cache[spotId] ?: continue
+            if (d.swellSeries != null || d.windSeries != null) {
+                deriveCurrentHourSnapshot(spotId)
+                derived++
+            }
+        }
+        return derived
+    }
+
+    private fun deriveSwellInfo(points: List<SwellHourlyPoint>, nowMs: Long, buoy: BuoyMatch?): Pair<SwellInfo, Long>? {
+        if (points.isEmpty()) return null
+        var i = points.indexOfLast { it.epochMs <= nowMs }
+        if (i < 0) i = 0
+        val a = points[i]
+        val b = if (i + 1 < points.size) points[i + 1] else a
+        val span = (b.epochMs - a.epochMs).coerceAtLeast(1)
+        val frac = ((nowMs - a.epochMs).toDouble() / span).coerceIn(0.0, 1.0)
+        val near = if (frac < 0.5) a else b
+        fun lerp(x: Double, y: Double) = x + (y - x) * frac
+        fun lerpN(x: Double?, y: Double?): Double? = if (x == null || y == null) (x ?: y) else lerp(x, y)
+
+        var heightFt = lerp(a.heightFt, b.heightFt)
+        var periodSec = lerp(a.periodSec, b.periodSec)
+        var directionStr = degreesToCardinal(near.directionDeg.toDouble())
+        var source = "open-meteo"
+        val correctedFt = lerpN(a.correctedHeightFt, b.correctedHeightFt)
+
+        if (buoy != null) {
+            val r = buoy.reading
+            r.waveHeightM?.let { heightFt = metersToFeet(it) }
+            r.dominantPeriodSec?.let { if (it > 0) periodSec = it }
+            r.meanDirection?.let { directionStr = degreesToCardinal(it.toDouble()) }
+            source = "ndbc-${buoy.station.stationId}"
+        }
+
+        val info = SwellInfo(
+            heightFt = heightFt,
+            periodSec = periodSec,
+            direction = directionStr,
+            swellHeightFt = heightFt,
+            source = source,
+            correctedHeightFt = correctedFt,
+            secondaryHeightFt = lerpN(a.secondaryHeightFt, b.secondaryHeightFt),
+            secondaryPeriodSec = lerpN(a.secondaryPeriodSec, b.secondaryPeriodSec),
+            secondaryDirection = near.secondaryDirectionDeg?.let { degreesToCardinal(it.toDouble()) },
+            secondaryCorrectedHeightFt = lerpN(a.secondaryCorrectedHeightFt, b.secondaryCorrectedHeightFt)
+        )
+        return info to near.epochMs
+    }
+
+    private fun deriveWindInfo(points: List<WindHourlyPoint>, nowMs: Long): Pair<WindInfo, Long>? {
+        if (points.isEmpty()) return null
+        var i = points.indexOfLast { it.epochMs <= nowMs }
+        if (i < 0) i = 0
+        val a = points[i]
+        val b = if (i + 1 < points.size) points[i + 1] else a
+        val span = (b.epochMs - a.epochMs).coerceAtLeast(1)
+        val frac = ((nowMs - a.epochMs).toDouble() / span).coerceIn(0.0, 1.0)
+        val near = if (frac < 0.5) a else b
+        fun lerp(x: Double, y: Double) = x + (y - x) * frac
+        fun lerpN(x: Double?, y: Double?): Double? = if (x == null || y == null) (x ?: y) else lerp(x, y)
+
+        val info = WindInfo(
+            speedKnots = lerp(a.speedKts, b.speedKts),
+            direction = degreesToCardinal(near.directionDeg.toDouble()),
+            gustKnots = lerpN(a.gustKts, b.gustKts)
+        )
+        return info to near.epochMs
+    }
+
+    /**
+     * Load recent hourly swell + wind series from the DB into memory and derive
+     * the current snapshot for each spot. Called once on startup so snapshots are
+     * available before the daily job runs again (and survive restarts).
+     */
+    fun loadHourlySeriesFromDatabase() {
+        if (!DatabaseFactory.isConnected()) return
+        try {
+            val swellBySpot = HashMap<String, MutableList<SwellHourlyPoint>>()
+            val swellMeta = HashMap<String, Pair<String?, Instant>>()
+            val windBySpot = HashMap<String, MutableList<WindHourlyPoint>>()
+            val windMeta = HashMap<String, Pair<String?, Instant>>()
+
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    "SELECT spot_id, timezone_id, points_json, fetched_at FROM spot_swell_hourly WHERE local_date >= CURRENT_DATE - 1 ORDER BY local_date"
+                ).use { stmt ->
+                    val rs = stmt.executeQuery()
+                    while (rs.next()) {
+                        val spotId = rs.getString("spot_id")
+                        val json = rs.getString("points_json") ?: continue
+                        val pts = try {
+                            hourlyJson.decodeFromString(ListSerializer(SwellHourlyPoint.serializer()), json)
+                        } catch (_: Exception) { continue }
+                        swellBySpot.getOrPut(spotId) { mutableListOf() }.addAll(pts)
+                        val fetched = rs.getTimestamp("fetched_at")?.toInstant() ?: Instant.now()
+                        val tz = rs.getString("timezone_id")
+                        val prev = swellMeta[spotId]
+                        if (prev == null || fetched.isAfter(prev.second)) swellMeta[spotId] = tz to fetched
+                    }
+                }
+                conn.prepareStatement(
+                    "SELECT spot_id, timezone_id, points_json, fetched_at FROM spot_wind_hourly WHERE local_date >= CURRENT_DATE - 1 ORDER BY local_date"
+                ).use { stmt ->
+                    val rs = stmt.executeQuery()
+                    while (rs.next()) {
+                        val spotId = rs.getString("spot_id")
+                        val json = rs.getString("points_json") ?: continue
+                        val pts = try {
+                            hourlyJson.decodeFromString(ListSerializer(WindHourlyPoint.serializer()), json)
+                        } catch (_: Exception) { continue }
+                        windBySpot.getOrPut(spotId) { mutableListOf() }.addAll(pts)
+                        val fetched = rs.getTimestamp("fetched_at")?.toInstant() ?: Instant.now()
+                        val tz = rs.getString("timezone_id")
+                        val prev = windMeta[spotId]
+                        if (prev == null || fetched.isAfter(prev.second)) windMeta[spotId] = tz to fetched
+                    }
+                }
+            }
+
+            val spots = swellBySpot.keys + windBySpot.keys
+            for (spotId in spots) {
+                swellBySpot[spotId]?.let { pts ->
+                    val meta = swellMeta[spotId]
+                    updateSwellSeries(spotId, pts, meta?.first, meta?.second ?: Instant.now())
+                }
+                windBySpot[spotId]?.let { pts ->
+                    val meta = windMeta[spotId]
+                    updateWindSeries(spotId, pts, meta?.first, meta?.second ?: Instant.now())
+                }
+                deriveCurrentHourSnapshot(spotId)
+            }
+            if (spots.isNotEmpty()) {
+                logger.info("Loaded hourly swell/wind series for ${spots.size} spots from DB")
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to load hourly swell/wind series: ${e.message}")
         }
     }
 

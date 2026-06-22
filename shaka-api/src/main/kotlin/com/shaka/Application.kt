@@ -182,6 +182,9 @@ private fun Application.configureScheduledJobs() {
             SpotDataCache.createTableIfNotExists()
             val loadedCount = SpotDataCache.loadFromDatabase()
             logger.info("Loaded $loadedCount spots from database cache")
+            // Restore hourly swell/wind series and derive current snapshots so
+            // "now" values are correct immediately after a restart (no API wait).
+            SpotDataCache.loadHourlySeriesFromDatabase()
         } catch (e: Exception) {
             logger.warn("Failed to load cache from database: ${e.message}")
         }
@@ -203,9 +206,19 @@ private fun Application.configureScheduledJobs() {
         logger.info("Startup complete — scheduled jobs will refresh stale data on cadence")
     }
     
-    // EVERY 3 HOURS: Weather/swell refresh
-    scheduleJob("weather_prefetch", initialDelayMs = 120_000, intervalMs = 10_800_000) {
-        prefetchJobs.prefetchWeather()
+    // DAILY: Hourly swell + wind series. Fetches the 7-day hourly curves for
+    // every spot and persists one row per local_date. Replaces the old per-3h
+    // single-snapshot weather_prefetch. runImmediately=true so it also backfills
+    // on first boot after a deploy. The current-hour value shown to users is
+    // derived in-memory from these tables by the hourly tick below.
+    scheduleJob("hourly_swell_wind_prefetch", initialDelayMs = 120_000, intervalMs = 86_400_000, maxRunMs = 86_400_000, runImmediately = true) {
+        prefetchJobs.prefetchHourlySwellWind()
+    }
+
+    // HOURLY: Re-derive the current-hour swell + wind snapshot from the
+    // in-memory series. Cheap (no DB/API) — just advances "now" through the day.
+    scheduleJob("hourly_snapshot_tick", initialDelayMs = 660_000, intervalMs = 3_600_000, maxRunMs = 300_000, runImmediately = true) {
+        prefetchJobs.deriveHourlySnapshots()
     }
 
     // EVERY 6 HOURS: Satellite data refresh (rate-limited, can run very long)

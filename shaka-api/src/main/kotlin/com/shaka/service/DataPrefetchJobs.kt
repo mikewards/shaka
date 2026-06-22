@@ -745,10 +745,21 @@ class DataPrefetchJobs(
     }
 
     /**
+     * Hourly tick: re-derive the current-hour swell + wind snapshot for every
+     * spot from its in-memory series. Cheap (no DB/API), keeps displayed "now"
+     * values moving through the day between daily fetches.
+     */
+    suspend fun deriveHourlySnapshots() = withContext(Dispatchers.Default) {
+        val n = SpotDataCache.deriveAllCurrentHourSnapshots()
+        if (n > 0) logger.info("Hourly snapshot tick: re-derived $n spots")
+    }
+
+    /**
      * Fetch the hourly marine + wind series for one spot, compute per-hour
      * corrected swell, and upsert one row per local_date into both tables.
      */
     private suspend fun persistHourlyForSpot(spot: WeatherSpot) {
+        SpotDataCache.registerSpotCoordinates(spot.cacheId, spot.lat, spot.lon)
         // Ensure exposure for attenuation (compute once if missing).
         var exposure = SpotDataCache.get(spot.cacheId)?.exposure
         if (exposure?.landDistances == null) {
@@ -826,6 +837,12 @@ class DataPrefetchJobs(
         }
 
         persistDays(spot.cacheId, marine.timezone, zone, now, swellPoints, windPoints)
+
+        // Refresh in-memory series + current snapshot so reads reflect new data
+        // immediately (without waiting for the next startup load).
+        SpotDataCache.updateSwellSeries(spot.cacheId, swellPoints, marine.timezone, now)
+        SpotDataCache.updateWindSeries(spot.cacheId, windPoints, marine.timezone, now)
+        SpotDataCache.deriveCurrentHourSnapshot(spot.cacheId)
     }
 
     /** Group hourly points by local date in the spot zone and upsert each day. */
