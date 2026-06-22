@@ -35,6 +35,9 @@ class SpotConditions {
   final double? windSpeedKts;
   final String? windDirectionCardinal;
   final double? waterTempC;
+  // Actual retrieval timestamps (epoch millis) for the Data Sources flyout.
+  final int? swellRetrievedAt;
+  final int? windRetrievedAt;
 
   const SpotConditions({
     required this.visibility,
@@ -54,6 +57,8 @@ class SpotConditions {
     this.windSpeedKts,
     this.windDirectionCardinal,
     this.waterTempC,
+    this.swellRetrievedAt,
+    this.windRetrievedAt,
   });
 
   factory SpotConditions.fromJson(Map<String, dynamic> json) {
@@ -75,6 +80,8 @@ class SpotConditions {
       windSpeedKts: (json['windSpeedKts'] as num?)?.toDouble(),
       windDirectionCardinal: json['windDirectionCardinal'],
       waterTempC: (json['waterTempC'] as num?)?.toDouble(),
+      swellRetrievedAt: (json['swellRetrievedAt'] as num?)?.toInt(),
+      windRetrievedAt: (json['windRetrievedAt'] as num?)?.toInt(),
     );
   }
 }

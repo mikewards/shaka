@@ -280,6 +280,7 @@ class ConditionsCard extends StatelessWidget {
                     context,
                     _labelForKey(k),
                     _conditionSources[k]!,
+                    retrievedAt: _retrievedAtForKey(k),
                   )),
               const SizedBox(height: 16),
               Container(
@@ -309,6 +310,34 @@ class ConditionsCard extends StatelessWidget {
     );
   }
 
+  /// Actual retrieval time (epoch millis) for swell/wind keys, else null.
+  int? _retrievedAtForKey(String key) {
+    switch (key) {
+      case 'swell':
+      case 'swell_corrected':
+      case 'secondary_swell':
+        return conditions.swellRetrievedAt;
+      case 'wind':
+        return conditions.windRetrievedAt;
+      default:
+        return null;
+    }
+  }
+
+  /// Human-readable "Retrieved ..." badge from an epoch-millis timestamp.
+  String _formatRetrieved(int epochMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochMs).toLocal();
+    final now = DateTime.now();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    final time = '$hour12:$minute $ampm';
+    final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    if (sameDay) return 'Retrieved $time';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return 'Retrieved ${months[dt.month - 1]} ${dt.day}, $time';
+  }
+
   String _labelForKey(String key) {
     switch (key) {
       case 'visibility': return 'Visibility';
@@ -324,7 +353,8 @@ class ConditionsCard extends StatelessWidget {
     }
   }
 
-  Widget _buildSourceCard(BuildContext context, String label, _ConditionSource source) {
+  Widget _buildSourceCard(BuildContext context, String label, _ConditionSource source, {int? retrievedAt}) {
+    final badge = retrievedAt != null ? _formatRetrieved(retrievedAt) : source.updateFrequency;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -353,7 +383,7 @@ class ConditionsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  source.updateFrequency,
+                  badge,
                   style: const TextStyle(
                     color: AppColors.darkTextMuted,
                     fontSize: 10,

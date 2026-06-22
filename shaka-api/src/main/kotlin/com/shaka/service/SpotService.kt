@@ -301,7 +301,9 @@ class SpotService {
                         swellDirection = swellDir,
                         windSpeedKts = windKts,
                         windDirectionCardinal = windDir,
-                        waterTempC = sst.tempC
+                        waterTempC = sst.tempC,
+                        swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
+                        windRetrievedAt = cached?.wind?.fetchedAt?.toEpochMilli()
                     )
                 },
                 gearRecommendations = generateGearRecs(sst.tempC, spot.depth),
@@ -572,7 +574,9 @@ class SpotService {
                     swellDirection = swellDir,
                     windSpeedKts = windKts,
                     windDirectionCardinal = windDir,
-                    waterTempC = sst.tempC
+                    waterTempC = sst.tempC,
+                    swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
+                    windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
                 )
             },
             forecast = emptyList(),
@@ -1775,7 +1779,9 @@ class SpotService {
                     ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) },
                 windDirectionCardinal = effectiveWind?.value?.direction
                     ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) },
-                waterTempC = sst.tempC
+                waterTempC = sst.tempC,
+                swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
+                windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
             ),
             forecast = emptyList(),
             gearRecommendations = generateGearRecs(sst.tempC, 10).map { item ->

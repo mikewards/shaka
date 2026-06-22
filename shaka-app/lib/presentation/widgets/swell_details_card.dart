@@ -479,14 +479,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       infoCards.add(_buildInfoCard(
         'Swell (At Spot)',
         'Shaka Exposure Model',
-        'Every 3 hours',
+        _retrievedBadge(c.swellRetrievedAt, 'Every 3 hours'),
         'Open-ocean swell scaled for local coastline. Headlands, coves, and reefs reduce wave height \u2014 a sheltered spot can see 50%+ less than offshore.',
       ));
       if (c.swellCorrected != c.swell) {
         infoCards.add(_buildInfoCard(
           'Swell (Open Ocean)',
           'Open-Meteo Marine + NDBC Buoys',
-          'Hourly',
+          _retrievedBadge(c.swellRetrievedAt, 'Hourly'),
           'Significant wave height in open water from NOAA WaveWatch III. Live NDBC buoy readings used when a buoy is nearby.',
         ));
       }
@@ -494,7 +494,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       infoCards.add(_buildInfoCard(
         'Swell',
         'Open-Meteo Marine + NDBC Buoys',
-        'Hourly',
+        _retrievedBadge(c.swellRetrievedAt, 'Hourly'),
         'Significant wave height in open water from NOAA WaveWatch III. Live NDBC buoy readings used when a buoy is nearby.',
       ));
     }
@@ -505,14 +505,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         infoCards.add(_buildInfoCard(
           '2nd Swell (At Spot)',
           'Shaka Exposure Model',
-          'Every 3 hours',
+          _retrievedBadge(c.swellRetrievedAt, 'Every 3 hours'),
           'Secondary wave system exposure-corrected for local coastline sheltering.',
         ));
         if (c.secondarySwellCorrected != c.secondarySwell) {
           infoCards.add(_buildInfoCard(
             '2nd Swell (Open Ocean)',
             'Open-Meteo Marine API',
-            'Hourly',
+            _retrievedBadge(c.swellRetrievedAt, 'Hourly'),
             'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
           ));
         }
@@ -520,7 +520,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         infoCards.add(_buildInfoCard(
           '2nd Swell',
           'Open-Meteo Marine API',
-          'Hourly',
+          _retrievedBadge(c.swellRetrievedAt, 'Hourly'),
           'Second wave system from a different direction. Can add energy to the primary swell or create cross-chop.',
         ));
       }
@@ -530,7 +530,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     infoCards.add(_buildInfoCard(
       'Wind',
       'Open-Meteo Weather API (NOAA GFS)',
-      'Hourly',
+      _retrievedBadge(c.windRetrievedAt, 'Hourly'),
       '10-meter wind speed and direction. Offshore = clean, glassy surface. Onshore = chop and reduced visibility.',
     ));
 
@@ -613,6 +613,23 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         ),
       ),
     );
+  }
+
+  /// Badge text: actual retrieval time when available, else the static fallback.
+  static String _retrievedBadge(int? epochMs, String fallback) =>
+      epochMs != null ? _formatRetrieved(epochMs) : fallback;
+
+  static String _formatRetrieved(int epochMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochMs).toLocal();
+    final now = DateTime.now();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    final time = '$hour12:$minute $ampm';
+    final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    if (sameDay) return 'Retrieved $time';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return 'Retrieved ${months[dt.month - 1]} ${dt.day}, $time';
   }
 
   static Widget _buildInfoCard(String label, String source, String frequency, String description) {

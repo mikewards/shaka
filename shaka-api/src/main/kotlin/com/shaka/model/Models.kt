@@ -30,7 +30,10 @@ data class SpotConditions(
     val swellDirection: String? = null,
     val windSpeedKts: Double? = null,
     val windDirectionCardinal: String? = null,
-    val waterTempC: Double? = null
+    val waterTempC: Double? = null,
+    // Actual retrieval timestamps (epoch millis) for the Data Sources flyout.
+    val swellRetrievedAt: Long? = null,
+    val windRetrievedAt: Long? = null
 )
 
 @Serializable
