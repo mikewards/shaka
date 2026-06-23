@@ -328,6 +328,22 @@ fun Application.configureRouting() {
             }
 
             /**
+             * Multi-day tide chart curves for a spot, grouped by spot-local day.
+             * Reads the persisted spot_tide_days rows (no API on the hot path).
+             */
+            get("/spots/{id}/tide") {
+                val spotId = call.parameters["id"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "id required"))
+                val days = (call.request.queryParameters["days"]?.toIntOrNull() ?: 7).coerceIn(1, 16)
+                val tide = spotService.getTideRange(spotId, days)
+                if (tide != null) {
+                    call.respond(tide)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Tide data not available"))
+                }
+            }
+
+            /**
              * Get REAL-TIME satellite water clarity data for a spot.
              * 
              * WARNING: This endpoint is SLOW (30-60 seconds) because it processes

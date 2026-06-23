@@ -645,7 +645,91 @@ class SpotService {
         val wind = cached.windSeries?.points.orEmpty()
         if (swell.isEmpty() && wind.isEmpty()) return null
         val tz = cached.swellSeries?.timezoneId ?: cached.windSeries?.timezoneId
-        return SpotHourlyResponse(spotId, tz, swell, wind)
+
+        // Resolve the spot's zone the same way the tide system does, then group
+        // points by spot-local date so the client never computes date
+        // boundaries. lon is only a fallback when the IANA tz is missing.
+        val lonFallback = spotDb.findSpotById(spotId)?.coordinates?.lon ?: 0.0
+        val zone = SpotTime.resolveZone(tz, lonFallback)
+        val today = SpotTime.spotLocalDate(tz, lonFallback).toString()
+
+        val swellByDate = swell.groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+        val windByDate = wind.groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+
+        // Only keep today onward so days[0] is reliably the spot-local "today".
+        val dates = (swellByDate.keys + windByDate.keys)
+            .filter { it >= today }
+            .toSortedSet()
+
+        val days = dates.map { d ->
+            SpotHourlyDay(
+                localDate = d,
+                swell = swellByDate[d].orEmpty(),
+                wind = windByDate[d].orEmpty()
+            )
+        }
+        if (days.isEmpty()) return null
+        return SpotHourlyResponse(spotId, tz, days)
+    }
+
+    /**
+     * Multi-day tide chart curves, one TideChartData per spot-local day starting
+     * at today. Generalizes loadTideChartData (today-only) by looping local
+     * dates resolved from the spot's IANA timezone. Only today's entry gets
+     * currentHeightFt / currentStage; other days are pure forecast curves.
+     */
+    fun getTideRange(spotId: String, days: Int): SpotTideRangeResponse? {
+        return try {
+            val series = SpotDataCache.getTideSeries(spotId, tidesClient.provider)
+            val tz = series?.timezoneId
+            val lonFallback = spotDb.findSpotById(spotId)?.coordinates?.lon ?: 0.0
+            val startDate = SpotTime.spotLocalDate(tz, lonFallback)
+            val json = Json { ignoreUnknownKeys = true }
+            val nowMs = System.currentTimeMillis()
+
+            val result = ArrayList<TideChartData>(days)
+            for (i in 0 until days) {
+                val date = startDate.plusDays(i.toLong())
+                val dateStr = date.toString()
+                val row = SpotDataCache.getTideDay(spotId, dateStr, tidesClient.provider) ?: continue
+
+                val points: List<TidePoint> = row.pointsJson?.let {
+                    json.decodeFromString<List<TidePoint>>(it)
+                } ?: continue
+                if (points.isEmpty()) continue
+                val extremes: List<TideExtreme> = row.extremesJson?.let {
+                    json.decodeFromString<List<TideExtreme>>(it)
+                } ?: emptyList()
+
+                val isToday = i == 0
+                val (currentHeight, currentStage) = if (isToday) {
+                    interpolateTide(points, extremes, nowMs)
+                } else {
+                    Pair(null, null)
+                }
+
+                result.add(
+                    TideChartData(
+                        provider = row.provider,
+                        stationId = series?.stationId ?: row.stationId ?: "",
+                        stationName = series?.stationName ?: row.stationName ?: "",
+                        stationDistanceMi = series?.stationDistanceMi ?: row.stationDistanceMi ?: 0.0,
+                        datum = row.datum ?: series?.datum ?: "MLLW",
+                        timezoneId = row.timezoneId ?: series?.timezoneId ?: "",
+                        points = points,
+                        extremes = extremes,
+                        currentHeightFt = currentHeight,
+                        currentStage = currentStage,
+                        localDate = dateStr
+                    )
+                )
+            }
+            if (result.isEmpty()) return null
+            SpotTideRangeResponse(spotId, tz, result)
+        } catch (e: Exception) {
+            logger.debug("Failed to load tide range for $spotId: ${e.message}")
+            null
+        }
     }
 
     private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)

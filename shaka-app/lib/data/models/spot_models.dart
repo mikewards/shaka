@@ -644,6 +644,7 @@ class TideChartData {
   final double? currentHeightFt;
   final String? currentStage;
   final bool available;
+  final String localDate;
 
   const TideChartData({
     required this.provider,
@@ -657,6 +658,7 @@ class TideChartData {
     this.currentHeightFt,
     this.currentStage,
     this.available = true,
+    this.localDate = '',
   });
 
   factory TideChartData.fromJson(Map<String, dynamic> json) {
@@ -677,6 +679,7 @@ class TideChartData {
       currentHeightFt: (json['currentHeightFt'] as num?)?.toDouble(),
       currentStage: json['currentStage'],
       available: json['available'] ?? true,
+      localDate: json['localDate'] ?? '',
     );
   }
 
@@ -782,6 +785,151 @@ class TideChartData {
     final all = extremes.where((e) => !e.isHigh).toList()
       ..sort((a, b) => a.epochMs.compareTo(b.epochMs));
     return all.length > 2 ? all.sublist(0, 2) : all;
+  }
+}
+
+/// One hourly swell sample. epochMs is absolute so "now" selection stays
+/// timezone-agnostic, mirroring [TidePoint].
+class SwellHourlyPoint {
+  final int epochMs;
+  final double heightFt;
+  final double periodSec;
+  final int directionDeg;
+  final double? correctedHeightFt;
+  final double? secondaryHeightFt;
+  final double? secondaryPeriodSec;
+  final int? secondaryDirectionDeg;
+  final double? secondaryCorrectedHeightFt;
+
+  const SwellHourlyPoint({
+    required this.epochMs,
+    required this.heightFt,
+    required this.periodSec,
+    required this.directionDeg,
+    this.correctedHeightFt,
+    this.secondaryHeightFt,
+    this.secondaryPeriodSec,
+    this.secondaryDirectionDeg,
+    this.secondaryCorrectedHeightFt,
+  });
+
+  /// Exposure-corrected height when available, else the raw height.
+  double get effectiveHeightFt => correctedHeightFt ?? heightFt;
+
+  DateTime get time => DateTime.fromMillisecondsSinceEpoch(epochMs);
+
+  factory SwellHourlyPoint.fromJson(Map<String, dynamic> json) {
+    return SwellHourlyPoint(
+      epochMs: json['epochMs'] ?? 0,
+      heightFt: (json['heightFt'] as num?)?.toDouble() ?? 0.0,
+      periodSec: (json['periodSec'] as num?)?.toDouble() ?? 0.0,
+      directionDeg: (json['directionDeg'] as num?)?.toInt() ?? 0,
+      correctedHeightFt: (json['correctedHeightFt'] as num?)?.toDouble(),
+      secondaryHeightFt: (json['secondaryHeightFt'] as num?)?.toDouble(),
+      secondaryPeriodSec: (json['secondaryPeriodSec'] as num?)?.toDouble(),
+      secondaryDirectionDeg: (json['secondaryDirectionDeg'] as num?)?.toInt(),
+      secondaryCorrectedHeightFt:
+          (json['secondaryCorrectedHeightFt'] as num?)?.toDouble(),
+    );
+  }
+}
+
+/// One hourly wind sample. epochMs is absolute, mirroring [SwellHourlyPoint].
+class WindHourlyPoint {
+  final int epochMs;
+  final double speedKts;
+  final int directionDeg;
+  final double? gustKts;
+
+  const WindHourlyPoint({
+    required this.epochMs,
+    required this.speedKts,
+    required this.directionDeg,
+    this.gustKts,
+  });
+
+  DateTime get time => DateTime.fromMillisecondsSinceEpoch(epochMs);
+
+  factory WindHourlyPoint.fromJson(Map<String, dynamic> json) {
+    return WindHourlyPoint(
+      epochMs: json['epochMs'] ?? 0,
+      speedKts: (json['speedKts'] as num?)?.toDouble() ?? 0.0,
+      directionDeg: (json['directionDeg'] as num?)?.toInt() ?? 0,
+      gustKts: (json['gustKts'] as num?)?.toDouble(),
+    );
+  }
+}
+
+/// One spot-local day of hourly swell + wind points. The backend groups by the
+/// spot's timezone so the client never computes date boundaries.
+class SpotHourlyDay {
+  final String localDate;
+  final List<SwellHourlyPoint> swell;
+  final List<WindHourlyPoint> wind;
+
+  const SpotHourlyDay({
+    required this.localDate,
+    required this.swell,
+    required this.wind,
+  });
+
+  factory SpotHourlyDay.fromJson(Map<String, dynamic> json) {
+    return SpotHourlyDay(
+      localDate: json['localDate'] ?? '',
+      swell: (json['swell'] as List? ?? [])
+          .map((e) => SwellHourlyPoint.fromJson(e))
+          .toList(),
+      wind: (json['wind'] as List? ?? [])
+          .map((e) => WindHourlyPoint.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+/// Hourly swell + wind curves grouped by spot-local day. days[0] is "today".
+class SpotHourlyResponse {
+  final String spotId;
+  final String? timezoneId;
+  final List<SpotHourlyDay> days;
+
+  const SpotHourlyResponse({
+    required this.spotId,
+    required this.timezoneId,
+    required this.days,
+  });
+
+  factory SpotHourlyResponse.fromJson(Map<String, dynamic> json) {
+    return SpotHourlyResponse(
+      spotId: json['spotId'] ?? '',
+      timezoneId: json['timezoneId'],
+      days: (json['days'] as List? ?? [])
+          .map((e) => SpotHourlyDay.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+/// Multi-day tide chart curves, one [TideChartData] per spot-local day starting
+/// at today. Only days[0] carries currentHeightFt / currentStage.
+class SpotTideRangeResponse {
+  final String spotId;
+  final String? timezoneId;
+  final List<TideChartData> days;
+
+  const SpotTideRangeResponse({
+    required this.spotId,
+    required this.timezoneId,
+    required this.days,
+  });
+
+  factory SpotTideRangeResponse.fromJson(Map<String, dynamic> json) {
+    return SpotTideRangeResponse(
+      spotId: json['spotId'] ?? '',
+      timezoneId: json['timezoneId'],
+      days: (json['days'] as List? ?? [])
+          .map((e) => TideChartData.fromJson(e))
+          .toList(),
+    );
   }
 }
 

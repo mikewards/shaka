@@ -37,10 +37,15 @@ class SpotOceanForecastCard extends StatefulWidget {
   final double lat;
   final double lon;
 
+  /// When set, the map jumps to the first frame on this (local) date. Today
+  /// keeps the default "now" frame. Days beyond the data horizon show a note.
+  final DateTime? targetDate;
+
   const SpotOceanForecastCard({
     super.key,
     required this.lat,
     required this.lon,
+    this.targetDate,
   });
 
   @override
@@ -61,6 +66,7 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
   double? _probeDirection;
   VoidCallback? _unitListener;
   Timer? _scrubDebounce;
+  String? _mapDayNote;
 
   @override
   void initState() {
@@ -78,12 +84,70 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
   }
 
   @override
+  void didUpdateWidget(covariant SpotOceanForecastCard old) {
+    super.didUpdateWidget(old);
+    if (old.targetDate != widget.targetDate) {
+      _syncToTargetDate();
+    }
+  }
+
+  @override
   void dispose() {
     _scrubDebounce?.cancel();
     if (_unitListener != null) {
       UnitPreferenceService().removeListener(_unitListener!);
     }
     super.dispose();
+  }
+
+  /// Jump the map to the selected forecast day. Today keeps the default "now"
+  /// frame; days beyond the loaded horizon surface a small note.
+  void _syncToTargetDate() {
+    final target = widget.targetDate;
+    if (target == null || _timestamps.isEmpty) return;
+    final now = DateTime.now();
+    final isToday = target.year == now.year &&
+        target.month == now.month &&
+        target.day == now.day;
+    if (isToday) {
+      if (_mapDayNote != null) setState(() => _mapDayNote = null);
+      return;
+    }
+
+    int? matchIdx;
+    for (int i = 0; i < _timestamps.length; i++) {
+      final dt = DateTime.tryParse(_timestamps[i])?.toLocal();
+      if (dt == null) continue;
+      if (dt.year == target.year &&
+          dt.month == target.month &&
+          dt.day == target.day) {
+        matchIdx = i;
+        break;
+      }
+    }
+
+    if (matchIdx != null) {
+      setState(() {
+        _timeIndex = matchIdx!;
+        _mapDayNote = null;
+      });
+      _controller?.runJavaScript('setTimeIndex($matchIdx)');
+    } else {
+      final last = DateTime.tryParse(_timestamps.last)?.toLocal();
+      setState(() {
+        _mapDayNote = last != null
+            ? 'Ocean map data ends ${_monthDay(last)}'
+            : 'Ocean map data unavailable for this day';
+      });
+    }
+  }
+
+  static String _monthDay(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
   }
 
   Future<void> _initWebView() async {
@@ -136,6 +200,8 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
               _isLoading = false;
               if (ts.isNotEmpty) _errorMessage = null;
             });
+            // Once frames are known, honor the selected forecast day.
+            if (ts.isNotEmpty) _syncToTargetDate();
           } catch (_) {}
         },
       )
@@ -492,6 +558,40 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                             ),
                             textAlign: TextAlign.center,
                           ),
+                        ),
+                      ),
+                    ),
+
+                  // Selected-day note (e.g. data horizon reached)
+                  if (_mapDayNote != null && !_isLoading && _errorMessage == null)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.info_outline,
+                                size: 13, color: Colors.white70),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                _mapDayNote!,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

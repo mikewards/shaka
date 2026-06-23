@@ -51,12 +51,29 @@ class _TideChartCardState extends State<TideChartCard> {
     );
   }
 
+  /// A day's high/low summary, used as the header when there's no live "now"
+  /// value (i.e. a forecast day other than today).
+  String _summaryText() {
+    final tide = widget.tide;
+    if (tide == null) return '';
+    final highs = tide.highs;
+    final lows = tide.lows;
+    final parts = <String>[];
+    if (highs.isNotEmpty) {
+      parts.add('H ${UnitConverter.formatTideHeight(highs.first.heightFt, _units.system)}');
+    }
+    if (lows.isNotEmpty) {
+      parts.add('L ${UnitConverter.formatTideHeight(lows.first.heightFt, _units.system)}');
+    }
+    return parts.join('  \u00b7  ');
+  }
+
   Widget _buildHeader() {
     final tide = widget.tide;
     final stageText = tide?.currentStage ?? '';
     final heightText = tide?.currentHeightFt != null
-        ? UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)
-        : '';
+        ? '${UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)} ${_capitalize(stageText)}'
+        : (_hasData ? _summaryText() : '');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -79,7 +96,7 @@ class _TideChartCardState extends State<TideChartCard> {
           ] else if (heightText.isNotEmpty) ...[
             Expanded(
               child: Text(
-                '$heightText ${_capitalize(stageText)}',
+                heightText,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,

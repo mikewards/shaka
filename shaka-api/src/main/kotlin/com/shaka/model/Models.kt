@@ -317,15 +317,39 @@ data class WindHourlyPoint(
 )
 
 /**
+ * One spot-local day's worth of hourly swell + wind points. Days are grouped
+ * server-side by the spot's timezone so the client never computes date
+ * boundaries; days[0] is always the spot-local "today".
+ */
+@Serializable
+data class SpotHourlyDay(
+    val localDate: String,
+    val swell: List<SwellHourlyPoint>,
+    val wind: List<WindHourlyPoint>
+)
+
+/**
  * Full hourly swell + wind curves for a spot (intraday chart / "changes through
- * the day"). epochMs per point keeps it timezone-agnostic on the client.
+ * the day"), grouped by spot-local date. epochMs per point keeps each point
+ * timezone-agnostic for "now" selection on the client.
  */
 @Serializable
 data class SpotHourlyResponse(
     val spotId: String,
     val timezoneId: String?,
-    val swell: List<SwellHourlyPoint>,
-    val wind: List<WindHourlyPoint>
+    val days: List<SpotHourlyDay>
+)
+
+/**
+ * Multi-day tide chart curves for a spot, one TideChartData per spot-local day.
+ * days[0] is the spot-local "today" (the only entry with currentHeightFt /
+ * currentStage populated).
+ */
+@Serializable
+data class SpotTideRangeResponse(
+    val spotId: String,
+    val timezoneId: String?,
+    val days: List<TideChartData>
 )
 
 @Serializable

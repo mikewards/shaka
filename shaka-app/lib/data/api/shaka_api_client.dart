@@ -84,6 +84,33 @@ class ShakaApiClient {
     }
   }
 
+  /// Get hourly swell + wind curves for a spot, grouped by spot-local day.
+  /// [cacheId] is the spot id (curated) or `user-{uuid}` for user spots.
+  Future<SpotHourlyResponse?> getSpotHourly(String cacheId) async {
+    try {
+      final response = await _dio.get('/spots/$cacheId/hourly');
+      return SpotHourlyResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _handleError(e);
+    }
+  }
+
+  /// Get multi-day tide chart curves for a spot, one per spot-local day.
+  Future<SpotTideRangeResponse?> getTideRange(String cacheId,
+      {int days = 7}) async {
+    try {
+      final response = await _dio.get(
+        '/spots/$cacheId/tide',
+        queryParameters: {'days': days},
+      );
+      return SpotTideRangeResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _handleError(e);
+    }
+  }
+
   /// Get community reports for a region
   Future<List<CommunityReport>> getCommunityReports(String region) async {
     try {

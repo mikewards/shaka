@@ -12,6 +12,8 @@ import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
 import '../../widgets/swell_details_card.dart';
 import '../../widgets/tide_chart_card.dart';
+import '../../widgets/swell_chart_card.dart';
+import '../../widgets/wind_chart_card.dart';
 import '../../widgets/score_tier_pill.dart';
 import '../../widgets/spot_ocean_forecast_card.dart';
 import '../charts/ocean_forecast_screen.dart';
@@ -54,6 +56,17 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   List<DayForecast>? _forecast;
   bool _forecastLoading = false;
   bool _tilesPrecached = false;
+
+  // Lazy-loaded hourly swell/wind + multi-day tide curves (chart data).
+  SpotHourlyResponse? _hourly;
+  bool _hourlyLoading = false;
+  SpotTideRangeResponse? _tideRange;
+  bool _tideRangeLoading = false;
+  int _selectedForecastIndex = 0;
+
+  /// Cache id used by the hourly/tide chart endpoints (user spots are prefixed).
+  String get _cacheId =>
+      widget.isUserSpot ? 'user-${widget.spotId}' : widget.spotId;
 
   @override
   void initState() {
@@ -165,6 +178,80 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         });
       }
     }
+  }
+
+  /// Lazy-load hourly swell/wind curves (grouped by spot-local day).
+  Future<void> _loadHourly() async {
+    if (_hourly != null || _hourlyLoading) return;
+    setState(() => _hourlyLoading = true);
+    try {
+      final data = await _apiClient.getSpotHourly(_cacheId);
+      if (mounted) {
+        setState(() {
+          _hourly = data ?? const SpotHourlyResponse(
+              spotId: '', timezoneId: null, days: []);
+          _hourlyLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hourly = const SpotHourlyResponse(
+              spotId: '', timezoneId: null, days: []);
+          _hourlyLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Lazy-load multi-day tide curves for the forecast tab.
+  Future<void> _loadTideRange() async {
+    if (_tideRange != null || _tideRangeLoading) return;
+    setState(() => _tideRangeLoading = true);
+    try {
+      final data = await _apiClient.getTideRange(_cacheId, days: 7);
+      if (mounted) {
+        setState(() {
+          _tideRange = data ?? const SpotTideRangeResponse(
+              spotId: '', timezoneId: null, days: []);
+          _tideRangeLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _tideRange = const SpotTideRangeResponse(
+              spotId: '', timezoneId: null, days: []);
+          _tideRangeLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Today's grouped hourly points (days[0]), or null until loaded.
+  SpotHourlyDay? get _todayHourly =>
+      (_hourly != null && _hourly!.days.isNotEmpty) ? _hourly!.days.first : null;
+
+  /// The hourly day matching a forecast day, by local date then index.
+  SpotHourlyDay? _hourlyForForecast(int index, String forecastDate) {
+    final days = _hourly?.days;
+    if (days == null || days.isEmpty) return null;
+    final dateKey = forecastDate.split('T').first;
+    for (final d in days) {
+      if (d.localDate == dateKey) return d;
+    }
+    return index < days.length ? days[index] : null;
+  }
+
+  /// The tide chart day matching a forecast day, by local date then index.
+  TideChartData? _tideForForecast(int index, String forecastDate) {
+    final days = _tideRange?.days;
+    if (days == null || days.isEmpty) return null;
+    final dateKey = forecastDate.split('T').first;
+    for (final d in days) {
+      if (d.localDate == dateKey) return d;
+    }
+    return index < days.length ? days[index] : null;
   }
 
   @override
@@ -340,6 +427,11 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
 
   /// CURRENT TAB - Live conditions, score breakdown, risks
   Widget _buildCurrentTab(SpotDetail spot) {
+    // Kick off the hourly swell/wind fetch on first view (used by both tabs).
+    if (_hourly == null && !_hourlyLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadHourly());
+    }
+    final todayHourly = _todayHourly;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -380,6 +472,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           _buildSectionHeader('TIDES'),
           const SizedBox(height: 10),
           TideChartCard(tide: spot.tide!),
+          const SizedBox(height: 20),
+        ],
+
+        // Intraday swell + wind curves for today (loaded lazily).
+        if (todayHourly != null && todayHourly.swell.isNotEmpty) ...[
+          _buildSectionHeader('SWELL'),
+          const SizedBox(height: 10),
+          SwellChartCard(points: todayHourly.swell, isToday: true),
+          const SizedBox(height: 20),
+        ],
+        if (todayHourly != null && todayHourly.wind.isNotEmpty) ...[
+          _buildSectionHeader('WIND'),
+          const SizedBox(height: 10),
+          WindChartCard(points: todayHourly.wind, isToday: true),
           const SizedBox(height: 20),
         ],
 
@@ -481,73 +587,158 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       );
     }
 
-    return ListView.builder(
+    // Chart data for the tabs is shared with the Conditions tab; load lazily.
+    if (_hourly == null && !_hourlyLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadHourly());
+    }
+    if (_tideRange == null && !_tideRangeLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadTideRange());
+    }
+
+    final selected = _selectedForecastIndex.clamp(0, forecast.length - 1);
+    final selectedDay = forecast[selected];
+
+    return ListView(
       padding: const EdgeInsets.all(16),
       physics: const ClampingScrollPhysics(),
-      itemCount: forecast.length + 1,
-      itemBuilder: (context, index) {
-        if (index < forecast.length) {
-          return _buildForecastCard(forecast[index], index == 0);
-        }
-        return SpotOceanForecastCard(
+      children: [
+        for (int i = 0; i < forecast.length; i++)
+          _buildForecastCard(forecast[i], i == 0,
+              isSelected: i == selected,
+              onTap: () => setState(() => _selectedForecastIndex = i)),
+        const SizedBox(height: 12),
+        ..._buildSelectedDayCharts(selected, selectedDay),
+        const SizedBox(height: 8),
+        SpotOceanForecastCard(
           lat: spot.coordinates.lat,
           lon: spot.coordinates.lon,
-        );
-      },
+          targetDate: _forecastDate(selectedDay.date),
+        ),
+      ],
     );
   }
 
-  Widget _buildForecastCard(DayForecast day, bool isToday) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+  /// Day-scoped Tide/Swell/Wind charts for the selected forecast day, reusing
+  /// the same widgets as the Conditions tab.
+  List<Widget> _buildSelectedDayCharts(int index, DayForecast day) {
+    final isToday = index == 0;
+    final tide = _tideForForecast(index, day.date);
+    final hourly = _hourlyForForecast(index, day.date);
+
+    final label = isToday ? 'Today' : _formatDate(day.date);
+    final widgets = <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _buildSectionHeader('$label \u00b7 DETAIL'),
       ),
-      child: Row(
-        children: [
-          // Date
-          SizedBox(
-            width: 70,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isToday ? 'Today' : _formatDate(day.date),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+    ];
+
+    if (tide != null && tide.points.isNotEmpty) {
+      widgets.add(TideChartCard(tide: tide));
+      widgets.add(const SizedBox(height: 16));
+    }
+    if (hourly != null && hourly.swell.isNotEmpty) {
+      widgets.add(SwellChartCard(points: hourly.swell, isToday: isToday));
+      widgets.add(const SizedBox(height: 16));
+    }
+    if (hourly != null && hourly.wind.isNotEmpty) {
+      widgets.add(WindChartCard(points: hourly.wind, isToday: isToday));
+      widgets.add(const SizedBox(height: 16));
+    }
+
+    final loading = _hourlyLoading || _tideRangeLoading;
+    if (widgets.length == 1 && loading) {
+      widgets.add(const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: CircularProgressIndicator(
+              strokeWidth: 2, color: AppColors.info),
+        ),
+      ));
+    } else if (widgets.length == 1) {
+      widgets.add(const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Text('Detailed charts unavailable for this day',
+            style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13)),
+      ));
+    }
+    return widgets;
+  }
+
+  DateTime? _forecastDate(String date) {
+    try {
+      return DateTime.parse(date.split('T').first);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildForecastCard(DayForecast day, bool isToday,
+      {bool isSelected = false, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap?.call();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.info.withOpacity(0.10)
+              : _cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.info : _borderColor,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Date
+            SizedBox(
+              width: 70,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isToday ? 'Today' : _formatDate(day.date),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Text(
-                  _formatWeekday(day.date),
-                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11),
-                ),
-              ],
+                  Text(
+                    _formatWeekday(day.date),
+                    style: const TextStyle(
+                        color: AppColors.darkTextMuted, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // Score + tier pill
-          ScoreTierPill(score: day.shakaScore, width: 40, height: 10),
+            // Score + tier pill
+            ScoreTierPill(score: day.shakaScore, width: 40, height: 10),
 
-          const SizedBox(width: 14),
+            const SizedBox(width: 14),
 
-          // Conditions summary with icons
-          Expanded(
-            child: Row(
-              children: [
-                _buildForecastCondition(Icons.visibility, day.conditions.visibility.split(' ').first),
-                const SizedBox(width: 10),
-                _buildForecastCondition(Icons.waves, day.conditions.swell.split('@').first.trim()),
-                const SizedBox(width: 10),
-                _buildForecastCondition(Icons.air, day.conditions.wind),
-              ],
+            // Conditions summary with icons
+            Expanded(
+              child: Row(
+                children: [
+                  _buildForecastCondition(Icons.visibility,
+                      day.conditions.visibility.split(' ').first),
+                  const SizedBox(width: 10),
+                  _buildForecastCondition(Icons.waves,
+                      day.conditions.swell.split('@').first.trim()),
+                  const SizedBox(width: 10),
+                  _buildForecastCondition(Icons.air, day.conditions.wind),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
