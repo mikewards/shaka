@@ -335,8 +335,11 @@ class SpotService {
         
         // Check prefetched cache first (instant!)
         val cached = SpotDataCache.get(spotId)
-        // Detail screens prefer near-real-time wind; fall back to the derived snapshot.
-        val effectiveWind = resolveLiveWind(lat, lon) ?: cached?.wind
+        // Serve wind from the prefetched cache so the detail loads instantly. The
+        // near-real-time wind is fetched separately by the client after first
+        // paint (GET /spots/{id}/wind/live), so a slow upstream never blocks this
+        // response (this was the ~3s regression when the live call was inline).
+        val effectiveWind = cached?.wind
         
         // Build data from cache or fetch live. Null = genuinely unavailable;
         // never substitute fabricated values (Jun 2026 lesson).
@@ -1715,8 +1718,9 @@ class SpotService {
         val region = userSpot.region
         
         val cached = SpotDataCache.get(cacheId)
-        // Detail screens prefer near-real-time wind; fall back to the derived snapshot.
-        val effectiveWind = resolveLiveWind(lat, lon) ?: cached?.wind
+        // Serve wind from the prefetched cache so the detail loads instantly; the
+        // client fetches near-real-time wind after paint via /spots/{id}/wind/live.
+        val effectiveWind = cached?.wind
         logger.debug("Building detail from cache for ${userSpot.name} (cache ${if (cached != null) "hit" else "miss"})")
         
         val weather: WeatherData? = if (cached?.wind != null) {
