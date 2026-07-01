@@ -35,7 +35,10 @@ class ForecastService {
         val spot = spotDb.findSpotById(spotId) ?: return emptyList()
         val cached = SpotDataCache.get(spotId)
         val forecasts = mutableListOf<DayForecast>()
-        val today = LocalDate.now()
+        // Use the spot's real local date (not the server's UTC date) so forecast
+        // days line up with the spot-local series and don't drift by a day.
+        val seriesTz = cached?.swellSeries?.timezoneId ?: cached?.windSeries?.timezoneId
+        val today = SpotTime.spotLocalDate(seriesTz, spot.coordinates.lon)
         
         // Resolve chlorophyll once for all forecast days (doesn't change much day-to-day)
         val effectiveChl = cached?.chlorophyll?.value
@@ -118,9 +121,13 @@ class ForecastService {
                     val date = today.plusDays(i.toLong())
                     val dateStr = date.toString()
                     val dayIndex = i - startDay
-                    
-                    val weather = weatherData.getOrNull(dayIndex) ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10000.0)
-                    val ocean = oceanData.getOrNull(dayIndex) ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+
+                    // Never fabricate identical fallback values: if a day is
+                    // genuinely missing from the range response, skip it rather
+                    // than emitting the same hardcoded numbers for every day
+                    // (which made all future days look identical).
+                    val weather = weatherData.getOrNull(dayIndex) ?: continue
+                    val ocean = oceanData.getOrNull(dayIndex) ?: continue
                     val sst = cached?.sst?.value ?: ocean.waterTemperature
                     
                     val score = ShakaScorer.generateScore(
