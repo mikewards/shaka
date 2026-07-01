@@ -86,6 +86,31 @@ class SpotConditions {
   }
 }
 
+/// Near-real-time wind fetched by the detail screen AFTER first paint
+/// (GET /spots/{id}/wind/live), so the detail load itself stays instant.
+class LiveWind {
+  final double windSpeedKts;
+  final String? windDirectionCardinal;
+  final double? gustKts;
+  final int retrievedAt;
+
+  const LiveWind({
+    required this.windSpeedKts,
+    this.windDirectionCardinal,
+    this.gustKts,
+    required this.retrievedAt,
+  });
+
+  factory LiveWind.fromJson(Map<String, dynamic> json) {
+    return LiveWind(
+      windSpeedKts: (json['windSpeedKts'] as num).toDouble(),
+      windDirectionCardinal: json['windDirectionCardinal'] as String?,
+      gustKts: (json['gustKts'] as num?)?.toDouble(),
+      retrievedAt: (json['retrievedAt'] as num).toInt(),
+    );
+  }
+}
+
 class ScoreBreakdown {
   final int visibility;
   final int weather;

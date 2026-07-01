@@ -57,6 +57,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   bool _forecastLoading = false;
   bool _tilesPrecached = false;
 
+  // Near-real-time wind, fetched AFTER the detail paints so the load stays
+  // instant. The Conditions card shows a "checking..." cue while this is in
+  // flight and updates the Wind reading in place (with a "Live" indicator) once
+  // it resolves.
+  LiveWind? _liveWind;
+  bool _liveWindLoading = false;
+  bool _liveWindRequested = false;
+
   // Lazy-loaded hourly swell/wind + multi-day tide curves (chart data).
   SpotHourlyResponse? _hourly;
   bool _hourlyLoading = false;
@@ -153,6 +161,29 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         if (!_needsPolling(response.spot)) return;
       } catch (_) {}
     }
+  }
+
+  /// Fetch near-real-time wind once, after the detail page has painted. Kept off
+  /// the initial load path so the page renders instantly from cached data; the
+  /// Wind reading then updates in place when this resolves.
+  void _maybeLoadLiveWind() {
+    if (_liveWindRequested) return;
+    _liveWindRequested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      setState(() => _liveWindLoading = true);
+      try {
+        final live = await _apiClient.getLiveWind(_cacheId);
+        if (mounted) {
+          setState(() {
+            _liveWind = live;
+            _liveWindLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _liveWindLoading = false);
+      }
+    });
   }
 
   /// Lazy-load forecast when user taps the Forecast tab.
@@ -311,6 +342,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
   /// Full tabbed content when SpotDetail is loaded
   Widget _buildTabbedContent(SpotDetail spot) {
     _precacheSatelliteTiles(spot.coordinates);
+    _maybeLoadLiveWind();
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [
@@ -450,7 +482,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           ],
         ),
         const SizedBox(height: 10),
-        ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
+        ConditionsCard(
+                conditions: spot.conditions,
+                satelliteReadings: spot.satelliteReadings,
+                liveWindSpeedKts: _liveWind?.windSpeedKts,
+                liveWindDirectionCardinal: _liveWind?.windDirectionCardinal,
+                liveWindRetrievedAt: _liveWind?.retrievedAt,
+                liveWindLoading: _liveWindLoading,
+              ),
 
         const SizedBox(height: 20),
 
@@ -1305,7 +1344,14 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
             children: [
               _buildSectionHeader('CONDITIONS'),
               const SizedBox(height: 10),
-              ConditionsCard(conditions: spot.conditions, satelliteReadings: spot.satelliteReadings),
+              ConditionsCard(
+                conditions: spot.conditions,
+                satelliteReadings: spot.satelliteReadings,
+                liveWindSpeedKts: _liveWind?.windSpeedKts,
+                liveWindDirectionCardinal: _liveWind?.windDirectionCardinal,
+                liveWindRetrievedAt: _liveWind?.retrievedAt,
+                liveWindLoading: _liveWindLoading,
+              ),
               const SizedBox(height: 20),
               // Swell details (expandable)
               _buildSectionHeader('SWELL & WIND'),

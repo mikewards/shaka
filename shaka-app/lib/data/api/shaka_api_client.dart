@@ -96,6 +96,19 @@ class ShakaApiClient {
     }
   }
 
+  /// Get near-real-time wind for a spot. Called by the detail screen AFTER the
+  /// page paints so the detail load stays instant; returns null if unavailable.
+  /// [cacheId] is the spot id (curated) or `user-{uuid}` for user spots.
+  Future<LiveWind?> getLiveWind(String cacheId) async {
+    try {
+      final response = await _dio.get('/spots/$cacheId/wind/live');
+      return LiveWind.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _handleError(e);
+    }
+  }
+
   /// Get multi-day tide chart curves for a spot, one per spot-local day.
   Future<SpotTideRangeResponse?> getTideRange(String cacheId,
       {int days = 7}) async {
