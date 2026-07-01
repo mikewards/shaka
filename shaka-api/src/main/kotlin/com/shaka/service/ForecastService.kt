@@ -6,8 +6,11 @@ import com.shaka.data.client.SpotDatabase
 import com.shaka.model.*
 import com.shaka.scoring.GibsColormap
 import com.shaka.scoring.ShakaScorer
+import com.shaka.util.SpotTime
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import org.slf4j.LoggerFactory
+import java.time.Instant
 import java.time.LocalDate
 
 /**
@@ -83,10 +86,25 @@ class ForecastService {
             )
         }
         
-        // Days 1-N: Fetch from Open-Meteo (just 2 API calls for all days)
+        // Days 1-N: Prefer the already-prefetched in-memory hourly swell/wind
+        // series (covers ~7 days, refreshed daily by prefetchHourlySwellWind).
+        // This is the cache the pre-fetch system exists to serve; hitting it
+        // keeps the forecast instant instead of making live Open-Meteo calls on
+        // every open (the ~7s regression).
         val startDay = if (forecasts.isNotEmpty()) 1 else 0
         val remainingDays = days - startDay
-        
+
+        if (remainingDays > 0) {
+            val fromSeries = buildForecastDaysFromSeries(
+                cached, spot.coordinates.lon, startDay, days, effectiveChl, visibilityStr
+            )
+            if (fromSeries != null) {
+                forecasts += fromSeries
+                return forecasts
+            }
+        }
+
+        // Fallback: series not loaded for this spot — fetch from Open-Meteo.
         if (remainingDays > 0) {
             try {
                 val startDate = today.plusDays(startDay.toLong())
@@ -149,6 +167,91 @@ class ForecastService {
     }
 
     
+    /**
+     * Build forecast days [startDay, days) from the prefetched in-memory hourly
+     * swell/wind series (no API calls). Points are grouped by spot-local date
+     * the same way /spots/{id}/hourly does, and each future day uses its
+     * near-noon sample so days differ from one another. Returns null when the
+     * series is missing or does not cover every requested day, so the caller
+     * can fall back to a live fetch.
+     */
+    private fun buildForecastDaysFromSeries(
+        cached: SpotDataCache.SpotData?,
+        lon: Double,
+        startDay: Int,
+        days: Int,
+        effectiveChl: Double?,
+        visibilityStr: String
+    ): List<DayForecast>? {
+        val swellPts = cached?.swellSeries?.points.orEmpty()
+        val windPts = cached?.windSeries?.points.orEmpty()
+        if (swellPts.isEmpty() || windPts.isEmpty()) return null
+
+        val tz = cached?.swellSeries?.timezoneId ?: cached?.windSeries?.timezoneId
+        val zone = SpotTime.resolveZone(tz, lon)
+        val today = SpotTime.spotLocalDate(tz, lon)
+
+        fun hourInZone(epochMs: Long) = Instant.ofEpochMilli(epochMs).atZone(zone).hour
+
+        val swellByDate = swellPts
+            .groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+            .mapValues { (_, pts) -> pts.minByOrNull { abs(hourInZone(it.epochMs) - 12) }!! }
+        val windByDate = windPts
+            .groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
+            .mapValues { (_, pts) -> pts.minByOrNull { abs(hourInZone(it.epochMs) - 12) }!! }
+
+        val sstC = cached?.sst?.value ?: 24.0
+        val result = ArrayList<DayForecast>(days - startDay)
+        for (i in startDay until days) {
+            val dateStr = today.plusDays(i.toLong()).toString()
+            val sw = swellByDate[dateStr] ?: return null
+            val wd = windByDate[dateStr] ?: return null
+
+            val swellDir = SpotDataCache.degreesToCardinal(sw.directionDeg.toDouble())
+            val windDir = SpotDataCache.degreesToCardinal(wd.directionDeg.toDouble())
+            val heightFt = sw.correctedHeightFt ?: sw.heightFt
+
+            val score = ShakaScorer.generateScore(
+                targetDate = dateStr,
+                windSpeedKmh = wd.speedKts / 0.539957,
+                waveHeightM = heightFt / 3.28084,
+                chlorophyllMgM3 = effectiveChl,
+                solunarDayRating = cached?.solunar?.value?.dayRating,
+                moonPhase = cached?.solunar?.value?.moonPhase
+            )
+
+            val secHt = sw.secondaryHeightFt?.takeIf { it >= 0.5 }
+            result += DayForecast(
+                date = dateStr,
+                shakaScore = score.overall,
+                confidence = score.confidence - (i * 5),
+                conditions = SpotConditions(
+                    visibility = visibilityStr,
+                    waterTemp = "${sstC.toInt()}°C / ${((sstC * 9 / 5) + 32).toInt()}°F",
+                    swell = "${sw.heightFt.roundToInt()}ft @ ${sw.periodSec.toInt()}s $swellDir",
+                    wind = "${wd.speedKts.toInt()} kts $windDir",
+                    swellCorrected = sw.correctedHeightFt?.let {
+                        "${it.roundToInt()}ft @ ${sw.periodSec.toInt()}s $swellDir"
+                    },
+                    secondarySwell = secHt?.let {
+                        val secDir = sw.secondaryDirectionDeg?.let { d -> SpotDataCache.degreesToCardinal(d.toDouble()) } ?: ""
+                        "${it.roundToInt()}ft @ ${sw.secondaryPeriodSec?.toInt() ?: 0}s $secDir"
+                    },
+                    exposureBearing = cached?.exposure?.bearing,
+                    exposureWidth = cached?.exposure?.width,
+                    bathymetryDepthM = cached?.exposure?.depthM,
+                    swellHeightFt = heightFt,
+                    swellPeriodSec = sw.periodSec,
+                    swellDirection = swellDir,
+                    windSpeedKts = wd.speedKts,
+                    windDirectionCardinal = windDir,
+                    waterTempC = sstC
+                )
+            )
+        }
+        return result
+    }
+
     private fun getChlorophyllCategory(chl: Double): String {
         return when {
             chl < 0.1  -> "Crystal clear"
