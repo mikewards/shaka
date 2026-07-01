@@ -341,6 +341,20 @@ data class SpotHourlyResponse(
 )
 
 /**
+ * Near-real-time wind for a spot's detail screen, fetched by the client AFTER
+ * first paint (GET /spots/{id}/wind/live) so the detail load itself stays
+ * instant. retrievedAt is epoch millis of the underlying Open-Meteo `current`
+ * reading (or its bucket-cache timestamp).
+ */
+@Serializable
+data class LiveWindResponse(
+    val windSpeedKts: Double,
+    val windDirectionCardinal: String,
+    val gustKts: Double?,
+    val retrievedAt: Long
+)
+
+/**
  * Multi-day tide chart curves for a spot, one TideChartData per spot-local day.
  * days[0] is the spot-local "today" (the only entry with currentHeightFt /
  * currentStage populated).

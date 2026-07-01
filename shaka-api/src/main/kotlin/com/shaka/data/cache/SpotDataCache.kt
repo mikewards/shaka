@@ -1022,6 +1022,12 @@ object SpotDataCache {
     }
 
     /**
+     * Coordinates (lat, lon) registered for a spot, or null if unknown. Covers
+     * both catalog spots and user spots (registered as "user-{id}").
+     */
+    fun getSpotCoordinates(spotId: String): Pair<Double, Double>? = spotCoordinates[spotId]
+
+    /**
      * Find SST from the nearest cached spot within maxKm kilometers.
      * Pure in-memory scan -- no DB or network calls. Safe for the read path.
      */

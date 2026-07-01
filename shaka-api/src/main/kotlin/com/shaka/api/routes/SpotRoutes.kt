@@ -328,6 +328,23 @@ fun Application.configureRouting() {
             }
 
             /**
+             * Near-real-time wind for a spot, fetched on demand by the client
+             * AFTER the detail page paints so the detail load stays instant.
+             * Bucket-cached (~0.05deg, 15min TTL) and bounded so a slow upstream
+             * never hangs the request.
+             */
+            get("/spots/{id}/wind/live") {
+                val spotId = call.parameters["id"]
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "id required"))
+                val wind = spotService.getLiveWind(spotId)
+                if (wind != null) {
+                    call.respond(wind)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Live wind not available"))
+                }
+            }
+
+            /**
              * Multi-day tide chart curves for a spot, grouped by spot-local day.
              * Reads the persisted spot_tide_days rows (no API on the hot path).
              */

@@ -601,26 +601,32 @@ class SpotService {
         )
     }
 
-    // Live-wind override (detail screens only). Open-Meteo's `current` block
-    // updates ~every 15 min, so we cache results in ~0.05deg buckets for the TTL
-    // to avoid an API storm when many spots share coordinates, and bound each
-    // call so a slow API never stalls a detail load (we fall back to the derived
-    // hourly snapshot instead).
+    // Near-real-time wind for detail screens, fetched on demand by the client
+    // AFTER first paint via GET /spots/{id}/wind/live (so it never blocks the
+    // detail load). Open-Meteo's `current` block updates ~every 15 min, so we
+    // cache results in ~0.05deg buckets for the TTL to avoid an API storm when
+    // many spots share coordinates, and bound each call so a slow upstream can't
+    // hang the request.
     private val liveWindCache = ConcurrentHashMap<String, Pair<Instant, SpotDataCache.WindInfo>>()
     private val LIVE_WIND_TTL = Duration.ofMinutes(15)
     private val LIVE_WIND_TIMEOUT_MS = 2500L
 
     /**
-     * Resolve near-real-time wind for a detail screen. Returns a fresh live
-     * value (from cache or API) or null to signal the caller to fall back to the
-     * derived hourly snapshot. Never throws and never blocks beyond the timeout.
+     * Resolve near-real-time wind for a spot (catalog or user spot). Returns a
+     * fresh live value from the bucket cache or a bounded Open-Meteo call, or
+     * null when the spot is unknown or live wind is unavailable. Safe to call on
+     * its own request path; never throws and never blocks beyond the timeout.
      */
-    private suspend fun resolveLiveWind(lat: Double, lon: Double): SpotDataCache.CachedValue<SpotDataCache.WindInfo>? {
+    suspend fun getLiveWind(spotId: String): LiveWindResponse? {
+        val coords = SpotDataCache.getSpotCoordinates(spotId)
+            ?: spotDb.findSpotById(spotId)?.coordinates?.let { it.lat to it.lon }
+            ?: return null
+        val (lat, lon) = coords
         val key = "${(lat * 20).roundToInt()}:${(lon * 20).roundToInt()}"
         val now = Instant.now()
         liveWindCache[key]?.let { (ts, info) ->
             if (Duration.between(ts, now) < LIVE_WIND_TTL) {
-                return SpotDataCache.CachedValue(info, ts, ts)
+                return info.toLiveWindResponse(ts)
             }
         }
         val live = try {
@@ -635,8 +641,15 @@ class SpotService {
             gustKnots = live.gustKmh?.let { SpotDataCache.kmhToKnots(it) }
         )
         liveWindCache[key] = now to info
-        return SpotDataCache.CachedValue(info, now, now)
+        return info.toLiveWindResponse(now)
     }
+
+    private fun SpotDataCache.WindInfo.toLiveWindResponse(retrievedAt: Instant) = LiveWindResponse(
+        windSpeedKts = speedKnots,
+        windDirectionCardinal = direction,
+        gustKts = gustKnots,
+        retrievedAt = retrievedAt.toEpochMilli()
+    )
 
     /**
      * Full hourly swell + wind curves for a spot, served from the in-memory
