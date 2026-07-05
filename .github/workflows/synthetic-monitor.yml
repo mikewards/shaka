@@ -38,9 +38,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SENTRY_CRON_CHECKIN_URL: ${{ secrets.SENTRY_CRON_CHECKIN_URL }}
-          # Flip both to 'true' once the MonitoringConfig backend refactor
-          # (/health/summary + SpotHourlyResponse.generatedAt) is deployed.
-          PROBE_ENABLE_T8: 'false'
-          PROBE_ENABLE_T4_ANCHOR: 'false'
+          # Enabled Jul 5 2026 after the MonitoringConfig backend refactor
+          # (/health/summary + SpotHourlyResponse.generatedAt) was deployed.
+          PROBE_ENABLE_T8: 'true'
+          PROBE_ENABLE_T4_ANCHOR: 'true'
         run: |
           python3 monitoring/probe.py ${{ inputs.force_notify == true && '--force-notify' || '' }}
