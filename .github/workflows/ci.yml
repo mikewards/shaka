@@ -63,32 +63,32 @@ jobs:
               - 'monitoring/**'
               - '.github/workflows/ci.yml'
 
-      - name: Start Postgres (docker compose)
+      # Plain postgis container WITHOUT db/init.sql: the contract test only
+      # needs postgres+postgis — the API creates its own tables at boot and
+      # seed.sql creates the rest. Mounting the 2500-line dev init.sql here
+      # couples monitor CI to unrelated schema churn (and its GIST-index bug
+      # killed the container on first cold start).
+      - name: Start Postgres (postgis)
         if: steps.relevant.outputs.monitor == 'true'
         run: |
-          docker compose up -d db
-          # The postgis entrypoint boots a TEMPORARY server for init scripts,
-          # then restarts it — pg_isready can succeed against the temp server
-          # and the next connection dies mid-restart (exit 137). Wait for the
-          # SECOND "ready to accept connections" (the final server).
+          docker run -d --name ci-db \
+            -e POSTGRES_DB=shaka -e POSTGRES_USER=shaka -e POSTGRES_PASSWORD=shaka \
+            -p 5432:5432 postgis/postgis:16-3.4
+          # The postgis entrypoint boots a TEMPORARY server for init, then
+          # restarts — wait for the SECOND "ready to accept connections".
           for i in $(seq 1 60); do
-            ready=$(docker compose logs db 2>/dev/null | grep -c 'ready to accept connections' || true)
-            if [ "$ready" -ge 2 ] && docker compose exec -T db pg_isready -U shaka > /dev/null; then
+            ready=$(docker logs ci-db 2>&1 | grep -c 'ready to accept connections' || true)
+            if [ "$ready" -ge 2 ] && docker exec ci-db pg_isready -U shaka > /dev/null 2>&1; then
               echo "Postgres ready (final server)"; break
             fi
             sleep 2
           done
+          docker exec ci-db pg_isready -U shaka || { docker logs ci-db | tail -30; exit 1; }
 
       - name: Seed contract fixture
         if: steps.relevant.outputs.monitor == 'true'
         run: |
-          for attempt in 1 2 3; do
-            if docker compose exec -T db psql -v ON_ERROR_STOP=1 -U shaka -d shaka < monitoring/fixtures/seed.sql; then
-              exit 0
-            fi
-            echo "seed attempt $attempt failed, retrying..."; sleep 5
-          done
-          echo "seeding failed after 3 attempts"; docker compose logs db | tail -30; exit 1
+          docker exec -i ci-db psql -v ON_ERROR_STOP=1 -U shaka -d shaka < monitoring/fixtures/seed.sql
 
       - uses: actions/setup-java@v4
         if: steps.relevant.outputs.monitor == 'true'

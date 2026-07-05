@@ -2577,9 +2577,11 @@ CREATE TABLE IF NOT EXISTS user_spots (
 -- Index for fast lookup by device
 CREATE INDEX IF NOT EXISTS user_spots_device_idx ON user_spots(device_id);
 
--- Spatial index for nearby queries (uses PostGIS)
+-- Spatial index for nearby queries (uses PostGIS). Index expressions with a
+-- cast need their own parentheses; without them psql aborts the whole
+-- docker-entrypoint init and the container dies on first boot.
 CREATE INDEX IF NOT EXISTS user_spots_location_idx ON user_spots USING GIST (
-    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+    ((ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))::geography)
 );
 
 -- Index for name search
