@@ -67,15 +67,28 @@ jobs:
         if: steps.relevant.outputs.monitor == 'true'
         run: |
           docker compose up -d db
-          for i in $(seq 1 30); do
-            docker compose exec -T db pg_isready -U shaka && break
+          # The postgis entrypoint boots a TEMPORARY server for init scripts,
+          # then restarts it — pg_isready can succeed against the temp server
+          # and the next connection dies mid-restart (exit 137). Wait for the
+          # SECOND "ready to accept connections" (the final server).
+          for i in $(seq 1 60); do
+            ready=$(docker compose logs db 2>/dev/null | grep -c 'ready to accept connections' || true)
+            if [ "$ready" -ge 2 ] && docker compose exec -T db pg_isready -U shaka > /dev/null; then
+              echo "Postgres ready (final server)"; break
+            fi
             sleep 2
           done
 
       - name: Seed contract fixture
         if: steps.relevant.outputs.monitor == 'true'
         run: |
-          docker compose exec -T db psql -U shaka -d shaka < monitoring/fixtures/seed.sql
+          for attempt in 1 2 3; do
+            if docker compose exec -T db psql -v ON_ERROR_STOP=1 -U shaka -d shaka < monitoring/fixtures/seed.sql; then
+              exit 0
+            fi
+            echo "seed attempt $attempt failed, retrying..."; sleep 5
+          done
+          echo "seeding failed after 3 attempts"; docker compose logs db | tail -30; exit 1
 
       - uses: actions/setup-java@v4
         if: steps.relevant.outputs.monitor == 'true'
