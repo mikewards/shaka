@@ -1,0 +1,46 @@
+name: Synthetic Monitor
+
+# v2 of the synthetic probe — design: docs/synthetic-monitor-design.md.
+# State-transition alerting via the pinned `monitor-status` issue: a NEW
+# critical incident fails exactly one run (one email); ongoing incidents and
+# warnings are body-edits only. A Sentry Cron check-in is sent on every run,
+# pass or fail (dead-man's switch for "the monitor itself stopped running").
+#
+# Replaces synthetic-probe.yml (schedule disabled there; kept for reference
+# until this monitor is proven).
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # effectively ~hourly after GitHub throttling
+  workflow_dispatch:
+    inputs:
+      force_notify:
+        description: 'Inject a synthetic critical to test the paging path end-to-end'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: synthetic-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run synthetic monitor
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENTRY_CRON_CHECKIN_URL: ${{ secrets.SENTRY_CRON_CHECKIN_URL }}
+          # Flip both to 'true' once the MonitoringConfig backend refactor
+          # (/health/summary + SpotHourlyResponse.generatedAt) is deployed.
+          PROBE_ENABLE_T8: 'false'
+          PROBE_ENABLE_T4_ANCHOR: 'false'
+        run: |
+          python3 monitoring/probe.py ${{ inputs.force_notify == true && '--force-notify' || '' }}

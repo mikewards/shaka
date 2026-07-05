@@ -1,13 +1,12 @@
 name: Synthetic Probe
 
-# Exercises the exact production endpoints the mobile app uses, plus drift
-# checks on high-churn upstreams. A red run = users are (or are about to be)
-# affected. Pair with a Better Stack heartbeat monitor on PROBE_HEARTBEAT_URL
-# so a silently-stopped workflow also alerts.
+# RETIRED (Jul 2026): replaced by synthetic-monitor.yml + monitoring/probe.py
+# (see docs/synthetic-monitor-design.md). The cron schedule is disabled so this
+# stops emailing hourly; workflow_dispatch is kept for reference/comparison
+# until the new monitor is proven, then this file and scripts/synthetic_probe.py
+# can be deleted.
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:

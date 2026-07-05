@@ -1,0 +1,111 @@
+{
+  "$comment": "Shared endpoint/shape contract for the synthetic monitor (docs/synthetic-monitor-design.md). Consumed by monitoring/probe.py in BOTH production mode and the probe-contract CI job — this file is the one place to update when a user journey's endpoint or response shape changes. Placeholders: {spot} = referenceSpot, {today} = spot-local today (YYYY-MM-DD).",
+  "baseUrlProd": "https://shaka-production.up.railway.app/v1",
+  "referenceSpot": "cali-la-jolla-cove",
+  "tier1": [
+    {
+      "id": "T1",
+      "name": "api health (db ping)",
+      "path": "/health",
+      "requiredKeys": ["status", "db"],
+      "requiredValues": { "db": "ok" },
+      "pageImmediately": true
+    },
+    {
+      "id": "T2",
+      "name": "spot detail",
+      "path": "/spots/{spot}?date={today}",
+      "requiredKeys": ["conditions"]
+    },
+    {
+      "id": "T3",
+      "name": "spot search",
+      "path": "/spots/search?lat=33.5&lon=-117.8&date={today}&radius=50",
+      "requiredKeys": ["spots"],
+      "prodOnly": { "nonEmptyArrays": ["spots"] }
+    },
+    {
+      "id": "T4",
+      "name": "hourly series (today + tomorrow)",
+      "path": "/spots/{spot}/hourly",
+      "requiredKeys": ["spotId", "days"],
+      "hourlyDays": { "requireLocalDates": ["today", "tomorrow"], "minPointsPerDay": 20 },
+      "recencyAnchor": {
+        "$comment": "Probe-owned, backend-distrusting anchor: generatedAt must be < maxAgeHours. The constant lives HERE (physics/UX-derived), never read from backend config. Gated by PROBE_ENABLE_T4_ANCHOR until /health/summary + generatedAt are deployed.",
+        "field": "generatedAt",
+        "maxAgeHours": 30,
+        "flag": "PROBE_ENABLE_T4_ANCHOR"
+      }
+    },
+    {
+      "id": "T5",
+      "name": "tide range (7 day-curves)",
+      "path": "/spots/{spot}/tide?days=7",
+      "requiredKeys": ["days"],
+      "tideDays": { "minDayCurves": 7, "minPointsPerDay": 20 }
+    },
+    {
+      "id": "T6",
+      "name": "user spots list",
+      "path": "/user-spots",
+      "headers": { "X-Device-ID": "synthetic-probe" },
+      "requiredKeys": []
+    },
+    {
+      "id": "T7",
+      "name": "region intel (key-presence only)",
+      "path": "/regions/san_diego/intel?since=72h&tzOffset=-8",
+      "$comment": "Key-presence only: a sportfishingreport scrape outage must NOT page. hotSpecies is @Deprecated; speciesWithTrends is current but omitted from JSON when empty (encodeDefaults=false), so assert on always-present keys and demote data quality to W7. In local mode (no seeded reports) the route legitimately 404s with its distinctive error body — accepted as proof the route exists, unlike Ktor's empty-body unknown-route 404.",
+      "requiredKeys": ["recentCatches", "sourcesUsed", "totalReports"],
+      "localAccepts": { "status": 404, "bodyContains": "No fishing intel available" }
+    },
+    {
+      "id": "T8",
+      "name": "backend self-assessment",
+      "path": "/health/summary",
+      "requiredKeys": ["severity", "causes"],
+      "forbiddenValues": { "severity": "critical" },
+      "flag": "PROBE_ENABLE_T8"
+    }
+  ],
+  "tier2": [
+    {
+      "id": "W1",
+      "name": "backend degraded causes",
+      "path": "/health/summary",
+      "relayDegradedCauses": true,
+      "flag": "PROBE_ENABLE_T8"
+    },
+    {
+      "id": "W2",
+      "name": "upstreams from Railway vantage",
+      "path": "/health/detailed",
+      "upstreamStatuses": ["openmeteo", "gibs", "noaa", "copernicus"]
+    },
+    {
+      "id": "W3",
+      "name": "GIBS tile from runner (app hits GIBS directly)",
+      "external": true,
+      "urlTemplate": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/OCI_PACE_Chlorophyll_a/default/{date-2d}/GoogleMapsCompatible_Level7/5/5/8.png",
+      "vantageBlockedSuppression": true
+    },
+    {
+      "id": "W6",
+      "name": "tide microservice",
+      "external": true,
+      "urlTemplate": "https://lavish-radiance-production.up.railway.app/health",
+      "$comment": "status=='ok' expected; a 200 with status=='loading' (warm instance cold-starting) is a warn-tier observation, never incident material.",
+      "requiredValues": { "status": "ok" },
+      "tolerated": { "status": "loading" }
+    },
+    {
+      "id": "W7",
+      "name": "intel data quality incl. AI insights (reuses T7 response)",
+      "reuseResponse": "T7",
+      "nonEmptyArrays": ["speciesWithTrends", "keyInsights"]
+    }
+  ],
+  "deferred": {
+    "$comment": "W4 (Copernicus WMTS layer rotation) and W5 (sportfishingreport HTML drift) are deferred per the design doc's minimal-subset note: bot-hostile upstreams from Azure runners were the old probe's noise source. Add here with vantageBlockedSuppression when wanted."
+  }
+}

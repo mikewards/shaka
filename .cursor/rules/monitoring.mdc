@@ -1,0 +1,61 @@
+---
+description: Keep the synthetic monitor in sync with backend job/health changes
+globs:
+  - "shaka-api/src/main/kotlin/com/shaka/Application.kt"
+  - "shaka-api/src/main/kotlin/com/shaka/service/DataPrefetchJobs.kt"
+  - "shaka-api/src/main/kotlin/com/shaka/monitoring/**"
+  - "shaka-api/src/main/kotlin/com/shaka/api/routes/SpotRoutes.kt"
+  - "monitoring/**"
+---
+
+# Monitoring sync rule
+
+The synthetic monitor died once already (Jun–Jul 2026: the tide/hourly-weather
+refactor silently invalidated its assumptions and it emailed failures hourly
+for 3+ weeks until it was ignored). These rules keep the monitor and backend
+moving together. Design doc: `docs/synthetic-monitor-design.md`.
+
+## If you add / remove / rename a scheduled job, or change a job's cadence
+
+- Update the `JobSpec` in `shaka-api/.../monitoring/MonitoringConfig.kt`
+  (or `registryExempt` for deliberately-unmonitored jobs). Cadences live ONLY
+  there — `Application.kt` reads them via `scheduleRegisteredJob`.
+- `MonitoringRegistryTest` fails the build if you don't. Do not "fix" the test
+  by adding to `registryExempt` unless the job is genuinely exempt (cheap
+  in-memory tick, cleanup, or admin-triggered).
+- Watch the scheduled-name vs reporting-name trap: `solunar_vessel_prefetch`
+  reports as `fishing_intel_prefetch`; `hourly_swell_wind_prefetch` reports as
+  `hourly_swell_wind`.
+
+## If you change how a data type is refreshed (e.g. age-based → horizon-based)
+
+- Update the freshness derivation / horizon constants in `MonitoringConfig.kt`
+  AND the corresponding section of `docs/synthetic-monitor-design.md`.
+- Tide is NEVER age-based: `spot_cache` tide `fetchedAt` is months old by
+  design. Only `spot_tide_series.generated_through` matters.
+
+## If you change a health endpoint's shape or a user-journey endpoint
+
+- Update `monitoring/journeys.json` (the shared shape contract) and, if
+  assertion logic changes, `monitoring/probe.py` in the same change.
+- The `probe-contract` CI job boots the API against
+  `monitoring/fixtures/seed.sql` and runs the probe in `--local` mode; if your
+  change 404s a journey or breaks its shape, that job failing is the system
+  working — fix the contract, don't skip the job.
+- If the response shape you changed is persisted in the seed fixture
+  (hourly/tide/insights tables), update `monitoring/fixtures/seed.sql` too.
+
+## If a change legitimately violates a probe recency anchor
+
+`monitoring/journeys.json` contains probe-owned anchors the probe deliberately
+does NOT read from backend config (e.g. T4: hourly `generatedAt` < 30h) —
+they exist so backend threshold changes cannot self-ratify. If an architecture
+change legitimately violates one (e.g. hourly fetch moves to a 3-day cadence),
+update the anchor consciously in the same PR and say so in the commit message.
+
+## Never
+
+- Never hardcode a staleness threshold outside `MonitoringConfig.kt`.
+- Never make the probe page on upstream-drift checks (Tier 2 is warn-only);
+  bot-blocked responses from CI runners are `vantage-blocked`, not failures.
+- Never set `DISABLE_SCHEDULED_JOBS` in production.

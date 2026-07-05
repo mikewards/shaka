@@ -40,3 +40,78 @@ jobs:
         run: |
           flutter pub get
           flutter analyze --no-fatal-infos
+
+  # Contract test for the synthetic monitor (docs/synthetic-monitor-design.md §c):
+  # boots the API against a seeded Postgres with schedulers disabled and runs the
+  # probe's Tier-1 journeys in --local mode. A refactor that breaks a probe
+  # assumption (dropped endpoint, changed response shape, tide model change)
+  # fails THIS job on the PR — not production monitoring two weeks later.
+  probe-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # ci.yml's pull_request trigger has no global paths filter (api-tests
+      # should keep running on every PR), so this job filters itself.
+      - uses: dorny/paths-filter@v3
+        id: relevant
+        with:
+          filters: |
+            monitor:
+              - 'shaka-api/**'
+              - 'monitoring/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Start Postgres (docker compose)
+        if: steps.relevant.outputs.monitor == 'true'
+        run: |
+          docker compose up -d db
+          for i in $(seq 1 30); do
+            docker compose exec -T db pg_isready -U shaka && break
+            sleep 2
+          done
+
+      - name: Seed contract fixture
+        if: steps.relevant.outputs.monitor == 'true'
+        run: |
+          docker compose exec -T db psql -U shaka -d shaka < monitoring/fixtures/seed.sql
+
+      - uses: actions/setup-java@v4
+        if: steps.relevant.outputs.monitor == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.relevant.outputs.monitor == 'true'
+
+      - name: Build API jar
+        if: steps.relevant.outputs.monitor == 'true'
+        working-directory: shaka-api
+        run: ./gradlew shadowJar --no-daemon
+
+      - name: Boot API (schedulers disabled) and run probe contract
+        if: steps.relevant.outputs.monitor == 'true'
+        env:
+          # DISABLE_SCHEDULED_JOBS is mandatory here: without it the API would
+          # start fetching 800+ spots from Open-Meteo out of CI after 2 minutes,
+          # and weather_tile_pipeline would poison /health/summary severity.
+          DATABASE_URL: postgresql://shaka:shaka@localhost:5432/shaka
+          DISABLE_SCHEDULED_JOBS: 'true'
+        run: |
+          java -jar shaka-api/build/libs/shaka-api-all.jar > api.log 2>&1 &
+          API_PID=$!
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/v1/health > /dev/null; then break; fi
+            if ! kill -0 $API_PID 2>/dev/null; then echo "API died on boot"; tail -50 api.log; exit 1; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/v1/health || { echo "API never became healthy"; tail -50 api.log; exit 1; }
+          python3 monitoring/probe.py --local --base-url http://localhost:8080/v1
+          RESULT=$?
+          kill $API_PID || true
+          exit $RESULT
+
+      - name: Dump API log on failure
+        if: failure() && steps.relevant.outputs.monitor == 'true'
+        run: tail -200 api.log || true
