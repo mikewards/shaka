@@ -84,16 +84,28 @@ class HealthService {
     
     private suspend fun checkOpenMeteo(): ServiceStatus {
         return try {
-            // Simple ping to Open-Meteo API
-            val response = client.get("https://api.open-meteo.com/v1/forecast") {
+            // Check BOTH hosts: the weather host (api.) and the marine host
+            // (marine-api.) live on different networks. In Jul 2026 the marine
+            // host was unreachable from Railway for days while this check —
+            // which then only pinged the weather host — kept reporting "ok",
+            // masking a 100% hourly_swell_wind failure.
+            val weather = client.get("https://api.open-meteo.com/v1/forecast") {
                 parameter("latitude", 21.3)
                 parameter("longitude", -157.8)
                 parameter("current_weather", "true")
             }
-            if (response.status.value in 200..299) {
-                ServiceStatus("ok", lastChecked = Instant.now().toString())
-            } else {
-                ServiceStatus("error", "HTTP ${response.status.value}", Instant.now().toString())
+            val marine = client.get("https://marine-api.open-meteo.com/v1/marine") {
+                parameter("latitude", 21.3)
+                parameter("longitude", -157.8)
+                parameter("forecast_days", 1)
+                parameter("hourly", "wave_height")
+            }
+            when {
+                weather.status.value !in 200..299 ->
+                    ServiceStatus("error", "weather host HTTP ${weather.status.value}", Instant.now().toString())
+                marine.status.value !in 200..299 ->
+                    ServiceStatus("error", "marine host HTTP ${marine.status.value}", Instant.now().toString())
+                else -> ServiceStatus("ok", lastChecked = Instant.now().toString())
             }
         } catch (e: Exception) {
             logger.warn("OpenMeteo health check failed: ${e.message}")

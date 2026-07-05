@@ -337,7 +337,15 @@ data class SpotHourlyDay(
 data class SpotHourlyResponse(
     val spotId: String,
     val timezoneId: String?,
-    val days: List<SpotHourlyDay>
+    val days: List<SpotHourlyDay>,
+    /**
+     * When the underlying hourly series was fetched from Open-Meteo (epochMs).
+     * Exposed for the synthetic monitor's probe-owned recency anchor
+     * (docs/synthetic-monitor-design.md): the probe asserts this is < ~30h old
+     * without trusting any backend threshold. Survives restarts (persisted as
+     * fetched_at in spot_swell_hourly/spot_wind_hourly).
+     */
+    val generatedAt: Long? = null
 )
 
 /**

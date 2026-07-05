@@ -134,21 +134,13 @@ fun Application.configureRouting() {
                     freshJson("solunar") { it.solunar }
                 )
 
-                val staleThresholds = mapOf(
-                    "tide" to 180L,
-                    "swell" to 480L,
-                    "wind" to 480L,
-                    "sst" to 1500L,
-                    "visibility" to 1500L,
-                    "chlorophyll" to 1500L,
-                    "gibs_satellite" to 1500L,
-                    "mpa" to 64800L,
-                    "vessel" to 1800L,
-                    "solunar" to 1800L
-                )
-
+                // Thresholds are owned by MonitoringConfig (lawful-max derivation:
+                // gate + interval + maxRun + 1h). Tide is NEVER age-based — its
+                // spot_cache fetchedAt is months old by design (full-year
+                // precompute); horizon health lives in /health/summary.
                 val stale = types.filter { (name, json) ->
-                    val threshold = staleThresholds[name] ?: 720L
+                    val threshold = com.shaka.monitoring.MonitoringConfig.freshnessThresholdMinutes(name)
+                        ?: return@filter false
                     val match = Regex(""""medianMinAgo":(\d+)""").find(json)
                     match != null && match.groupValues[1].toLong() > threshold
                 }.map { "\"${it.first}\"" }
@@ -164,10 +156,127 @@ fun Application.configureRouting() {
 
             get("/health/jobs") {
                 val runs = com.shaka.monitoring.MonitoringService.getAllLatestRuns()
-                val json = runs.entries.sortedBy { it.key }.joinToString(",") { (name, r) ->
-                    "\"$name\":{\"status\":\"${r.status}\",\"total\":${r.total},\"succeeded\":${r.succeeded},\"failed\":${r.failed},\"successRate\":${String.format("%.4f", r.successRate)},\"durationMs\":${r.durationMs},\"lastRun\":\"${r.finishedAt}\"}"
+                val nowMs = System.currentTimeMillis()
+                // Registered jobs that have never reported are included as
+                // "missing" so a silently-dead job is visible (with deploy grace
+                // handled by /health/summary severity, not here).
+                val registered = com.shaka.monitoring.MonitoringConfig.jobs.associateBy { it.name }
+                val allNames = (runs.keys + registered.keys).toSortedSet()
+                val json = allNames.joinToString(",") { name ->
+                    val r = runs[name]
+                    val spec = registered[name]
+                    val extras = buildString {
+                        if (spec != null) {
+                            append(",\"expectedIntervalMs\":${spec.intervalMs},\"maxRunMs\":${spec.maxRunMs}")
+                        }
+                        if (r != null) {
+                            append(",\"lastRunAgeMs\":${nowMs - r.finishedAt.toEpochMilli()}")
+                            append(",\"severity\":\"${r.severity.wire}\"")
+                        }
+                    }
+                    if (r != null) {
+                        "\"$name\":{\"status\":\"${r.status}\",\"total\":${r.total},\"succeeded\":${r.succeeded},\"failed\":${r.failed},\"successRate\":${String.format("%.4f", r.successRate)},\"durationMs\":${r.durationMs},\"lastRun\":\"${r.finishedAt}\"$extras}"
+                    } else {
+                        "\"$name\":{\"status\":\"MISSING\",\"lastRun\":null$extras}"
+                    }
                 }
                 call.respondText("{$json}", io.ktor.http.ContentType.Application.Json)
+            }
+
+            /**
+             * Machine-readable self-assessment: the backend applies its own
+             * thresholds (MonitoringConfig) and reports ok/degraded/critical
+             * with causes. The synthetic monitor relays this instead of
+             * duplicating thresholds. See docs/synthetic-monitor-design.md.
+             */
+            get("/health/summary") {
+                val nowInstant = java.time.Instant.now()
+                val logic = com.shaka.monitoring.HealthSummaryLogic
+                val causes = mutableListOf<Pair<com.shaka.monitoring.Severity, com.shaka.monitoring.HealthCause>>()
+                val schedulersDisabled = com.shaka.monitoring.MonitoringConfig.schedulersDisabled()
+
+                // 1. DB ping (bounded, same as /health)
+                val dbOk = if (!com.shaka.data.db.DatabaseFactory.isConnected()) true else try {
+                    kotlinx.coroutines.withTimeout(2000) {
+                        com.shaka.data.db.DatabaseFactory.dbQuery {
+                            org.jetbrains.exposed.sql.transactions.TransactionManager.current()
+                                .exec("SELECT 1") { rs -> rs.next() } ?: false
+                        }
+                    }
+                } catch (e: Exception) { false }
+                causes += logic.dbCause(dbOk)
+
+                // 2. Jobs: latest-run severity + missed-run detection
+                val runs = com.shaka.monitoring.MonitoringService.getAllLatestRuns()
+                val uptimeMs = com.shaka.monitoring.MonitoringService.uptimeMs()
+                val nowMs = System.currentTimeMillis()
+                for (spec in com.shaka.monitoring.MonitoringConfig.jobs) {
+                    val r = runs[spec.name]
+                    causes += logic.jobCause(
+                        spec = spec,
+                        successRate = r?.successRate,
+                        succeeded = r?.succeeded,
+                        total = r?.total,
+                        lastRunAgeMs = r?.let { nowMs - it.finishedAt.toEpochMilli() },
+                        uptimeMs = uptimeMs,
+                        schedulersDisabled = schedulersDisabled,
+                    )
+                }
+
+                // 3. Age-based freshness (median), warn-tier only
+                val cache = com.shaka.data.cache.SpotDataCache
+                val allIds = cache.getAllSpotIds()
+                fun medianAge(extract: (com.shaka.data.cache.SpotDataCache.SpotData) -> com.shaka.data.cache.SpotDataCache.CachedValue<*>?): Long? {
+                    val ages = allIds.mapNotNull { id ->
+                        cache.get(id)?.let(extract)?.fetchedAt?.let {
+                            java.time.Duration.between(it, nowInstant).toMinutes()
+                        }
+                    }.sorted()
+                    return ages.getOrNull(ages.size / 2)
+                }
+                if (!schedulersDisabled) {
+                    listOf<Pair<String, (com.shaka.data.cache.SpotDataCache.SpotData) -> com.shaka.data.cache.SpotDataCache.CachedValue<*>?>>(
+                        "swell" to { it.swell }, "wind" to { it.wind }, "sst" to { it.sst },
+                        "visibility" to { it.visibility }, "chlorophyll" to { it.chlorophyll },
+                        "gibs_satellite" to { it.gibsChlorophyll }, "mpa" to { it.mpa },
+                        "vessel" to { it.vessel }, "solunar" to { it.solunar },
+                    ).forEach { (type, extract) ->
+                        logic.freshnessCause(type, medianAge(extract))?.let { causes += it }
+                    }
+                }
+
+                // 4. Tide horizon (never age-based)
+                val horizon = cache.getTideHorizonStats()
+                val catalogSize = com.shaka.data.client.SpotDatabase.getAllSpots().size
+                val coverage = horizon?.let { (it.readySpots.toDouble() / catalogSize).coerceAtMost(1.0) }
+                causes += logic.tideHorizonCause(horizon?.medianRemainingDays, coverage)
+
+                // 5. AI region insights (cached artifact — never triggers an LLM call)
+                val aiEnabled = FishingIntelAiService.isEnabled()
+                val slotZone = java.time.ZoneOffset.ofHours(-8)
+                val slotKey = java.time.ZonedDateTime.now(slotZone).toLocalDate().toString()
+                val hoursIntoDay = java.time.ZonedDateTime.now(slotZone).hour
+                val hasInsights = try {
+                    !FishingIntelDb.getRegionInsights("all_regions", slotKey).isNullOrEmpty()
+                } catch (e: Exception) { false }
+                val hadReports = if (hasInsights || !aiEnabled) true else try {
+                    FishingIntelDb.getAllReportsRecent(hoursBack = 168).isNotEmpty()
+                } catch (e: Exception) { true }
+                causes += logic.aiInsightsCause(hasInsights, hoursIntoDay, hadReports, aiEnabled)
+
+                // 6. Upstreams from Railway's vantage point (capped at degraded)
+                if (!schedulersDisabled) {
+                    try {
+                        val upstream = healthService.checkHealth()
+                        upstream.services.forEach { (name, st) ->
+                            causes += logic.upstreamCause(name, st.status)
+                        }
+                    } catch (e: Exception) {
+                        causes += logic.upstreamCause("health_service", "error: ${e.message?.take(60)}")
+                    }
+                }
+
+                call.respond(logic.aggregate(causes, nowInstant.toString()))
             }
 
             get("/health/jobs/{name}") {

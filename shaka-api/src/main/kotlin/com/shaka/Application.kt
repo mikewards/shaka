@@ -147,6 +147,11 @@ private fun Application.configureScheduledJobs() {
      * escaping the old catch(Exception) would have killed the loop.
      * Each iteration is bounded by maxRunMs and survives Throwable.
      */
+    val schedulersDisabled = com.shaka.monitoring.MonitoringConfig.schedulersDisabled()
+    if (schedulersDisabled) {
+        logger.warn("DISABLE_SCHEDULED_JOBS=true — no background jobs will be scheduled (CI/local mode)")
+    }
+
     fun scheduleJob(
         name: String,
         initialDelayMs: Long,
@@ -155,6 +160,7 @@ private fun Application.configureScheduledJobs() {
         runImmediately: Boolean = false,
         job: suspend () -> Unit
     ) {
+        if (schedulersDisabled) return
         backgroundScope.launch {
             delay(initialDelayMs)
             if (!runImmediately) delay(intervalMs)
@@ -171,7 +177,27 @@ private fun Application.configureScheduledJobs() {
             }
         }
     }
+
+    /**
+     * Schedule a job whose cadence is owned by MonitoringConfig (single source
+     * of truth — see docs/synthetic-monitor-design.md). The registry is looked
+     * up by the scheduled name; missing registration fails fast at boot.
+     */
+    fun scheduleRegisteredJob(scheduledName: String, job: suspend () -> Unit) {
+        val spec = com.shaka.monitoring.MonitoringConfig.jobByScheduledName(scheduledName)
+        scheduleJob(
+            name = scheduledName,
+            initialDelayMs = spec.initialDelayMs,
+            intervalMs = spec.intervalMs,
+            maxRunMs = spec.maxRunMs,
+            runImmediately = spec.runImmediately,
+            job = job,
+        )
+    }
     
+    // Hydrate persisted job-run results so /health/jobs survives redeploys.
+    com.shaka.monitoring.MonitoringService.initPersistence()
+
     // Run full prefetch on startup (after a brief delay to let the app initialize)
     backgroundScope.launch {
         delay(5_000)  // Wait 5 seconds for app to fully start
@@ -196,48 +222,57 @@ private fun Application.configureScheduledJobs() {
             logger.info("Cache empty - starting full data prefetch...")
         }
         
-        // Seed NDBC buoy stations (idempotent — updates existing, adds new)
-        try {
-            prefetchJobs.seedBuoyStations()
-        } catch (e: Exception) {
-            logger.warn("Buoy station seeding failed: ${e.message}")
+        // Seed NDBC buoy stations (idempotent — updates existing, adds new).
+        // Skipped in CI/local mode: external NDBC call.
+        if (!schedulersDisabled) {
+            try {
+                prefetchJobs.seedBuoyStations()
+            } catch (e: Exception) {
+                logger.warn("Buoy station seeding failed: ${e.message}")
+            }
         }
         
         logger.info("Startup complete — scheduled jobs will refresh stale data on cadence")
     }
     
+    // Cadences/watchdogs below are owned by MonitoringConfig (single source of
+    // truth). Adding a job here without a JobSpec (or registryExempt entry)
+    // fails MonitoringRegistryTest — see .cursor/rules/monitoring.mdc.
+
     // DAILY: Hourly swell + wind series. Fetches the 7-day hourly curves for
     // every spot and persists one row per local_date. Replaces the old per-3h
     // single-snapshot weather_prefetch. runImmediately=true so it also backfills
     // on first boot after a deploy. The current-hour value shown to users is
     // derived in-memory from these tables by the hourly tick below.
-    scheduleJob("hourly_swell_wind_prefetch", initialDelayMs = 120_000, intervalMs = 86_400_000, maxRunMs = 86_400_000, runImmediately = true) {
+    scheduleRegisteredJob("hourly_swell_wind_prefetch") {
         prefetchJobs.prefetchHourlySwellWind()
     }
 
     // HOURLY: Re-derive the current-hour swell + wind snapshot from the
     // in-memory series. Cheap (no DB/API) — just advances "now" through the day.
+    // registryExempt: intentionally unmonitored (in-memory derive, no reportRun).
     scheduleJob("hourly_snapshot_tick", initialDelayMs = 660_000, intervalMs = 3_600_000, maxRunMs = 300_000, runImmediately = true) {
         prefetchJobs.deriveHourlySnapshots()
     }
 
     // EVERY 6 HOURS: Satellite data refresh (rate-limited, can run very long)
-    scheduleJob("satellite_prefetch", initialDelayMs = 180_000, intervalMs = 21_600_000, maxRunMs = 86_400_000) {
+    scheduleRegisteredJob("satellite_prefetch") {
         prefetchJobs.prefetchSatelliteData()
     }
 
     // EVERY 3 HOURS: User spots refresh (same as weather)
-    scheduleJob("user_spots_prefetch", initialDelayMs = 240_000, intervalMs = 10_800_000, maxRunMs = 86_400_000) {
+    scheduleRegisteredJob("user_spots_prefetch") {
         prefetchJobs.prefetchUserSpots()
     }
 
-    // EVERY 12 HOURS: Solunar + vessel data refresh (runs 2x/day)
-    scheduleJob("solunar_vessel_prefetch", initialDelayMs = 300_000, intervalMs = 43_200_000) {
+    // EVERY 12 HOURS: Solunar + vessel data refresh (runs 2x/day).
+    // Reports to MonitoringService as fishing_intel_prefetch.
+    scheduleRegisteredJob("solunar_vessel_prefetch") {
         prefetchJobs.prefetchFishingIntel()
     }
 
     // HOURLY: Buoy readings refresh
-    scheduleJob("buoy_readings", initialDelayMs = 360_000, intervalMs = 3_600_000) {
+    scheduleRegisteredJob("buoy_readings") {
         prefetchJobs.prefetchBuoyReadings()
     }
 
@@ -247,29 +282,29 @@ private fun Application.configureScheduledJobs() {
     // now-state shown to users is derived on read from the persisted chart (no
     // FES), and new/user spots are generated on-demand at creation. Each run is
     // bounded by TOPUP_TIME_BUDGET_MS.
-    scheduleJob("tide_horizon_topup", initialDelayMs = 420_000, intervalMs = 2_592_000_000L, maxRunMs = 6_000_000, runImmediately = true) {
+    scheduleRegisteredJob("tide_horizon_topup") {
         prefetchJobs.topUpTideHorizons()
     }
 
     // WEEKLY: MPA boundary refresh. Previously only reachable via the dead
     // prefetchAll() path, so MPA data silently aged for months.
-    scheduleJob("mpa_prefetch", initialDelayMs = 900_000, intervalMs = 604_800_000, maxRunMs = 86_400_000, runImmediately = true) {
+    scheduleRegisteredJob("mpa_prefetch") {
         prefetchJobs.prefetchMPA()
     }
 
-    // NIGHTLY: Tide chart cleanup (old rows)
+    // NIGHTLY: Tide chart cleanup (old rows). registryExempt: unmonitored cleanup.
     scheduleJob("tide_chart_cleanup", initialDelayMs = 600_000, intervalMs = 86_400_000, runImmediately = true) {
         prefetchJobs.cleanupOldTideDays()
     }
 
-    // NIGHTLY: Hourly swell/wind series cleanup (old rows)
+    // NIGHTLY: Hourly swell/wind series cleanup (old rows). registryExempt: unmonitored cleanup.
     scheduleJob("hourly_series_cleanup", initialDelayMs = 660_000, intervalMs = 86_400_000, runImmediately = true) {
         prefetchJobs.cleanupOldHourly()
     }
 
     // ==================== WEATHER TILES (Ocean Forecast) ====================
     // Runs the Copernicus CMEMS pipeline every 6 hours to generate PNG tiles
-    scheduleJob("weather_tile_pipeline", initialDelayMs = 30_000, intervalMs = 21_600_000, runImmediately = true) {
+    scheduleRegisteredJob("weather_tile_pipeline") {
         WeatherTileService.runPipeline()
     }
 
@@ -290,7 +325,7 @@ private fun Application.configureScheduledJobs() {
     }
     
     // Schedule scraping job (delayed start, then every 2 hours)
-    scheduleJob("fishing_intel_scrape", initialDelayMs = 300_000, intervalMs = 7_200_000, runImmediately = true) {
+    scheduleRegisteredJob("fishing_intel_scrape") {
         FishingIntelPrefetchJob.run()
     }
     

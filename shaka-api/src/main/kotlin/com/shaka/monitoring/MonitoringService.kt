@@ -32,17 +32,107 @@ data class JobRunResult(
     val failed: Int get() = failures.size
     val durationMs: Long get() = finishedAt.toEpochMilli() - startedAt.toEpochMilli()
     val successRate: Double get() = if (total == 0) 1.0 else succeeded.toDouble() / total
-    val status: String get() = if (successRate >= 0.99) "OK" else "BREACH"
+
+    /** Per-job severity from MonitoringConfig (unknown jobs fall back to the old 0.99 rule). */
+    val severity: Severity
+        get() {
+            val spec = MonitoringConfig.jobByName(jobName)
+                ?: return if (successRate >= 0.99) Severity.OK else Severity.DEGRADED
+            return HealthSummaryLogic.jobSuccessSeverity(spec, successRate)
+        }
+
+    /** Kept for backward compatibility with existing /health/jobs consumers. */
+    val status: String get() = if (severity == Severity.OK) "OK" else "BREACH"
 }
 
 object MonitoringService {
     private val logger = LoggerFactory.getLogger(MonitoringService::class.java)
-    private const val THRESHOLD = 0.99
 
     private val latestRuns = ConcurrentHashMap<String, JobRunResult>()
+    private val processStartMs: Long = System.currentTimeMillis()
+
+    fun uptimeMs(): Long = System.currentTimeMillis() - processStartMs
 
     fun getLatestRun(jobName: String): JobRunResult? = latestRuns[jobName]
     fun getAllLatestRuns(): Map<String, JobRunResult> = latestRuns.toMap()
+
+    // ---------- Postgres persistence (survives redeploys) ----------
+
+    /** Create job_runs_latest and hydrate the in-memory map. Call once at boot. */
+    fun initPersistence() {
+        if (!com.shaka.data.db.DatabaseFactory.isConnected()) return
+        try {
+            org.jetbrains.exposed.sql.transactions.transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.createStatement().use { stmt ->
+                    stmt.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS job_runs_latest (
+                            job_name VARCHAR(60) PRIMARY KEY,
+                            started_at TIMESTAMP NOT NULL,
+                            finished_at TIMESTAMP NOT NULL,
+                            total INT NOT NULL,
+                            succeeded INT NOT NULL,
+                            failed INT NOT NULL,
+                            duration_ms BIGINT NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+                conn.prepareStatement("SELECT job_name, started_at, finished_at, total, succeeded, failed FROM job_runs_latest").use { stmt ->
+                    val rs = stmt.executeQuery()
+                    while (rs.next()) {
+                        val name = rs.getString("job_name")
+                        val result = JobRunResult(
+                            jobName = name,
+                            startedAt = rs.getTimestamp("started_at").toInstant(),
+                            finishedAt = rs.getTimestamp("finished_at").toInstant(),
+                            total = rs.getInt("total"),
+                            succeeded = rs.getInt("succeeded"),
+                            // Failure details are not persisted; synthesize placeholders so counts survive.
+                            failures = List(rs.getInt("failed")) {
+                                ItemFailure("persisted", "persisted", "details not persisted across deploys", "persisted")
+                            },
+                        )
+                        latestRuns.putIfAbsent(name, result)
+                    }
+                }
+            }
+            logger.info("job_runs_latest hydrated: ${latestRuns.size} jobs")
+        } catch (e: Exception) {
+            logger.warn("job_runs_latest init failed (non-fatal): ${e.message}")
+        }
+    }
+
+    private fun persistRun(result: JobRunResult) {
+        if (!com.shaka.data.db.DatabaseFactory.isConnected()) return
+        try {
+            org.jetbrains.exposed.sql.transactions.transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    """
+                    INSERT INTO job_runs_latest (job_name, started_at, finished_at, total, succeeded, failed, duration_ms)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (job_name) DO UPDATE SET
+                        started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at,
+                        total = EXCLUDED.total, succeeded = EXCLUDED.succeeded,
+                        failed = EXCLUDED.failed, duration_ms = EXCLUDED.duration_ms
+                    """.trimIndent()
+                ).use { stmt ->
+                    stmt.setString(1, result.jobName)
+                    stmt.setTimestamp(2, java.sql.Timestamp.from(result.startedAt))
+                    stmt.setTimestamp(3, java.sql.Timestamp.from(result.finishedAt))
+                    stmt.setInt(4, result.total)
+                    stmt.setInt(5, result.succeeded)
+                    stmt.setInt(6, result.failed)
+                    stmt.setLong(7, result.durationMs)
+                    stmt.executeUpdate()
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("job_runs_latest persist failed for ${result.jobName}: ${e.message}")
+        }
+    }
 
     private val betterStackUrl: String? = System.getenv("BETTERSTACK_SOURCE_URL")
     private val betterStackToken: String? = System.getenv("BETTERSTACK_SOURCE_TOKEN")
@@ -109,8 +199,9 @@ object MonitoringService {
         MDC.remove("job")
 
         latestRuns[jobName] = result
+        persistRun(result)
 
-        if (result.successRate < THRESHOLD) {
+        if (result.severity != Severity.OK) {
             reportBreach(result)
         }
 
@@ -174,8 +265,9 @@ object MonitoringService {
         MDC.remove("job")
 
         latestRuns[jobName] = result
+        persistRun(result)
 
-        if (result.successRate < THRESHOLD) {
+        if (result.severity != Severity.OK) {
             reportBreach(result)
         }
 

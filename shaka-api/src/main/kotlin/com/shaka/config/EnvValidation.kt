@@ -31,6 +31,7 @@ object EnvValidation {
         "BETTERSTACK_SOURCE_URL" to "Log shipping",
         "BETTERSTACK_SOURCE_TOKEN" to "Log shipping",
         "HEARTBEAT_URLS" to "Job heartbeat pings",
+        "DISABLE_SCHEDULED_JOBS" to "CI/local mode: skip all background jobs (never set in prod)",
     )
 
     fun validateAndReport() {

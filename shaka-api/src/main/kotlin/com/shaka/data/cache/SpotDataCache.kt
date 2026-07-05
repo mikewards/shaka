@@ -2475,6 +2475,42 @@ object SpotDataCache {
         }
     }
 
+    /**
+     * Tide horizon stats for /health/summary: median remaining horizon days
+     * across ready series rows, plus coverage vs. the given total spot count.
+     * Never age-based — spot_cache tide fetchedAt is months old by design.
+     */
+    data class TideHorizonStats(val medianRemainingDays: Long, val readySpots: Int)
+
+    fun getTideHorizonStats(provider: String = "fes2022"): TideHorizonStats? {
+        if (!DatabaseFactory.isConnected()) return null
+        return try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                conn.prepareStatement(
+                    """
+                    SELECT COUNT(*) AS ready,
+                           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (generated_through - CURRENT_DATE)) AS median_days
+                    FROM spot_tide_series
+                    WHERE provider = ? AND status = 'ready' AND generated_through IS NOT NULL
+                    """.trimIndent()
+                ).use { stmt ->
+                    stmt.setString(1, provider)
+                    val rs = stmt.executeQuery()
+                    if (rs.next() && rs.getInt("ready") > 0) {
+                        TideHorizonStats(
+                            medianRemainingDays = rs.getDouble("median_days").toLong(),
+                            readySpots = rs.getInt("ready")
+                        )
+                    } else null
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("getTideHorizonStats failed: ${e.message}")
+            null
+        }
+    }
+
     fun getTideSeries(spotId: String, provider: String = "fes2022"): TideSeriesRow? {
         if (!DatabaseFactory.isConnected()) return null
         return try {

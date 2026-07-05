@@ -685,7 +685,11 @@ class SpotService {
             )
         }
         if (days.isEmpty()) return null
-        return SpotHourlyResponse(spotId, tz, days)
+        val generatedAt = listOfNotNull(
+            cached.swellSeries?.fetchedAt,
+            cached.windSeries?.fetchedAt
+        ).maxOrNull()?.toEpochMilli()
+        return SpotHourlyResponse(spotId, tz, days, generatedAt)
     }
 
     /**

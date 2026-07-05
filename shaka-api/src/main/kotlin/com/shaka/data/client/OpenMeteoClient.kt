@@ -226,6 +226,26 @@ class OpenMeteoClient {
     }
 
     /**
+     * Retry helper for the daily hourly-series fetchers. Connect timeouts to
+     * marine-api.open-meteo.com under 10-concurrent batch load caused the
+     * chronic ~5% per-run failures in hourly_swell_wind (Jun/Jul 2026);
+     * a bounded retry with backoff absorbs them (same pattern Open-Meteo's
+     * own integration examples recommend for free-tier bursts).
+     */
+    private suspend fun <T> withRetry(attempts: Int = 3, baseDelayMs: Long = 1000, block: suspend () -> T): T {
+        var last: Exception? = null
+        repeat(attempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                last = e
+                if (attempt < attempts - 1) kotlinx.coroutines.delay(baseDelayMs * (1L shl attempt))
+            }
+        }
+        throw last!!
+    }
+
+    /**
      * Full hourly marine curve for a multi-day horizon (raw SI units + epochMs).
      * Used by the daily prefetch job to persist the swell series. Returns null on failure.
      */
@@ -233,13 +253,15 @@ class OpenMeteoClient {
         return try {
             RateLimiters.openMeteo.acquire()
 
-            val response: OpenMeteoMarineResponse = client.get("https://marine-api.open-meteo.com/v1/marine") {
-                parameter("latitude", lat)
-                parameter("longitude", lon)
-                parameter("forecast_days", days)
-                parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,sea_surface_temperature")
-                parameter("timezone", "auto")
-            }.body()
+            val response: OpenMeteoMarineResponse = withRetry {
+                client.get("https://marine-api.open-meteo.com/v1/marine") {
+                    parameter("latitude", lat)
+                    parameter("longitude", lon)
+                    parameter("forecast_days", days)
+                    parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,sea_surface_temperature")
+                    parameter("timezone", "auto")
+                }.body()
+            }
 
             val h = response.hourly
             val tz = response.timezone ?: "UTC"
@@ -274,13 +296,15 @@ class OpenMeteoClient {
         return try {
             RateLimiters.openMeteo.acquire()
 
-            val response: OpenMeteoWeatherResponse = client.get("https://api.open-meteo.com/v1/forecast") {
-                parameter("latitude", lat)
-                parameter("longitude", lon)
-                parameter("forecast_days", days)
-                parameter("hourly", "windspeed_10m,winddirection_10m,windgusts_10m")
-                parameter("timezone", "auto")
-            }.body()
+            val response: OpenMeteoWeatherResponse = withRetry {
+                client.get("https://api.open-meteo.com/v1/forecast") {
+                    parameter("latitude", lat)
+                    parameter("longitude", lon)
+                    parameter("forecast_days", days)
+                    parameter("hourly", "windspeed_10m,winddirection_10m,windgusts_10m")
+                    parameter("timezone", "auto")
+                }.body()
+            }
 
             val h = response.hourly
             val tz = response.timezone ?: "UTC"
