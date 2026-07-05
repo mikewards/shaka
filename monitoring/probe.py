@@ -129,6 +129,8 @@ def eval_tier1(journey: dict, base_url: str, local: bool, flags: dict, saved: di
     try:
         status, elapsed, body = fetch_with_retry(url, journey.get("headers"))
     except Exception as e:
+        # Connection-level failure (refused/DNS/timeout): the hard-down signal
+        # that bypasses onset grace on pageImmediately journeys.
         return CheckResult(jid, name, False, f"unreachable: {type(e).__name__} {e}",
                            immediate=journey.get("pageImmediately", False))
     if status != 200:
@@ -139,8 +141,11 @@ def eval_tier1(journey: dict, base_url: str, local: bool, flags: dict, saved: di
         acc = journey.get("localAccepts")
         if local and acc and status == acc["status"] and acc["bodyContains"].encode() in body:
             return CheckResult(jid, name, True, f"HTTP {status} accepted in local mode (empty data, route exists)")
-        # A 503 from /health with db unreachable is the hard-down signal.
-        immediate = journey.get("pageImmediately", False)
+        # Immediate paging is reserved for the app's own "db unreachable" 503.
+        # Edge 502s during a Railway deploy swap are exactly the blip the
+        # 2-run onset grace exists to absorb (learned on the first live run).
+        immediate = (journey.get("pageImmediately", False)
+                     and status == 503 and b"unreachable" in body)
         return CheckResult(jid, name, False, f"HTTP {status}", immediate=immediate)
     if elapsed > LATENCY_BUDGET_S:
         return CheckResult(jid, name, False, f"latency {elapsed:.1f}s > {LATENCY_BUDGET_S}s")
