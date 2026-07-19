@@ -138,11 +138,8 @@ data class GibsSatelliteReadings(
     val noaa21ObservationTime: String? = null,
     val dataDate: String? = null,                  // The date that "today" refers to
     // Measured chlorophyll-a in mg/m³. Sourced from Copernicus Marine WMTS
-    // (NOT NOAA ERDDAP — the old field name below was always misleading).
+    // (the removed "noaaErddapChlorophyll" field name was always misleading).
     val chlorophyllMgM3: Double? = null,
-    // DEPRECATED: same value as chlorophyllMgM3, misleadingly named. Kept one
-    // release so older app builds keep parsing; removed once the app switches.
-    val noaaErddapChlorophyll: Double? = null,
     val noaaErddapFetchTime: String? = null        // When we fetched this data
 )
 

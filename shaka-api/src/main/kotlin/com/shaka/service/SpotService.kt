@@ -254,7 +254,6 @@ class SpotService {
                     dataDate = gibs?.dataDate?.toString(),
                     // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                     chlorophyllMgM3 = cached.chlorophyll?.value,
-                    noaaErddapChlorophyll = cached.chlorophyll?.value,
                     noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
                 )
             } else null
@@ -511,7 +510,6 @@ class SpotService {
                 dataDate = gibs?.dataDate?.toString(),
                 // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                 chlorophyllMgM3 = cached.chlorophyll?.value,
-                noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
         } else null
@@ -1832,7 +1830,6 @@ class SpotService {
                 dataDate = gibs?.dataDate?.toString(),
                 // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
                 chlorophyllMgM3 = cached.chlorophyll?.value,
-                noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
         } else null
