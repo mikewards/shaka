@@ -1222,18 +1222,47 @@ fun Application.configureRouting() {
                     )
                 }
                 
-                // Trigger background prefetch for the new spot
+                // Trigger background prefetch for the new spot, with retry +
+                // backoff (plan 17): one best-effort shot used to leave spots
+                // created during a partial outage empty until the next daily
+                // job. Also fetches the 7-day hourly swell/wind series so the
+                // new spot is self-sufficient immediately.
                 val cacheId = userSpotRepository.getCacheId(created.id.toString())
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                val prefetchLogger = org.slf4j.LoggerFactory.getLogger("UserSpotPrefetch")
                 GlobalScope.launch {
-                    try {
-                        spotService.prefetchSingleSpot(
-                            spotId = cacheId,
-                            lat = created.coordinates.lat,
-                            lon = created.coordinates.lon
+                    val lat = created.coordinates.lat
+                    val lon = created.coordinates.lon
+                    var snapshotDone = false
+                    var hourlyDone = false
+                    for (attempt in 1..3) {
+                        if (!snapshotDone) {
+                            try {
+                                spotService.prefetchSingleSpot(spotId = cacheId, lat = lat, lon = lon)
+                                // Consider the snapshot pass done when the key
+                                // conditions arrived; otherwise retry it whole.
+                                val cached = SpotDataCache.get(cacheId)
+                                snapshotDone = cached?.swell != null && cached.wind != null
+                            } catch (e: Exception) {
+                                prefetchLogger.warn("Prefetch attempt $attempt failed for user spot ${created.id}: ${e.message}")
+                            }
+                        }
+                        if (!hourlyDone) {
+                            try {
+                                prefetchJobs?.prefetchHourlySeriesForSpot(cacheId, lat, lon, created.name)
+                                hourlyDone = true
+                            } catch (e: Exception) {
+                                prefetchLogger.warn("Hourly series attempt $attempt failed for user spot ${created.id}: ${e.message}")
+                            }
+                        }
+                        if (snapshotDone && hourlyDone) break
+                        if (attempt < 3) delay(15_000L * attempt)
+                    }
+                    if (!snapshotDone || !hourlyDone) {
+                        prefetchLogger.error(
+                            "User spot ${created.id} prefetch incomplete after 3 attempts " +
+                                "(snapshot=$snapshotDone, hourlySeries=$hourlyDone); scheduled jobs will fill the gaps"
                         )
-                    } catch (e: Exception) {
-                        // Log but don't fail - prefetch is best-effort
-                        println("Background prefetch failed for user spot ${created.id}: ${e.message}")
                     }
                 }
                 

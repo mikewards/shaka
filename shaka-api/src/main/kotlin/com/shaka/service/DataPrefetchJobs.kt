@@ -607,6 +607,17 @@ class DataPrefetchJobs(
     }
 
     /**
+     * Fetch + persist the 7-day hourly swell/wind series for a single spot.
+     * Used at user-spot creation so a new spot is self-sufficient immediately
+     * instead of waiting (up to a day) for the next scheduled prefetch.
+     * Throws when Open-Meteo is unavailable so the caller can retry.
+     */
+    suspend fun prefetchHourlySeriesForSpot(cacheId: String, lat: Double, lon: Double, name: String) =
+        withContext(Dispatchers.IO) {
+            persistHourlyForSpot(WeatherSpot(cacheId, lat, lon, name))
+        }
+
+    /**
      * Fetch the hourly marine + wind series for one spot, compute per-hour
      * corrected swell, and upsert one row per local_date into both tables.
      */
