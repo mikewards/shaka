@@ -3,42 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ocean Forecast</title>
+  <title>Spot Ocean Forecast</title>
   <link href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #0f1117; }
     #map { width: 100%; height: 100%; }
     .maplibregl-ctrl-attrib { display: none !important; }
-    .probe-marker {
+    .maplibregl-ctrl-logo { display: none !important; }
+
+    #reticle {
+      position: absolute;
+      top: 50%; left: 50%;
       width: 48px; height: 48px;
+      transform: translate(-50%, -50%);
       pointer-events: none;
-      position: relative;
+      z-index: 10;
     }
-    .probe-marker::before, .probe-marker::after {
+    #reticle::before, #reticle::after {
       content: '';
       position: absolute;
       background: rgba(255,255,255,0.85);
       border-radius: 1px;
       box-shadow: 0 0 3px rgba(0,0,0,0.5);
     }
-    /* Vertical line (gap in the middle) */
-    .probe-marker::before {
+    #reticle::before {
       width: 1.5px; height: 100%;
       left: 50%; top: 0;
       transform: translateX(-50%);
       mask-image: linear-gradient(to bottom, white 30%, transparent 30%, transparent 70%, white 70%);
       -webkit-mask-image: linear-gradient(to bottom, white 30%, transparent 30%, transparent 70%, white 70%);
     }
-    /* Horizontal line (gap in the middle) */
-    .probe-marker::after {
+    #reticle::after {
       height: 1.5px; width: 100%;
       top: 50%; left: 0;
       transform: translateY(-50%);
       mask-image: linear-gradient(to right, white 30%, transparent 30%, transparent 70%, white 70%);
       -webkit-mask-image: linear-gradient(to right, white 30%, transparent 30%, transparent 70%, white 70%);
     }
-    .probe-dot {
+    #reticle-dot {
       position: absolute;
       width: 6px; height: 6px;
       border-radius: 50%;
@@ -51,6 +54,7 @@
 </head>
 <body>
   <div id="map"></div>
+  <div id="reticle"><div id="reticle-dot"></div></div>
 
   <script src="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@luma.gl/engine@9.2.6/dist/dist.min.js"></script>
@@ -68,19 +72,13 @@
       _post('DebugChannel', { error: msg + ' at ' + src + ':' + line });
     };
 
-    var _injectedCatalog = null;
-    var _injectedTextures = {};
     var currentUnitSystem = 'imperial';
-
-    function _injectCatalog(data) { _injectedCatalog = data; }
+    var _spotLat = 0;
+    var _spotLng = 0;
 
     function setUnitSystem(system) {
       currentUnitSystem = system;
-      updateLayerChipUnit();
-    }
-
-    function updateLayerChipUnit() {
-      // Layer chip is rendered in Flutter; unit labels updated via rebuild
+      _autoProbeCenter();
     }
 
     function formatProbeValue(value, layerKey) {
@@ -89,28 +87,18 @@
       switch (layerKey) {
         case 'wind':
         case 'currents':
-          if (!isMetric) {
-            return (value * 1.94384).toFixed(1) + ' kts';
-          }
+          if (!isMetric) return (value * 1.94384).toFixed(1) + ' kts';
           return value.toFixed(1) + ' m/s';
         case 'waves':
-          if (!isMetric) {
-            return (value * 3.28084).toFixed(1) + ' ft';
-          }
+          if (!isMetric) return (value * 3.28084).toFixed(1) + ' ft';
           return value.toFixed(1) + ' m';
         case 'sst':
-          if (!isMetric) {
-            return Math.round(value * 9/5 + 32) + '°F';
-          }
+          if (!isMetric) return Math.round(value * 9/5 + 32) + '°F';
           return value.toFixed(1) + '°C';
         default:
           var unit = LAYERS[layerKey] ? LAYERS[layerKey].unit : '';
           return value.toFixed(2) + ' ' + unit;
       }
-    }
-
-    function _injectTexture(key, ts, base64) {
-      _injectedTextures[key + '/' + ts] = 'data:image/webp;base64,' + base64;
     }
 
     var LAND_FILL_ID = 'land-fill';
@@ -141,14 +129,14 @@
       wind: {
         type: 'particle', label: 'Wind', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-30, 30],
-        numParticles: 10000, maxAge: 15, speedFactor: 17, width: 2.5,
+        numParticles: 3000, maxAge: 12, speedFactor: 17, width: 2,
         palette: [[0,'#5588aa'],[3,'#44aacc'],[6,'#22bbdd'],[10,'#cc8800'],[15,'#cc3333'],[25,'#991111']],
         rasterPalette: WIND_BG_PALETTE,
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
         imageType: 'VECTOR', imageUnscale: [-500, 500],
-        numParticles: 10000, maxAge: 25, speedFactor: 3, width: 3,
+        numParticles: 3000, maxAge: 20, speedFactor: 3, width: 2.5,
         color: [200, 235, 255, 240],
         rasterPalette: CURRENTS_BG_PALETTE,
       },
@@ -255,37 +243,23 @@
 
       baseUrl = config.baseUrl || '';
       weatherCdnUrl = config.weatherCdnUrl || '';
-      var lat = config.lat || 23;
-      var lng = config.lng || -108;
-      var zoom = config.zoom || 4;
+      _spotLat = config.lat || 23;
+      _spotLng = config.lng || -108;
+      var zoom = config.zoom || 8;
 
       map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-        center: [lng, lat],
+        center: [_spotLng, _spotLat],
         zoom: zoom,
         antialias: true,
         attributionControl: false,
+        interactive: false,
       });
-
-      var _probeJustFired = false;
 
       overlay = new deck.MapboxOverlay({
         interleaved: true,
         layers: [],
-        onClick: function(info) {
-          if (info && info.raster && info.raster.value !== undefined) {
-            _probeJustFired = true;
-            _post('ProbeChannel', {
-              lat: info.coordinate ? info.coordinate[1] : null,
-              lng: info.coordinate ? info.coordinate[0] : null,
-              value: info.raster.value,
-              direction: info.raster.direction,
-              layer: activeLayerKey,
-            });
-            _showProbeMarker(info.coordinate);
-          }
-        },
       });
 
       map.addControl(overlay);
@@ -314,11 +288,7 @@
 
         _post('ReadyChannel', { status: 'ready' });
 
-        var catalogPromise = _injectedCatalog
-          ? Promise.resolve(_injectedCatalog)
-          : _fetchCatalogWithFallback();
-
-        catalogPromise
+        _fetchCatalogWithFallback()
           .then(function(data) {
             loadCatalog(data);
             var keys = Object.keys(LAYERS);
@@ -331,12 +301,6 @@
             _post('DebugChannel', { error: 'Catalog fetch failed: ' + (e.message || e) });
             _post('CatalogChannel', { variables: [], noData: true });
           });
-      });
-
-      map.on('click', function(e) {
-        if (_probeJustFired) { _probeJustFired = false; return; }
-        _post('TapChannel', { lat: e.lngLat.lat, lng: e.lngLat.lng });
-        _clearProbeMarker();
       });
     }
 
@@ -377,6 +341,7 @@
           timeIndex: timeIndex,
         });
         _prefetchAllLayers();
+        setTimeout(_autoProbeCenter, 150);
       } else {
         overlay.setProps({ layers: [] });
         _post('LayerChannel', {
@@ -399,6 +364,7 @@
       await _loadNextFrame(activeLayerKey, idx);
       _renderLayer();
       _post('TimeChannel', { timeIndex: idx, timestamp: timestamps[idx] });
+      setTimeout(_autoProbeCenter, 150);
     }
 
     function play() {
@@ -417,8 +383,30 @@
       _post('PlaybackChannel', { playing: false });
     }
 
-    function setBaseUrl(url) {
-      baseUrl = url;
+    function _autoProbeCenter() {
+      if (!map || !overlay || !activeLayerKey) return;
+      var canvas = map.getCanvas();
+      var cx = canvas.width / (window.devicePixelRatio || 1) / 2;
+      var cy = canvas.height / (window.devicePixelRatio || 1) / 2;
+
+      var info = overlay.pickObject({ x: cx, y: cy, radius: 1 });
+      if (info && info.raster && info.raster.value !== undefined) {
+        _post('ProbeChannel', {
+          lat: _spotLat,
+          lng: _spotLng,
+          value: info.raster.value,
+          direction: info.raster.direction,
+          layer: activeLayerKey,
+        });
+      } else {
+        _post('ProbeChannel', {
+          lat: _spotLat,
+          lng: _spotLng,
+          value: null,
+          direction: null,
+          layer: activeLayerKey,
+        });
+      }
     }
 
     async function _loadCurrentFrame(key, idx) {
@@ -430,13 +418,11 @@
         nextImage = null;
         return;
       }
-      var url = _injectedTextures[cacheKey]
-        || _tileBase() + '/' + key + '/' + timestamps[idx] + '.webp';
+      var url = _tileBase() + '/' + key + '/' + timestamps[idx] + '.webp';
       try {
         currentImage = await WeatherLayers.loadTextureData(url);
         _textureCache[cacheKey] = currentImage;
       } catch (e) {
-        console.error('Failed to load frame:', url, e);
         _post('DebugChannel', { error: 'Load failed: ' + url + ' ' + (e.message || e) });
         currentImage = null;
       }
@@ -558,6 +544,7 @@
       _renderLayer();
       map.triggerRepaint();
       _post('TimeChannel', { timeIndex: timeIndex, timestamp: ts[timeIndex] });
+      _autoProbeCenter();
 
       var cfg = LAYERS[key];
       var dwellMs = _getDwellMs(key);
@@ -618,35 +605,12 @@
           var idx = _findNowIndex(ts);
           var cacheKey = key + '/' + ts[idx];
           if (_textureCache[cacheKey]) return;
-          var url = _injectedTextures[cacheKey]
-            || _tileBase() + '/' + key + '/' + ts[idx] + '.webp';
+          var url = _tileBase() + '/' + key + '/' + ts[idx] + '.webp';
           WeatherLayers.loadTextureData(url).then(function(img) {
             _textureCache[cacheKey] = img;
           }).catch(function() {});
         })(keys[i]);
       }
-    }
-
-    var _probeMarker = null;
-    var _probeTimeout = null;
-
-    function _showProbeMarker(coord) {
-      _clearProbeMarker();
-      if (!coord || !map) return;
-      var el = document.createElement('div');
-      el.className = 'probe-marker';
-      var dot = document.createElement('div');
-      dot.className = 'probe-dot';
-      el.appendChild(dot);
-      _probeMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([coord[0], coord[1]])
-        .addTo(map);
-      _probeTimeout = setTimeout(_clearProbeMarker, 4000);
-    }
-
-    function _clearProbeMarker() {
-      if (_probeMarker) { _probeMarker.remove(); _probeMarker = null; }
-      if (_probeTimeout) { clearTimeout(_probeTimeout); _probeTimeout = null; }
     }
 
     function _post(channel, data) {
