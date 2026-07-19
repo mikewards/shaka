@@ -223,6 +223,13 @@ object SpotDataCache {
         val tide: CachedValue<TideInfo>? = null,
         val visibility: CachedValue<Double>? = null,      // Visibility in meters
         val sst: CachedValue<Double>? = null,             // Sea surface temp in Celsius
+        /**
+         * Provenance of the SST value: "satellite" (NOAA ERDDAP), "buoy"
+         * (NDBC water temp), "neighbor" (copied from a nearby spot), or null
+         * for legacy rows written before provenance existed. Guards the
+         * neighbor-copy path against cascading copies-of-copies (Q5).
+         */
+        val sstSource: String? = null,
         val swell: CachedValue<SwellInfo>? = null,
         val wind: CachedValue<WindInfo>? = null,
         val chlorophyll: CachedValue<Double>? = null,     // Chlorophyll-a in mg/m³ (Copernicus)
@@ -320,13 +327,15 @@ object SpotDataCache {
     
     /**
      * Update SST data for a spot. Pass null to explicitly clear stale data.
+     *
+     * @param source Provenance of the value: "satellite", "buoy" or "neighbor".
      */
-    fun updateSST(spotId: String, sst: CachedValue<Double>?) {
+    fun updateSST(spotId: String, sst: CachedValue<Double>?, source: String? = null) {
         cache.compute(spotId) { _, existing ->
-            (existing ?: SpotData()).copy(sst = sst)
+            (existing ?: SpotData()).copy(sst = sst, sstSource = if (sst != null) source else null)
         }
         if (sst != null) {
-            logger.debug("Updated SST for spot $spotId: ${sst.value}°C")
+            logger.debug("Updated SST for spot $spotId: ${sst.value}°C (source=$source)")
         } else {
             logger.debug("Cleared SST for spot $spotId (satellite data unavailable)")
             clearSSTFromDatabase(spotId)
@@ -343,7 +352,7 @@ object SpotDataCache {
         try {
             transaction {
                 val conn = this.connection.connection as java.sql.Connection
-                conn.prepareStatement("UPDATE spot_cache SET sst_celsius = NULL WHERE spot_id = ?").use { stmt ->
+                conn.prepareStatement("UPDATE spot_cache SET sst_celsius = NULL, sst_source = NULL WHERE spot_id = ?").use { stmt ->
                     stmt.setString(1, spotId)
                     stmt.executeUpdate()
                 }
@@ -1476,6 +1485,12 @@ object SpotDataCache {
                         stmt.execute(sql.trim())
                     }
                 }
+
+                // SST provenance (Q5): "satellite" | "buoy" | "neighbor".
+                // Legacy rows stay NULL (unknown origin) — additive, no backfill.
+                conn.createStatement().use { stmt ->
+                    stmt.execute("ALTER TABLE spot_cache ADD COLUMN IF NOT EXISTS sst_source VARCHAR(20)")
+                }
                 
                 // Create buoy stations registry table
                 val buoyStationsTable = """
@@ -1836,8 +1851,9 @@ object SpotDataCache {
                         solunar_major_start2, solunar_major_end2, solunar_minor_start1, solunar_minor_end1,
                         solunar_minor_start2, solunar_minor_end2, solunar_day_rating, solunar_fetched_at,
                         tide_next_high_time, tide_next_low_time,
+                        sst_source,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                     ON CONFLICT (spot_id) DO UPDATE SET
                         tide_state = COALESCE(EXCLUDED.tide_state, spot_cache.tide_state),
                         tide_height_ft = COALESCE(EXCLUDED.tide_height_ft, spot_cache.tide_height_ft),
@@ -1907,6 +1923,7 @@ object SpotDataCache {
                         solunar_fetched_at = COALESCE(EXCLUDED.solunar_fetched_at, spot_cache.solunar_fetched_at),
                         tide_next_high_time = COALESCE(EXCLUDED.tide_next_high_time, spot_cache.tide_next_high_time),
                         tide_next_low_time = COALESCE(EXCLUDED.tide_next_low_time, spot_cache.tide_next_low_time),
+                        sst_source = COALESCE(EXCLUDED.sst_source, spot_cache.sst_source),
                         updated_at = NOW()
                 """.trimIndent()
                 
@@ -2014,6 +2031,9 @@ object SpotDataCache {
                     // Tide next high/low timestamps (separate columns for round-trip persistence)
                     stmt.setTimestamp(68, data.tide?.value?.nextHighTideTime?.let { Timestamp.from(it) })
                     stmt.setTimestamp(69, data.tide?.value?.nextLowTideTime?.let { Timestamp.from(it) })
+                    
+                    // SST provenance
+                    stmt.setString(70, data.sstSource)
                     
                     stmt.executeUpdate()
                 }
@@ -2146,13 +2166,15 @@ object SpotDataCache {
                         
                         val sst = rs.getDouble("sst_celsius")
                         if (!rs.wasNull()) {
+                            val sstSource = try { rs.getString("sst_source") } catch (_: Exception) { null }
                             spotData = spotData.copy(
                                 sst = CachedValue(
                                     value = sst,
                                     fetchedAt = satelliteFetchedAt?.toInstant()
                                         ?: weatherFetchedAt?.toInstant()
                                         ?: Instant.now()
-                                )
+                                ),
+                                sstSource = sstSource
                             )
                         }
                         

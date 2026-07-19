@@ -2191,7 +2191,8 @@ class SpotService {
                 catch (e: Exception) { logger.warn("NOAA SST fetch failed for $spotId: ${e.message}"); null }
             }
             SpotDataCache.updateSST(spotId,
-                if (data != null) SpotDataCache.CachedValue(value = data, fetchedAt = now) else null)
+                if (data != null) SpotDataCache.CachedValue(value = data, fetchedAt = now) else null,
+                source = "satellite")
             data
         }
         

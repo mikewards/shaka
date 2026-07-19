@@ -813,7 +813,8 @@ class DataPrefetchJobs(
                             value = sst,
                             fetchedAt = now,
                             dataValidAt = Instant.now().minusSeconds(86400)
-                        ) else null
+                        ) else null,
+                        source = "satellite"
                     )
                     if (sst != null) {
                         gotData = true
@@ -950,7 +951,7 @@ class DataPrefetchJobs(
                 if (buoyTemp != null) {
                     SpotDataCache.updateSST(spotId, SpotDataCache.CachedValue(
                         value = buoyTemp, fetchedAt = now, dataValidAt = now
-                    ))
+                    ), source = "buoy")
                     SpotDataCache.saveToDatabase(spotId)
                     buoyFills++
                     continue
@@ -961,7 +962,7 @@ class DataPrefetchJobs(
                 if (nearbySST != null) {
                     SpotDataCache.updateSST(spotId, SpotDataCache.CachedValue(
                         value = nearbySST, fetchedAt = now, dataValidAt = now
-                    ))
+                    ), source = "neighbor")
                     SpotDataCache.saveToDatabase(spotId)
                     neighborFills++
                 }
@@ -1314,7 +1315,8 @@ class DataPrefetchJobs(
                             value = sst,
                             fetchedAt = now,
                             dataValidAt = Instant.now().minusSeconds(86400)
-                        ) else null
+                        ) else null,
+                        source = "satellite"
                     )
                     if (sst != null) {
                         gotData = true
@@ -1487,7 +1489,7 @@ class DataPrefetchJobs(
 
                 val buoyTemp = SpotDataCache.findNearestBuoyWaterTemp(lat, lon)
                 if (buoyTemp != null) {
-                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = buoyTemp, fetchedAt = now, dataValidAt = now))
+                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = buoyTemp, fetchedAt = now, dataValidAt = now), source = "buoy")
                     SpotDataCache.saveToDatabase(cacheId)
                     buoyFills++
                     continue
@@ -1495,7 +1497,7 @@ class DataPrefetchJobs(
 
                 val nearbySST = SpotDataCache.findNearestSST(lat, lon)
                 if (nearbySST != null) {
-                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = nearbySST, fetchedAt = now, dataValidAt = now))
+                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = nearbySST, fetchedAt = now, dataValidAt = now), source = "neighbor")
                     SpotDataCache.saveToDatabase(cacheId)
                     neighborFills++
                 }
