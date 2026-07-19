@@ -253,6 +253,7 @@ class SpotService {
                     noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                     dataDate = gibs?.dataDate?.toString(),
                     // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
+                    chlorophyllMgM3 = cached.chlorophyll?.value,
                     noaaErddapChlorophyll = cached.chlorophyll?.value,
                     noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
                 )
@@ -509,6 +510,7 @@ class SpotService {
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                 dataDate = gibs?.dataDate?.toString(),
                 // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
+                chlorophyllMgM3 = cached.chlorophyll?.value,
                 noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )
@@ -1510,16 +1512,19 @@ class SpotService {
 
     /**
      * Resolve the best available chlorophyll value using the same fallback chain
-     * as the Flutter SatelliteReadingsCard: Copernicus → ERDDAP cache → GIBS blended estimate.
-     * The result drives BOTH the visibility score and the visibility label.
+     * as the Flutter SatelliteReadingsCard: fresh Copernicus → cached Copernicus
+     * value → GIBS blended color estimate. The result drives BOTH the visibility
+     * score and the visibility label.
      */
     private fun resolveChlorophyll(
         copernicusChl: Double?,
-        cachedErddapChl: Double?,
+        // Cached chlorophyll is ALSO Copernicus (the old "Erddap" name was a
+        // leftover from a source that was replaced).
+        cachedChlorophyllMgM3: Double?,
         gibsData: SpotDataCache.GIBSSatelliteData?
     ): Double? {
         return copernicusChl
-            ?: cachedErddapChl
+            ?: cachedChlorophyllMgM3
             ?: GibsColormap.estimateFromGibsColors(gibsData)
     }
 
@@ -1826,6 +1831,7 @@ class SpotService {
                 noaa21ObservationTime = gibs?.noaa21ObservationTime?.toString(),
                 dataDate = gibs?.dataDate?.toString(),
                 // ACTUAL measured chlorophyll from NOAA ERDDAP (the trusted source)
+                chlorophyllMgM3 = cached.chlorophyll?.value,
                 noaaErddapChlorophyll = cached.chlorophyll?.value,
                 noaaErddapFetchTime = cached.chlorophyll?.fetchedAt?.toString()
             )

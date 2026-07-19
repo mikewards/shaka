@@ -117,8 +117,7 @@ data class MPAStatus(
  * IMPORTANT: The color fields are for DISPLAY ONLY - they show what the satellite captured
  * but may include sediment, kelp, or bottom reflectance in coastal areas.
  * 
- * For actual chlorophyll measurements, use noaaErddapChlorophyll which comes from
- * NOAA CoastWatch ERDDAP - a reliable numerical data source.
+ * For actual chlorophyll measurements, use chlorophyllMgM3 (Copernicus Marine).
  */
 @Serializable
 data class GibsSatelliteReadings(
@@ -138,8 +137,12 @@ data class GibsSatelliteReadings(
     val noaa20ObservationTime: String? = null,
     val noaa21ObservationTime: String? = null,
     val dataDate: String? = null,                  // The date that "today" refers to
-    // ACTUAL MEASURED CHLOROPHYLL from NOAA ERDDAP (trusted numerical data)
-    val noaaErddapChlorophyll: Double? = null,     // mg/m³ - THE reliable chlorophyll value
+    // Measured chlorophyll-a in mg/m³. Sourced from Copernicus Marine WMTS
+    // (NOT NOAA ERDDAP — the old field name below was always misleading).
+    val chlorophyllMgM3: Double? = null,
+    // DEPRECATED: same value as chlorophyllMgM3, misleadingly named. Kept one
+    // release so older app builds keep parsing; removed once the app switches.
+    val noaaErddapChlorophyll: Double? = null,
     val noaaErddapFetchTime: String? = null        // When we fetched this data
 )
 
