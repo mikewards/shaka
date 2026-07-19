@@ -120,9 +120,12 @@
       [12,'#40a8d8'],[16,'#80ccee'],[20,'#ffdd66'],[25,'#ff8833'],[30,'#ff3333']
     ];
 
+    // Domain tuned for TRUE m/s magnitudes (typical open-ocean 0.1-0.5,
+    // strong boundary currents ~1.5-2.5, 3.5 = hard max). The previous stops
+    // were tuned against the broken x167 decode where everything clipped.
     var CURRENTS_BG_PALETTE = [
-      [0,'#08021a'],[0.1,'#10052e'],[0.3,'#1a0a40'],[0.5,'#241050'],
-      [0.8,'#301865'],[1.2,'#3e2278'],[1.8,'#4e308a'],[2.5,'#6040a0'],[3.5,'#7855b8']
+      [0,'#08021a'],[0.05,'#10052e'],[0.15,'#1a0a40'],[0.3,'#241050'],
+      [0.5,'#301865'],[0.75,'#3e2278'],[1.0,'#4e308a'],[1.5,'#6040a0'],[3.5,'#7855b8']
     ];
 
     var map = null;
@@ -147,8 +150,14 @@
       },
       currents: {
         type: 'particle', label: 'Currents', unit: 'm/s',
-        imageType: 'VECTOR', imageUnscale: [-500, 500],
-        numParticles: 10000, maxAge: 25, speedFactor: 3, width: 3,
+        // imageUnscale MUST match the pipeline encode range for currents
+        // ([-3, 3] in weather_pipeline.py DATASETS). It was [-500, 500],
+        // decoding every value ~167x too large; the palette clamp made the
+        // rendering look plausible while probe numbers were meaningless.
+        imageType: 'VECTOR', imageUnscale: [-3, 3],
+        // speedFactor retuned for true m/s (values are now ~167x smaller
+        // than what the old speedFactor=3 was tuned against).
+        numParticles: 10000, maxAge: 25, speedFactor: 250, width: 3,
         color: [200, 235, 255, 240],
         rasterPalette: CURRENTS_BG_PALETTE,
       },
