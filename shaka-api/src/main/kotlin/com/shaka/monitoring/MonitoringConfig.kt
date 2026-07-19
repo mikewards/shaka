@@ -46,6 +46,25 @@ object MonitoringConfig {
             initialDelayMs = 180_000, intervalMs = 6 * HOUR, maxRunMs = 24 * HOUR,
             staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
         ),
+        // Per-source sub-reports of satellite_prefetch (scheduledName = null:
+        // reported by the same run, not scheduled separately). The aggregate
+        // job used to count a spot successful if ANY source returned, hiding
+        // e.g. a 100% SST failure behind healthy GIBS fetches.
+        JobSpec(
+            name = "satellite_sst", scheduledName = null,
+            initialDelayMs = 180_000, intervalMs = 6 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
+        JobSpec(
+            name = "satellite_copernicus", scheduledName = null,
+            initialDelayMs = 180_000, intervalMs = 6 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
+        JobSpec(
+            name = "satellite_gibs", scheduledName = null,
+            initialDelayMs = 180_000, intervalMs = 6 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
         JobSpec(
             name = "user_spots_prefetch", scheduledName = "user_spots_prefetch",
             initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,

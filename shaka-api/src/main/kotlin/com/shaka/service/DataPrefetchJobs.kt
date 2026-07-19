@@ -733,7 +733,17 @@ class DataPrefetchJobs(
         var errorCount = 0
         var skippedCount = 0
         val failures = mutableListOf<ItemFailure>()
-        
+
+        // Per-source tallies (Q9): the aggregate "any source returned" success
+        // hid total failures of a single source (e.g. SST 0/789 while GIBS was
+        // healthy). Each source reports its own run below.
+        var sstAttempts = 0; var sstSuccess = 0
+        val sstFailures = mutableListOf<ItemFailure>()
+        var copAttempts = 0; var copSuccess = 0
+        val copFailures = mutableListOf<ItemFailure>()
+        var gibsAttempts = 0; var gibsSuccess = 0
+        val gibsFailures = mutableListOf<ItemFailure>()
+
         // Informational connectivity check only. This used to ABORT the whole
         // 6-hourly run on any single failure -- one transient error to one
         // coordinate could starve visibility/chlorophyll/SST for every spot
@@ -760,6 +770,7 @@ class DataPrefetchJobs(
                 var gotData = false
                 
                 // SST from NOAA satellite with progressive bbox expansion
+                sstAttempts++
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, today)
                     SpotDataCache.updateSST(
@@ -770,12 +781,19 @@ class DataPrefetchJobs(
                             dataValidAt = Instant.now().minusSeconds(86400)
                         ) else null
                     )
-                    if (sst != null) gotData = true
+                    if (sst != null) {
+                        gotData = true
+                        sstSuccess++
+                    } else {
+                        sstFailures.add(ItemFailure(spot.id, spot.name, "NOAA returned no SST value", "no_data"))
+                    }
                 } catch (e: Exception) {
                     logger.debug("SST fetch failed for ${spot.name}: ${e.message}")
+                    sstFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // Water quality from Copernicus
+                copAttempts++
                 try {
                     val waterQuality = copernicus.getWaterQuality(lat, lon, today)
                     
@@ -802,16 +820,24 @@ class DataPrefetchJobs(
                         )
                         gotData = true
                     }
+                    if (waterQuality.visibility != null || waterQuality.chlorophyllA != null) {
+                        copSuccess++
+                    } else {
+                        copFailures.add(ItemFailure(spot.id, spot.name, "Copernicus returned no visibility/chlorophyll", "no_data"))
+                    }
                 } catch (e: CircuitBreakerOpenException) {
                     logger.info("Circuit breaker opened - stopping satellite prefetch early")
+                    copFailures.add(ItemFailure(spot.id, spot.name, "circuit breaker open", "circuit_breaker_open"))
                     skippedCount = spotsToUpdate.size - index - 1
                     break
                 } catch (e: Exception) {
                     logger.debug("Water quality fetch failed for ${spot.name}: ${e.message}")
+                    copFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // GIBS satellite colors (all 5 satellites, today + yesterday)
                 // Colors are for display only - use NOAA ERDDAP for actual chlorophyll values
+                gibsAttempts++
                 try {
                     val gibsColors = GIBSClient.getAllSatelliteColors(lat, lon)
                     SpotDataCache.updateGIBSChlorophyll(
@@ -837,8 +863,10 @@ class DataPrefetchJobs(
                         )
                     )
                     gotData = true
+                    gibsSuccess++
                 } catch (e: Exception) {
                     logger.debug("GIBS fetch failed for ${spot.name}: ${e.message}")
+                    gibsFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 if (gotData) {
@@ -865,6 +893,11 @@ class DataPrefetchJobs(
         
         val elapsed = System.currentTimeMillis() - startTime
         MonitoringService.reportRun("satellite_prefetch", spotsToUpdate.size, successCount, failures, elapsed)
+        // Per-source reports (Q9): totals are actual attempts (a circuit-breaker
+        // break stops the loop early, so unattempted spots are not counted).
+        MonitoringService.reportRun("satellite_sst", sstAttempts, sstSuccess, sstFailures, elapsed)
+        MonitoringService.reportRun("satellite_copernicus", copAttempts, copSuccess, copFailures, elapsed)
+        MonitoringService.reportRun("satellite_gibs", gibsAttempts, gibsSuccess, gibsFailures, elapsed)
 
         // SST backfill pass: fill spots still missing SST from buoys and neighbors
         val allSpotIds = allSpots.map { it.id }
