@@ -27,6 +27,10 @@ class ForecastService {
     private val openMeteo = OpenMeteoClient()
     private val spotDb = SpotDatabase
 
+    /** Real value or "Unavailable" — never a fabricated default (Q2-4). */
+    private fun formatWaterTemp(sstC: Double?): String =
+        if (sstC == null) "Unavailable" else "${sstC.toInt()}°C / ${((sstC * 9 / 5) + 32).toInt()}°F"
+
     /**
      * Generate forecast for a spot for the specified number of days.
      * Uses cached data where available for instant response.
@@ -49,7 +53,7 @@ class ForecastService {
         
         // Day 0: Use fully cached data (instant!)
         if (cached != null && cached.swell != null && cached.wind != null) {
-            val sst = cached.sst?.value ?: 24.0
+            val sst = cached.sst?.value
             
             // Extract only the values the scorer uses
             val windSpeedKmh = cached.wind.value.speedKnots / 0.539957
@@ -70,7 +74,7 @@ class ForecastService {
                 confidence = score.confidence,
                 conditions = SpotConditions(
                     visibility = visibilityStr,
-                    waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
+                    waterTemp = formatWaterTemp(sst),
                     swell = "${cached.swell.value.heightFt.roundToInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}",
                     wind = "${cached.wind.value.speedKnots.toInt()} kts ${cached.wind.value.direction}",
                     swellCorrected = cached.swell.value.correctedHeightFt?.let { "${it.roundToInt()}ft @ ${cached.swell.value.periodSec.toInt()}s ${cached.swell.value.direction}" },
@@ -149,7 +153,7 @@ class ForecastService {
                         confidence = score.confidence - (i * 5),
                         conditions = SpotConditions(
                             visibility = visibilityStr,
-                            waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
+                            waterTemp = formatWaterTemp(sst),
                             swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                             wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                             secondarySwell = secSwell?.let { "${it.toInt()}ft @ ${secPeriod?.toInt() ?: 0}s ${secDir ?: ""}" },
@@ -207,7 +211,7 @@ class ForecastService {
             .groupBy { SpotTime.localDateOf(it.epochMs, zone).toString() }
             .mapValues { (_, pts) -> pts.minByOrNull { abs(hourInZone(it.epochMs) - 12) }!! }
 
-        val sstC = cached?.sst?.value ?: 24.0
+        val sstC = cached?.sst?.value
         val result = ArrayList<DayForecast>(days - startDay)
         for (i in startDay until days) {
             val dateStr = today.plusDays(i.toLong()).toString()
@@ -234,7 +238,7 @@ class ForecastService {
                 confidence = score.confidence - (i * 5),
                 conditions = SpotConditions(
                     visibility = visibilityStr,
-                    waterTemp = "${sstC.toInt()}°C / ${((sstC * 9 / 5) + 32).toInt()}°F",
+                    waterTemp = formatWaterTemp(sstC),
                     swell = "${sw.heightFt.roundToInt()}ft @ ${sw.periodSec.toInt()}s $swellDir",
                     wind = "${wd.speedKts.toInt()} kts $windDir",
                     swellCorrected = sw.correctedHeightFt?.let {
@@ -319,7 +323,7 @@ class ForecastService {
                     confidence = score.confidence - (i * 5),
                     conditions = SpotConditions(
                         visibility = "Check conditions",
-                        waterTemp = "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F",
+                        waterTemp = formatWaterTemp(sst),
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
                         wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                         secondarySwell = secSwell2?.let { "${it.toInt()}ft @ ${secPeriod2?.toInt() ?: 0}s ${secDir2 ?: ""}" },

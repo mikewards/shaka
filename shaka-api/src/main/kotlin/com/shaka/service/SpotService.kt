@@ -172,7 +172,7 @@ class SpotService {
                     waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 15.0,
+                    waterTemperature = cached.sst?.value,
                     swellHeight = htM,
                     swellDirection = 0
                 )
@@ -371,7 +371,7 @@ class SpotService {
                     waveHeight = htM,
                     wavePeriod = cached.swell.value.periodSec,
                     waveDirection = 0,
-                    waterTemperature = cached.sst?.value ?: 15.0,
+                    waterTemperature = cached.sst?.value,
                     swellHeight = htM,
                     swellDirection = 0
                 )
@@ -1628,7 +1628,10 @@ class SpotService {
         if (weather != null && weather.windSpeed > 15) risks += "Strong winds expected"
         if (ocean != null && ocean.waveHeight > 1.5) risks += "Rough surf conditions"
         if (weather != null && weather.precipitation > 2) risks += "Rain may reduce visibility"
-        if (ocean != null && ocean.waterTemperature < 20) risks += "Cold water - hypothermia risk"
+        // Skip the cold-water risk when temp is unknown — never score against a
+        // fabricated default (previously a hardcoded 15°C tripped this).
+        val waterTemp = ocean?.waterTemperature
+        if (waterTemp != null && waterTemp < 20) risks += "Cold water - hypothermia risk"
 
         if (risks.isEmpty()) risks += "No significant risks identified"
 
@@ -1759,7 +1762,7 @@ class SpotService {
                 waveHeight = htM,
                 wavePeriod = cached.swell.value.periodSec,
                 waveDirection = 0,
-                waterTemperature = cached.sst?.value ?: 15.0,
+                waterTemperature = cached.sst?.value,
                 swellHeight = htM,
                 swellDirection = 0
             )

@@ -237,7 +237,8 @@ data class OceanData(
     val waveHeight: Double,
     val wavePeriod: Double,
     val waveDirection: Int,
-    val waterTemperature: Double,
+    // Null when no real measurement exists (Q2-4: never a fabricated default).
+    val waterTemperature: Double?,
     val swellHeight: Double,
     val swellDirection: Int,
     val swellPeriod: Double = 0.0,
