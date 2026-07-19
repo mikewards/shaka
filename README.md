@@ -256,16 +256,40 @@ Returns status of all external services (OpenMeteo, NOAA, Copernicus, GIBS).
 Data Sources
 ------------
 
-| Data Type | Provider | Update Frequency |
-|-----------|----------|------------------|
-| Weather | Open-Meteo | Hourly |
-| Tides | NOAA CO-OPS | Real-time |
-| SST | NOAA GeoPolar Blended (coastwatch.noaa.gov ERDDAP) | Daily |
-| Chlorophyll-a | NASA GIBS PACE/VIIRS | Daily |
-| True Color | NASA GIBS MODIS/VIIRS | Daily |
-| SST, Visibility | Copernicus Marine | Daily |
-| Currents, Waves | Copernicus Marine | 6 hours |
-| Fishing Intel | SportFishingReport.com | Every 2 hours |
+Core principle: **real value or "Unavailable" — never invented.** There are no
+climatology estimates or hardcoded default values anywhere in the data path.
+
+| Data Type | Provider(s), in precedence order | Update Frequency |
+|-----------|----------------------------------|------------------|
+| Weather / Swell / Wind | Open-Meteo (hourly series, 7-day horizon) | Daily fetch + hourly in-memory re-derive |
+| Tides | FES2022 model (full-year precompute per spot) | Horizon top-up (monthly cadence) |
+| Water temp (SST) | 1. NOAA CoastWatch ERDDAP satellite → 2. NDBC buoy water temp (≤25nm) → 3. copy from nearest spot with an ORIGINAL satellite/buoy value (≤25km, provenance-tracked, never cascades, keeps source timestamps) | Every 6 hours |
+| Visibility | Copernicus Marine (ZSD) | Every 6 hours |
+| Chlorophyll-a (spot value) | Copernicus Marine WMTS; GIBS satellite-color blended estimate as display fallback | Every 6 hours |
+| Satellite colors (display only) | NASA GIBS (PACE, VIIRS NOAA-20/21, Sentinel-3A/B) | Every 6 hours |
+| Buoy wave readings | NDBC | Hourly |
+| MPA boundaries | ProtectedSeas | Weekly |
+| Solunar | Solunar API | Twice daily |
+| Fishing Intel | SportFishingReport.com + BD Outdoors | Every 2 hours |
+
+Vessel activity (Global Fishing Watch) was removed in Jul 2026 — the client
+ran tokenless and no UI consumed it.
+
+### Ocean Forecast Map Layers
+
+Global forecast layers are pre-rendered as lossless WebP tiles by
+`scripts/weather_pipeline.py` (every 6 hours) and served from Cloudflare R2
+CDN, with the API origin as a client-side fallback when the CDN catalog is
+stale (>12h):
+
+| Layer | Source |
+|-------|--------|
+| Currents, Waves, SST, Salinity, Chlorophyll, Phytoplankton, Zooplankton | Copernicus Marine (CMEMS global forecast models) |
+| Wind | ECMWF IFS Open Data (0.25°, 3-hourly) |
+
+Note: map layers and spot pages intentionally use different providers (CMEMS
+vs the spot-value chain above), so small value differences between the map
+probe and a spot page are expected model divergence.
 
 ### Fishing Intel Sources
 
@@ -289,9 +313,18 @@ per-iteration watchdog so a hung dependency cannot kill a loop):
 | Solunar/Buoys | 12h / hourly |
 | MPA boundaries | Weekly |
 | Fishing Intel | Every 2 hours |
+| Orphaned user-spot rows | Weekly sweep |
 
 There is no blocking warmup; until jobs converge, missing data is reported
 as "Unavailable" rather than substituted with defaults.
+
+Jobs report PER-SOURCE success rates to MonitoringService (e.g. the satellite
+job reports `satellite_sst`, `satellite_copernicus` and `satellite_gibs`
+separately), so a single dead source can no longer hide behind an "any source
+succeeded" aggregate. No-op runs report an explicit 0-item success, provider
+failures never erase last-known values, and retention cleanups skip deletion
+while their producer job is failing. Shared HTTP client per-host metrics are
+exposed at `GET /v1/health/http`.
 
 Scoring Algorithm
 -----------------
@@ -372,8 +405,9 @@ The app continues functioning when external services fail:
 | NASA GIBS | Affected layers hidden from picker |
 | Copernicus | Option hidden from Charts hub |
 | OpenMeteo | Weather shows "unavailable" |
-| NOAA | Falls back to regional SST |
+| NOAA (SST) | Last-known value kept and served with honest timestamps; buoy/neighbor fill; otherwise "Unavailable" (no estimates) |
 | Fishing Intel | Tab shows "no data available" |
+| Weather tile CDN | Client falls back to API origin when the CDN catalog is stale |
 | Backend | Error message, cached data used |
 
 All external clients have 10-second timeouts. The app queries `/v1/health/detailed` on startup to determine feature availability.
