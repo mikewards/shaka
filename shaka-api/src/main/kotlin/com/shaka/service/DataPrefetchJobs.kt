@@ -246,7 +246,23 @@ class DataPrefetchJobs(
         MonitoringService.reportRun("tide_chart_catchup", missing.size, persisted, failures, 0)
     }
 
+    /**
+     * Retention guard (Jul 2026 outage hardening): when a producer job's last
+     * run failed, its cleanup is skipped. During the outage the producers
+     * failed for 12 days while the nightly cleanups kept deleting by date,
+     * eventually erasing ALL hourly/tide data. Stale-but-present data plus a
+     * loud monitoring breach beats silently-empty tables.
+     */
+    private fun producerHealthy(jobName: String): Boolean {
+        val run = MonitoringService.getLatestRun(jobName) ?: return true // no info — don't block cleanup forever
+        return run.severity == com.shaka.monitoring.Severity.OK
+    }
+
     fun cleanupOldTideDays() {
+        if (!producerHealthy("tide_horizon_topup")) {
+            logger.warn("Skipping tide day cleanup: producer tide_horizon_topup last run failed (retention guard)")
+            return
+        }
         SpotDataCache.cleanupOldTideDays()
     }
 
@@ -581,8 +597,12 @@ class DataPrefetchJobs(
         if (n > 0) logger.info("Hourly snapshot tick: re-derived $n spots")
     }
 
-    /** Nightly cleanup of stale hourly swell/wind day rows. */
+    /** Nightly cleanup of stale hourly swell/wind day rows (retention-guarded). */
     suspend fun cleanupOldHourly() = withContext(Dispatchers.IO) {
+        if (!producerHealthy("hourly_swell_wind")) {
+            logger.warn("Skipping hourly swell/wind cleanup: producer hourly_swell_wind last run failed (retention guard)")
+            return@withContext
+        }
         SpotDataCache.cleanupOldHourly()
     }
 
