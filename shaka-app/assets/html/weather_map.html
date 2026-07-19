@@ -284,6 +284,11 @@
         layers: [],
         onClick: function(info) {
           if (info && info.raster && info.raster.value !== undefined) {
+            // Vector land cells are zero-filled by the pipeline; with NEAREST
+            // picking an exactly-zero magnitude means "no data here" (land),
+            // not a real reading — suppress instead of showing 0.0 kts.
+            var isVector = LAYERS[activeLayerKey] && LAYERS[activeLayerKey].imageType === 'VECTOR';
+            if (isVector && Math.abs(info.raster.value) < 0.005) return;
             _probeJustFired = true;
             _post('ProbeChannel', {
               lat: info.coordinate ? info.coordinate[1] : null,
@@ -470,6 +475,29 @@
       }
     }
 
+    /**
+     * Invisible NEAREST-sampled layer used only for probe picking. The
+     * visible layers interpolate between grid cells, which bleeds the
+     * zero-filled LAND pixels into coastal reads (e.g. Huntington Beach wind
+     * probed 171° vs 277° actual). Nearest sampling returns the exact grid
+     * cell instead; land cells then read exactly 0 and are filtered out by
+     * the probe handler for vector layers.
+     */
+    function _makePickingLayer(cfg, bounds, imageType) {
+      return new WeatherLayers.RasterLayer({
+        id: 'weather-picking',
+        beforeId: LAND_FILL_ID,
+        image: currentImage,
+        bounds: bounds,
+        imageType: imageType,
+        imageUnscale: cfg.imageUnscale,
+        imageInterpolation: WeatherLayers.ImageInterpolation.NEAREST,
+        palette: cfg.rasterPalette || cfg.palette,
+        pickable: true,
+        opacity: 0.01,
+      });
+    }
+
     function _renderLayer() {
       if (!activeLayerKey || !currentImage) {
         overlay.setProps({ layers: [] });
@@ -489,10 +517,11 @@
             imageType: WeatherLayers.ImageType.VECTOR,
             imageUnscale: cfg.imageUnscale,
             palette: cfg.rasterPalette,
-            pickable: true,
+            pickable: false,
             opacity: 0.7,
           }));
         }
+        layers.push(_makePickingLayer(cfg, bounds, WeatherLayers.ImageType.VECTOR));
         layers.push(new WeatherLayers.ParticleLayer({
           id: 'weather-layer',
           beforeId: LAND_FILL_ID,
@@ -520,14 +549,17 @@
           imageType: WeatherLayers.ImageType.SCALAR,
           imageUnscale: cfg.imageUnscale,
           palette: cfg.palette,
-          pickable: true,
+          pickable: false,
           opacity: 0.85,
         };
         if (nextImage) {
           layerProps.image2 = nextImage;
           layerProps.imageWeight = 0;
         }
-        overlay.setProps({ layers: [new WeatherLayers.RasterLayer(layerProps)] });
+        overlay.setProps({ layers: [
+          new WeatherLayers.RasterLayer(layerProps),
+          _makePickingLayer(cfg, bounds, WeatherLayers.ImageType.SCALAR),
+        ] });
       }
 
       map.triggerRepaint();
@@ -607,14 +639,17 @@
         imageType: WeatherLayers.ImageType.SCALAR,
         imageUnscale: cfg.imageUnscale,
         palette: cfg.palette,
-        pickable: true,
+        pickable: false,
         opacity: 0.85,
       };
       if (nextImage) {
         layerProps.image2 = nextImage;
         layerProps.imageWeight = w;
       }
-      overlay.setProps({ layers: [new WeatherLayers.RasterLayer(layerProps)] });
+      overlay.setProps({ layers: [
+        new WeatherLayers.RasterLayer(layerProps),
+        _makePickingLayer(cfg, bounds, WeatherLayers.ImageType.SCALAR),
+      ] });
       map.triggerRepaint();
     }
 
