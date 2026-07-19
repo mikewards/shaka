@@ -514,6 +514,45 @@ object SpotDataCache {
     fun remove(spotId: String) {
         cache.remove(spotId)
     }
+
+    /**
+     * Delete ALL persisted rows for a spot across every dependent table.
+     * Called when a user spot is deleted — previously only the user_spots row
+     * and the in-memory cache entry were removed, orphaning spot_cache,
+     * spot_exposure, tide and hourly rows forever (Q14).
+     *
+     * @return total rows deleted across all tables.
+     */
+    fun deleteAllForSpot(spotId: String): Int {
+        cache.remove(spotId)
+        spotCoordinates.remove(spotId)
+        if (!DatabaseFactory.isConnected()) return 0
+        val tables = listOf(
+            "spot_cache", "spot_exposure", "spot_tide_series",
+            "spot_swell_hourly", "spot_wind_hourly", "spot_tide_days",
+        )
+        var total = 0
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                for (table in tables) {
+                    try {
+                        conn.prepareStatement("DELETE FROM $table WHERE spot_id = ?").use { stmt ->
+                            stmt.setString(1, spotId)
+                            total += stmt.executeUpdate()
+                        }
+                    } catch (e: Exception) {
+                        // Table may not exist in older schemas; keep going.
+                        logger.debug("deleteAllForSpot: $table delete failed for $spotId: ${e.message}")
+                    }
+                }
+            }
+            logger.info("Deleted $total dependent rows for spot $spotId")
+        } catch (e: Exception) {
+            logger.warn("deleteAllForSpot failed for $spotId: ${e.message}")
+        }
+        return total
+    }
     
     /**
      * Clear all chlorophyll values from cache and database.

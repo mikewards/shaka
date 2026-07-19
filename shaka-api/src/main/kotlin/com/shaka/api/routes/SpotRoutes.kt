@@ -1444,9 +1444,11 @@ fun Application.configureRouting() {
                     )
                 }
                 
-                // Remove from cache
+                // Remove from cache AND delete all dependent DB rows
+                // (spot_cache, spot_exposure, tide + hourly tables) — leaving
+                // them behind orphaned them forever (Q14).
                 val cacheId = userSpotRepository.getCacheId(spotId)
-                SpotDataCache.remove(cacheId)
+                SpotDataCache.deleteAllForSpot(cacheId)
                 
                 call.respond(mapOf("status" to "ok", "deleted" to spotId))
             }
