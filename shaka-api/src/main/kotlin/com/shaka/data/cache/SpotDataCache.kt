@@ -2181,12 +2181,18 @@ object SpotDataCache {
                         val sst = rs.getDouble("sst_celsius")
                         if (!rs.wasNull()) {
                             val sstSource = try { rs.getString("sst_source") } catch (_: Exception) { null }
+                            // Honest age on restore: fall back to the row's
+                            // updated_at, else EPOCH (= unknown, treat as stale).
+                            // The old Instant.now() fallback laundered restored
+                            // rows into looking freshly fetched.
+                            val rowUpdatedAt = try { rs.getTimestamp("updated_at") } catch (_: Exception) { null }
                             spotData = spotData.copy(
                                 sst = CachedValue(
                                     value = sst,
                                     fetchedAt = satelliteFetchedAt?.toInstant()
                                         ?: weatherFetchedAt?.toInstant()
-                                        ?: Instant.now()
+                                        ?: rowUpdatedAt?.toInstant()
+                                        ?: Instant.EPOCH
                                 ),
                                 sstSource = sstSource
                             )

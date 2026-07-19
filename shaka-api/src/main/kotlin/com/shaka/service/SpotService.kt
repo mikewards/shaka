@@ -2193,9 +2193,13 @@ class SpotService {
                 try { noaaClient.getSeaSurfaceTemperature(lat, lon, today) }
                 catch (e: Exception) { logger.warn("NOAA SST fetch failed for $spotId: ${e.message}"); null }
             }
-            SpotDataCache.updateSST(spotId,
-                if (data != null) SpotDataCache.CachedValue(value = data, fetchedAt = now) else null,
-                source = "satellite")
+            // Failure/no-data keeps any last-known value (plan 15: a provider
+            // outage must not erase data).
+            if (data != null) {
+                SpotDataCache.updateSST(spotId,
+                    SpotDataCache.CachedValue(value = data, fetchedAt = now),
+                    source = "satellite")
+            }
             data
         }
         

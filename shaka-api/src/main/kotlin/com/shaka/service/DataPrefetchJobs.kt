@@ -803,20 +803,21 @@ class DataPrefetchJobs(
                 val now = Instant.now()
                 var gotData = false
                 
-                // SST from NOAA satellite with progressive bbox expansion
+                // SST from NOAA satellite with progressive bbox expansion.
+                // On failure/no-data the last-known value is KEPT (a provider
+                // outage used to clear SST for every spot — plan 15); the
+                // failure is still counted per-source above.
                 sstAttempts++
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, today)
-                    SpotDataCache.updateSST(
-                        spot.id,
-                        if (sst != null) SpotDataCache.CachedValue(
-                            value = sst,
-                            fetchedAt = now,
-                            dataValidAt = Instant.now().minusSeconds(86400)
-                        ) else null,
-                        source = "satellite"
-                    )
                     if (sst != null) {
+                        SpotDataCache.updateSST(
+                            spot.id,
+                            // dataValidAt deliberately null: the actual satellite
+                            // pass time is unknown (was a fabricated "now - 24h").
+                            SpotDataCache.CachedValue(value = sst, fetchedAt = now),
+                            source = "satellite"
+                        )
                         gotData = true
                         sstSuccess++
                     } else {
@@ -832,14 +833,12 @@ class DataPrefetchJobs(
                 try {
                     val waterQuality = copernicus.getWaterQuality(lat, lon, today)
                     
+                    // dataValidAt omitted: the provider capture time is unknown
+                    // (the old "now - 24h" was a fabricated guess).
                     waterQuality.visibility?.let { vis ->
                         SpotDataCache.updateVisibility(
                             spot.id,
-                            SpotDataCache.CachedValue(
-                                value = vis,
-                                fetchedAt = now,
-                                dataValidAt = Instant.now().minusSeconds(86400)
-                            )
+                            SpotDataCache.CachedValue(value = vis, fetchedAt = now)
                         )
                         gotData = true
                     }
@@ -847,11 +846,7 @@ class DataPrefetchJobs(
                     waterQuality.chlorophyllA?.let { chl ->
                         SpotDataCache.updateChlorophyll(
                             spot.id,
-                            SpotDataCache.CachedValue(
-                                value = chl,
-                                fetchedAt = now,
-                                dataValidAt = Instant.now().minusSeconds(86400)
-                            )
+                            SpotDataCache.CachedValue(value = chl, fetchedAt = now)
                         )
                         gotData = true
                     }
@@ -1306,20 +1301,17 @@ class DataPrefetchJobs(
 
                 // Swell/wind handled by prefetchHourlySwellWind() which covers all spots
                 
-                // SST from NOAA satellite with progressive bbox expansion
+                // SST from NOAA satellite with progressive bbox expansion.
+                // Failure/no-data KEEPS the last-known value (plan 15).
                 sstAttempts++
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, spotToday)
-                    SpotDataCache.updateSST(
-                        cacheId,
-                        if (sst != null) SpotDataCache.CachedValue(
-                            value = sst,
-                            fetchedAt = now,
-                            dataValidAt = Instant.now().minusSeconds(86400)
-                        ) else null,
-                        source = "satellite"
-                    )
                     if (sst != null) {
+                        SpotDataCache.updateSST(
+                            cacheId,
+                            SpotDataCache.CachedValue(value = sst, fetchedAt = now),
+                            source = "satellite"
+                        )
                         gotData = true
                         sstSuccess++
                     } else {
