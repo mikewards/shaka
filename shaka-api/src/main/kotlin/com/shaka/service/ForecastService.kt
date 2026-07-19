@@ -300,8 +300,11 @@ class ForecastService {
                 val date = today.plusDays(i.toLong())
                 val dateStr = date.toString()
                 
-                val weather = weatherData.getOrNull(i) ?: WeatherData(25.0, 10.0, 0, 0.0, 50, 10000.0)
-                val ocean = oceanData.getOrNull(i) ?: OceanData(1.0, 8.0, 0, 24.0, 1.0, 0)
+                // Omit missing days instead of fabricating them (same fix as
+                // getForecast, f56505c): the old fallback emitted identical
+                // hardcoded 24°C/1m days for every gap in the range response.
+                val weather = weatherData.getOrNull(i) ?: continue
+                val ocean = oceanData.getOrNull(i) ?: continue
                 val sst = ocean.waterTemperature
                 
                 val score = ShakaScorer.generateScore(
