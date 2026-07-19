@@ -20,7 +20,7 @@ class HealthService {
     // 2026 outage this service's private client kept reporting "ok" while the
     // shared client's pool was wedged — health must exercise the same path
     // real fetches use. Per-check 5s deadline preserved via withTimeout.
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
 
     private suspend fun <T> bounded(block: suspend () -> T): T =
         withTimeout(5_000) { block() }

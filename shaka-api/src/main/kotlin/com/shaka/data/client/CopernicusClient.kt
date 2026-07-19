@@ -42,7 +42,7 @@ class CopernicusClient(
     private val logger = LoggerFactory.getLogger(CopernicusClient::class.java)
     
     // Use shared HTTP client - DO NOT create a new one
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
 
     private var accessToken: String? = null
     private var tokenExpiry: Long = 0

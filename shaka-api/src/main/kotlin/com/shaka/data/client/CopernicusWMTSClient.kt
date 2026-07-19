@@ -39,7 +39,7 @@ class CopernicusWMTSClient {
     private val logger = LoggerFactory.getLogger(CopernicusWMTSClient::class.java)
 
     // Use shared HTTP client - DO NOT create a new one
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     
     // Circuit breaker for this API
     private val circuitBreaker = CircuitBreaker(

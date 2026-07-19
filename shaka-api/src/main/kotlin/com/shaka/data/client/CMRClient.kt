@@ -21,7 +21,7 @@ import java.time.format.DateTimeFormatter
 object CMRClient {
     
     private val logger = LoggerFactory.getLogger(CMRClient::class.java)
-    private val httpClient = HttpClientFactory.shared
+    private val httpClient: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     private val json = Json { ignoreUnknownKeys = true }
     
     private const val CMR_BASE = "https://cmr.earthdata.nasa.gov/search/granules.json"

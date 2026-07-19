@@ -26,7 +26,7 @@ class NOAAClient {
     private val logger = LoggerFactory.getLogger(NOAAClient::class.java)
     
     // Use shared HTTP client - DO NOT create a new one
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
 
     companion object {
         // NOAA GeoPolar Blended SST day+night (5km global daily, analysed_sst).

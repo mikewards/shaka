@@ -28,7 +28,7 @@ class FES2022TideClient : TideClient {
     override val provider = "fes2022"
 
     private val logger = LoggerFactory.getLogger(FES2022TideClient::class.java)
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val baseUrl = System.getenv("TIDE_SERVICE_URL") ?: "http://localhost:8000"

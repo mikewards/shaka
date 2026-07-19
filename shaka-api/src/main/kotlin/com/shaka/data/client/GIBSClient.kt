@@ -60,7 +60,7 @@ data class GIBSSatelliteColors(
 object GIBSClient {
     
     private val logger = LoggerFactory.getLogger(GIBSClient::class.java)
-    private val httpClient = HttpClientFactory.shared
+    private val httpClient: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     
     private const val WMS_BASE = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")

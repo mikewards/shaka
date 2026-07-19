@@ -26,7 +26,7 @@ class BathymetryClient(
 ) {
 
     private val logger = LoggerFactory.getLogger(BathymetryClient::class.java)
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     companion object {

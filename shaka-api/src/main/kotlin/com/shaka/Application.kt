@@ -255,6 +255,14 @@ private fun Application.configureScheduledJobs() {
         prefetchJobs.deriveHourlySnapshots()
     }
 
+    // EVERY 5 MIN: HTTP pool-wedge watchdog (Jul 2026 outage hardening).
+    // Cheap in-memory check; only fires a canary request when some host has
+    // N consecutive connect failures on the shared client. registryExempt:
+    // intentionally unmonitored (cheap tick, no reportRun).
+    scheduleJob("http_pool_watchdog", initialDelayMs = 300_000, intervalMs = 300_000, maxRunMs = 60_000) {
+        HttpClientFactory.watchdogTick()
+    }
+
     // EVERY 6 HOURS: Satellite data refresh (rate-limited, can run very long)
     scheduleRegisteredJob("satellite_prefetch") {
         prefetchJobs.prefetchSatelliteData()

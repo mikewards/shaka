@@ -23,10 +23,12 @@ import kotlin.math.round
  * matching the product decision.
  */
 class LandWaterClient(
-    private val http: HttpClient = HttpClientFactory.shared,
+    // null = use the (rebuildable) shared client; non-null only for tests.
+    private val httpOverride: HttpClient? = null,
     private val baseUrl: String = System.getenv("LAND_WATER_API_URL")
         ?: "https://is-on-water.balbona.me/api/v1/get"
 ) {
+    private val http: HttpClient get() = httpOverride ?: HttpClientFactory.shared
     private val logger = LoggerFactory.getLogger(LandWaterClient::class.java)
 
     private data class CacheEntry(val isWater: Boolean, val fetchedAt: Instant)

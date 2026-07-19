@@ -88,13 +88,14 @@ object MonitoringConfig {
      * Registry boundary (documented allowlist for MonitoringRegistryTest):
      *  - Scheduled but intentionally unmonitored (no reportRun, cheap/in-memory
      *    or cleanup work): hourly_snapshot_tick, tide_chart_cleanup,
-     *    hourly_series_cleanup.
+     *    hourly_series_cleanup, http_pool_watchdog.
      *  - Report to MonitoringService but only from on-demand/admin paths, not
      *    the scheduler: tide_chart_materialize, tide_chart_catchup,
      *    tide_year_backfill, tide_remaining_backfill.
      */
     val registryExempt: Set<String> = setOf(
         "hourly_snapshot_tick", "tide_chart_cleanup", "hourly_series_cleanup",
+        "http_pool_watchdog",
         "tide_chart_materialize", "tide_chart_catchup", "tide_year_backfill",
         "tide_remaining_backfill",
     )

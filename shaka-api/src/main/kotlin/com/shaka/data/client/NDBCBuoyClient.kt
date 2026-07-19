@@ -21,7 +21,7 @@ import java.time.format.DateTimeFormatter
 class NDBCBuoyClient {
 
     private val logger = LoggerFactory.getLogger(NDBCBuoyClient::class.java)
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
 
     companion object {
         private const val STATION_TABLE_URL = "https://www.ndbc.noaa.gov/data/stations/station_table.txt"

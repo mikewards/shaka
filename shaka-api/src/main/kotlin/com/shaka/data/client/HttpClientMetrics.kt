@@ -72,6 +72,11 @@ object HttpClientMetrics {
             .filter { it.value.consecutiveConnectFailures.get() >= threshold }
             .associate { it.key to it.value.consecutiveConnectFailures.get() }
 
+    /** Called after a shared-client rebuild so the new pool starts with a clean slate. */
+    fun resetConsecutiveConnectFailures() {
+        hosts.values.forEach { it.consecutiveConnectFailures.set(0) }
+    }
+
     private fun classify(e: Throwable): String = when {
         e is io.ktor.client.network.sockets.ConnectTimeoutException -> "connect_timeout"
         e is io.ktor.client.network.sockets.SocketTimeoutException -> "socket_timeout"

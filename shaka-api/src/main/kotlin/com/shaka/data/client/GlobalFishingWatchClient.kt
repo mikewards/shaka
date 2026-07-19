@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory
 class GlobalFishingWatchClient {
 
     private val logger = LoggerFactory.getLogger(GlobalFishingWatchClient::class.java)
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
     
     companion object {
         // GFW API base URL

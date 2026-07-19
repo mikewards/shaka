@@ -24,7 +24,7 @@ class OpenMeteoClient {
     private val logger = LoggerFactory.getLogger(OpenMeteoClient::class.java)
 
     // Use shared HTTP client - DO NOT create a new one
-    private val client = HttpClientFactory.shared
+    private val client: io.ktor.client.HttpClient get() = HttpClientFactory.shared
 
     /**
      * Get weather forecast for a location and date.
