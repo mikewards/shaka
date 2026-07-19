@@ -300,6 +300,12 @@ private fun Application.configureScheduledJobs() {
         prefetchJobs.prefetchMPA()
     }
 
+    // WEEKLY: Orphaned user-spot row sweep (anti-join vs user_spots). Safety
+    // net behind the delete-time cleanup; reports rows deleted.
+    scheduleRegisteredJob("user_spot_orphan_sweep") {
+        prefetchJobs.sweepOrphanUserSpotRows()
+    }
+
     // NIGHTLY: Tide chart cleanup (old rows). registryExempt: unmonitored cleanup.
     scheduleJob("tide_chart_cleanup", initialDelayMs = 600_000, intervalMs = 86_400_000, runImmediately = true) {
         prefetchJobs.cleanupOldTideDays()

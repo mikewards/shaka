@@ -1484,6 +1484,28 @@ class DataPrefetchJobs(
         MonitoringService.reportRun("user_spots_solunar", solunarAttempts, solunarSuccess, solunarFailures, elapsed)
     }
     
+    // ==================== WEEKLY: Orphan User-Spot Row Sweep ====================
+
+    /**
+     * Safety net behind the delete-time cleanup (plan 24): remove dependent
+     * rows whose "user-%" spot no longer exists in user_spots. Reports the
+     * number of rows deleted per run (0 rows = explicit no-op success).
+     */
+    suspend fun sweepOrphanUserSpotRows() = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        val deletedByTable = SpotDataCache.sweepOrphanUserSpotRows()
+        val totalDeleted = deletedByTable.values.sum()
+        if (totalDeleted > 0) {
+            logger.info("Orphan sweep deleted $totalDeleted rows: $deletedByTable")
+        } else {
+            logger.info("Orphan sweep: no orphaned user-spot rows found")
+        }
+        MonitoringService.reportRun(
+            "user_spot_orphan_sweep", totalDeleted, totalDeleted, emptyList(),
+            System.currentTimeMillis() - startTime
+        )
+    }
+
     // ==================== Utilities ====================
     
     /**

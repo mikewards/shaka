@@ -516,6 +516,47 @@ object SpotDataCache {
     }
 
     /**
+     * Weekly safety net (Q14): delete rows in the dependent tables whose
+     * spot_id is a user spot ("user-%") that no longer exists in user_spots.
+     * Anti-join only — catalog-slug rows are never touched.
+     *
+     * @return map of table -> rows deleted (only tables where the delete ran).
+     */
+    fun sweepOrphanUserSpotRows(): Map<String, Int> {
+        if (!DatabaseFactory.isConnected()) return emptyMap()
+        val tables = listOf(
+            "spot_cache", "spot_exposure", "spot_tide_series",
+            "spot_swell_hourly", "spot_wind_hourly", "spot_tide_days",
+        )
+        val deleted = linkedMapOf<String, Int>()
+        try {
+            transaction {
+                val conn = this.connection.connection as java.sql.Connection
+                for (table in tables) {
+                    try {
+                        val n = conn.createStatement().executeUpdate(
+                            """
+                            DELETE FROM $table t
+                            WHERE t.spot_id LIKE 'user-%'
+                              AND NOT EXISTS (
+                                SELECT 1 FROM user_spots u
+                                WHERE 'user-' || u.id::text = t.spot_id
+                              )
+                            """.trimIndent()
+                        )
+                        deleted[table] = n
+                    } catch (e: Exception) {
+                        logger.warn("Orphan sweep failed for $table: ${e.message}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Orphan sweep transaction failed: ${e.message}")
+        }
+        return deleted
+    }
+
+    /**
      * Delete ALL persisted rows for a spot across every dependent table.
      * Called when a user spot is deleted — previously only the user_spots row
      * and the in-memory cache entry were removed, orphaning spot_cache,

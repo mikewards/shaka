@@ -134,6 +134,14 @@ object MonitoringConfig {
             initialDelayMs = 300_000, intervalMs = 2 * HOUR, maxRunMs = 8 * HOUR,
             staleGateHours = 0, degradedBelow = 0.80, criticalBelow = 0.30, runImmediately = true,
         ),
+        // Weekly anti-join cleanup of orphaned user-% rows (Q14 safety net).
+        // Reports rows deleted; deletes never partially fail per-item, so the
+        // thresholds only matter for the missed-run detection.
+        JobSpec(
+            name = "user_spot_orphan_sweep", scheduledName = "user_spot_orphan_sweep",
+            initialDelayMs = 1_200_000, intervalMs = 168 * HOUR, maxRunMs = 1 * HOUR,
+            staleGateHours = 0, degradedBelow = 0.90, criticalBelow = 0.30, runImmediately = true,
+        ),
     )
 
     /**
