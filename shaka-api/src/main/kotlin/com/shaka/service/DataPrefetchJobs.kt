@@ -957,11 +957,12 @@ class DataPrefetchJobs(
                     continue
                 }
 
-                // Try nearest cached spot SST
+                // Try nearest cached spot SST (originals only; copies keep the
+                // SOURCE spot's timestamps instead of being stamped "now")
                 val nearbySST = SpotDataCache.findNearestSST(lat, lon)
                 if (nearbySST != null) {
                     SpotDataCache.updateSST(spotId, SpotDataCache.CachedValue(
-                        value = nearbySST, fetchedAt = now, dataValidAt = now
+                        value = nearbySST.value, fetchedAt = nearbySST.fetchedAt, dataValidAt = nearbySST.dataValidAt
                     ), source = "neighbor")
                     SpotDataCache.saveToDatabase(spotId)
                     neighborFills++
@@ -1497,7 +1498,8 @@ class DataPrefetchJobs(
 
                 val nearbySST = SpotDataCache.findNearestSST(lat, lon)
                 if (nearbySST != null) {
-                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = nearbySST, fetchedAt = now, dataValidAt = now), source = "neighbor")
+                    // Copies keep the SOURCE spot's timestamps (no laundering).
+                    SpotDataCache.updateSST(cacheId, SpotDataCache.CachedValue(value = nearbySST.value, fetchedAt = nearbySST.fetchedAt, dataValidAt = nearbySST.dataValidAt), source = "neighbor")
                     SpotDataCache.saveToDatabase(cacheId)
                     neighborFills++
                 }

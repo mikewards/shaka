@@ -1584,7 +1584,7 @@ class SpotService {
         lat: Double, lon: Double, date: String
     ): ResolvedSST {
         cachedSST?.let { return ResolvedSST(it, false) }
-        SpotDataCache.findNearestSST(lat, lon)?.let { return ResolvedSST(it, false) }
+        SpotDataCache.findNearestSST(lat, lon)?.let { return ResolvedSST(it.value, false) }
         return ResolvedSST(noaaClient.getRegionalSSTEstimate(lat, lon, date), true)
     }
 

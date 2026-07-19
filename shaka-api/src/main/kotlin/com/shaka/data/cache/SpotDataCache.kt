@@ -1036,29 +1036,43 @@ object SpotDataCache {
      */
     fun getSpotCoordinates(spotId: String): Pair<Double, Double>? = spotCoordinates[spotId]
 
+    /** A neighbor SST candidate, carrying the SOURCE spot's timestamps for honest copies. */
+    data class NearestSST(
+        val value: Double,
+        val fetchedAt: Instant,
+        val dataValidAt: Instant?,
+        val sourceSpotId: String,
+    )
+
     /**
      * Find SST from the nearest cached spot within maxKm kilometers.
      * Pure in-memory scan -- no DB or network calls. Safe for the read path.
+     *
+     * No-cascade guard (Q5): only ORIGINAL values qualify — sstSource must be
+     * "satellite" or "buoy". Values that are themselves neighbor copies, and
+     * legacy rows with unknown (null) provenance, are never propagated, so a
+     * copy can no longer drift spot-to-spot across the map.
      */
-    fun findNearestSST(lat: Double, lon: Double, maxKm: Double = 25.0): Double? {
+    fun findNearestSST(lat: Double, lon: Double, maxKm: Double = 25.0): NearestSST? {
         val maxNm = maxKm / 1.852
         var bestDist = Double.MAX_VALUE
-        var bestSST: Double? = null
+        var best: NearestSST? = null
 
         for ((spotId, coords) in spotCoordinates) {
             val cached = cache[spotId] ?: continue
-            val sst = cached.sst?.value ?: continue
+            val sst = cached.sst ?: continue
+            if (cached.sstSource != "satellite" && cached.sstSource != "buoy") continue
             val dist = haversineNm(lat, lon, coords.first, coords.second)
             if (dist <= maxNm && dist < bestDist) {
                 bestDist = dist
-                bestSST = sst
+                best = NearestSST(sst.value, sst.fetchedAt, sst.dataValidAt, spotId)
             }
         }
 
-        if (bestSST != null) {
-            logger.debug("Found nearby SST ${String.format("%.1f", bestSST)}°C at ${String.format("%.1f", bestDist)}nm")
+        if (best != null) {
+            logger.debug("Found nearby SST ${String.format("%.1f", best.value)}°C at ${String.format("%.1f", bestDist)}nm from ${best.sourceSpotId}")
         }
-        return bestSST
+        return best
     }
 
     /**
