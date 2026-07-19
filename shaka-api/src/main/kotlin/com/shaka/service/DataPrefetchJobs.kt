@@ -67,6 +67,13 @@ class DataPrefetchJobs(
     // Guards against overlapping horizon top-up runs (each FES year prediction
     // holds a ~5GB working set; concurrent runs would OOM the single instance).
     private val tideTopUpRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // Guards against overlapping satellite runs (scheduled + admin trigger):
+    // the run is rate-limited and takes ~80+ min; overlap would double-fetch.
+    private val satellitePrefetchRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** True while a satellite prefetch run (scheduled or admin-triggered) is in flight. */
+    fun isSatellitePrefetchRunning(): Boolean = satellitePrefetchRunning.get()
     
     private fun spotLocalDate(lon: Double): LocalDate = SpotTime.spotLocalDate(null, lon)
 
@@ -749,6 +756,18 @@ class DataPrefetchJobs(
      * Sequential processing respects CopernicusWMTSClient circuit breaker.
      */
     suspend fun prefetchSatelliteData() = withContext(Dispatchers.IO) {
+        if (!satellitePrefetchRunning.compareAndSet(false, true)) {
+            logger.warn("SATELLITE prefetch already running; skipping this trigger")
+            return@withContext
+        }
+        try {
+            doPrefetchSatelliteData()
+        } finally {
+            satellitePrefetchRunning.set(false)
+        }
+    }
+
+    private suspend fun doPrefetchSatelliteData() {
         val allSpots = spotDb.getAllSpots()
         val today = LocalDate.now().toString()
         
@@ -768,7 +787,7 @@ class DataPrefetchJobs(
             MonitoringService.reportRun("satellite_sst", 0, 0, emptyList(), 0)
             MonitoringService.reportRun("satellite_copernicus", 0, 0, emptyList(), 0)
             MonitoringService.reportRun("satellite_gibs", 0, 0, emptyList(), 0)
-            return@withContext
+            return
         }
         
         val startTime = System.currentTimeMillis()

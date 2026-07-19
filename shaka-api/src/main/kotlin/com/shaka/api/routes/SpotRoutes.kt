@@ -933,6 +933,43 @@ fun Application.configureRouting() {
                 )
             }
 
+            // Trigger the satellite prefetch (SST + Copernicus water quality +
+            // GIBS colors) for all stale/missing spots — same run the 6-hourly
+            // scheduler fires. Rejects with a clear response when a run is
+            // already in flight (the run is rate-limited and takes ~80+ min).
+            post("/admin/satellite/trigger") {
+                val prefetchJobs = application.attributes.getOrNull(PrefetchJobsKey)
+                if (prefetchJobs == null) {
+                    call.respondText(
+                        """{"status":"error","message":"PrefetchJobs not initialized yet"}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.ServiceUnavailable
+                    )
+                    return@post
+                }
+                if (prefetchJobs.isSatellitePrefetchRunning()) {
+                    call.respondText(
+                        """{"status":"already_running","message":"A satellite prefetch run is already in progress; not starting another."}""",
+                        io.ktor.http.ContentType.Application.Json,
+                        HttpStatusCode.Conflict
+                    )
+                    return@post
+                }
+                GlobalScope.launch {
+                    try {
+                        prefetchJobs.prefetchSatelliteData()
+                    } catch (e: Exception) {
+                        org.slf4j.LoggerFactory.getLogger("AdminSatelliteTrigger")
+                            .error("Manual satellite prefetch failed: ${e.message}", e)
+                    }
+                }
+                call.respondText(
+                    """{"status":"started","message":"Satellite prefetch triggered in background (rate-limited, ~80+ min for a full fleet pass). Check /v1/health/jobs satellite_* for results."}""",
+                    io.ktor.http.ContentType.Application.Json,
+                    HttpStatusCode.Accepted
+                )
+            }
+
             // Trigger a full hourly swell/wind refetch for all spots. Uses the
             // same daily job that drives the in-memory series + derived snapshot,
             // replacing the old single-snapshot hour-index refetch.
