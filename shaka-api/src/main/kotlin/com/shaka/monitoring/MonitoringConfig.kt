@@ -71,8 +71,45 @@ object MonitoringConfig {
             // Gate matches prefetchUserSpots: skips spots with SST fresher than SATELLITE_STALE_HOURS.
             staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
         ),
+        // Per-source sub-reports of user_spots_prefetch (same run, Q9).
+        JobSpec(
+            name = "user_spots_sst", scheduledName = null,
+            initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
+        JobSpec(
+            name = "user_spots_copernicus", scheduledName = null,
+            initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
+        JobSpec(
+            name = "user_spots_gibs", scheduledName = null,
+            initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.95, criticalBelow = 0.50,
+        ),
+        JobSpec(
+            name = "user_spots_mpa", scheduledName = null,
+            initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
+        ),
+        JobSpec(
+            name = "user_spots_solunar", scheduledName = null,
+            initialDelayMs = 240_000, intervalMs = 3 * HOUR, maxRunMs = 24 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
+        ),
         JobSpec(
             name = "fishing_intel_prefetch", scheduledName = "solunar_vessel_prefetch",
+            initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
+        ),
+        // Per-source sub-reports of fishing_intel_prefetch (same run, Q9).
+        JobSpec(
+            name = "fishing_intel_vessel", scheduledName = null,
+            initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
+            staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
+        ),
+        JobSpec(
+            name = "fishing_intel_solunar", scheduledName = null,
             initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
             staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
         ),

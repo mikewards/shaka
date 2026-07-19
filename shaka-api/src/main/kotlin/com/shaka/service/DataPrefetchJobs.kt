@@ -1075,6 +1075,9 @@ class DataPrefetchJobs(
         var solunarSuccess = 0
         var errorCount = 0
         val failures = mutableListOf<ItemFailure>()
+        // Per-source failure details (Q9): previously swallowed at logger.debug.
+        val vesselFailures = mutableListOf<ItemFailure>()
+        val solunarFailures = mutableListOf<ItemFailure>()
         
         // Process in batches to avoid overwhelming APIs
         spotsToUpdate.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
@@ -1101,9 +1104,16 @@ class DataPrefetchJobs(
                                 )
                             )
                             gotVessel = true
+                        } else {
+                            synchronized(vesselFailures) {
+                                vesselFailures.add(ItemFailure(spot.id, spot.name, "GFW returned no vessel data", "no_data"))
+                            }
                         }
                     } catch (e: Exception) {
                         logger.debug("Vessel fetch failed for ${spot.name}: ${e.message}")
+                        synchronized(vesselFailures) {
+                            vesselFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                        }
                     }
                     
                     // Fetch solunar data
@@ -1130,9 +1140,16 @@ class DataPrefetchJobs(
                                 )
                             )
                             gotSolunar = true
+                        } else {
+                            synchronized(solunarFailures) {
+                                solunarFailures.add(ItemFailure(spot.id, spot.name, "Solunar returned no data", "no_data"))
+                            }
                         }
                     } catch (e: Exception) {
                         logger.debug("Solunar fetch failed for ${spot.name}: ${e.message}")
+                        synchronized(solunarFailures) {
+                            solunarFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
+                        }
                     }
                     
                     if (gotVessel || gotSolunar) {
@@ -1162,6 +1179,9 @@ class DataPrefetchJobs(
         val elapsed = System.currentTimeMillis() - startTime
         val effectiveSuccess = spotsToUpdate.size - errorCount
         MonitoringService.reportRun("fishing_intel_prefetch", spotsToUpdate.size, effectiveSuccess, failures, elapsed)
+        // Per-source reports (Q9): "vessel OR solunar" success hid single-source outages.
+        MonitoringService.reportRun("fishing_intel_vessel", spotsToUpdate.size, vesselSuccess, vesselFailures, elapsed)
+        MonitoringService.reportRun("fishing_intel_solunar", spotsToUpdate.size, solunarSuccess, solunarFailures, elapsed)
         logRateLimiterStats()
     }
     
@@ -1191,6 +1211,18 @@ class DataPrefetchJobs(
         var skippedCount = 0
         var errorCount = 0
         val failures = mutableListOf<ItemFailure>()
+
+        // Per-source tallies (Q9) — mirrors satellite_prefetch's sub-reports.
+        var sstAttempts = 0; var sstSuccess = 0
+        val sstFailures = mutableListOf<ItemFailure>()
+        var copAttempts = 0; var copSuccess = 0
+        val copFailures = mutableListOf<ItemFailure>()
+        var gibsAttempts = 0; var gibsSuccess = 0
+        val gibsFailures = mutableListOf<ItemFailure>()
+        var mpaAttempts = 0; var mpaSuccess = 0
+        val mpaFailures = mutableListOf<ItemFailure>()
+        var solunarAttempts = 0; var solunarSuccess = 0
+        val solunarFailures = mutableListOf<ItemFailure>()
         
         // Register coordinates for user spots (enables in-memory nearest-SST lookups)
         for (spot in userSpots) {
@@ -1223,6 +1255,7 @@ class DataPrefetchJobs(
                 // Swell/wind handled by prefetchHourlySwellWind() which covers all spots
                 
                 // SST from NOAA satellite with progressive bbox expansion
+                sstAttempts++
                 try {
                     val sst = noaaClient.getSeaSurfaceTemperatureProgressive(lat, lon, spotToday)
                     SpotDataCache.updateSST(
@@ -1233,12 +1266,19 @@ class DataPrefetchJobs(
                             dataValidAt = Instant.now().minusSeconds(86400)
                         ) else null
                     )
-                    if (sst != null) gotData = true
+                    if (sst != null) {
+                        gotData = true
+                        sstSuccess++
+                    } else {
+                        sstFailures.add(ItemFailure(cacheId, spot.name, "NOAA returned no SST value", "no_data"))
+                    }
                 } catch (e: Exception) {
                     logger.debug("User spot SST fetch failed for ${spot.name}: ${e.message}")
+                    sstFailures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // Copernicus water quality (visibility + chlorophyll, no longer SST)
+                copAttempts++
                 try {
                     val wq = copernicus.getWaterQuality(lat, lon, spotToday)
                     wq.visibility?.let { vis ->
@@ -1254,11 +1294,18 @@ class DataPrefetchJobs(
                         )
                     }
                     gotData = true
+                    if (wq.visibility != null || wq.chlorophyllA != null) {
+                        copSuccess++
+                    } else {
+                        copFailures.add(ItemFailure(cacheId, spot.name, "Copernicus returned no visibility/chlorophyll", "no_data"))
+                    }
                 } catch (e: Exception) {
                     logger.debug("User spot Copernicus fetch failed for ${spot.name}: ${e.message}")
+                    copFailures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // GIBS Satellite Colors (for display only)
+                gibsAttempts++
                 try {
                     val gibsColors = GIBSClient.getAllSatelliteColors(lat, lon)
                     SpotDataCache.updateGIBSChlorophyll(
@@ -1284,11 +1331,14 @@ class DataPrefetchJobs(
                         )
                     )
                     gotData = true
+                    gibsSuccess++
                 } catch (e: Exception) {
                     logger.debug("User spot GIBS fetch failed for ${spot.name}: ${e.message}")
+                    gibsFailures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // MPA - exact first, then buffer
+                mpaAttempts++
                 try {
                     // Step 1: Check EXACT location (is spot INSIDE an MPA?)
                     val exactResult = protectedSeasClient.getMPAStatusExact(lat, lon)
@@ -1315,11 +1365,14 @@ class DataPrefetchJobs(
                     }
                     SpotDataCache.updateMPA(cacheId, SpotDataCache.CachedValue(cacheInfo, now))
                     gotData = true
+                    mpaSuccess++
                 } catch (e: Exception) {
                     logger.debug("User spot MPA fetch failed for ${spot.name}: ${e.message}")
+                    mpaFailures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 // Solunar (moon phase + feeding periods)
+                solunarAttempts++
                 try {
                     val solunarData = solunarClient.getSolunarData(lat, lon, LocalDate.now())
                     if (solunarData != null) {
@@ -1343,9 +1396,13 @@ class DataPrefetchJobs(
                             )
                         )
                         gotData = true
+                        solunarSuccess++
+                    } else {
+                        solunarFailures.add(ItemFailure(cacheId, spot.name, "Solunar returned no data", "no_data"))
                     }
                 } catch (e: Exception) {
                     logger.debug("User spot solunar fetch failed for ${spot.name}: ${e.message}")
+                    solunarFailures.add(ItemFailure(cacheId, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
                 }
                 
                 if (gotData) {
@@ -1400,6 +1457,13 @@ class DataPrefetchJobs(
         val elapsed = System.currentTimeMillis() - startTime
         val processed = userSpots.size - skippedCount
         MonitoringService.reportRun("user_spots_prefetch", processed, successCount, failures, elapsed)
+        // Per-source reports (Q9): totals are actual attempts (skipped-fresh
+        // spots and spots that failed before the per-source calls are excluded).
+        MonitoringService.reportRun("user_spots_sst", sstAttempts, sstSuccess, sstFailures, elapsed)
+        MonitoringService.reportRun("user_spots_copernicus", copAttempts, copSuccess, copFailures, elapsed)
+        MonitoringService.reportRun("user_spots_gibs", gibsAttempts, gibsSuccess, gibsFailures, elapsed)
+        MonitoringService.reportRun("user_spots_mpa", mpaAttempts, mpaSuccess, mpaFailures, elapsed)
+        MonitoringService.reportRun("user_spots_solunar", solunarAttempts, solunarSuccess, solunarFailures, elapsed)
     }
     
     // ==================== Utilities ====================
