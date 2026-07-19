@@ -34,9 +34,9 @@ Root failure mode: **the probe duplicated business assumptions (thresholds, data
   | `fishing_intel_scrape` | 2 h | 8 h (default) | `fishing_intel_scrape` |
 
   Note the **scheduled-name vs reporting-name mismatches** (`hourly_swell_wind_prefetch` → `hourly_swell_wind`, `solunar_vessel_prefetch` → `fishing_intel_prefetch`) — an easy drift trap. Additional names report only from on-demand/admin paths, not the scheduler: `tide_chart_materialize`, `tide_chart_catchup`, `tide_year_backfill`, `tide_remaining_backfill`.
-- **Refresh jobs are staleness-gated.** `satellite_prefetch` only refetches spots whose data is ≥ `SATELLITE_STALE_HOURS=12` old; `solunar_vessel_prefetch` gates on `VESSEL_STALE_HOURS=24` / `SOLUNAR_STALE_HOURS=12`; `mpa_prefetch` on `MPA_STALE_HOURS=168`. `prefetchHourlySwellWind` is ungated (fetches every spot each run). Consequence: **legitimate data age = eligibility gate + wait for next run + run duration** — e.g. vessel data lawfully reaches ~36 h+, far above any "cadence + margin" threshold.
+- **Refresh jobs are staleness-gated.** `satellite_prefetch` only refetches spots whose data is ≥ `SATELLITE_STALE_HOURS=12` old; `solunar_vessel_prefetch` gates on `SOLUNAR_STALE_HOURS=12` (vessel data deprecated Jul 2026 — job is solunar-only, name kept for registry stability); `mpa_prefetch` on `MPA_STALE_HOURS=168`. `prefetchHourlySwellWind` is ungated (fetches every spot each run). Consequence: **legitimate data age = eligibility gate + wait for next run + run duration** — far above any "cadence + margin" threshold.
 - **Three divergent threshold sources already exist** and must be collapsed into one:
-  - `DataPrefetchJobs.kt` companion object: `TIDE_STALE_HOURS=2`, `WEATHER_STALE_HOURS=4`, `SATELLITE_STALE_HOURS=12`, `MPA_STALE_HOURS=168`, `VESSEL_STALE_HOURS=24`, `SOLUNAR_STALE_HOURS=12`, plus tide horizon tuning (`HORIZON_TARGET_DAYS=365`, `HORIZON_REFRESH_DAYS=45`).
+  - `DataPrefetchJobs.kt` companion object: `TIDE_STALE_HOURS=2`, `WEATHER_STALE_HOURS=4`, `SATELLITE_STALE_HOURS=12`, `MPA_STALE_HOURS=168`, `SOLUNAR_STALE_HOURS=12`, plus tide horizon tuning (`HORIZON_TARGET_DAYS=365`, `HORIZON_REFRESH_DAYS=45`).
   - `SpotRoutes.kt` `/health/freshness` `staleThresholds` map (minutes): tide=180, swell/wind=480, sst/visibility/chlorophyll/gibs_satellite=1500, mpa=64800, vessel/solunar=1800.
   - The old probe's implicit expectations.
 - **`/health/freshness` evaluates the *median* age per data type**, not the max. Medians pass with little headroom under the gated-refresh model, and a single failed job run can push the median across a tight threshold and back (flapping). Thresholds must be sized against the *lawful maximum* age, and freshness is a warn-tier signal, not a paging signal.
@@ -133,8 +133,8 @@ Concrete freshness values this yields (`gate + interval + maxRun + 1 h`, replaci
 |---|---|---|---|
 | swell / wind | `hourly_swell_wind_prefetch` | 0 + 24 h + 24 h | 49 h (was 8 h) |
 | sst / visibility / chlorophyll / gibs_satellite | `satellite_prefetch` | 12 h + 6 h + 24 h | 43 h (was 25 h) |
-| vessel | `solunar_vessel_prefetch` | 24 h + 12 h + 48 h | 85 h (was 30 h — 25 h would false-positive at the lawful ~36 h+) |
 | solunar | `solunar_vessel_prefetch` | 12 h + 12 h + 48 h | 73 h (was 30 h) |
+| vessel | — | — | removed (vessels deprecated Jul 2026, Q7 — not an age-based type anymore) |
 | mpa | `mpa_prefetch` | 168 h + 168 h + 24 h | 361 h ≈ 15 d (was 45 d) |
 | tide | `tide_horizon_topup` | — | **horizon-based, never age-based** (see above) |
 

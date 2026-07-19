@@ -446,10 +446,6 @@ class SpotService {
         
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
         
-        // Vessels deprecated (Q7, plan 18): fetching stopped, field serves null.
-        // The API field itself is removed in plan 19.
-        val vesselActivity: VesselActivity? = null
-        
         val solunarData = cached?.solunar?.value?.let { sol ->
             SolunarData(
                 moonPhase = sol.moonPhase,
@@ -589,7 +585,6 @@ class SpotService {
             imageUrl = spot.imageUrl,
             satelliteReadings = gibsReadings,
             regulations = getRegulationInfo(spotId, inferSpecificRegionFromSpotId(spotId), inferCountryFromSpotId(spotId)),
-            vessels = vesselActivity,
             solunar = solunarData,
             waterContext = waterContext,
             tide = tideChart

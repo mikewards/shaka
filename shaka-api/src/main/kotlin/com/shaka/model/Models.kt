@@ -82,8 +82,7 @@ data class SpotDetail(
     val imageUrl: String? = null,
     val satelliteReadings: GibsSatelliteReadings? = null,
     val regulations: RegulationInfo? = null,
-    // NEW: Raw intel data for fishermen to interpret
-    val vessels: VesselActivity? = null,      // Boats nearby from Global Fishing Watch
+    // Raw intel data for fishermen to interpret
     val solunar: SolunarData? = null,         // Moon phase + feeding periods
     val waterContext: WaterContext? = null,   // Chlorophyll trend + SST breaks
     val tide: TideChartData? = null           // Structured tide chart data for today
@@ -411,17 +410,6 @@ data class WaterQuality(
 // FISHING INTEL MODELS
 // Raw data for fishermen to interpret - no scores!
 // ============================================
-
-/**
- * Vessel activity from Global Fishing Watch.
- * Shows how many fishing boats are operating nearby.
- */
-@Serializable
-data class VesselActivity(
-    val count: Int,                    // "8 vessels"
-    val radiusNm: Int,                 // "within 10nm"
-    val updatedAt: String              // ISO timestamp
-)
 
 /**
  * Solunar data - moon phase and feeding periods.

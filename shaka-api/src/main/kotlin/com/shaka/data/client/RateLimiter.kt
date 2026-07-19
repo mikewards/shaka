@@ -189,17 +189,6 @@ object RateLimiters {
     )
     
     /**
-     * Global Fishing Watch - FREE tier
-     * Conservative rate limit to respect their servers
-     * 2 requests/second with burst of 5
-     */
-    val globalFishingWatch = RateLimiter(
-        name = "global-fishing-watch",
-        requestsPerSecond = 2.0,
-        burstSize = 5
-    )
-    
-    /**
      * Solunar API - FREE, generous limits
      * 5 requests/second with burst of 10
      */
@@ -273,7 +262,6 @@ object RateLimiters {
         "openMeteo" to openMeteo.getStats(),
         "noaa" to noaa.getStats(),
         "noaaTides" to noaaTides.getStats(),
-        "globalFishingWatch" to globalFishingWatch.getStats(),
         "solunar" to solunar.getStats(),
         "socalFishReports" to socalFishReports.getStats(),
         "sanDiegoFishReports" to sanDiegoFishReports.getStats(),

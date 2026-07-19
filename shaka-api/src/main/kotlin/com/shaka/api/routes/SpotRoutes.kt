@@ -130,7 +130,6 @@ fun Application.configureRouting() {
                     freshJson("chlorophyll") { it.chlorophyll },
                     freshJson("gibs_satellite") { it.gibsChlorophyll },
                     freshJson("mpa") { it.mpa },
-                    freshJson("vessel") { it.vessel },
                     freshJson("solunar") { it.solunar }
                 )
 
@@ -249,7 +248,7 @@ fun Application.configureRouting() {
                         "swell" to { it.swell }, "wind" to { it.wind }, "sst" to { it.sst },
                         "visibility" to { it.visibility }, "chlorophyll" to { it.chlorophyll },
                         "gibs_satellite" to { it.gibsChlorophyll }, "mpa" to { it.mpa },
-                        "vessel" to { it.vessel }, "solunar" to { it.solunar },
+                        "solunar" to { it.solunar },
                     ).forEach { (type, extract) ->
                         logic.freshnessCause(type, medianAge(extract))?.let { causes += it }
                     }

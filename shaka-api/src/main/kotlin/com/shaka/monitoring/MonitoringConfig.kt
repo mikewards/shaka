@@ -102,12 +102,8 @@ object MonitoringConfig {
             initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
             staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
         ),
-        // Per-source sub-reports of fishing_intel_prefetch (same run, Q9).
-        JobSpec(
-            name = "fishing_intel_vessel", scheduledName = null,
-            initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
-            staleGateHours = 12, degradedBelow = 0.90, criticalBelow = 0.30,
-        ),
+        // Per-source sub-report of fishing_intel_prefetch (same run, Q9).
+        // (fishing_intel_vessel removed with vessel deprecation, Q7.)
         JobSpec(
             name = "fishing_intel_solunar", scheduledName = null,
             initialDelayMs = 300_000, intervalMs = 12 * HOUR, maxRunMs = 48 * HOUR,
@@ -171,7 +167,6 @@ object MonitoringConfig {
         "visibility" to "satellite_prefetch",
         "chlorophyll" to "satellite_prefetch",
         "gibs_satellite" to "satellite_prefetch",
-        "vessel" to "fishing_intel_prefetch",
         "solunar" to "fishing_intel_prefetch",
         "mpa" to "mpa_prefetch",
     )
@@ -183,14 +178,13 @@ object MonitoringConfig {
      * MEDIAN age. Deliberately conservative: freshness is a warn-tier signal;
      * the tight user-facing bound is the probe's recency anchors.
      *
-     * Exception: solunar shares the fishing_intel_prefetch job but has its own
-     * 12h gate (SOLUNAR_STALE_HOURS) vs vessel's 24h (VESSEL_STALE_HOURS).
+     * Exception: solunar's fishing_intel_prefetch gate is SOLUNAR_STALE_HOURS
+     * (12h), matching DataPrefetchJobs.
      */
     fun freshnessThresholdMinutes(type: String): Long? {
         val owner = freshnessOwners[type] ?: return null
         val spec = jobByName(owner) ?: return null
         val gateHours = when (type) {
-            "vessel" -> 24L
             "solunar" -> 12L
             else -> spec.staleGateHours
         }

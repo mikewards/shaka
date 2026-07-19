@@ -119,9 +119,7 @@ class HealthSummaryTest {
         assertEquals(49 * 60, MonitoringConfig.freshnessThresholdMinutes("swell"))
         // sst: 12 + 6 + 24 + 1 = 43h
         assertEquals(43 * 60, MonitoringConfig.freshnessThresholdMinutes("sst"))
-        // vessel: 24h gate + 12h interval + 48h maxRun + 1h = 85h
-        assertEquals(85 * 60, MonitoringConfig.freshnessThresholdMinutes("vessel"))
-        // solunar shares the job but has a 12h gate: 12 + 12 + 48 + 1 = 73h
+        // solunar has a 12h gate: 12 + 12 + 48 + 1 = 73h
         assertEquals(73 * 60, MonitoringConfig.freshnessThresholdMinutes("solunar"))
         // mpa: 168 + 168 + 24 + 1 = 361h
         assertEquals(361 * 60, MonitoringConfig.freshnessThresholdMinutes("mpa"))
@@ -134,10 +132,9 @@ class HealthSummaryTest {
     }
 
     @Test
-    fun `vessel at lawful 36h age is not stale (old 25h threshold false-positived)`() {
-        val cause = HealthSummaryLogic.freshnessCause("vessel", 36 * 60)
-        assertNotNull(cause)
-        assertEquals(Severity.OK, cause.first)
+    fun `vessel is no longer an age-based type (deprecated Q7)`() {
+        assertNull(MonitoringConfig.freshnessThresholdMinutes("vessel"))
+        assertTrue(!MonitoringConfig.isAgeBasedType("vessel"))
     }
 
     // ---------- tide horizon ----------

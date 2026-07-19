@@ -26,7 +26,6 @@ object EnvValidation {
         "TIDE_SERVICE_URL" to "FES2022 tide microservice (required if TIDE_SOURCE=fes2022)",
         "FISHING_INTEL_AI_ENABLED" to "AI-generated region insights",
         "FISHING_INTEL_AI_API_KEY" to "Groq API key for AI insights",
-        "GFW_API_TOKEN" to "Global Fishing Watch vessel data",
         "SENTRY_DSN" to "Error tracking",
         "BETTERSTACK_SOURCE_URL" to "Log shipping",
         "BETTERSTACK_SOURCE_TOKEN" to "Log shipping",

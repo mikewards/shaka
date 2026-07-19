@@ -36,7 +36,6 @@ class DataPrefetchJobs(
     private val copernicus: CopernicusClient,
     private val noaaClient: NOAAClient,
     private val protectedSeasClient: ProtectedSeasClient = ProtectedSeasClient(),
-    private val globalFishingWatch: GlobalFishingWatchClient = GlobalFishingWatchClient(),
     private val solunarClient: SolunarClient = SolunarClient(),
     private val ndbcBuoyClient: NDBCBuoyClient = NDBCBuoyClient(),
     private val bathymetryClient: BathymetryClient = BathymetryClient()
@@ -56,7 +55,6 @@ class DataPrefetchJobs(
         const val WEATHER_STALE_HOURS = 4   // Refetch if older than 4h  
         const val SATELLITE_STALE_HOURS = 12 // Refetch if older than 12h
         const val MPA_STALE_HOURS = 168     // Weekly (168 hours) - MPA boundaries rarely change
-        const val VESSEL_STALE_HOURS = 24   // Daily - GFW updates daily
         const val SOLUNAR_STALE_HOURS = 12  // Twice daily - solunar feeding windows shift through the day
 
         // Tide horizon top-up tuning. Tide curves are deterministic, so once a
