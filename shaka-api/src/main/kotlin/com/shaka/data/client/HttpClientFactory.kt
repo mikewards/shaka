@@ -2,6 +2,7 @@ package com.shaka.data.client
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
@@ -38,8 +39,11 @@ object HttpClientFactory {
      */
     val shared: HttpClient by lazy {
         logger.info("Initializing shared HTTP client with connection pooling")
-        
-        HttpClient(CIO) {
+        buildClient()
+    }
+
+    private fun buildClient(): HttpClient {
+        val client = HttpClient(CIO) {
             engine {
                 // Total connection pool size
                 maxConnectionsCount = 100
@@ -72,6 +76,25 @@ object HttpClientFactory {
                 level = LogLevel.NONE  // Change to INFO/HEADERS for debugging
             }
         }
+
+        // Per-host call metrics (observation only): records every attempt,
+        // success, failure and latency by host so a wedged connection pool
+        // (Jul 2026 outage: connect timeouts forever on some hosts) is visible
+        // via /v1/health/http instead of being swallowed at debug level.
+        client.plugin(HttpSend).intercept { request ->
+            val host = request.url.host
+            val startNs = System.nanoTime()
+            try {
+                val call = execute(request)
+                HttpClientMetrics.recordSuccess(host, (System.nanoTime() - startNs) / 1_000_000)
+                call
+            } catch (e: Throwable) {
+                HttpClientMetrics.recordFailure(host, (System.nanoTime() - startNs) / 1_000_000, e)
+                throw e
+            }
+        }
+
+        return client
     }
     
     /**

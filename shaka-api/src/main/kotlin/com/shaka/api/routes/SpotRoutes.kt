@@ -154,6 +154,16 @@ fun Application.configureRouting() {
                 )
             }
 
+            /**
+             * Per-host metrics for the shared HTTP client (attempts, successes,
+             * failures by class, latency, consecutive connect failures). Added
+             * after the Jul 2026 outage where the shared client's pool wedged
+             * silently for 12 days — this makes a recurrence observable.
+             */
+            get("/health/http") {
+                call.respond(com.shaka.data.client.HttpClientMetrics.snapshot())
+            }
+
             get("/health/jobs") {
                 val runs = com.shaka.monitoring.MonitoringService.getAllLatestRuns()
                 val nowMs = System.currentTimeMillis()
