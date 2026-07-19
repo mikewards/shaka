@@ -300,6 +300,10 @@ def run_pipeline(output_dir, days):
     ocean_mask_data = None
     ocean_mask_lats = None
     ocean_mask_lons = None
+    # Groups/variables that failed. A failure no longer silently drops the
+    # layer from catalog.json — the run completes (partial data still ships)
+    # but exits nonzero so the job run is marked failed in monitoring.
+    failures = []
 
     for group_name, group in DATASETS.items():
         all_vars = []
@@ -317,7 +321,8 @@ def run_pipeline(output_dir, days):
                 print(f"  ECMWF download failed ({group_name}): {e}")
                 ok = False
             if not ok:
-                print(f"  Skipping {group_name} (ECMWF download failed)")
+                print(f"  FAILED group {group_name} (ECMWF download failed)")
+                failures.append(f"{group_name}: ECMWF download failed")
                 continue
             ds = _open_ecmwf_grib(data_path)
         else:
@@ -328,7 +333,8 @@ def run_pipeline(output_dir, days):
                 group["depth"], data_path,
             )
             if not ok:
-                print(f"  Skipping {group_name} (download failed)")
+                print(f"  FAILED group {group_name} (download failed)")
+                failures.append(f"{group_name}: CMEMS download failed")
                 continue
             ds = xr.open_dataset(data_path)
 
@@ -381,12 +387,20 @@ def run_pipeline(output_dir, days):
 
             catalog[var_key] = {"timestamps": timestamps, "bounds": bounds}
             print(f"  {var_key}: {len(timestamps)} frames")
+            if not timestamps:
+                failures.append(f"{var_key}: group downloaded but 0 frames produced")
 
         ds.close()
 
+    # Wrapped catalog shape: generatedAt powers the client-side CDN staleness
+    # fallback. Consumers accept both shapes (data.variables || data).
+    catalog_doc = {
+        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "variables": catalog,
+    }
     catalog_path = output / "catalog.json"
     with open(catalog_path, "w") as f:
-        json.dump(catalog, f, indent=2)
+        json.dump(catalog_doc, f, indent=2)
     print(f"Catalog written: {catalog_path}")
 
     _cleanup_old_tiles(output, catalog)
@@ -399,7 +413,17 @@ def run_pipeline(output_dir, days):
         sys.exit(1)
     print(f"Pipeline complete: {total_frames} total frames across {len(catalog)} variables.")
 
-    _upload_to_r2(output)
+    upload_ok = _upload_to_r2(output)
+
+    # Fail loudly AFTER shipping whatever data we have: partial layers still
+    # serve, but the run is marked failed so monitoring pages instead of the
+    # layer silently disappearing from the map (Q15).
+    if failures:
+        print("PIPELINE DEGRADED: " + "; ".join(failures), file=sys.stderr)
+        sys.exit(1)
+    if not upload_ok:
+        print("PIPELINE FAILED: R2/CDN upload did not complete", file=sys.stderr)
+        sys.exit(1)
 
 
 def _cleanup_old_tiles(output_dir, catalog):
@@ -419,51 +443,72 @@ def _cleanup_old_tiles(output_dir, catalog):
 
 
 def _upload_to_r2(output_dir):
-    """Upload all weather files to Cloudflare R2 for CDN delivery."""
+    """Upload all weather files to Cloudflare R2 for CDN delivery.
+
+    Returns True on success. Any failure (missing creds when upload is
+    expected, missing boto3, upload exception) returns False so the pipeline
+    exits nonzero — a broken CDN upload used to skip silently while clients
+    kept reading ever-staler tiles (Q15).
+    """
     account_id = os.environ.get("R2_ACCOUNT_ID")
     access_key = os.environ.get("R2_ACCESS_KEY_ID")
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
     bucket = os.environ.get("R2_BUCKET_NAME", "shaka-weather")
 
-    if not all([account_id, access_key, secret_key]):
-        print("  R2 credentials not set, skipping CDN upload")
-        return
+    creds = [account_id, access_key, secret_key]
+    if not any(creds):
+        # No creds at all: upload only expected in production (Railway).
+        if os.environ.get("RAILWAY_ENVIRONMENT"):
+            print("  R2 credentials not set but running on Railway — CDN upload expected", file=sys.stderr)
+            return False
+        print("  R2 credentials not set, skipping CDN upload (local run)")
+        return True
+    if not all(creds):
+        print("  R2 credentials PARTIALLY set — misconfiguration, failing", file=sys.stderr)
+        return False
 
     try:
         import boto3
     except ImportError:
-        print("  boto3 not installed, skipping CDN upload")
-        return
+        print("  boto3 not installed but R2 creds are set — failing", file=sys.stderr)
+        return False
 
-    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=endpoint,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name="auto",
-    )
-
-    uploaded = 0
-    output = Path(output_dir)
-
-    catalog_path = output / "catalog.json"
-    if catalog_path.exists():
-        s3.upload_file(
-            str(catalog_path), bucket, "catalog.json",
-            ExtraArgs={"ContentType": "application/json", "CacheControl": "public, max-age=300"},
+    try:
+        endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name="auto",
         )
-        uploaded += 1
 
-    for webp_file in sorted(output.rglob("*.webp")):
-        key = str(webp_file.relative_to(output))
-        s3.upload_file(
-            str(webp_file), bucket, key,
-            ExtraArgs={"ContentType": "image/webp", "CacheControl": "public, max-age=21600"},
-        )
-        uploaded += 1
+        uploaded = 0
+        output = Path(output_dir)
 
-    print(f"  Uploaded {uploaded} files to R2 CDN ({bucket})")
+        # Tiles first, catalog LAST: clients discover frames via the catalog,
+        # so it must never reference tiles that have not finished uploading.
+        for webp_file in sorted(output.rglob("*.webp")):
+            key = str(webp_file.relative_to(output))
+            s3.upload_file(
+                str(webp_file), bucket, key,
+                ExtraArgs={"ContentType": "image/webp", "CacheControl": "public, max-age=21600"},
+            )
+            uploaded += 1
+
+        catalog_path = output / "catalog.json"
+        if catalog_path.exists():
+            s3.upload_file(
+                str(catalog_path), bucket, "catalog.json",
+                ExtraArgs={"ContentType": "application/json", "CacheControl": "public, max-age=300"},
+            )
+            uploaded += 1
+
+        print(f"  Uploaded {uploaded} files to R2 CDN ({bucket})")
+        return True
+    except Exception as e:
+        print(f"  R2 UPLOAD FAILED: {e}", file=sys.stderr)
+        return False
 
 
 def _time_step_hours(times):

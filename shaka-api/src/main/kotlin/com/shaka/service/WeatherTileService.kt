@@ -100,17 +100,22 @@ object WeatherTileService {
         }
         return try {
             val raw = catalogFile.readText()
-            val generatedAt = Instant.ofEpochMilli(catalogFile.lastModified()).toString()
-            val variables = try {
-                json.decodeFromString<Map<String, VariableInfo>>(raw)
-            } catch (_: Exception) {
-                val legacy = json.decodeFromString<Map<String, List<String>>>(raw)
-                legacy.mapValues { VariableInfo(timestamps = it.value) }
+            val fileGeneratedAt = Instant.ofEpochMilli(catalogFile.lastModified()).toString()
+            // Current shape: {"generatedAt": ..., "variables": {...}}. Older
+            // flat shapes (var -> info, or var -> [timestamps]) still parse.
+            val root = json.parseToJsonElement(raw)
+            val catalog = if (root is kotlinx.serialization.json.JsonObject && root.containsKey("variables")) {
+                val wrapped = json.decodeFromString<WeatherCatalog>(raw)
+                if (wrapped.generatedAt.isNotBlank()) wrapped else wrapped.copy(generatedAt = fileGeneratedAt)
+            } else {
+                val variables = try {
+                    json.decodeFromString<Map<String, VariableInfo>>(raw)
+                } catch (_: Exception) {
+                    val legacy = json.decodeFromString<Map<String, List<String>>>(raw)
+                    legacy.mapValues { VariableInfo(timestamps = it.value) }
+                }
+                WeatherCatalog(generatedAt = fileGeneratedAt, variables = variables)
             }
-            val catalog = WeatherCatalog(
-                generatedAt = generatedAt,
-                variables = variables,
-            )
             cachedCatalog = catalog
             catalog
         } catch (e: Exception) {
