@@ -226,7 +226,7 @@ class SpotService {
                 moonPhase = cached?.solunar?.value?.moonPhase
             )
 
-            val sst = resolveSST(cached?.sst?.value, spot.coordinates.lat, spot.coordinates.lon, date)
+            val sst = resolveSST(cached?.sst?.value, spot.coordinates.lat, spot.coordinates.lon)
             
             // Data freshness from cache
             val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -277,7 +277,7 @@ class SpotService {
                         ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) }
                     SpotConditions(
                         visibility = getVisibilityLabel(effectiveChl),
-                        waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                        waterTemp = formatWaterTemp(sst),
                         swell = cached?.swell?.let { 
                             "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
                         } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
@@ -301,12 +301,12 @@ class SpotService {
                         swellDirection = swellDir,
                         windSpeedKts = windKts,
                         windDirectionCardinal = windDir,
-                        waterTempC = sst.tempC,
+                        waterTempC = sst,
                         swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
                         windRetrievedAt = cached?.wind?.fetchedAt?.toEpochMilli()
                     )
                 },
-                gearRecommendations = generateGearRecs(sst.tempC, spot.depth),
+                gearRecommendations = generateGearRecs(sst, spot.depth),
                 risks = generateRisks(weather, ocean),
                 bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
                 satelliteReadings = gibsReadings
@@ -491,7 +491,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val sst = resolveSST(cached?.sst?.value, lat, lon, date)
+        val sst = resolveSST(cached?.sst?.value, lat, lon)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -553,7 +553,7 @@ class SpotService {
                     ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) }
                 SpotConditions(
                     visibility = getVisibilityLabel(effectiveChl),
-                    waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                    waterTemp = formatWaterTemp(sst),
                     swell = cached?.swell?.let { 
                         "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
                     } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
@@ -577,13 +577,13 @@ class SpotService {
                     swellDirection = swellDir,
                     windSpeedKts = windKts,
                     windDirectionCardinal = windDir,
-                    waterTempC = sst.tempC,
+                    waterTempC = sst,
                     swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
                     windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
                 )
             },
             forecast = emptyList(),
-            gearRecommendations = generateGearRecs(sst.tempC, spot.depth).map { item ->
+            gearRecommendations = generateGearRecs(sst, spot.depth).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
             risks = generateRisks(weather, ocean).map { risk ->
@@ -1123,7 +1123,7 @@ class SpotService {
                     moonPhase = cachedSolunar?.moonPhase
                 )
                 
-                val sst = resolveSST(spotCache?.sst?.value, lat, lon, date)
+                val sst = resolveSST(spotCache?.sst?.value, lat, lon)
                 
                 SpotSummary(
                     id = spot.id,
@@ -1134,7 +1134,7 @@ class SpotService {
                     conditions = buildSwellConditionFields(SpotDataCache.get(spotId)).let { scf ->
                         SpotConditions(
                             visibility = getVisibilityLabel(effectiveChl),
-                            waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                            waterTemp = formatWaterTemp(sst),
                             swell = "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
                             wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
                             tideState = "",
@@ -1150,7 +1150,7 @@ class SpotService {
                             swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
                             windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
                             windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
-                            waterTempC = sst.tempC
+                            waterTempC = sst
                         )
                     },
                     gearRecommendations = emptyList(),
@@ -1577,21 +1577,21 @@ class SpotService {
         }
     }
 
-    data class ResolvedSST(val tempC: Double, val isEstimate: Boolean)
-
-    private fun resolveSST(
-        cachedSST: Double?,
-        lat: Double, lon: Double, date: String
-    ): ResolvedSST {
-        cachedSST?.let { return ResolvedSST(it, false) }
-        SpotDataCache.findNearestSST(lat, lon)?.let { return ResolvedSST(it.value, false) }
-        return ResolvedSST(noaaClient.getRegionalSSTEstimate(lat, lon, date), true)
+    /**
+     * Resolve water temp from real measurements only: cached spot SST, else
+     * nearest-neighbor original within 25km. Returns null when nothing real
+     * exists — the climatology-estimate tier was removed (Q2–4: real value or
+     * "Unavailable", never invented).
+     */
+    private fun resolveSST(cachedSST: Double?, lat: Double, lon: Double): Double? {
+        cachedSST?.let { return it }
+        return SpotDataCache.findNearestSST(lat, lon)?.value
     }
 
-    private fun formatWaterTemp(sstCelsius: Double?, isEstimate: Boolean = false): String {
-        if (sstCelsius == null) return "N/A"
+    private fun formatWaterTemp(sstCelsius: Double?): String {
+        if (sstCelsius == null) return "Unavailable"
         val f = ((sstCelsius * 9.0 / 5) + 32).toInt()
-        return if (isEstimate) "~${sstCelsius.toInt()}°C / ~${f}°F (est.)" else "${sstCelsius.toInt()}°C / ${f}°F"
+        return "${sstCelsius.toInt()}°C / ${f}°F"
     }
 
     private fun generateGearRecs(waterTempC: Double?, depthM: Int): List<String> {
@@ -1807,7 +1807,7 @@ class SpotService {
             moonPhase = cached?.solunar?.value?.moonPhase
         )
         
-        val sst = resolveSST(cached?.sst?.value, lat, lon, date)
+        val sst = resolveSST(cached?.sst?.value, lat, lon)
         
         // Data freshness from cache
         val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
@@ -1868,7 +1868,7 @@ class SpotService {
             ),
             conditions = SpotConditions(
                 visibility = getVisibilityLabel(effectiveChl),
-                waterTemp = formatWaterTemp(sst.tempC, sst.isEstimate),
+                waterTemp = formatWaterTemp(sst),
                 swell = cached?.swell?.let { 
                     "${it.value.heightFt.roundToInt()}ft @ ${it.value.periodSec.roundToInt()}s ${it.value.direction}" 
                 } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
@@ -1897,12 +1897,12 @@ class SpotService {
                     ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) },
                 windDirectionCardinal = effectiveWind?.value?.direction
                     ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) },
-                waterTempC = sst.tempC,
+                waterTempC = sst,
                 swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
                 windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
             ),
             forecast = emptyList(),
-            gearRecommendations = generateGearRecs(sst.tempC, 10).map { item ->
+            gearRecommendations = generateGearRecs(sst, 10).map { item ->
                 GearItem(item = item, reason = "Recommended for conditions", essential = true)
             },
             risks = generateRisks(weather, ocean).map { risk ->
