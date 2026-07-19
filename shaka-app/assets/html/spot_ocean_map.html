@@ -101,6 +101,20 @@
       }
     }
 
+    /**
+     * Per-layer direction convention for the probe (arrow AND text consume
+     * this value as-is on the Flutter side):
+     *  - wind: meteorological FROM (bearing the wind blows from) — what the
+     *    raw WeatherLayers picking direction already is.
+     *  - currents: oceanographic TO (bearing the water flows toward) —
+     *    flipped 180° from the raw picking direction.
+     */
+    function _displayDirection(rawDir, layerKey) {
+      if (rawDir === undefined || rawDir === null) return null;
+      if (layerKey === 'currents') return (rawDir + 180) % 360;
+      return rawDir;
+    }
+
     var LAND_FILL_ID = 'land-fill';
 
     var WIND_BG_PALETTE = [
@@ -406,7 +420,7 @@
           lat: _spotLat,
           lng: _spotLng,
           value: info.raster.value,
-          direction: info.raster.direction,
+          direction: _displayDirection(info.raster.direction, activeLayerKey),
           layer: activeLayerKey,
         });
       } else {
