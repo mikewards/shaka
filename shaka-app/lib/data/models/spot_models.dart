@@ -480,27 +480,6 @@ class RegulationInfo {
 // Raw data for fishermen to interpret
 // ===========================================
 
-/// Vessel activity from Global Fishing Watch
-class VesselActivity {
-  final int count;
-  final int radiusNm;
-  final String updatedAt;
-
-  const VesselActivity({
-    required this.count,
-    required this.radiusNm,
-    required this.updatedAt,
-  });
-
-  factory VesselActivity.fromJson(Map<String, dynamic> json) {
-    return VesselActivity(
-      count: json['count'] ?? 0,
-      radiusNm: json['radiusNm'] ?? 10,
-      updatedAt: json['updatedAt'] ?? '',
-    );
-  }
-}
-
 /// Time period for solunar data
 class TimePeriod {
   final String start;
@@ -974,7 +953,6 @@ class SpotDetail {
   final String? imageUrl;
   final GibsSatelliteReadings? satelliteReadings;
   final RegulationInfo? regulations;
-  final VesselActivity? vessels;
   final SolunarData? solunar;
   final WaterContext? waterContext;
   final TideChartData? tide;
@@ -995,7 +973,6 @@ class SpotDetail {
     this.imageUrl,
     this.satelliteReadings,
     this.regulations,
-    this.vessels,
     this.solunar,
     this.waterContext,
     this.tide,
@@ -1029,9 +1006,6 @@ class SpotDetail {
           : null,
       regulations: json['regulations'] != null
           ? RegulationInfo.fromJson(json['regulations'])
-          : null,
-      vessels: json['vessels'] != null
-          ? VesselActivity.fromJson(json['vessels'])
           : null,
       solunar: json['solunar'] != null
           ? SolunarData.fromJson(json['solunar'])
