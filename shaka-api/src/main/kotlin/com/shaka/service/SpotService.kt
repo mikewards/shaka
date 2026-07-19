@@ -446,14 +446,9 @@ class SpotService {
         
         // Forecast is lazy-loaded by the client via /forecast/{spotId} when user taps Forecast tab
         
-        // Build fishing intel from cache (prefetched daily)
-        val vesselActivity = cached?.vessel?.value?.let { vessel ->
-            VesselActivity(
-                count = vessel.count,
-                radiusNm = vessel.radiusNm,
-                updatedAt = cached.vessel.fetchedAt.toString()
-            )
-        }
+        // Vessels deprecated (Q7, plan 18): fetching stopped, field serves null.
+        // The API field itself is removed in plan 19.
+        val vesselActivity: VesselActivity? = null
         
         val solunarData = cached?.solunar?.value?.let { sol ->
             SolunarData(

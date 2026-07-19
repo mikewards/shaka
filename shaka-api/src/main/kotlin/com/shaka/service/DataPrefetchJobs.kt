@@ -1086,24 +1086,24 @@ class DataPrefetchJobs(
     // ==================== DAILY: Fishing Intel Prefetch ====================
     
     /**
-     * Prefetch fishing intel data: vessel activity and solunar periods.
-     * These are the raw data points fishermen use to make their own calls.
+     * Prefetch fishing intel data: solunar periods (moon phase + feeding
+     * windows).
+     *
+     * Vessel fetching removed (Q7, plan 18): Global Fishing Watch ran
+     * tokenless/broken and no app UI renders vessels — the SpotDetail.vessels
+     * field now serves null. DB columns are kept (not dropped) but no longer
+     * written.
      * 
-     * Global Fishing Watch provides vessel clustering data.
-     * Solunar API provides moon phase and feeding periods.
-     * 
-     * Schedule: Daily (data changes day-to-day)
+     * Schedule: Twice daily.
      */
     suspend fun prefetchFishingIntel() = withContext(Dispatchers.IO) {
         val allSpots = spotDb.getAllSpots()
         val today = LocalDate.now()
         
-        // Filter to spots that need updating (daily refresh)
+        // Filter to spots that need updating (solunar-only since plan 18)
         val spotsToUpdate = allSpots.filter { spot ->
             val cached = SpotDataCache.get(spot.id)
-            cached?.vessel == null || cached.solunar == null ||
-                isStale(cached.vessel?.fetchedAt, VESSEL_STALE_HOURS) ||
-                isStale(cached.solunar?.fetchedAt, SOLUNAR_STALE_HOURS)
+            cached?.solunar == null || isStale(cached.solunar?.fetchedAt, SOLUNAR_STALE_HOURS)
         }
         
         logger.info("FISHING INTEL prefetch: ${spotsToUpdate.size}/${allSpots.size} spots need updates")
@@ -1111,18 +1111,15 @@ class DataPrefetchJobs(
         if (spotsToUpdate.isEmpty()) {
             logger.info("FISHING INTEL prefetch: All spots have fresh data, skipping")
             MonitoringService.reportRun("fishing_intel_prefetch", 0, 0, emptyList(), 0)
-            MonitoringService.reportRun("fishing_intel_vessel", 0, 0, emptyList(), 0)
             MonitoringService.reportRun("fishing_intel_solunar", 0, 0, emptyList(), 0)
             return@withContext
         }
         
         val startTime = System.currentTimeMillis()
-        var vesselSuccess = 0
         var solunarSuccess = 0
         var errorCount = 0
         val failures = mutableListOf<ItemFailure>()
         // Per-source failure details (Q9): previously swallowed at logger.debug.
-        val vesselFailures = mutableListOf<ItemFailure>()
         val solunarFailures = mutableListOf<ItemFailure>()
         
         // Process in batches to avoid overwhelming APIs
@@ -1132,35 +1129,7 @@ class DataPrefetchJobs(
                     val lat = spot.coordinates.lat
                     val lon = spot.coordinates.lon
                     val now = Instant.now()
-                    var gotVessel = false
                     var gotSolunar = false
-                    
-                    // Fetch vessel activity from Global Fishing Watch
-                    try {
-                        val vesselData = globalFishingWatch.getVesselActivity(lat, lon)
-                        if (vesselData != null) {
-                            SpotDataCache.updateVessel(
-                                spot.id,
-                                SpotDataCache.CachedValue(
-                                    value = SpotDataCache.VesselInfo(
-                                        count = vesselData.count,
-                                        radiusNm = vesselData.radiusNm
-                                    ),
-                                    fetchedAt = now
-                                )
-                            )
-                            gotVessel = true
-                        } else {
-                            synchronized(vesselFailures) {
-                                vesselFailures.add(ItemFailure(spot.id, spot.name, "GFW returned no vessel data", "no_data"))
-                            }
-                        }
-                    } catch (e: Exception) {
-                        logger.debug("Vessel fetch failed for ${spot.name}: ${e.message}")
-                        synchronized(vesselFailures) {
-                            vesselFailures.add(ItemFailure(spot.id, spot.name, e.message ?: "unknown", MonitoringService.classifyError(e)))
-                        }
-                    }
                     
                     // Fetch solunar data
                     try {
@@ -1198,24 +1167,21 @@ class DataPrefetchJobs(
                         }
                     }
                     
-                    if (gotVessel || gotSolunar) {
+                    if (gotSolunar) {
                         SpotDataCache.saveToDatabase(spot.id)
-                    }
-                    
-                    if (!gotVessel && !gotSolunar) {
-                        MonitoringService.captureItemFailure("fishing_intel_prefetch", spot.id, spot.name, Exception("Both vessel and solunar fetch failed"))
+                    } else {
+                        MonitoringService.captureItemFailure("fishing_intel_prefetch", spot.id, spot.name, Exception("Solunar fetch failed"))
                         synchronized(failures) {
-                            failures.add(ItemFailure(spot.id, spot.name, "Both vessel and solunar fetch failed", "complete_failure"))
+                            failures.add(ItemFailure(spot.id, spot.name, "Solunar fetch failed", "complete_failure"))
                         }
                     }
                     
-                    Pair(gotVessel, gotSolunar)
+                    gotSolunar
                 }
             }.awaitAll()
             
-            vesselSuccess += results.count { it.first }
-            solunarSuccess += results.count { it.second }
-            errorCount += results.count { !it.first && !it.second }
+            solunarSuccess += results.count { it }
+            errorCount += results.count { !it }
             
             if (batchIndex < spotsToUpdate.size / BATCH_SIZE) {
                 delay(BATCH_DELAY_MS)
@@ -1223,10 +1189,7 @@ class DataPrefetchJobs(
         }
         
         val elapsed = System.currentTimeMillis() - startTime
-        val effectiveSuccess = spotsToUpdate.size - errorCount
-        MonitoringService.reportRun("fishing_intel_prefetch", spotsToUpdate.size, effectiveSuccess, failures, elapsed)
-        // Per-source reports (Q9): "vessel OR solunar" success hid single-source outages.
-        MonitoringService.reportRun("fishing_intel_vessel", spotsToUpdate.size, vesselSuccess, vesselFailures, elapsed)
+        MonitoringService.reportRun("fishing_intel_prefetch", spotsToUpdate.size, solunarSuccess, failures, elapsed)
         MonitoringService.reportRun("fishing_intel_solunar", spotsToUpdate.size, solunarSuccess, solunarFailures, elapsed)
         logRateLimiterStats()
     }
