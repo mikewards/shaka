@@ -140,7 +140,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
     }
 
     // Use Copernicus L3 chlorophyll if available; otherwise estimate from GIBS colors
-    double? effectiveChl = readings.noaaErddapChlorophyll;
+    double? effectiveChl = readings.chlorophyllMgM3;
     bool isEstimated = false;
     if (effectiveChl == null) {
       effectiveChl = _estimateFromSatelliteColors(readings);
@@ -149,7 +149,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
 
     var info = _getVisibilityInfo(effectiveChl);
 
-    final estimatedChl = readings.noaaErddapChlorophyll == null
+    final estimatedChl = readings.chlorophyllMgM3 == null
         ? _estimateFromSatelliteColors(readings)
         : null;
 
@@ -325,7 +325,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                readings.noaaErddapChlorophyll!.toStringAsFixed(3),
+                readings.chlorophyllMgM3!.toStringAsFixed(3),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -446,7 +446,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
 
   /// Copernicus Marine chlorophyll value — always shown, with "Not available" fallback.
   Widget _buildCopernicusSection(GibsSatelliteReadings readings) {
-    final chl = readings.noaaErddapChlorophyll;
+    final chl = readings.chlorophyllMgM3;
     final available = chl != null;
 
     return Column(
@@ -588,7 +588,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
       ('Zero vis', '> 10.0', Color(0xFF880000)),
     ];
 
-    final effectiveChl = readings.noaaErddapChlorophyll ?? estimatedChl;
+    final effectiveChl = readings.chlorophyllMgM3 ?? estimatedChl;
     final currentLabel = _getVisibilityInfo(effectiveChl).label;
 
     return Column(
@@ -709,7 +709,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
           ],
         ),
         const SizedBox(height: 12),
-        _buildBlendedEstimateRow(readings, highlight: readings.noaaErddapChlorophyll == null),
+        _buildBlendedEstimateRow(readings, highlight: readings.chlorophyllMgM3 == null),
         _buildSatelliteColorRow(
           name: 'PACE',
           colorHex: readings.paceYesterdayColor ?? readings.paceTodayColor,
@@ -921,7 +921,7 @@ class _SatelliteReadingsCardState extends State<SatelliteReadingsCard>
 
     // Highlight the current label
     final currentLabel = _getVisibilityInfo(
-      widget.readings?.noaaErddapChlorophyll,
+      widget.readings?.chlorophyllMgM3,
     ).label;
 
     showModalBottomSheet(

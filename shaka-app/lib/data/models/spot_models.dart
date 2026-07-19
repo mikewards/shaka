@@ -308,8 +308,7 @@ class CommunityReport {
 /// IMPORTANT: The color fields are for DISPLAY ONLY - they show what the satellite
 /// captured but may include sediment, kelp, or bottom reflectance in coastal areas.
 ///
-/// For actual chlorophyll measurements, use noaaErddapChlorophyll which comes from
-/// NOAA CoastWatch ERDDAP - a reliable numerical data source.
+/// For actual chlorophyll measurements, use chlorophyllMgM3 (Copernicus Marine).
 class GibsSatelliteReadings {
   // Satellite imagery colors (display only - may include sediment/kelp contamination)
   final String? paceTodayColor;      // RGB hex "#RRGGBB" from PACE satellite
@@ -327,8 +326,10 @@ class GibsSatelliteReadings {
   final DateTime? noaa20ObservationTime;
   final DateTime? noaa21ObservationTime;
   final String? dataDate; // The date "today" refers to
-  // ACTUAL MEASURED CHLOROPHYLL from NOAA ERDDAP (the trusted source)
-  final double? noaaErddapChlorophyll;  // mg/m³ - THE reliable chlorophyll value
+  // Measured chlorophyll-a (mg/m³) from Copernicus Marine (the old
+  // "noaaErddapChlorophyll" API name was misleading; parsing falls back to it
+  // for older API responses).
+  final double? chlorophyllMgM3;
   final DateTime? noaaErddapFetchTime;
 
   const GibsSatelliteReadings({
@@ -346,7 +347,7 @@ class GibsSatelliteReadings {
     this.noaa20ObservationTime,
     this.noaa21ObservationTime,
     this.dataDate,
-    this.noaaErddapChlorophyll,
+    this.chlorophyllMgM3,
     this.noaaErddapFetchTime,
   });
 
@@ -372,14 +373,15 @@ class GibsSatelliteReadings {
           ? DateTime.tryParse(json['noaa21ObservationTime'])
           : null,
       dataDate: json['dataDate'],
-      noaaErddapChlorophyll: (json['noaaErddapChlorophyll'] as num?)?.toDouble(),
+      chlorophyllMgM3: ((json['chlorophyllMgM3'] ?? json['noaaErddapChlorophyll']) as num?)
+          ?.toDouble(),
       noaaErddapFetchTime: json['noaaErddapFetchTime'] != null
           ? DateTime.tryParse(json['noaaErddapFetchTime'])
           : null,
     );
   }
 
-  /// Check if we have any data at all (colors or NOAA ERDDAP measurement)
+  /// Check if we have any data at all (colors or measured chlorophyll)
   bool get hasAnyData =>
       paceTodayColor != null ||
       paceYesterdayColor != null ||
@@ -391,7 +393,7 @@ class GibsSatelliteReadings {
       sentinel3aYesterdayColor != null ||
       sentinel3bTodayColor != null ||
       sentinel3bYesterdayColor != null ||
-      noaaErddapChlorophyll != null;
+      chlorophyllMgM3 != null;
 }
 
 /// Marine Protected Area status from ProtectedSeas Navigator
