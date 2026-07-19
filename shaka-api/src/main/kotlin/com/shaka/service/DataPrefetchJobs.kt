@@ -196,7 +196,12 @@ class DataPrefetchJobs(
 
     suspend fun catchUpMissingTideCharts() = withContext(Dispatchers.IO) {
         val missing = SpotDataCache.spotsMissingTideDay()
-        if (missing.isEmpty()) return@withContext
+        if (missing.isEmpty()) {
+            // No-op runs still report (Q10): a 0-item run is an explicit
+            // "nothing to do" success, distinguishable from a dead job.
+            MonitoringService.reportRun("tide_chart_catchup", 0, 0, emptyList(), 0)
+            return@withContext
+        }
 
         logger.info("TIDE CHART catch-up: ${missing.size} spots missing recent chart data")
 
@@ -391,6 +396,7 @@ class DataPrefetchJobs(
 
             if (remaining.isEmpty()) {
                 logger.info("TIDE remaining-backfill: nothing to do, all spots have a current-or-future horizon")
+                MonitoringService.reportRun("tide_remaining_backfill", 0, 0, emptyList(), 0)
                 return@withContext
             }
 
@@ -461,6 +467,9 @@ class DataPrefetchJobs(
 
             if (needy.isEmpty()) {
                 logger.info("TIDE horizon top-up: all spots have >= $HORIZON_REFRESH_DAYS days of horizon")
+                // No-op runs still report (Q10) — a silent return here left the
+                // job indistinguishable from a dead one.
+                MonitoringService.reportRun("tide_horizon_topup", 0, 0, emptyList(), 0)
                 return@withContext
             }
 
@@ -725,6 +734,11 @@ class DataPrefetchJobs(
         
         if (spotsToUpdate.isEmpty()) {
             logger.info("SATELLITE prefetch: All spots have fresh data, skipping")
+            // No-op runs still report (Q10), including the per-source sub-jobs.
+            MonitoringService.reportRun("satellite_prefetch", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("satellite_sst", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("satellite_copernicus", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("satellite_gibs", 0, 0, emptyList(), 0)
             return@withContext
         }
         
@@ -967,6 +981,7 @@ class DataPrefetchJobs(
         
         if (spotsToUpdate.isEmpty()) {
             logger.info("MPA prefetch: All spots have fresh data, skipping")
+            MonitoringService.reportRun("mpa_prefetch", 0, 0, emptyList(), 0)
             return@withContext
         }
         
@@ -1067,6 +1082,9 @@ class DataPrefetchJobs(
         
         if (spotsToUpdate.isEmpty()) {
             logger.info("FISHING INTEL prefetch: All spots have fresh data, skipping")
+            MonitoringService.reportRun("fishing_intel_prefetch", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("fishing_intel_vessel", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("fishing_intel_solunar", 0, 0, emptyList(), 0)
             return@withContext
         }
         
@@ -1196,11 +1214,23 @@ class DataPrefetchJobs(
             com.shaka.data.db.UserSpotRepository.getAllUserSpots()
         } catch (e: Exception) {
             logger.error("USER SPOTS prefetch: Failed to load user spots from DB: ${e.message}", e)
+            // A failed load is a failed run, not a silent no-op.
+            MonitoringService.reportRun(
+                "user_spots_prefetch", 1, 0,
+                listOf(ItemFailure("user_spots_load", "user_spots DB load", e.message ?: "unknown", MonitoringService.classifyError(e))),
+                0
+            )
             return@withContext
         }
         
         if (userSpots.isEmpty()) {
             logger.info("USER SPOTS prefetch: No user spots to prefetch")
+            MonitoringService.reportRun("user_spots_prefetch", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("user_spots_sst", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("user_spots_copernicus", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("user_spots_gibs", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("user_spots_mpa", 0, 0, emptyList(), 0)
+            MonitoringService.reportRun("user_spots_solunar", 0, 0, emptyList(), 0)
             return@withContext
         }
         
@@ -1528,6 +1558,7 @@ class DataPrefetchJobs(
         }
         if (buoyStationsCache.isEmpty()) {
             logger.info("No buoy stations configured — skipping buoy prefetch")
+            MonitoringService.reportRun("buoy_readings", 0, 0, emptyList(), 0)
             return
         }
         
