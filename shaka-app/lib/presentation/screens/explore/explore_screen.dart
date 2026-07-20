@@ -922,9 +922,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Your saved spots sync to Shaka\'s servers so they\'re backed up and available across the app. '
-                              'They\'re tied only to an anonymous ID for this install — never to your name, email, or an account, '
-                              'and we don\'t sell or share them. You can delete a spot any time from My Spots.',
+                              'Your saved spots are not shown to other people. They are private to this device! We don\'t sell or share them. You can delete a spot at any time.',
                               style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
                             ),
                           ],
