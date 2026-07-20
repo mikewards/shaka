@@ -922,7 +922,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Your saved spots are not shown to other people. They are private to this device! We don\'t sell or share them. You can delete a spot at any time.',
+                              'Your saved spots are private — only visible to you, never shown to other people. We don\'t sell or share them, and you can delete a spot at any time.',
                               style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
                             ),
                           ],
