@@ -520,6 +520,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
       if (!mounted) return;
+      final isLastAttempt = attempt == maxAttempts - 1;
 
       final pending = _userSpots.where(
         (s) => s.shakaScore == null || s.swell == null,
@@ -540,6 +541,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
       for (final spot in pending) {
         futures.add(_fetchSpotDetail(spot.id, today).then((detail) {
           if (detail != null) {
+            // The detail endpoint responds immediately after creation with
+            // placeholder conditions ("Unavailable") while the server-side
+            // prefetch is still populating the cache. Applying those would
+            // clear the card's loading state with default values, so keep
+            // polling until real data arrives. On the last attempt apply
+            // whatever we got so the card doesn't spin forever.
+            final hasRealData = detail.spot.conditions.swellHeightFt != null;
+            if (!hasRealData && !isLastAttempt) {
+              debugPrint('📍 Explore: ${spot.id} conditions not ready yet, will retry');
+              return;
+            }
             final index = _userSpots.indexWhere((s) => s.id == spot.id);
             if (index != -1) {
               final cond = detail.spot.conditions;
