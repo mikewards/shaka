@@ -4,6 +4,7 @@
       "agency": "DLNR Division of Aquatic Resources",
       "url": "https://dlnr.hawaii.gov/dar/fishing/fishing-regulations/",
       "licensingUrl": "https://dlnr.hawaii.gov/dar/licenses-and-permits/",
+      "note": "No license for residents; non-residents 15+ need a Recreational Marine Fishing License.",
       "regions": ["Oahu", "Maui", "Bigisland", "Kauai", "Molokai", "Lanai"]
     },
     "California": {
@@ -21,10 +22,10 @@
   },
   "Bahamas": {
     "agency": "Bahamas Department of Marine Resources",
-    "url": "https://www.bahamas.gov.bs/marineresources",
-    "licensingUrl": null,
-    "note": "Foreign nationals prohibited from spearfishing. Bahamians only with permit.",
-    "regions": ["Andros", "Bimini", "Exuma", "Abaco", "Nassau", "Eleuthera", "Cat", "Conception", "Berry", "Crooked", "Acklins", "Inagua", "Mayaguana", "Longisland", "Sansalvador", "Rum"]
+    "url": "https://www.bahamas.com/plan-your-trip/fishing/fishing-faq",
+    "licensingUrl": "https://www.bahamas.gov.bs/service/sport-fishing-permit",
+    "note": "Spearfishing legal free-diving only with Hawaiian sling or pole spear (spearguns and SCUBA/hookah prohibited); spear use must be endorsed on the Sport Fishing Permit obtained at customs on entry. Banned within 1 mi of New Providence, 1 mi of Freeport's south coast, 200 yd of any Out Island, and in marine parks.",
+    "regions": ["Bahamas", "Andros", "Bimini", "Exuma", "Abaco", "Nassau", "Eleuthera", "Cat", "Conception", "Berry", "Crooked", "Acklins", "Inagua", "Mayaguana", "Longisland", "Sansalvador", "Rum", "Grandbahama", "Freeport"]
   },
   "Cayman": {
     "agency": "Cayman Islands Department of Environment",
@@ -48,8 +49,9 @@
   "Mexico": {
     "agency": "CONAPESCA",
     "url": "https://www.gob.mx/conapesca",
-    "licensingUrl": null,
-    "regions": ["Mexico", "Baja", "Cozumel", "Cancun", "Yucatan", "Seaofcortez"]
+    "licensingUrl": "https://www.gob.mx/conapesca/documentos/conapesca-01-016-pesca-deportivo-recreativa",
+    "note": "Sport fishing license required for spearfishing and for fishing from any boat (shore angling exempt).",
+    "regions": ["Mexico", "Baja", "Cozumel", "Cancun", "Yucatan", "Seaofcortez", "Guadalupe"]
   },
   "Caribbean": {
     "Curacao": {
@@ -108,11 +110,13 @@
     "Australia": {
       "agency": "State Fisheries Authorities",
       "url": "https://www.agriculture.gov.au/fisheries",
+      "note": "Licence rules vary by state: NSW requires a recreational fishing fee (incl. spearfishing); QLD and WA shore-based spearfishing need no licence.",
       "regions": ["Aus", "Queensland", "Nsw", "Greatbarrierreef"]
     },
     "NewZealand": {
       "agency": "Fisheries New Zealand",
       "url": "https://www.mpi.govt.nz/fishing-aquaculture/",
+      "note": "No licence required for recreational sea fishing; bag and size limits apply.",
       "regions": ["Newzealand", "Northisland", "Southisland", "Poorknights"]
     }
   },

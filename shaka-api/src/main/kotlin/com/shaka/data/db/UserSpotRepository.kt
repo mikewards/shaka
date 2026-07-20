@@ -306,14 +306,21 @@ class UserSpotRepository {
             return when {
                 // Hawaii
                 lat in 18.0..23.0 && lon in -161.0..-154.0 -> "Hawaii" to "USA"
+                // Bahamas - must precede the Florida boxes (which extend to lon -79)
+                // so Bimini (lon ~-79.3) resolves to Bahamas. Western edge -79.6
+                // approximates the US/Bahamas boundary in the Straits of Florida,
+                // keeping nearshore Florida Atlantic spots (coast at lon -80.0
+                // to -80.2) mapped to Florida.
+                lat in 20.0..28.0 && lon in -79.6..-72.0 -> "Bahamas" to "Bahamas"
                 // Florida Keys
                 lat in 24.0..26.0 && lon in -82.0..-79.0 -> "Florida" to "USA"
                 // Florida (general)
                 lat in 24.0..31.0 && lon in -88.0..-79.0 -> "Florida" to "USA"
                 // California
                 lat in 32.0..42.0 && lon in -125.0..-114.0 -> "California" to "USA"
-                // Bahamas
-                lat in 20.0..28.0 && lon in -80.0..-72.0 -> "Bahamas" to "Bahamas"
+                // Mexican Caribbean (Cancun/Cozumel/Riviera Maya) - must precede the
+                // generic Caribbean box, which otherwise swallows it
+                lat in 19.0..22.0 && lon in -88.0..-85.5 -> "Mexico" to "Mexico"
                 // Caribbean general
                 lat in 10.0..25.0 && lon in -90.0..-59.0 -> "Caribbean" to "Caribbean"
                 // Mediterranean

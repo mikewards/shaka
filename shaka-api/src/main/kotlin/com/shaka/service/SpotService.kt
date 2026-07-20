@@ -1311,7 +1311,12 @@ class SpotService {
             spotId.startsWith("cali-") -> "USA"
             spotId.contains("bahamas") || spotId.startsWith("andros-") || 
             spotId.startsWith("exuma-") || spotId.startsWith("bimini-") ||
-            spotId.startsWith("nassau-") -> "Bahamas"
+            spotId.startsWith("nassau-") || spotId.startsWith("eleuthera-") ||
+            spotId.startsWith("abaco-") || spotId.startsWith("cat-") ||
+            spotId.startsWith("berry-") || spotId.startsWith("rum-") ||
+            spotId.startsWith("long-") || spotId.startsWith("grand-") ||
+            spotId.startsWith("salvador-") || spotId.startsWith("conception-") ||
+            spotId.startsWith("crooked-") || spotId.startsWith("acklins-") -> "Bahamas"
             spotId.startsWith("cayman-") -> "Cayman"
             spotId.startsWith("bvi-") || spotId.startsWith("tortola-") -> "BVI"
             spotId.startsWith("usvi-") || spotId.startsWith("stthomas-") ||
@@ -1325,7 +1330,7 @@ class SpotService {
             spotId.startsWith("bora-") -> "FrenchPolynesia"
             spotId.startsWith("fiji-") -> "Fiji"
             spotId.startsWith("mexico-") || spotId.startsWith("cozumel-") ||
-            spotId.startsWith("cancun-") -> "Mexico"
+            spotId.startsWith("cancun-") || spotId.startsWith("guadalupe-") -> "Mexico"
             spotId.startsWith("bonaire-") -> "Bonaire"
             spotId.startsWith("curacao-") -> "Curacao"
             spotId.startsWith("aruba-") -> "Aruba"
@@ -1408,19 +1413,23 @@ class SpotService {
             mpaChecked = mpaChecked
         )
         
+        // Region names can come from spot IDs ("Keys") or coordinate inference
+        // ("French Polynesia"); strip spaces so both match JSON keys like "FrenchPolynesia".
+        val normalizedRegion = region.replace(" ", "")
+
         // Try to find region-specific info
         // First try country -> region (e.g., USA -> Hawaii)
         val countryLinks = links[country]?.jsonObject
-        val regionLinks = countryLinks?.get(region)?.jsonObject
+        val regionLinks = countryLinks?.get(normalizedRegion)?.jsonObject
             ?: countryLinks?.entries?.firstOrNull { (_, value) ->
-                value is JsonObject && value["regions"]?.toString()?.contains(region, ignoreCase = true) == true
+                value is JsonObject && value["regions"]?.toString()?.contains(normalizedRegion, ignoreCase = true) == true
             }?.value?.jsonObject
         
         // Handle flat country structures (e.g., Bahamas) where regions array is directly on the country object
         if (regionLinks == null && countryLinks != null && 
             countryLinks["agency"] != null &&
             countryLinks["regions"]?.jsonArray?.any { 
-                it.jsonPrimitive.content.contains(region, ignoreCase = true) 
+                it.jsonPrimitive.content.contains(normalizedRegion, ignoreCase = true) 
             } == true) {
             return RegulationInfo(
                 regulatoryAgency = countryLinks["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
@@ -1448,8 +1457,10 @@ class SpotService {
             if (section == "default") continue
             val sectionObj = try { sectionData.jsonObject } catch (e: Exception) { continue }
             
-            // Check if this section directly matches the country
-            if (section.equals(country, ignoreCase = true)) {
+            // Check if this section directly matches the country.
+            // Require an "agency" field so grouping sections (e.g. "Caribbean",
+            // which only holds subsections) don't produce an empty match.
+            if (section.equals(country, ignoreCase = true) && sectionObj["agency"] != null) {
                 return RegulationInfo(
                     regulatoryAgency = sectionObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                     regulationsUrl = sectionObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
@@ -1464,8 +1475,8 @@ class SpotService {
             for ((subRegion, subData) in sectionObj) {
                 val subObj = try { subData.jsonObject } catch (e: Exception) { continue }
                 val regions = subObj["regions"]?.toString() ?: ""
-                if (regions.contains(region, ignoreCase = true) || 
-                    subRegion.equals(region, ignoreCase = true)) {
+                if (regions.contains(normalizedRegion, ignoreCase = true) || 
+                    subRegion.equals(normalizedRegion, ignoreCase = true)) {
                     return RegulationInfo(
                         regulatoryAgency = subObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                         regulationsUrl = subObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
@@ -1834,21 +1845,7 @@ class SpotService {
             )
         } else null
 
-        // Get MPA status from cache
-        val mpaStatus = cached?.mpa?.value?.let {
-            MPAStatus(
-                isProtected = it.spearfishingStatus in 1..2,
-                isInsideMPA = it.isInsideMPA,
-                siteName = it.siteName,
-                designation = it.designation,
-                spearfishingStatus = it.spearfishingStatus,
-                protectionLevel = it.protectionLevel,
-                speciesOfConcern = it.speciesOfConcern,
-                purpose = it.purpose,
-                detailsUrl = it.detailsUrl
-            )
-        }
-
+        // MPA status is built inside getRegulationInfo from the same cache entry.
         val tideChart = loadTideChartData(cacheId, lon)
 
         SpotDetail(
@@ -1908,12 +1905,13 @@ class SpotService {
             bestTimeOfDay = getBestTimeOfDay(cached?.solunar?.value?.moonPhase),
             imageUrl = null,
             satelliteReadings = gibsReadings,
-            regulations = RegulationInfo(
-                regulatoryAgency = "Local Fisheries Authority",
-                regulationsUrl = "https://navigatormap.org/",
-                mpaStatus = mpaStatus,
-                mpaChecked = cached?.mpa != null
-            ),
+            regulations = run {
+                // Same regulatory lookup as curated spots, but keyed on the spot's
+                // coordinates (user spots have no meaningful spot-ID prefix).
+                // Recomputed at read time so old rows benefit from mapping updates.
+                val (regRegion, regCountry) = UserSpotRepository.inferRegionAndCountry(lat, lon)
+                getRegulationInfo(cacheId, regRegion, regCountry)
+            },
             tide = tideChart
         )
     }
