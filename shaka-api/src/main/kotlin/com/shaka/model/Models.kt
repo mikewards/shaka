@@ -93,6 +93,7 @@ data class RegulationInfo(
     val regulatoryAgency: String,           // e.g., "DLNR Division of Aquatic Resources"
     val regulationsUrl: String,             // Link to official regulations page
     val licensingUrl: String? = null,       // Link to licensing page (if separate)
+    val licenseRequirement: String? = null, // "required" | "conditional" | "not_required" | "prohibited"; null = unknown
     val note: String? = null,               // e.g., "Spearfishing prohibited"
     val mpaStatus: MPAStatus? = null,       // From ProtectedSeas API
     val mpaChecked: Boolean = false         // true when mpa_fetched_at is NOT NULL in cache (MPA check was attempted)

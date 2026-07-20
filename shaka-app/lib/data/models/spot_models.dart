@@ -450,6 +450,10 @@ class RegulationInfo {
   final String regulatoryAgency;
   final String regulationsUrl;
   final String? licensingUrl;
+
+  /// Locale-level license requirement: "required" | "conditional" |
+  /// "not_required" | "prohibited". Null when unknown (or old server).
+  final String? licenseRequirement;
   final String? note;
   final MPAStatus? mpaStatus;
   final bool mpaChecked; // true when MPA fetch was attempted (mpa_fetched_at is NOT NULL)
@@ -458,6 +462,7 @@ class RegulationInfo {
     required this.regulatoryAgency,
     required this.regulationsUrl,
     this.licensingUrl,
+    this.licenseRequirement,
     this.note,
     this.mpaStatus,
     this.mpaChecked = false,
@@ -468,6 +473,7 @@ class RegulationInfo {
       regulatoryAgency: json['regulatoryAgency'] ?? 'Fisheries Authority',
       regulationsUrl: json['regulationsUrl'] ?? 'https://navigatormap.org/',
       licensingUrl: json['licensingUrl'],
+      licenseRequirement: json['licenseRequirement'] as String?,
       note: json['note'],
       mpaStatus: json['mpaStatus'] != null
           ? MPAStatus.fromJson(json['mpaStatus'])

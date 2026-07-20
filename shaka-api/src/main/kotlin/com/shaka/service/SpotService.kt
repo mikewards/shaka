@@ -1435,6 +1435,7 @@ class SpotService {
                 regulatoryAgency = countryLinks["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                 regulationsUrl = countryLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                 licensingUrl = countryLinks["licensingUrl"]?.jsonPrimitive?.content,
+                licenseRequirement = countryLinks["licenseRequirement"]?.jsonPrimitive?.content,
                 note = countryLinks["note"]?.jsonPrimitive?.content,
                 mpaStatus = mpaStatus,
                 mpaChecked = mpaChecked
@@ -1446,6 +1447,7 @@ class SpotService {
                 regulatoryAgency = regionLinks["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                 regulationsUrl = regionLinks["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                 licensingUrl = regionLinks["licensingUrl"]?.jsonPrimitive?.content,
+                licenseRequirement = regionLinks["licenseRequirement"]?.jsonPrimitive?.content,
                 note = regionLinks["note"]?.jsonPrimitive?.content,
                 mpaStatus = mpaStatus,
                 mpaChecked = mpaChecked
@@ -1465,6 +1467,7 @@ class SpotService {
                     regulatoryAgency = sectionObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                     regulationsUrl = sectionObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                     licensingUrl = sectionObj["licensingUrl"]?.jsonPrimitive?.content,
+                    licenseRequirement = sectionObj["licenseRequirement"]?.jsonPrimitive?.content,
                     note = sectionObj["note"]?.jsonPrimitive?.content,
                     mpaStatus = mpaStatus,
                     mpaChecked = mpaChecked
@@ -1481,6 +1484,7 @@ class SpotService {
                         regulatoryAgency = subObj["agency"]?.jsonPrimitive?.content ?: "Fisheries Authority",
                         regulationsUrl = subObj["url"]?.jsonPrimitive?.content ?: "https://navigatormap.org/",
                         licensingUrl = subObj["licensingUrl"]?.jsonPrimitive?.content,
+                        licenseRequirement = subObj["licenseRequirement"]?.jsonPrimitive?.content,
                         note = subObj["note"]?.jsonPrimitive?.content,
                         mpaStatus = mpaStatus,
                         mpaChecked = mpaChecked

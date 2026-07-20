@@ -1210,6 +1210,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 8),
+              _buildLicenseBadge(regulations.licenseRequirement),
               if (regulations.note != null) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -1284,6 +1286,68 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// Locale-level license requirement badge. Shown for EVERY spot so the
+  /// Regulations tab is consistent; unknown states never imply "no license".
+  Widget _buildLicenseBadge(String? requirement) {
+    final Color color;
+    final IconData icon;
+    final String label;
+
+    switch (requirement) {
+      case 'required':
+        color = AppColors.scoreBelowAvg; // orange
+        icon = Icons.card_membership;
+        label = 'License required';
+        break;
+      case 'conditional':
+        color = AppColors.warning; // amber
+        icon = Icons.card_membership;
+        label = 'License may be required';
+        break;
+      case 'not_required':
+        color = AppColors.success;
+        icon = Icons.check_circle_outline;
+        label = 'No license required';
+        break;
+      case 'prohibited':
+        color = AppColors.error;
+        icon = Icons.block;
+        label = 'Spearfishing prohibited';
+        break;
+      default:
+        // Unknown locale (or old server) -- never imply "not required".
+        color = Colors.grey;
+        icon = Icons.help_outline;
+        label = 'Check local requirements';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
