@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -93,7 +94,8 @@ class _ChartsHubScreenState extends State<ChartsHubScreen> {
                       badge: '5-DAY',
                       badgeColor: const Color(0xFF00BCD4),
                       icon: Icons.air,
-                      imagePath: 'assets/images/ocean_forecast_preview.png',
+                      imagePath: 'assets/images/ocean_forecast_preview.jpg',
+                      animatedOverlay: const _CurrentsFlowOverlay(),
                       fallbackColors: const [
                         Color(0xFF0D3B66),
                         Color(0xFF0E4D64),
@@ -219,6 +221,10 @@ class _DataSourceCard extends StatelessWidget {
   final bool isAvailable;
   final VoidCallback onTap;
 
+  /// Optional animated layer drawn on top of the preview image
+  /// (e.g. drifting current particles for the Ocean Forecast card).
+  final Widget? animatedOverlay;
+
   const _DataSourceCard({
     required this.title,
     required this.subtitle,
@@ -230,6 +236,7 @@ class _DataSourceCard extends StatelessWidget {
     required this.fallbackColors,
     this.isAvailable = true,
     required this.onTap,
+    this.animatedOverlay,
   });
 
   @override
@@ -268,7 +275,12 @@ class _DataSourceCard extends StatelessWidget {
                   },
                 ),
               ),
-              
+
+              if (animatedOverlay != null)
+                Positioned.fill(
+                  child: RepaintBoundary(child: animatedOverlay!),
+                ),
+
               // Dark gradient overlay for text readability
               Positioned.fill(
                 child: Container(
@@ -443,4 +455,149 @@ class _DataSourceCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lightweight animated particle flow evoking the Ocean Forecast currents
+/// layer. Particles drift along a fixed sinusoidal flow field and fade in/out
+/// over their lifetime, mimicking WeatherLayers GL particle trails.
+class _CurrentsFlowOverlay extends StatefulWidget {
+  const _CurrentsFlowOverlay();
+
+  @override
+  State<_CurrentsFlowOverlay> createState() => _CurrentsFlowOverlayState();
+}
+
+class _CurrentsFlowOverlayState extends State<_CurrentsFlowOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _CurrentsFlowPainter(animation: _controller),
+        isComplex: false,
+        willChange: true,
+      ),
+    );
+  }
+}
+
+class _CurrentsFlowPainter extends CustomPainter {
+  final Animation<double> animation;
+
+  // Fixed seed keeps the layout stable across rebuilds.
+  static final List<_FlowParticle> _particles = _buildParticles();
+
+  _CurrentsFlowPainter({required this.animation}) : super(repaint: animation);
+
+  static List<_FlowParticle> _buildParticles() {
+    final rng = math.Random(7);
+    return List.generate(28, (_) => _FlowParticle(rng));
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = animation.value;
+    final paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    for (final p in _particles) {
+      // Each particle loops on its own phase within the global cycle.
+      final life = (t * p.speed + p.phase) % 1.0;
+
+      // Fade in for the first 20% and out for the last 30% of the loop.
+      double opacity;
+      if (life < 0.2) {
+        opacity = life / 0.2;
+      } else if (life > 0.7) {
+        opacity = (1.0 - life) / 0.3;
+      } else {
+        opacity = 1.0;
+      }
+
+      final startX = (p.originX + life * p.driftX) % 1.2 - 0.1;
+      final baseY = p.originY + life * p.driftY;
+
+      paint
+        ..color = p.color.withValues(alpha: opacity * 0.55)
+        ..strokeWidth = p.thickness;
+
+      // Short sinusoidal trail behind the particle head.
+      final path = Path();
+      const segments = 6;
+      for (var i = 0; i <= segments; i++) {
+        final frac = i / segments;
+        final x = (startX - frac * p.trailLength) * size.width;
+        final y = (baseY +
+                math.sin((startX - frac * p.trailLength) * p.waveFreq +
+                        p.wavePhase) *
+                    p.waveAmp) *
+            size.height;
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurrentsFlowPainter oldDelegate) => false;
+}
+
+class _FlowParticle {
+  final double originX;
+  final double originY;
+  final double driftX;
+  final double driftY;
+  final double speed;
+  final double phase;
+  final double trailLength;
+  final double waveAmp;
+  final double waveFreq;
+  final double wavePhase;
+  final double thickness;
+  final Color color;
+
+  _FlowParticle(math.Random rng)
+      : originX = rng.nextDouble(),
+        originY = 0.05 + rng.nextDouble() * 0.9,
+        driftX = 0.25 + rng.nextDouble() * 0.35,
+        driftY = (rng.nextDouble() - 0.5) * 0.08,
+        speed = 1.0 + rng.nextDouble() * 2.0,
+        phase = rng.nextDouble(),
+        trailLength = 0.04 + rng.nextDouble() * 0.05,
+        waveAmp = 0.01 + rng.nextDouble() * 0.03,
+        waveFreq = 6 + rng.nextDouble() * 10,
+        wavePhase = rng.nextDouble() * math.pi * 2,
+        thickness = 1.0 + rng.nextDouble() * 1.4,
+        color = _palette[rng.nextInt(_palette.length)];
+
+  // Cyan/teal/white palette matching the currents velocity colormap.
+  static const _palette = [
+    Color(0xFFB2EBF2),
+    Color(0xFF4DD0E1),
+    Color(0xFF80DEEA),
+    Color(0xFFE0F7FA),
+    Color(0xFF26C6DA),
+  ];
 }

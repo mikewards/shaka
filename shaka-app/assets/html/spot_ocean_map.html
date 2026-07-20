@@ -75,6 +75,7 @@
     var currentUnitSystem = 'imperial';
     var _spotLat = 0;
     var _spotLng = 0;
+    var _defaultZoom = 8;
 
     function setUnitSystem(system) {
       currentUnitSystem = system;
@@ -265,17 +266,32 @@
       weatherCdnUrl = config.weatherCdnUrl || '';
       _spotLat = config.lat || 23;
       _spotLng = config.lng || -108;
-      var zoom = config.zoom || 8;
+      _defaultZoom = config.zoom || 8;
 
+      // Interactive pan/pinch-zoom: the crosshair stays fixed at the screen
+      // center, so panning moves the probed location. Rotation and pitch are
+      // disabled to keep the crosshair semantics simple. Handler setup is
+      // gesture-driven only — it adds no work to the initial load/render path.
       map = new maplibregl.Map({
         container: 'map',
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
         center: [_spotLng, _spotLat],
-        zoom: zoom,
+        zoom: _defaultZoom,
+        minZoom: 2,
+        maxZoom: 12,
         antialias: true,
         attributionControl: false,
-        interactive: false,
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
       });
+      map.touchZoomRotate.disableRotation();
+
+      // Live probe while the user pans/zooms (throttled), plus a final
+      // authoritative read when the gesture settles. Both fire only during
+      // user interaction, never during initial load.
+      map.on('move', _throttledProbe);
+      map.on('moveend', _autoProbeCenter);
 
       overlay = new deck.MapboxOverlay({
         interleaved: true,
@@ -346,6 +362,18 @@
       nextImage = null;
       _stopParticleRepaint();
 
+      // Crosshair position does not persist across layer switches: snap the
+      // camera back to the spot's location at the default zoom. No-op when
+      // the camera hasn't moved (including the initial layer load).
+      if (map) {
+        var c = map.getCenter();
+        if (Math.abs(c.lat - _spotLat) > 1e-9 ||
+            Math.abs(c.lng - _spotLng) > 1e-9 ||
+            Math.abs(map.getZoom() - _defaultZoom) > 1e-9) {
+          map.jumpTo({ center: [_spotLng, _spotLat], zoom: _defaultZoom });
+        }
+      }
+
       var ts = _getTimestamps(key);
       timeIndex = _findNowIndex(ts);
       if (ts.length > 0) {
@@ -403,11 +431,23 @@
       _post('PlaybackChannel', { playing: false });
     }
 
+    // Throttled probe used during pan/zoom gestures so the value tracks the
+    // crosshair live without running a GPU picking pass on every move event.
+    var _probeThrottleTimer = null;
+    function _throttledProbe() {
+      if (_probeThrottleTimer) return;
+      _probeThrottleTimer = setTimeout(function() {
+        _probeThrottleTimer = null;
+        _autoProbeCenter();
+      }, 120);
+    }
+
     function _autoProbeCenter() {
       if (!map || !overlay || !activeLayerKey) return;
       var canvas = map.getCanvas();
       var cx = canvas.width / (window.devicePixelRatio || 1) / 2;
       var cy = canvas.height / (window.devicePixelRatio || 1) / 2;
+      var center = map.getCenter();
 
       var info = overlay.pickObject({ x: cx, y: cy, radius: 1 });
       // Vector land cells are zero-filled by the pipeline; with NEAREST
@@ -417,16 +457,16 @@
       var landZero = isVector && info && info.raster && Math.abs(info.raster.value) < 0.005;
       if (info && info.raster && info.raster.value !== undefined && !landZero) {
         _post('ProbeChannel', {
-          lat: _spotLat,
-          lng: _spotLng,
+          lat: center.lat,
+          lng: center.lng,
           value: info.raster.value,
           direction: _displayDirection(info.raster.direction, activeLayerKey),
           layer: activeLayerKey,
         });
       } else {
         _post('ProbeChannel', {
-          lat: _spotLat,
-          lng: _spotLng,
+          lat: center.lat,
+          lng: center.lng,
           value: null,
           direction: null,
           layer: activeLayerKey,

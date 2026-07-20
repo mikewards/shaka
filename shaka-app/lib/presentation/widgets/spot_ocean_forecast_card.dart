@@ -528,11 +528,18 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
               height: mapHeight.clamp(300, 500),
               child: Stack(
                 children: [
+                  // The eager recognizer lets the map claim pan/pinch
+                  // gestures from the surrounding ListView so users can move
+                  // the crosshair and zoom. Time controls are Flutter
+                  // overlays above the WebView, so they keep their gestures.
                   if (_controller != null)
                     WebViewWidget(
                       controller: _controller!,
                       gestureRecognizers: const <Factory<
-                          OneSequenceGestureRecognizer>>{},
+                          OneSequenceGestureRecognizer>>{
+                        Factory<EagerGestureRecognizer>(
+                            EagerGestureRecognizer.new),
+                      },
                     ),
 
                   // Loading overlay
