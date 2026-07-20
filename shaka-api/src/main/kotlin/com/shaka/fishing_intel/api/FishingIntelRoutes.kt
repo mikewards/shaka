@@ -179,9 +179,13 @@ object FishingIntelRoutes {
         return response
     }
 
+    /** Region IDs that mean "aggregate across every region" (single DB query, no per-region fan-out). */
+    private val allRegionsIds = setOf("all", "all_regions")
+
     /**
      * Get fishing intel for a region (filter by sources.regional_report). No geo.
      * Used by the Reports tab; regionId can be "socal" (API) or "so_cal" (DB).
+     * regionId "all" (or "all_regions") aggregates reports across every region.
      */
     fun getIntelForRegion(regionId: String, since: String, tzOffset: Int? = null): SpotIntelResponse? {
         val offset = tzOffset ?: -8
@@ -190,7 +194,11 @@ object FishingIntelRoutes {
         val cacheKey = "$since:${tzOffset ?: "auto"}:$slotKey"
         IntelCache.get(normalizedRegionId, cacheKey)?.let { return it }
 
-        val allReports = FishingIntelDb.getReportsForRegion(normalizedRegionId, hoursBack = 168)
+        val allReports = if (normalizedRegionId in allRegionsIds) {
+            FishingIntelDb.getAllReportsRecent(hoursBack = 168)
+        } else {
+            FishingIntelDb.getReportsForRegion(normalizedRegionId, hoursBack = 168)
+        }
         if (allReports.isEmpty()) return null
 
         // Dedupe: for DOCK_TOTAL reports, keep only the LATEST report per (sourceId, date)

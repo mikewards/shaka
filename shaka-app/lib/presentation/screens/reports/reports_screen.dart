@@ -9,7 +9,8 @@ import '../../../features/fishing_intel/services/fishing_intel_service.dart';
 import '../../widgets/reports/manage_fish_sheet.dart';
 
 /// Regional fishing reports with horizontal-scroll region chips.
-/// SoCal is the first of many regions; add more to [_regions] as the backend supports them.
+/// "All Regions" (backend region id "all") is first and the default; the
+/// chips sit under the "Catch Numbers" heading, above the species rows.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -31,6 +32,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       _speciesRowHPad + _trendColumnWidth + _trendToNameGap + 10.0;
 
   static const _regions = [
+    _Region(id: 'all', label: 'All Regions'),
     _Region(id: 'san_diego', label: 'San Diego'),
     _Region(id: 'orange', label: 'Orange'),
     _Region(id: 'la', label: 'Los Angeles'),
@@ -168,14 +170,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(width: 6),
         ],
       ),
-      body: Column(
-        children: [
-          _buildRegionChips(),
-          Expanded(
-            child: _buildRegionContent(_selectedRegion, regionLabel),
-          ),
-        ],
-      ),
+      body: _buildRegionContent(_selectedRegion, regionLabel),
     );
   }
 
@@ -184,7 +179,7 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget _buildRegionChips() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Row(
         children: _regions.map((r) {
           final isSelected = r.id == _selectedRegion;
@@ -229,80 +224,98 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   // ─── Region Content ─────────────────────────────────────────────────
 
-  Widget _buildRegionContent(String regionId, String regionLabel) {
-    if (_loading[regionId] == true) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: CircularProgressIndicator(color: AppColors.info),
-        ),
-      );
+  /// Global (all-regions) insights: prefer the selected region's response,
+  /// fall back to any loaded region so the overview survives region switches.
+  List<String> _overviewInsights(String regionId) {
+    final selected = _intelByRegion[regionId];
+    if (selected != null && selected.keyInsights.isNotEmpty) {
+      return selected.keyInsights;
     }
-    if (_error[regionId] != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            'Unable to load $regionLabel fishing reports',
-            style: TextStyle(color: Colors.grey[500]),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+    for (final r in _regions) {
+      final intel = _intelByRegion[r.id];
+      if (intel != null && intel.keyInsights.isNotEmpty) {
+        return intel.keyInsights;
+      }
     }
+    return const [];
+  }
 
+  Widget _buildRegionContent(String regionId, String regionLabel) {
     final intel = _intelByRegion[regionId];
-    if (intel == null || !intel.hasData) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.phishing, size: 48, color: Colors.grey[700]),
-              const SizedBox(height: 16),
-              Text(
-                'No recent $regionLabel fishing reports',
-                style: TextStyle(color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final keyInsights = _overviewInsights(regionId);
+    final isLoading = _loading[regionId] == true;
+    final hasError = _error[regionId] != null;
+    final hasData = intel != null && intel.hasData;
 
     final prefs = _prefsByRegion[regionId] ?? ReportsPreferences.empty;
-    final speciesList = _applyPrefsToSpeciesList(intel.speciesList, prefs);
+    final speciesList = hasData
+        ? _applyPrefsToSpeciesList(intel.speciesList, prefs)
+        : const <TrendingSpecies>[];
 
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
           sliver: SliverList(
             delegate: SliverChildListDelegate(
               [
-                if (intel.keyInsights.isNotEmpty) ...[
+                if (keyInsights.isNotEmpty) ...[
                   _buildSectionHeader(
                     'WEST COAST OVERVIEW',
                     trailing: _buildBadge('ALL REGIONS'),
                   ),
                   const SizedBox(height: 10),
-                  _buildInsightsCard(intel.keyInsights),
+                  _buildInsightsCard(keyInsights),
                   const SizedBox(height: 24),
                 ],
-                if (speciesList.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'CATCH NUMBERS',
-                    trailing: _buildBadge('RECENT 3 DAYS'),
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                _buildSectionHeader(
+                  'CATCH NUMBERS',
+                  trailing: _buildBadge('RECENT 3 DAYS'),
+                ),
               ],
             ),
           ),
         ),
-        if (speciesList.isNotEmpty)
+        // Region selector: under the Catch Numbers heading, above the numbers.
+        SliverToBoxAdapter(child: _buildRegionChips()),
+        if (isLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.info),
+              ),
+            ),
+          )
+        else if (hasError)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'Unable to load $regionLabel fishing reports',
+                style: TextStyle(color: Colors.grey[500]),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        else if (!hasData)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(Icons.phishing, size: 48, color: Colors.grey[700]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No recent $regionLabel fishing reports',
+                    style: TextStyle(color: Colors.grey[500]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (speciesList.isNotEmpty)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
@@ -326,9 +339,9 @@ class _ReportsScreenState extends State<ReportsScreen>
               ),
             ),
           ),
-        SliverPadding(
-          padding: const EdgeInsets.only(bottom: 32),
-          sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
+        const SliverPadding(
+          padding: EdgeInsets.only(bottom: 32),
+          sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
         ),
       ],
     );
