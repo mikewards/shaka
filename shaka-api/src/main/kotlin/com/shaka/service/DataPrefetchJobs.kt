@@ -695,11 +695,16 @@ class DataPrefetchJobs(
             )
         }
 
-        val windPoints = weather.points.filter { it.epochMs > 0 }.map { wp ->
+        // Skip hours with missing speed or direction entirely rather than
+        // fabricating a "0 kts N" sample: released clients coerce null -> 0,
+        // so emitting nulls is not an option, and a gap hour is honest.
+        val windPoints = weather.points.filter { it.epochMs > 0 }.mapNotNull { wp ->
+            val speedKmh = wp.windSpeedKmh ?: return@mapNotNull null
+            val dirDeg = wp.windDirectionDeg ?: return@mapNotNull null
             WindHourlyPoint(
                 epochMs = wp.epochMs,
-                speedKts = SpotDataCache.kmhToKnots(wp.windSpeedKmh ?: 0.0),
-                directionDeg = wp.windDirectionDeg ?: 0,
+                speedKts = SpotDataCache.kmhToKnots(speedKmh),
+                directionDeg = dirDeg,
                 gustKts = wp.windGustKmh?.let { SpotDataCache.kmhToKnots(it) }
             )
         }
