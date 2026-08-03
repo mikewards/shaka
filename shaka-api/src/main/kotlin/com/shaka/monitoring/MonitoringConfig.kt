@@ -36,9 +36,19 @@ object MonitoringConfig {
     private const val HOUR = 3_600_000L
 
     val jobs: List<JobSpec> = listOf(
+        // 6-hourly model refetch (was 24 h — the cause of "current" wind being
+        // up to 24 h stale). Open-Meteo free-tier quota math, metered per
+        // location: ~850 spots x 2 endpoints (marine + forecast) x 4 runs/day
+        // = ~6,800 calls/day (cap 10,000/day) and ~204,000/month (cap
+        // 300,000/month). An hourly refetch would be ~40,800/day = 4x over
+        // cap; 6-hourly is the densest cadence that fits with headroom.
+        // Requests are batched 50 locations per HTTP call (DataPrefetchJobs.
+        // WEATHER_BATCH_LOCATIONS) which does not change quota weight.
+        // The hourly in-memory snapshot tick (deriveHourlySnapshots) still
+        // advances the displayed "now" between refetches.
         JobSpec(
             name = "hourly_swell_wind", scheduledName = "hourly_swell_wind_prefetch",
-            initialDelayMs = 120_000, intervalMs = 24 * HOUR, maxRunMs = 24 * HOUR,
+            initialDelayMs = 120_000, intervalMs = 6 * HOUR, maxRunMs = 2 * HOUR,
             staleGateHours = 0, degradedBelow = 0.99, criticalBelow = 0.50, runImmediately = true,
         ),
         JobSpec(

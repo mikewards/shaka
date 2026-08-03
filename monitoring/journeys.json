@@ -31,9 +31,9 @@
       "requiredKeys": ["spotId", "days"],
       "hourlyDays": { "requireLocalDates": ["today", "tomorrow"], "minPointsPerDay": 20 },
       "recencyAnchor": {
-        "$comment": "Probe-owned, backend-distrusting anchor: generatedAt must be < maxAgeHours. The constant lives HERE (physics/UX-derived), never read from backend config. Gated by PROBE_ENABLE_T4_ANCHOR until /health/summary + generatedAt are deployed.",
+        "$comment": "Probe-owned, backend-distrusting anchor: generatedAt must be < maxAgeHours. The constant lives HERE (physics/UX-derived), never read from backend config. Consciously tightened 30 -> 9 with the Aug 2026 move of hourly_swell_wind to a 6 h refetch cadence (6 h interval + 2 h maxRun + 1 h margin); a series older than that means the refetch cadence is broken. Gated by PROBE_ENABLE_T4_ANCHOR until /health/summary + generatedAt are deployed.",
         "field": "generatedAt",
-        "maxAgeHours": 30,
+        "maxAgeHours": 9,
         "flag": "PROBE_ENABLE_T4_ANCHOR"
       }
     },

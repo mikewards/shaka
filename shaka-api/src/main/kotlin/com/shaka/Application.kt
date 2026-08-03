@@ -239,11 +239,12 @@ private fun Application.configureScheduledJobs() {
     // truth). Adding a job here without a JobSpec (or registryExempt entry)
     // fails MonitoringRegistryTest — see .cursor/rules/monitoring.mdc.
 
-    // DAILY: Hourly swell + wind series. Fetches the 7-day hourly curves for
-    // every spot and persists one row per local_date. Replaces the old per-3h
-    // single-snapshot weather_prefetch. runImmediately=true so it also backfills
-    // on first boot after a deploy. The current-hour value shown to users is
-    // derived in-memory from these tables by the hourly tick below.
+    // EVERY 6 HOURS (cadence owned by MonitoringConfig): Hourly swell + wind
+    // series. Fetches the 7-day hourly curves for every spot via batched
+    // multi-location Open-Meteo requests and persists one row per local_date.
+    // runImmediately=true so it also backfills on first boot after a deploy.
+    // The current-hour value shown to users is derived in-memory from these
+    // tables by the hourly tick below; quota math lives at the JobSpec.
     scheduleRegisteredJob("hourly_swell_wind_prefetch") {
         prefetchJobs.prefetchHourlySwellWind()
     }

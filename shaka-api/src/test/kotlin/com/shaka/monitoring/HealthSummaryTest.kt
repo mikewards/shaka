@@ -115,8 +115,8 @@ class HealthSummaryTest {
 
     @Test
     fun `freshness thresholds follow gate+interval+maxRun+1h`() {
-        // swell: 0 + 24h + 24h + 1h = 49h
-        assertEquals(49 * 60, MonitoringConfig.freshnessThresholdMinutes("swell"))
+        // swell: 0 + 6h + 2h + 1h = 9h (6-hourly refetch cadence, Aug 2026)
+        assertEquals(9 * 60, MonitoringConfig.freshnessThresholdMinutes("swell"))
         // sst: 12 + 6 + 24 + 1 = 43h
         assertEquals(43 * 60, MonitoringConfig.freshnessThresholdMinutes("sst"))
         // solunar has a 12h gate: 12 + 12 + 48 + 1 = 73h

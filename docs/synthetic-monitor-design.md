@@ -20,7 +20,7 @@ Root failure mode: **the probe duplicated business assumptions (thresholds, data
 
   | Job (scheduled name) | Interval | Max run (watchdog) | Reports to MonitoringService as |
   |---|---|---|---|
-  | `hourly_swell_wind_prefetch` | 24 h | 24 h | `hourly_swell_wind` |
+  | `hourly_swell_wind_prefetch` | 6 h (24 h before Aug 2026) | 2 h | `hourly_swell_wind` |
   | `hourly_snapshot_tick` | 1 h | 5 min | (not reported — in-memory derive) |
   | `satellite_prefetch` | 6 h | 24 h | `satellite_prefetch` |
   | `user_spots_prefetch` | 3 h | 24 h | `user_spots_prefetch` |
@@ -75,7 +75,7 @@ object MonitoringConfig {
     )
 
     val jobs = listOf(
-        JobSpec("hourly_swell_wind",      86_400_000,  86_400_000, 0,   degradedBelow = 0.99, criticalBelow = 0.50),
+        JobSpec("hourly_swell_wind",      21_600_000,   7_200_000, 0,   degradedBelow = 0.99, criticalBelow = 0.50),  // 6 h refetch (Aug 2026; quota math at the JobSpec in MonitoringConfig.kt)
         JobSpec("satellite_prefetch",     21_600_000,  86_400_000, 12,  degradedBelow = 0.95, criticalBelow = 0.50),
         JobSpec("user_spots_prefetch",    10_800_000,  86_400_000, 4,   degradedBelow = 0.95, criticalBelow = 0.50),
         JobSpec("fishing_intel_prefetch", 43_200_000, 172_800_000, 12,  degradedBelow = 0.90, criticalBelow = 0.30),
@@ -131,7 +131,7 @@ Concrete freshness values this yields (`gate + interval + maxRun + 1 h`, replaci
 
 | Type | Owning job | Gate + interval + maxRun | Stale threshold (median age) |
 |---|---|---|---|
-| swell / wind | `hourly_swell_wind_prefetch` | 0 + 24 h + 24 h | 49 h (was 8 h) |
+| swell / wind | `hourly_swell_wind_prefetch` | 0 + 6 h + 2 h | 9 h (was 49 h under the 24 h cadence) |
 | sst / visibility / chlorophyll / gibs_satellite | `satellite_prefetch` | 12 h + 6 h + 24 h | 43 h (was 25 h) |
 | solunar | `solunar_vessel_prefetch` | 12 h + 12 h + 48 h | 73 h (was 30 h) |
 | vessel | — | — | removed (vessels deprecated Jul 2026, Q7 — not an age-based type anymore) |
@@ -201,7 +201,7 @@ Only checks that mirror what `shaka_api_client.dart` actually does. All against 
 
 **Probe-owned recency anchors (backend-distrusting, by design).** Backend-owned thresholds have a self-ratification hole: a PR that wrongly changes a job interval auto-loosens the derived freshness threshold, and `/health/summary` stays green. Two anchors close it:
 
-- **T4's `generatedAt < 30 h`**: requires adding `generatedAt` (the hourly series' `fetchedAt`, already tracked in `SpotDataCache.HourlySeries`) to `SpotHourlyResponse` in `Models.kt`. The 30 h constant lives **in the probe**, is *not* read from `MonitoringConfig`, and is derived from physics/UX, not job cadence: a swell/wind forecast regenerated daily that is > 30 h old is materially wrong for users regardless of what any config says.
+- **T4's `generatedAt < 9 h`** (30 h until Aug 2026, consciously tightened with the move to a 6-hourly model refetch: 6 h interval + 2 h maxRun + 1 h margin): requires adding `generatedAt` (the hourly series' `fetchedAt`, already tracked in `SpotDataCache.HourlySeries`) to `SpotHourlyResponse` in `Models.kt`. The constant lives **in the probe**, is *not* read from `MonitoringConfig`, and is derived from physics/UX: a series older than the anchor means users are reading materially stale "current" wind — the exact failure mode of the Aug 2026 wind audit.
 - **T5's 7 day-curves**: an implicit horizon floor no backend threshold change can relax.
 
 If a legitimate architecture change ever breaks an anchor (e.g. hourly fetch moves to a 3-day cadence), the probe *should* go red — that is the forcing function to consciously revisit the anchor, which is the point.
