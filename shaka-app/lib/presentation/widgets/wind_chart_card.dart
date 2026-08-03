@@ -15,10 +15,21 @@ class WindChartCard extends StatefulWidget {
   final List<WindHourlyPoint> points;
   final bool isToday;
 
+  /// Spot's current UTC offset in minutes (from SpotHourlyResponse). When
+  /// present the time axis and footer times render in SPOT-local time; when
+  /// null they fall back to device-local (legacy behavior).
+  final int? utcOffsetMinutes;
+
+  /// Short zone label ("HST", "PDT") shown next to footer times when the
+  /// spot's zone is known.
+  final String? timezoneAbbr;
+
   const WindChartCard({
     super.key,
     required this.points,
     this.isToday = true,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   @override
@@ -158,6 +169,7 @@ class _WindChartCardState extends State<WindChartCard> {
                 nowColor: _nowColor,
                 dimText: _dimText,
                 showNow: widget.isToday,
+                utcOffsetMinutes: widget.utcOffsetMinutes,
               ),
             ),
           ),
@@ -180,12 +192,12 @@ class _WindChartCardState extends State<WindChartCard> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
       child: Row(
         children: [
-          _footerChip('Peak', _formatTime(peak.time),
+          _footerChip('Peak', _formatTime(peak.epochMs),
               UnitConverter.formatWindSpeed(peak.speedKts, _units.system),
               _windColor),
           const SizedBox(width: 8),
           if (gustPeak != null)
-            _footerChip('Gust', _formatTime(gustPeak.time),
+            _footerChip('Gust', _formatTime(gustPeak.epochMs),
                 UnitConverter.formatWindSpeed(gustPeak.gustKts!, _units.system),
                 _lightText)
           else
@@ -221,11 +233,22 @@ class _WindChartCardState extends State<WindChartCard> {
     );
   }
 
-  static String _formatTime(DateTime dt) {
+  /// Footer time in SPOT-local time (with zone label) when the offset is
+  /// known, else device-local. A Hawaii spot browsed from NY must say
+  /// "Peak 2:00 PM HST", not the meaningless device-local hour.
+  String _formatTime(int epochMs) {
+    final offset = widget.utcOffsetMinutes;
+    final dt = offset != null
+        ? DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true)
+            .add(Duration(minutes: offset))
+        : DateTime.fromMillisecondsSinceEpoch(epochMs);
     final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final m = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$h:$m $ampm';
+    final abbr = offset != null && widget.timezoneAbbr != null
+        ? ' ${widget.timezoneAbbr}'
+        : '';
+    return '$h:$m $ampm$abbr';
   }
 
   void _showWindInfo(BuildContext context) {
@@ -302,6 +325,7 @@ class _WindCurvePainter extends CustomPainter {
   final Color nowColor;
   final Color dimText;
   final bool showNow;
+  final int? utcOffsetMinutes;
 
   _WindCurvePainter({
     required this.points,
@@ -310,7 +334,22 @@ class _WindCurvePainter extends CustomPainter {
     required this.nowColor,
     required this.dimText,
     required this.showNow,
+    this.utcOffsetMinutes,
   });
+
+  /// Hour-of-day for an instant in SPOT-local time when the offset is known,
+  /// else device-local (legacy). The series is grouped by spot-local day
+  /// server-side, so device-local axis labels were wrong whenever the viewer
+  /// wasn't in the spot's timezone.
+  int _hourOf(int ms) {
+    final offset = utcOffsetMinutes;
+    if (offset != null) {
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true)
+          .add(Duration(minutes: offset))
+          .hour;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(ms).hour;
+  }
 
   double _yValue(double kts) =>
       unitSystem == UnitSystem.metric ? UnitConverter.knotsToKmh(kts) : kts;
@@ -417,12 +456,12 @@ class _WindCurvePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // Time axis labels (every 3 hours), device-local like the tide chart.
+    // Time axis labels (every 3 hours), in spot-local time when available.
     for (int h = 0; h <= 24; h += 3) {
       final ms = points.first.epochMs + h * 3600000;
       if (ms > points.last.epochMs) break;
       final x = xOf(ms.toDouble());
-      final targetHour = DateTime.fromMillisecondsSinceEpoch(ms).hour;
+      final targetHour = _hourOf(ms);
       final label = targetHour == 0
           ? '12A'
           : targetHour == 12
@@ -545,5 +584,6 @@ class _WindCurvePainter extends CustomPainter {
   bool shouldRepaint(_WindCurvePainter old) =>
       old.points != points ||
       old.unitSystem != unitSystem ||
-      old.showNow != showNow;
+      old.showNow != showNow ||
+      old.utcOffsetMinutes != utcOffsetMinutes;
 }

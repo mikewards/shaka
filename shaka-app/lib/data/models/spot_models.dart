@@ -933,10 +933,20 @@ class SpotHourlyResponse {
   final String? timezoneId;
   final List<SpotHourlyDay> days;
 
+  /// Spot's current UTC offset in minutes (DST-aware, server-resolved). Used
+  /// to render chart axes/timestamps in SPOT-local time; null on old payloads,
+  /// in which case surfaces fall back to device-local time.
+  final int? utcOffsetMinutes;
+
+  /// Short zone label for display, e.g. "HST", "PDT", "GMT+2".
+  final String? timezoneAbbr;
+
   const SpotHourlyResponse({
     required this.spotId,
     required this.timezoneId,
     required this.days,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   factory SpotHourlyResponse.fromJson(Map<String, dynamic> json) {
@@ -946,6 +956,8 @@ class SpotHourlyResponse {
       days: (json['days'] as List? ?? [])
           .map((e) => SpotHourlyDay.fromJson(e))
           .toList(),
+      utcOffsetMinutes: (json['utcOffsetMinutes'] as num?)?.toInt(),
+      timezoneAbbr: json['timezoneAbbr'] as String?,
     );
   }
 }

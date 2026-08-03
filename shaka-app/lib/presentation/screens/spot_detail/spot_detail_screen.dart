@@ -524,7 +524,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         if (todayHourly != null && todayHourly.wind.isNotEmpty) ...[
           _buildSectionHeader('WIND'),
           const SizedBox(height: 10),
-          WindChartCard(points: todayHourly.wind, isToday: true),
+          WindChartCard(
+            points: todayHourly.wind,
+            isToday: true,
+            utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+            timezoneAbbr: _hourly?.timezoneAbbr,
+          ),
           const SizedBox(height: 20),
         ],
 
@@ -681,7 +686,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       widgets.add(const SizedBox(height: 16));
     }
     if (hourly != null && hourly.wind.isNotEmpty) {
-      widgets.add(WindChartCard(points: hourly.wind, isToday: isToday));
+      widgets.add(WindChartCard(
+        points: hourly.wind,
+        isToday: isToday,
+        utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+        timezoneAbbr: _hourly?.timezoneAbbr,
+      ));
       widgets.add(const SizedBox(height: 16));
     }
 
