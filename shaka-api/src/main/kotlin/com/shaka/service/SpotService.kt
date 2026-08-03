@@ -1021,7 +1021,9 @@ class SpotService {
                 val score = if (cached != null) {
                     val visM = cached.visibility?.value ?: 15.0
                     val swellHeightFt = cached.swell?.value?.correctedHeightFt ?: cached.swell?.value?.heightFt ?: 2.0
-                    val windKts = cached.wind?.value?.speedKnots ?: 5.0
+                    // Null = unknown wind; never default to a fabricated 5 kts
+                    // (which scored as near-perfect glass).
+                    val windKts: Double? = cached.wind?.value?.speedKnots
                     
                     // Simple weighted score from key factors
                     val visScore = when {
@@ -1042,6 +1044,7 @@ class SpotService {
                         else -> 25
                     }
                     val windScore = when {
+                        windKts == null -> null  // unknown: drop the wind term below
                         windKts <= 5 -> 100
                         windKts <= 10 -> 85
                         windKts <= 15 -> 65
@@ -1049,8 +1052,14 @@ class SpotService {
                         else -> 25
                     }
                     
-                    // Weighted average: visibility 40%, swell 35%, wind 25%
-                    ((visScore * 0.40) + (swellScore * 0.35) + (windScore * 0.25)).toInt()
+                    // Weighted average: visibility 40%, swell 35%, wind 25%.
+                    // Unknown wind redistributes its weight instead of scoring
+                    // a fabricated value.
+                    if (windScore != null) {
+                        ((visScore * 0.40) + (swellScore * 0.35) + (windScore * 0.25)).toInt()
+                    } else {
+                        ((visScore * 0.40 + swellScore * 0.35) / 0.75).toInt()
+                    }
                 } else {
                     // Default score when no cache - use reasonable estimate
                     65
@@ -1102,7 +1111,7 @@ class SpotService {
                     waterQuality?.chlorophyllA, spotCache?.chlorophyll?.value, spotCache?.gibsChlorophyll?.value
                 )
                 
-                // Calculate score — prefer at-spot corrected swell over open-ocean
+                // Calculate score ? prefer at-spot corrected swell over open-ocean
                 val scoringWaveHeightM = spotCache?.swell?.value?.let {
                     (it.correctedHeightFt ?: it.heightFt) / 3.28084
                 } ?: ocean.waveHeight
@@ -1527,8 +1536,8 @@ class SpotService {
 
     /**
      * Resolve the best available chlorophyll value using the same fallback chain
-     * as the Flutter SatelliteReadingsCard: fresh Copernicus → cached Copernicus
-     * value → GIBS blended color estimate. The result drives BOTH the visibility
+     * as the Flutter SatelliteReadingsCard: fresh Copernicus ? cached Copernicus
+     * value ? GIBS blended color estimate. The result drives BOTH the visibility
      * score and the visibility label.
      */
     private fun resolveChlorophyll(
@@ -1590,7 +1599,7 @@ class SpotService {
     /**
      * Resolve water temp from real measurements only: cached spot SST, else
      * nearest-neighbor original within 25km. Returns null when nothing real
-     * exists — the climatology-estimate tier was removed (Q2–4: real value or
+     * exists ? the climatology-estimate tier was removed (Q2?4: real value or
      * "Unavailable", never invented).
      */
     private fun resolveSST(cachedSST: Double?, lat: Double, lon: Double): Double? {
@@ -1601,7 +1610,7 @@ class SpotService {
     private fun formatWaterTemp(sstCelsius: Double?): String {
         if (sstCelsius == null) return "Unavailable"
         val f = ((sstCelsius * 9.0 / 5) + 32).toInt()
-        return "${sstCelsius.toInt()}°C / ${f}°F"
+        return "${sstCelsius.toInt()}�C / ${f}�F"
     }
 
     private fun generateGearRecs(waterTempC: Double?, depthM: Int): List<String> {
@@ -1638,8 +1647,8 @@ class SpotService {
         if ((weather?.windSpeed ?: 0.0) > 15) risks += "Strong winds expected"
         if (ocean != null && ocean.waveHeight > 1.5) risks += "Rough surf conditions"
         if ((weather?.precipitation ?: 0.0) > 2) risks += "Rain may reduce visibility"
-        // Skip the cold-water risk when temp is unknown — never score against a
-        // fabricated default (previously a hardcoded 15°C tripped this).
+        // Skip the cold-water risk when temp is unknown ? never score against a
+        // fabricated default (previously a hardcoded 15�C tripped this).
         val waterTemp = ocean?.waterTemperature
         if (waterTemp != null && waterTemp < 20) risks += "Cold water - hypothermia risk"
 
