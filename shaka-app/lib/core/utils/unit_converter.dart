@@ -1,4 +1,5 @@
 import '../../data/services/unit_preference_service.dart';
+import 'wind_format.dart';
 
 /// Static utility class for unit conversion and formatting.
 class UnitConverter {
@@ -6,7 +7,6 @@ class UnitConverter {
 
   static const double _ftToM = 0.3048;
   static const double _mToFt = 3.28084;
-  static const double _ktsToKmh = 1.852;
   static const double _miToKm = 1.60934;
   static const double _msToKts = 1.94384;
 
@@ -52,24 +52,15 @@ class UnitConverter {
     return '$height$period$dir';
   }
 
-  // --- Wind Speed ---
+  // --- Wind Speed (delegates to WindFormat, the single source of truth) ---
 
-  static double knotsToKmh(double kts) => kts * _ktsToKmh;
+  static double knotsToKmh(double kts) => WindFormat.knotsToKmh(kts);
 
-  static String formatWindSpeed(double? speedKts, UnitSystem system) {
-    if (speedKts == null) return 'N/A';
-    if (system == UnitSystem.metric) {
-      return '${knotsToKmh(speedKts).round()} km/h';
-    }
-    return '${speedKts.round()} kts';
-  }
+  static String formatWindSpeed(double? speedKts, UnitSystem system) =>
+      WindFormat.speedLabel(speedKts, system);
 
-  static String formatWind(double? speedKts, String? direction, UnitSystem system) {
-    if (speedKts == null) return 'N/A';
-    final speed = formatWindSpeed(speedKts, system);
-    final dir = direction != null ? ' $direction' : '';
-    return '$speed$dir';
-  }
+  static String formatWind(double? speedKts, String? direction, UnitSystem system) =>
+      WindFormat.label(speedKts, direction, system);
 
   // --- Tide Height ---
 

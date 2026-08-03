@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/unit_converter.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 
@@ -19,13 +20,6 @@ class _ParsedSwell {
     required this.degrees,
   });
 }
-
-const _cardinalToDegrees = <String, double>{
-  'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5,
-  'E': 90, 'ESE': 112.5, 'SE': 135, 'SSE': 157.5,
-  'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
-  'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5,
-};
 
 final _swellRegex = RegExp(r'([\d.]+)ft\s*@\s*(\d+)s\s+(\w+)');
 
@@ -93,7 +87,7 @@ _ParsedSwell? _parseSwell(String s) {
   final m = _swellRegex.firstMatch(s);
   if (m == null) return null;
   final cardinal = m.group(3)!;
-  final deg = _cardinalToDegrees[cardinal];
+  final deg = WindFormat.cardinalToDegrees(cardinal);
   if (deg == null) return null;
   return _ParsedSwell(
     heightFt: double.tryParse(m.group(1)!) ?? 0,
@@ -268,7 +262,7 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
 
     if (c.exposureBearing != null) {
       items.add(('Exposure',
-          'Faces ${_bearingToCardinal(c.exposureBearing!)} (${c.exposureWidth ?? 0}°)',
+          'Faces ${WindFormat.cardinal(c.exposureBearing!)} (${c.exposureWidth ?? 0}°)',
           _ExposureBadge(degrees: c.exposureBearing!.toDouble())));
     }
 
@@ -444,18 +438,10 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     );
   }
 
-  static String _bearingToCardinal(int degrees) {
-    const dirs = [
-      'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-      'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
-    ];
-    return dirs[((degrees % 360) / 22.5).round() % 16];
-  }
-
   static double? _parseWindDirection(String wind) {
     final parts = wind.trim().split(RegExp(r'\s+'));
     if (parts.length >= 2) {
-      return _cardinalToDegrees[parts.last.toUpperCase()];
+      return WindFormat.cardinalToDegrees(parts.last);
     }
     return null;
   }

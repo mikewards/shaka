@@ -188,12 +188,6 @@ class ConditionsCard extends StatelessWidget {
     );
   }
 
-  static String _bearingToCardinal(int degrees) {
-    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-                   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    return dirs[((degrees % 360) / 22.5).round() % 16];
-  }
-
   String _resolveVisibility() {
     if (conditions.visibility != 'No satellite data') return conditions.visibility;
     final readings = satelliteReadings;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/unit_converter.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'chart_common.dart';
@@ -80,7 +81,7 @@ class _SwellChartCardState extends State<SwellChartCard> {
         : () {
             final h = UnitConverter.formatChartWaveHeight(
                 UnitConverter.feetToMeters(hp.effectiveHeightFt), _units.system);
-            final dir = ChartDirection.cardinal(hp.directionDeg);
+            final dir = WindFormat.cardinal(hp.directionDeg);
             final prefix = widget.isToday ? '' : 'Peak ';
             return '$prefix$h @ ${hp.periodSec.round()}s $dir';
           }();

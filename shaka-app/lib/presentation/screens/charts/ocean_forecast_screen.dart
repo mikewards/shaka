@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../../core/utils/wind_format.dart';
 import '../../../data/services/unit_preference_service.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
@@ -308,13 +309,6 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     }
   }
 
-  static String _degreesToCardinal(double deg) {
-    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE',
-                  'S','SSW','SW','WSW','W','WNW','NW','NNW'];
-    final idx = ((deg % 360 + 360) % 360 / 22.5 + 0.5).floor() % 16;
-    return dirs[idx];
-  }
-
   String _formatProbeValue() {
     if (_probeValue == null) return '';
     final system = UnitPreferenceService().system;
@@ -339,7 +333,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
         formatted = '$valStr $unit';
     }
     if (isVector && _probeDirection != null) {
-      return '$formatted ${_degreesToCardinal(_probeDirection!)}';
+      return '$formatted ${WindFormat.cardinal(_probeDirection!)}';
     }
     return formatted;
   }

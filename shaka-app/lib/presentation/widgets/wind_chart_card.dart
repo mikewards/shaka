@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/unit_converter.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'chart_common.dart';
@@ -89,8 +90,7 @@ class _WindChartCardState extends State<WindChartCard> {
             const SizedBox(width: 6),
             Text('Loading...', style: TextStyle(color: _dimText, fontSize: 13)),
           ] else if (hp != null) ...[
-            ChartDirectionArrow(
-                fromDegrees: hp.directionDeg, color: _windColor, size: 14),
+            WindArrow(fromDegrees: hp.directionDeg, color: _windColor, size: 14),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -126,7 +126,7 @@ class _WindChartCardState extends State<WindChartCard> {
 
   String _headerText(WindHourlyPoint hp) {
     final speed = UnitConverter.formatWindSpeed(hp.speedKts, _units.system);
-    final dir = ChartDirection.cardinal(hp.directionDeg);
+    final dir = WindFormat.cardinal(hp.directionDeg);
     final gust = hp.gustKts != null && hp.gustKts! > hp.speedKts
         ? ' G${_speedNum(hp.gustKts!)}'
         : '';
