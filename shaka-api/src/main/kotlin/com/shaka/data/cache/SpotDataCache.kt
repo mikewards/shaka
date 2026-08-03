@@ -1318,7 +1318,10 @@ object SpotDataCache {
      * windDirectionCardinal fields; this string remains for released apps.
      */
     fun formatWindLabel(speedKnots: Double, direction: String): String =
-        "${kotlin.math.round(speedKnots).toInt()} kts $direction"
+        // floor(x + 0.5): half-UP rounding, matching Dart's round() in the app
+        // (kotlin.math.round is banker's rounding — 6.5 would render "6 kts"
+        // here but "7 kts" in the app for the same reading).
+        "${kotlin.math.floor(speedKnots + 0.5).toInt()} kts $direction"
     
     /**
      * Convert meters per second to knots.
