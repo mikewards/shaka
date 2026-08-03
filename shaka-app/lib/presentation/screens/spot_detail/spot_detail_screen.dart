@@ -657,6 +657,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           lat: spot.coordinates.lat,
           lon: spot.coordinates.lon,
           targetDate: _forecastDate(selectedDay.date),
+          utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+          timezoneAbbr: _hourly?.timezoneAbbr,
         ),
       ],
     );

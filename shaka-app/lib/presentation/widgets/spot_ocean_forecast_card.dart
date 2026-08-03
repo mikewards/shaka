@@ -38,15 +38,25 @@ class SpotOceanForecastCard extends StatefulWidget {
   final double lat;
   final double lon;
 
-  /// When set, the map jumps to the first frame on this (local) date. Today
-  /// keeps the default "now" frame. Days beyond the data horizon show a note.
+  /// When set, the map jumps to the first frame on this (spot-local) date.
+  /// Today keeps the default "now" frame. Days beyond the horizon show a note.
   final DateTime? targetDate;
+
+  /// Spot's current UTC offset in minutes (from SpotHourlyResponse). When
+  /// present, frame timestamps and the "today" boundary use SPOT-local time;
+  /// when null they fall back to device-local (legacy behavior).
+  final int? utcOffsetMinutes;
+
+  /// Short zone label ("HST", "PDT") appended to displayed frame times.
+  final String? timezoneAbbr;
 
   const SpotOceanForecastCard({
     super.key,
     required this.lat,
     required this.lon,
     this.targetDate,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   @override
@@ -101,12 +111,25 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     super.dispose();
   }
 
+  /// A UTC-parsed instant expressed in SPOT-local wall time when the offset
+  /// is known, else device-local (legacy fallback).
+  DateTime _spotLocal(DateTime utc) {
+    final offset = widget.utcOffsetMinutes;
+    if (offset != null) return utc.toUtc().add(Duration(minutes: offset));
+    return utc.toLocal();
+  }
+
   /// Jump the map to the selected forecast day. Today keeps the default "now"
   /// frame; days beyond the loaded horizon surface a small note.
+  ///
+  /// Both the "today" boundary and frame-day matching are evaluated in the
+  /// SPOT's timezone: the forecast days are spot-local dates, so comparing
+  /// against the device calendar put frames on the wrong day whenever the
+  /// viewer was in a different timezone.
   void _syncToTargetDate() {
     final target = widget.targetDate;
     if (target == null || _timestamps.isEmpty) return;
-    final now = DateTime.now();
+    final now = _spotLocal(DateTime.now());
     final isToday = target.year == now.year &&
         target.month == now.month &&
         target.day == now.day;
@@ -117,8 +140,9 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
 
     int? matchIdx;
     for (int i = 0; i < _timestamps.length; i++) {
-      final dt = DateTime.tryParse(_timestamps[i])?.toLocal();
-      if (dt == null) continue;
+      final parsed = DateTime.tryParse(_timestamps[i]);
+      if (parsed == null) continue;
+      final dt = _spotLocal(parsed);
       if (dt.year == target.year &&
           dt.month == target.month &&
           dt.day == target.day) {
@@ -134,7 +158,8 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
       });
       _controller?.runJavaScript('setTimeIndex($matchIdx)');
     } else {
-      final last = DateTime.tryParse(_timestamps.last)?.toLocal();
+      final lastParsed = DateTime.tryParse(_timestamps.last);
+      final last = lastParsed != null ? _spotLocal(lastParsed) : null;
       setState(() {
         _mapDayNote = last != null
             ? 'Ocean map data ends ${_monthDay(last)}'
@@ -316,15 +341,19 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     }
   }
 
+  /// Frame timestamp in SPOT-local time with a zone label ("Aug 3 14:00 HST")
+  /// when the offset is known; device-local without a label otherwise.
   String _formatTimestamp(String ts) {
     try {
-      final dt = DateTime.parse(ts);
-      final local = dt.toLocal();
+      final local = _spotLocal(DateTime.parse(ts));
       const months = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
-      return '${months[local.month - 1]} ${local.day} ${local.hour.toString().padLeft(2, '0')}:00';
+      final abbr = widget.utcOffsetMinutes != null && widget.timezoneAbbr != null
+          ? ' ${widget.timezoneAbbr}'
+          : '';
+      return '${months[local.month - 1]} ${local.day} ${local.hour.toString().padLeft(2, '0')}:00$abbr';
     } catch (_) {
       return ts;
     }
