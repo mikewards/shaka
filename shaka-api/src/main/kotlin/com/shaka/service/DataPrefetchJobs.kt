@@ -49,6 +49,10 @@ class DataPrefetchJobs(
         const val BATCH_DELAY_MS = 500L
         const val SPOT_TIMEOUT_MS = 15000L  // 15s timeout (rate limiter adds delay)
         const val HOURLY_HORIZON_DAYS = 7   // days of hourly swell/wind to persist per spot
+        // Locations per multi-location Open-Meteo request (comma-separated
+        // lat/lon lists). ~50 keeps URLs short and per-request payloads a few
+        // hundred KB; quota weight is per location either way.
+        const val WEATHER_BATCH_LOCATIONS = 50
 
         // Cache staleness thresholds
         const val TIDE_STALE_HOURS = 2      // Refetch if older than 2h
@@ -556,18 +560,30 @@ class DataPrefetchJobs(
         }
         val allSpots = curatedSpots + userSpots
 
-        logger.info("HOURLY swell/wind prefetch: ${allSpots.size} spots (${curatedSpots.size} curated + ${userSpots.size} user), ${HOURLY_HORIZON_DAYS}-day horizon")
+        logger.info("HOURLY swell/wind prefetch: ${allSpots.size} spots (${curatedSpots.size} curated + ${userSpots.size} user), ${HOURLY_HORIZON_DAYS}-day horizon, batches of $WEATHER_BATCH_LOCATIONS")
 
         val startTime = System.currentTimeMillis()
         var successCount = 0
         val failures = mutableListOf<ItemFailure>()
 
-        allSpots.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
-            val results = batch.map { spot ->
+        // Multi-location batched requests: 2 HTTP calls per chunk instead of
+        // 2 per spot. Open-Meteo meters per location, so the quota weight is
+        // unchanged; this removes the connect churn that caused chronic ~5%
+        // per-run failures at 10-concurrent single-spot requests.
+        allSpots.chunked(WEATHER_BATCH_LOCATIONS).forEachIndexed { batchIndex, batch ->
+            val coords = batch.map { it.lat to it.lon }
+            val marineList = openMeteo.getMarineHourlyBatch(coords, HOURLY_HORIZON_DAYS)
+            val weatherList = openMeteo.getWeatherHourlyBatch(coords, HOURLY_HORIZON_DAYS)
+
+            val results = batch.mapIndexed { i, spot ->
                 async {
                     try {
                         withTimeout(SPOT_TIMEOUT_MS * 2) {
-                            persistHourlyForSpot(spot)
+                            val marine = marineList.getOrNull(i)
+                                ?: error("Open-Meteo marine hourly unavailable")
+                            val weather = weatherList.getOrNull(i)
+                                ?: error("Open-Meteo weather hourly unavailable")
+                            processHourlyForSpot(spot, marine, weather)
                         }
                         true
                     } catch (e: Exception) {
@@ -582,7 +598,7 @@ class DataPrefetchJobs(
             }.awaitAll()
 
             successCount += results.count { it }
-            if (batchIndex < allSpots.size / BATCH_SIZE) {
+            if (batchIndex < allSpots.size / WEATHER_BATCH_LOCATIONS) {
                 delay(BATCH_DELAY_MS)
             }
         }
@@ -625,8 +641,26 @@ class DataPrefetchJobs(
     /**
      * Fetch the hourly marine + wind series for one spot, compute per-hour
      * corrected swell, and upsert one row per local_date into both tables.
+     * (Single-spot path, e.g. user-spot creation; the scheduled job uses the
+     * multi-location batch fetchers and calls processHourlyForSpot directly.)
      */
     private suspend fun persistHourlyForSpot(spot: WeatherSpot) {
+        val marine = openMeteo.getMarineHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
+            ?: error("Open-Meteo marine hourly unavailable")
+        val weather = openMeteo.getWeatherHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
+            ?: error("Open-Meteo weather hourly unavailable")
+        processHourlyForSpot(spot, marine, weather)
+    }
+
+    /**
+     * Compute per-hour corrected swell from prefetched series and upsert one
+     * row per local_date into both tables.
+     */
+    private suspend fun processHourlyForSpot(
+        spot: WeatherSpot,
+        marine: com.shaka.data.client.MarineHourlySeries,
+        weather: com.shaka.data.client.WeatherHourlySeries
+    ) {
         SpotDataCache.registerSpotCoordinates(spot.cacheId, spot.lat, spot.lon)
         // Ensure exposure for attenuation (compute once if missing).
         var exposure = SpotDataCache.get(spot.cacheId)?.exposure
@@ -645,11 +679,6 @@ class DataPrefetchJobs(
             }
         }
         val ld = exposure?.landDistances
-
-        val marine = openMeteo.getMarineHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
-            ?: error("Open-Meteo marine hourly unavailable")
-        val weather = openMeteo.getWeatherHourly(spot.lat, spot.lon, HOURLY_HORIZON_DAYS)
-            ?: error("Open-Meteo weather hourly unavailable")
 
         val zone = SpotTime.resolveZone(marine.timezone, spot.lon)
         val now = Instant.now()

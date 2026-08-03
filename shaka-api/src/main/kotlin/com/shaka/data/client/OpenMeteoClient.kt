@@ -251,82 +251,128 @@ class OpenMeteoClient {
         throw last!!
     }
 
+    private val batchJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+
+    private fun toMarineSeries(response: OpenMeteoMarineResponse): MarineHourlySeries {
+        val h = response.hourly
+        val tz = response.timezone ?: "UTC"
+        val epochs = buildEpochList(h.time, response.timezone)
+        val points = epochs.indices.map { i ->
+            MarineHourPoint(
+                epochMs = epochs[i],
+                waveHeightM = h.wave_height?.getOrNull(i),
+                wavePeriodSec = h.wave_period?.getOrNull(i),
+                waveDirectionDeg = h.wave_direction?.getOrNull(i)?.toInt(),
+                swellHeightM = h.swell_wave_height?.getOrNull(i),
+                swellPeriodSec = h.swell_wave_period?.getOrNull(i),
+                swellDirectionDeg = h.swell_wave_direction?.getOrNull(i)?.toInt(),
+                secondarySwellHeightM = h.secondary_swell_wave_height?.getOrNull(i),
+                secondarySwellPeriodSec = h.secondary_swell_wave_period?.getOrNull(i),
+                secondarySwellDirectionDeg = h.secondary_swell_wave_direction?.getOrNull(i)?.toInt(),
+                sstC = h.sea_surface_temperature?.getOrNull(i)
+            )
+        }
+        return MarineHourlySeries(timezone = tz, points = points)
+    }
+
+    private fun toWeatherSeries(response: OpenMeteoWeatherResponse): WeatherHourlySeries {
+        val h = response.hourly
+        val tz = response.timezone ?: "UTC"
+        val epochs = buildEpochList(h.time, response.timezone)
+        val points = epochs.indices.map { i ->
+            WindHourPoint(
+                epochMs = epochs[i],
+                windSpeedKmh = h.windspeed_10m?.getOrNull(i),
+                windDirectionDeg = h.winddirection_10m?.getOrNull(i)?.toInt(),
+                windGustKmh = h.windgusts_10m?.getOrNull(i)
+            )
+        }
+        return WeatherHourlySeries(timezone = tz, points = points)
+    }
+
+    /**
+     * Parse a multi-location Open-Meteo response: an array of per-location
+     * objects for >1 location, a single object for exactly 1.
+     */
+    private inline fun <reified T> parseBatch(text: String): List<T> {
+        val el = batchJson.parseToJsonElement(text)
+        return if (el is kotlinx.serialization.json.JsonArray) {
+            el.map { batchJson.decodeFromJsonElement(kotlinx.serialization.serializer<T>(), it) }
+        } else {
+            listOf(batchJson.decodeFromJsonElement(kotlinx.serialization.serializer<T>(), el))
+        }
+    }
+
     /**
      * Full hourly marine curve for a multi-day horizon (raw SI units + epochMs).
-     * Used by the daily prefetch job to persist the swell series. Returns null on failure.
+     * Used by the prefetch job to persist the swell series. Returns null on failure.
      */
-    suspend fun getMarineHourly(lat: Double, lon: Double, days: Int = 7): MarineHourlySeries? {
+    suspend fun getMarineHourly(lat: Double, lon: Double, days: Int = 7): MarineHourlySeries? =
+        getMarineHourlyBatch(listOf(lat to lon), days).firstOrNull()
+
+    /**
+     * Batched multi-location variant (comma-separated latitude/longitude per
+     * Open-Meteo docs): one HTTP round-trip for a whole chunk of spots.
+     * Open-Meteo meters usage per LOCATION, not per request, so batching does
+     * not change quota weight — it removes per-request latency and connection
+     * churn (the source of the chronic ~5% per-run connect failures).
+     * Returns one entry per coordinate, null-filled on failure.
+     */
+    suspend fun getMarineHourlyBatch(coords: List<Pair<Double, Double>>, days: Int = 7): List<MarineHourlySeries?> {
+        if (coords.isEmpty()) return emptyList()
         return try {
             RateLimiters.openMeteo.acquire()
-
-            val response: OpenMeteoMarineResponse = withRetry {
-                client.get("https://marine-api.open-meteo.com/v1/marine") {
-                    parameter("latitude", lat)
-                    parameter("longitude", lon)
+            val responses: List<OpenMeteoMarineResponse> = withRetry {
+                val text: String = client.get("https://marine-api.open-meteo.com/v1/marine") {
+                    parameter("latitude", coords.joinToString(",") { it.first.toString() })
+                    parameter("longitude", coords.joinToString(",") { it.second.toString() })
                     parameter("forecast_days", days)
                     parameter("hourly", "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,swell_wave_direction,secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,sea_surface_temperature")
                     parameter("timezone", "auto")
                 }.body()
+                parseBatch(text)
             }
-
-            val h = response.hourly
-            val tz = response.timezone ?: "UTC"
-            val epochs = buildEpochList(h.time, response.timezone)
-            val points = epochs.indices.map { i ->
-                MarineHourPoint(
-                    epochMs = epochs[i],
-                    waveHeightM = h.wave_height?.getOrNull(i),
-                    wavePeriodSec = h.wave_period?.getOrNull(i),
-                    waveDirectionDeg = h.wave_direction?.getOrNull(i)?.toInt(),
-                    swellHeightM = h.swell_wave_height?.getOrNull(i),
-                    swellPeriodSec = h.swell_wave_period?.getOrNull(i),
-                    swellDirectionDeg = h.swell_wave_direction?.getOrNull(i)?.toInt(),
-                    secondarySwellHeightM = h.secondary_swell_wave_height?.getOrNull(i),
-                    secondarySwellPeriodSec = h.secondary_swell_wave_period?.getOrNull(i),
-                    secondarySwellDirectionDeg = h.secondary_swell_wave_direction?.getOrNull(i)?.toInt(),
-                    sstC = h.sea_surface_temperature?.getOrNull(i)
-                )
+            if (responses.size != coords.size) {
+                logger.warn("Open-Meteo marine batch size mismatch: sent ${coords.size}, got ${responses.size}")
+                return List(coords.size) { null }
             }
-            MarineHourlySeries(timezone = tz, points = points)
+            responses.map { toMarineSeries(it) }
         } catch (e: Exception) {
-            logger.warn("Open-Meteo marine hourly failed for ($lat, $lon): ${e.message}")
-            null
+            logger.warn("Open-Meteo marine hourly batch (${coords.size} locations) failed: ${e.message}")
+            List(coords.size) { null }
         }
     }
 
     /**
      * Full hourly wind curve for a multi-day horizon (km/h + epochMs).
-     * Used by the daily prefetch job to persist the wind series. Returns null on failure.
+     * Used by the prefetch job to persist the wind series. Returns null on failure.
      */
-    suspend fun getWeatherHourly(lat: Double, lon: Double, days: Int = 7): WeatherHourlySeries? {
+    suspend fun getWeatherHourly(lat: Double, lon: Double, days: Int = 7): WeatherHourlySeries? =
+        getWeatherHourlyBatch(listOf(lat to lon), days).firstOrNull()
+
+    /** Batched multi-location variant; see getMarineHourlyBatch. */
+    suspend fun getWeatherHourlyBatch(coords: List<Pair<Double, Double>>, days: Int = 7): List<WeatherHourlySeries?> {
+        if (coords.isEmpty()) return emptyList()
         return try {
             RateLimiters.openMeteo.acquire()
-
-            val response: OpenMeteoWeatherResponse = withRetry {
-                client.get("https://api.open-meteo.com/v1/forecast") {
-                    parameter("latitude", lat)
-                    parameter("longitude", lon)
+            val responses: List<OpenMeteoWeatherResponse> = withRetry {
+                val text: String = client.get("https://api.open-meteo.com/v1/forecast") {
+                    parameter("latitude", coords.joinToString(",") { it.first.toString() })
+                    parameter("longitude", coords.joinToString(",") { it.second.toString() })
                     parameter("forecast_days", days)
                     parameter("hourly", "windspeed_10m,winddirection_10m,windgusts_10m")
                     parameter("timezone", "auto")
                 }.body()
+                parseBatch(text)
             }
-
-            val h = response.hourly
-            val tz = response.timezone ?: "UTC"
-            val epochs = buildEpochList(h.time, response.timezone)
-            val points = epochs.indices.map { i ->
-                WindHourPoint(
-                    epochMs = epochs[i],
-                    windSpeedKmh = h.windspeed_10m?.getOrNull(i),
-                    windDirectionDeg = h.winddirection_10m?.getOrNull(i)?.toInt(),
-                    windGustKmh = h.windgusts_10m?.getOrNull(i)
-                )
+            if (responses.size != coords.size) {
+                logger.warn("Open-Meteo weather batch size mismatch: sent ${coords.size}, got ${responses.size}")
+                return List(coords.size) { null }
             }
-            WeatherHourlySeries(timezone = tz, points = points)
+            responses.map { toWeatherSeries(it) }
         } catch (e: Exception) {
-            logger.warn("Open-Meteo weather hourly failed for ($lat, $lon): ${e.message}")
-            null
+            logger.warn("Open-Meteo weather hourly batch (${coords.size} locations) failed: ${e.message}")
+            List(coords.size) { null }
         }
     }
 
