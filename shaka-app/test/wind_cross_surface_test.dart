@@ -49,8 +49,22 @@ void main() {
       expect('$speed $dir', '12 kts NW');
     });
 
-    test('surface 3 — ocean map probe cardinal (same table)', () {
+    test('surface 3 — ocean map probe cardinal + attribution', () {
       expect(WindFormat.cardinal(directionDeg.toDouble()), cardinal);
+      // Map probe uses 1-decimal chart formatting + shared attribution.
+      const asMs = speedKts * 1.852 / 3.6;
+      final speedDir =
+          '${UnitConverter.formatChartWind(asMs, system)} $cardinal';
+      expect(speedDir, '11.7 kts NW');
+      expect(
+        WindFormat.mapProbeWindLabel(
+          speedAndCardinal: speedDir,
+          validAtUtc: DateTime.utc(2026, 8, 3, 21),
+          utcOffsetMinutes: -420,
+          timezoneAbbr: 'PDT',
+        ),
+        '11.7 kts NW · ECMWF offshore model · valid 2:00 PM PDT',
+      );
     });
 
     test('surface 4 — WindFormat directly (the source of truth)', () {
