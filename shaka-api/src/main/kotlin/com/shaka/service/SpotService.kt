@@ -693,7 +693,20 @@ class SpotService {
             cached.swellSeries?.fetchedAt,
             cached.windSeries?.fetchedAt
         ).maxOrNull()?.toEpochMilli()
-        return SpotHourlyResponse(spotId, tz, days, generatedAt)
+        // Spot-local time metadata for clients without an IANA tz database:
+        // current offset (DST-aware) + a short display label.
+        val nowInZone = java.time.Instant.now().atZone(zone)
+        val offsetMinutes = nowInZone.offset.totalSeconds / 60
+        // "zzz" yields DST-aware abbreviations ("HST", "PDT"); zones without
+        // one fall back to "GMT+X" which is still an honest display label.
+        val zoneAbbr = nowInZone.format(
+            java.time.format.DateTimeFormatter.ofPattern("zzz", java.util.Locale.ENGLISH)
+        )
+        return SpotHourlyResponse(
+            spotId, tz, days, generatedAt,
+            utcOffsetMinutes = offsetMinutes,
+            timezoneAbbr = zoneAbbr
+        )
     }
 
     /**

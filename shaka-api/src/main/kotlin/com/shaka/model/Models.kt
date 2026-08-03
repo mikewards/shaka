@@ -363,7 +363,16 @@ data class SpotHourlyResponse(
      * without trusting any backend threshold. Survives restarts (persisted as
      * fetched_at in spot_swell_hourly/spot_wind_hourly).
      */
-    val generatedAt: Long? = null
+    val generatedAt: Long? = null,
+    /**
+     * Spot's current UTC offset in minutes (additive; DST-aware, resolved at
+     * request time). The Flutter app has no IANA tz database, so it needs this
+     * to render chart axes and timestamps in SPOT-local time instead of
+     * device-local time.
+     */
+    val utcOffsetMinutes: Int? = null,
+    /** Short zone label for display, e.g. "HST", "PDT", "GMT+2". */
+    val timezoneAbbr: String? = null
 )
 
 /**
