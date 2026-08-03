@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/utils/wind_format.dart';
 import '../../../data/services/unit_preference_service.dart';
+import '../../widgets/ocean_map_wind_hint.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -499,6 +500,16 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
               ),
             ),
           ),
+
+          // One-time offshore-model hint (wind layer only; below probe chip)
+          if (_activeLayer == 'wind' && !_isLoading && _errorMessage == null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top +
+                  (_probeValue != null ? 110 : 54),
+              left: 16,
+              right: 16,
+              child: const OceanMapWindHint(),
+            ),
 
           // Bottom controls
           Positioned(
