@@ -285,8 +285,8 @@ class SpotService {
                         } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
                           ?: "Unavailable",
                         wind = cached?.wind?.let { 
-                            "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                        } ?: weather?.let { "${SpotDataCache.kmhToKnots(it.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(it.windDirection.toDouble())}" }
+                            SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
+                        } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
                           ?: "Unavailable",
                         tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                         dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
@@ -552,8 +552,8 @@ class SpotService {
                     } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
                       ?: "Unavailable",
                     wind = effectiveWind?.let { 
-                        "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                    } ?: weather?.let { "${SpotDataCache.kmhToKnots(it.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(it.windDirection.toDouble())}" }
+                        SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
+                    } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
                       ?: "Unavailable",
                     tideState = buildTideStateString(tideChart, tideData),
                     dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
@@ -1128,7 +1128,7 @@ class SpotService {
                             visibility = getVisibilityLabel(effectiveChl),
                             waterTemp = formatWaterTemp(sst),
                             swell = "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
-                            wind = "${SpotDataCache.kmhToKnots(weather.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())}",
+                            wind = SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(weather.windSpeed), SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())),
                             tideState = "",
                             swellSource = "open-meteo",
                             swellCorrected = scf.swellCorrected,
@@ -1873,8 +1873,8 @@ class SpotService {
                 } ?: ocean?.let { "${it.waveHeight.roundToInt()}-${(it.waveHeight + 1).roundToInt()}ft @ ${it.wavePeriod.roundToInt()}s" }
                   ?: "Unavailable",
                 wind = effectiveWind?.let { 
-                    "${it.value.speedKnots.toInt()} kts ${it.value.direction}" 
-                } ?: weather?.let { "${SpotDataCache.kmhToKnots(it.windSpeed).toInt()} kts ${SpotDataCache.degreesToCardinal(it.windDirection.toDouble())}" }
+                    SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
+                } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
                   ?: "Unavailable",
                 tideState = buildTideStateString(tideChart, tideData),
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,

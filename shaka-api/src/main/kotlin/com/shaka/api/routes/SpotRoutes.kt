@@ -397,7 +397,7 @@ fun Application.configureRouting() {
                             "${ht.roundToInt()}ft @ ${s.periodSec.roundToInt()}s ${s.direction}"
                         },
                         wind = cached?.wind?.value?.let { 
-                            "${it.speedKnots.toInt()} kts ${it.direction}" 
+                            com.shaka.data.cache.SpotDataCache.formatWindLabel(it.speedKnots, it.direction) 
                         },
                         waterTemp = cached?.sst?.value?.let { sst ->
                             "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"
@@ -1351,7 +1351,7 @@ fun Application.configureRouting() {
                                 "${ht.roundToInt()}ft @ ${s.periodSec.roundToInt()}s ${s.direction}"
                             },
                             wind = cached?.wind?.value?.let { 
-                                "${it.speedKnots.toInt()} kts ${it.direction}" 
+                                com.shaka.data.cache.SpotDataCache.formatWindLabel(it.speedKnots, it.direction) 
                             },
                             waterTemp = cached?.sst?.value?.let { sst ->
                                 "${sst.toInt()}°C / ${((sst * 9/5) + 32).toInt()}°F"

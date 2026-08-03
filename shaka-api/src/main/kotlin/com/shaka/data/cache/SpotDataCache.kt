@@ -1304,6 +1304,18 @@ object SpotDataCache {
         val index = ((degrees + 11.25) / 22.5).toInt() % 16
         return directions[index]
     }
+
+    /**
+     * Single source of truth for the preformatted wind display string.
+     * Rounds (never truncates) so the string agrees with clients that round
+     * the numeric windSpeedKts field — truncation made the same 5.7 kts render
+     * as "5" here and "6" on the spot card.
+     *
+     * DEPRECATED for new clients: prefer the numeric windSpeedKts /
+     * windDirectionCardinal fields; this string remains for released apps.
+     */
+    fun formatWindLabel(speedKnots: Double, direction: String): String =
+        "${kotlin.math.round(speedKnots).toInt()} kts $direction"
     
     /**
      * Convert meters per second to knots.
