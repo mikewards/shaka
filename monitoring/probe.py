@@ -219,6 +219,49 @@ def eval_tier2(journey: dict, base_url: str, skip_external: bool, flags: dict, s
             return CheckResult(jid, name, False, f"empty: {empty}")
         return CheckResult(jid, name, True)
 
+    if journey.get("windCoherence"):
+        spec = journey["windCoherence"]
+        snap = (saved.get(spec["reuseSnapshotFrom"]) or {}).get("conditions") or {}
+        url = base_url + render_path(journey["path"])
+        try:
+            status, _, body = fetch_with_retry(url)
+        except Exception as e:
+            return CheckResult(jid, name, False, f"live wind unreachable: {type(e).__name__}")
+        if status != 200:
+            return CheckResult(jid, name, False, f"live wind HTTP {status}")
+        try:
+            live = json.loads(body)
+        except Exception:
+            return CheckResult(jid, name, False, "live wind response is not JSON")
+
+        snap_dir = snap.get("windDirectionDeg")
+        valid_at = snap.get("windValidAt")
+        if snap_dir is None and valid_at is None:
+            # Pre-numeric-contract payload (old deploy / local seed): nothing
+            # coherent to compare yet — skip, don't warn.
+            return CheckResult(jid, name, True, "skipped (numeric wind fields absent)")
+
+        problems = []
+        live_dir = live.get("windDirectionDeg")
+        if snap_dir is not None and live_dir is not None:
+            diff = abs(snap_dir - live_dir) % 360
+            diff = min(diff, 360 - diff)
+            if diff > spec["maxDirectionDivergenceDeg"]:
+                problems.append(
+                    f"snapshot {snap_dir}° vs live {live_dir}° diverge {diff:.0f}° "
+                    f"> {spec['maxDirectionDivergenceDeg']}° (derive tick or refetch cadence lying)")
+        if valid_at is not None:
+            age_h = (time.time() * 1000 - valid_at) / 3_600_000
+            if age_h > spec["maxSnapshotValidAgeHours"]:
+                problems.append(
+                    f"snapshot windValidAt {age_h:.1f}h old "
+                    f"> {spec['maxSnapshotValidAgeHours']}h (6h-cadence snapshot age alert)")
+        if snap.get("windSpeedKts") == 0 and snap_dir == 0:
+            problems.append("snapshot reads 0 kts @ 0° — fabricated-zero signature (Jun 2026 outage shape)")
+        if problems:
+            return CheckResult(jid, name, False, "; ".join(problems))
+        return CheckResult(jid, name, True)
+
     if journey.get("external"):
         if skip_external:
             return None

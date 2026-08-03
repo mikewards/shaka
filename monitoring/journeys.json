@@ -103,6 +103,17 @@
       "name": "intel data quality incl. AI insights (reuses T7 response)",
       "reuseResponse": "T7",
       "nonEmptyArrays": ["speciesWithTrends", "keyInsights"]
+    },
+    {
+      "id": "W8",
+      "name": "wind snapshot vs live coherence",
+      "path": "/spots/{spot}/wind/live",
+      "$comment": "Wind-audit Phase 4 alerts (probe-owned thresholds). Divergence: the snapshot the list views show and the live reading the detail screen shows describe the same air; a FROM-bearing gap > 45° (circular) means the snapshot derive tick or the refetch cadence is lying to users. Age: windValidAt is the model hour the snapshot represents — with the hourly derive tick plus the 6 h refetch it should never exceed 8 h. Zeros: 0 kts @ 0° is the fabricated-default signature from the Jun 2026 outage. Skips cleanly when numeric fields are absent (pre-contract payloads / local seed).",
+      "windCoherence": {
+        "reuseSnapshotFrom": "T2",
+        "maxDirectionDivergenceDeg": 45,
+        "maxSnapshotValidAgeHours": 8
+      }
     }
   ],
   "deferred": {
