@@ -155,12 +155,12 @@ class SpotService {
             // Null = unavailable; do not fabricate values (Jun 2026 lesson).
             val weather: WeatherData? = if (cached?.wind != null && cached.swell != null) {
                 WeatherData(
-                    temperature = 25.0,
-                    windSpeed = cached.wind.value.speedKnots / 0.539957,  // Convert knots to km/h
-                    windDirection = 0,
-                    precipitation = 0.0,
-                    cloudCover = 50,
-                    visibility = 10000.0
+                    temperature = null,
+                    windSpeed = cached.wind.value.speedKnots / 0.539957,  // knots back to km/h for the scorer
+                    windDirection = null,  // cache carries only the cardinal; do not fabricate 0 deg
+                    precipitation = null,
+                    cloudCover = null,
+                    visibility = null
                 )
             } else {
                 fallbackWeather
@@ -274,9 +274,9 @@ class SpotService {
                     val swellDir = cached?.swell?.value?.direction
                         ?: ocean?.let { SpotDataCache.degreesToCardinal(it.waveDirection.toDouble()) }
                     val windKts = cached?.wind?.value?.speedKnots
-                        ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) }
+                        ?: weather?.windSpeed?.let { SpotDataCache.kmhToKnots(it) }
                     val windDir = cached?.wind?.value?.direction
-                        ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) }
+                        ?: weather?.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) }
                     SpotConditions(
                         visibility = getVisibilityLabel(effectiveChl),
                         waterTemp = formatWaterTemp(sst),
@@ -286,7 +286,7 @@ class SpotService {
                           ?: "Unavailable",
                         wind = cached?.wind?.let { 
                             SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
-                        } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
+                        } ?: weather?.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } }
                           ?: "Unavailable",
                         tideState = "${tideData.tideState} - Next high: ${tideData.nextHighTide}",
                         dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
@@ -356,12 +356,12 @@ class SpotService {
             
             weather = if (cached.wind != null) {
                 WeatherData(
-                    temperature = 25.0,
-                    windSpeed = cached.wind.value.speedKnots / 0.539957,
-                    windDirection = 0,
-                    precipitation = 0.0,
-                    cloudCover = 50,
-                    visibility = 10000.0
+                    temperature = null,
+                    windSpeed = cached.wind.value.speedKnots / 0.539957,  // knots back to km/h for the scorer
+                    windDirection = null,  // cache carries only the cardinal; do not fabricate 0 deg
+                    precipitation = null,
+                    cloudCover = null,
+                    visibility = null
                 )
             } else {
                 null
@@ -541,9 +541,9 @@ class SpotService {
                 val swellDir = cached?.swell?.value?.direction
                     ?: ocean?.let { SpotDataCache.degreesToCardinal(it.waveDirection.toDouble()) }
                 val windKts = effectiveWind?.value?.speedKnots
-                    ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) }
+                    ?: weather?.windSpeed?.let { SpotDataCache.kmhToKnots(it) }
                 val windDir = effectiveWind?.value?.direction
-                    ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) }
+                    ?: weather?.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) }
                 SpotConditions(
                     visibility = getVisibilityLabel(effectiveChl),
                     waterTemp = formatWaterTemp(sst),
@@ -553,7 +553,7 @@ class SpotService {
                       ?: "Unavailable",
                     wind = effectiveWind?.let { 
                         SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
-                    } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
+                    } ?: weather?.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } }
                       ?: "Unavailable",
                     tideState = buildTideStateString(tideChart, tideData),
                     dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
@@ -1128,7 +1128,7 @@ class SpotService {
                             visibility = getVisibilityLabel(effectiveChl),
                             waterTemp = formatWaterTemp(sst),
                             swell = "${ocean.waveHeight.roundToInt()}-${(ocean.waveHeight + 1).roundToInt()}ft @ ${ocean.wavePeriod.roundToInt()}s",
-                            wind = SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(weather.windSpeed), SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())),
+                            wind = weather.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } } ?: "Unavailable",
                             tideState = "",
                             swellSource = "open-meteo",
                             swellCorrected = scf.swellCorrected,
@@ -1140,8 +1140,8 @@ class SpotService {
                             swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight).roundToInt().toDouble(),
                             swellPeriodSec = ocean.wavePeriod.roundToInt().toDouble(),
                             swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                            windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
-                            windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                            windSpeedKts = weather.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
+                            windDirectionCardinal = weather.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
                             waterTempC = sst
                         )
                     },
@@ -1635,9 +1635,9 @@ class SpotService {
         }
         val risks = mutableListOf<String>()
 
-        if (weather != null && weather.windSpeed > 15) risks += "Strong winds expected"
+        if ((weather?.windSpeed ?: 0.0) > 15) risks += "Strong winds expected"
         if (ocean != null && ocean.waveHeight > 1.5) risks += "Rough surf conditions"
-        if (weather != null && weather.precipitation > 2) risks += "Rain may reduce visibility"
+        if ((weather?.precipitation ?: 0.0) > 2) risks += "Rain may reduce visibility"
         // Skip the cold-water risk when temp is unknown — never score against a
         // fabricated default (previously a hardcoded 15°C tripped this).
         val waterTemp = ocean?.waterTemperature
@@ -1755,12 +1755,12 @@ class SpotService {
         
         val weather: WeatherData? = if (cached?.wind != null) {
             WeatherData(
-                temperature = 25.0,
-                windSpeed = cached.wind.value.speedKnots / 0.539957,
-                windDirection = 0,
-                precipitation = 0.0,
-                cloudCover = 50,
-                visibility = 10000.0
+                temperature = null,
+                windSpeed = cached.wind.value.speedKnots / 0.539957,  // knots back to km/h for the scorer
+                windDirection = null,  // cache carries only the cardinal; do not fabricate 0 deg
+                precipitation = null,
+                cloudCover = null,
+                visibility = null
             )
         } else {
             null
@@ -1874,7 +1874,7 @@ class SpotService {
                   ?: "Unavailable",
                 wind = effectiveWind?.let { 
                     SpotDataCache.formatWindLabel(it.value.speedKnots, it.value.direction) 
-                } ?: weather?.let { SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(it.windSpeed), SpotDataCache.degreesToCardinal(it.windDirection.toDouble())) }
+                } ?: weather?.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } }
                   ?: "Unavailable",
                 tideState = buildTideStateString(tideChart, tideData),
                 dataUpdatedMinutesAgo = dataUpdatedMinutesAgo,
@@ -1893,9 +1893,9 @@ class SpotService {
                 swellDirection = cached?.swell?.value?.direction
                     ?: ocean?.let { SpotDataCache.degreesToCardinal(it.waveDirection.toDouble()) },
                 windSpeedKts = effectiveWind?.value?.speedKnots
-                    ?: weather?.let { SpotDataCache.kmhToKnots(it.windSpeed) },
+                    ?: weather?.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
                 windDirectionCardinal = effectiveWind?.value?.direction
-                    ?: weather?.let { SpotDataCache.degreesToCardinal(it.windDirection.toDouble()) },
+                    ?: weather?.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
                 waterTempC = sst,
                 swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
                 windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
@@ -2146,8 +2146,10 @@ class SpotService {
                         swellPeriodSec = periodSec,
                         totalWaveHeightM = ocean.waveHeight,
                         swellHeightM = ocean.swellHeight,
-                        windSpeedKmh = weather.windSpeed,
-                        windDirectionDeg = weather.windDirection.toDouble()
+                        // Internal attenuation input only: missing wind = no
+                        // wind-chop term (conservative), never shown to users.
+                        windSpeedKmh = weather.windSpeed ?: 0.0,
+                        windDirectionDeg = (weather.windDirection ?: 0).toDouble()
                     )
                 } else null
                 
@@ -2175,12 +2177,19 @@ class SpotService {
                 SpotDataCache.updateSwell(spotId, SpotDataCache.CachedValue(value = swellInfo, fetchedAt = now))
                 SpotDataCache.updateSwellSource(spotId, swellInfo.source)
                 SpotDataCache.updateCorrectedSwell(spotId, correctedHt, secHtRaw, secPeriod, secDirCardinal, secCorrHt)
-                SpotDataCache.updateWind(spotId, SpotDataCache.CachedValue(
-                    value = SpotDataCache.WindInfo(
-                        speedKnots = SpotDataCache.kmhToKnots(weather.windSpeed),
-                        direction = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())
-                    ), fetchedAt = now
-                ))
+                // Only update cached wind when the sample is complete; a gap
+                // keeps the last-known value instead of writing a fabricated 0
+                // (plan 15: provider outages must not erase or invent data).
+                val ws = weather.windSpeed
+                val wd = weather.windDirection
+                if (ws != null && wd != null) {
+                    SpotDataCache.updateWind(spotId, SpotDataCache.CachedValue(
+                        value = SpotDataCache.WindInfo(
+                            speedKnots = SpotDataCache.kmhToKnots(ws),
+                            direction = SpotDataCache.degreesToCardinal(wd.toDouble())
+                        ), fetchedAt = now
+                    ))
+                }
             }
             data
         }

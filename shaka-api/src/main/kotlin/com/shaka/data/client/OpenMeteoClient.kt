@@ -55,13 +55,14 @@ class OpenMeteoClient {
             val idx = (if (date == spotNow.toLocalDate().toString()) spotNow.hour else 12)
                 .coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
 
+            // Gaps stay null (WeatherData contract) — no fabricated 25°C/10 km/h.
             WeatherData(
-                temperature = response.hourly.temperature_2m?.getOrNull(idx) ?: 25.0,
-                windSpeed = response.hourly.windspeed_10m?.getOrNull(idx) ?: 10.0,
-                windDirection = response.hourly.winddirection_10m?.getOrNull(idx)?.toInt() ?: 0,
-                precipitation = response.hourly.precipitation?.getOrNull(idx) ?: 0.0,
-                cloudCover = response.hourly.cloudcover?.getOrNull(idx)?.toInt() ?: 50,
-                visibility = response.hourly.visibility?.getOrNull(idx) ?: 10000.0
+                temperature = response.hourly.temperature_2m?.getOrNull(idx),
+                windSpeed = response.hourly.windspeed_10m?.getOrNull(idx),
+                windDirection = response.hourly.winddirection_10m?.getOrNull(idx)?.toInt(),
+                precipitation = response.hourly.precipitation?.getOrNull(idx),
+                cloudCover = response.hourly.cloudcover?.getOrNull(idx)?.toInt(),
+                visibility = response.hourly.visibility?.getOrNull(idx)
             )
         } catch (e: Exception) {
             logger.warn("Open-Meteo weather API failed for ($lat, $lon): ${e.message}")
@@ -152,12 +153,12 @@ class OpenMeteoClient {
                 val hourForDay = if (day == 0) currentHour else 12
                 val idx = (day * 24) + hourForDay
                 WeatherData(
-                    temperature = response.hourly.temperature_2m?.getOrNull(idx) ?: 25.0,
-                    windSpeed = response.hourly.windspeed_10m?.getOrNull(idx) ?: 10.0,
-                    windDirection = response.hourly.winddirection_10m?.getOrNull(idx)?.toInt() ?: 0,
-                    precipitation = response.hourly.precipitation?.getOrNull(idx) ?: 0.0,
-                    cloudCover = response.hourly.cloudcover?.getOrNull(idx)?.toInt() ?: 50,
-                    visibility = response.hourly.visibility?.getOrNull(idx) ?: 10000.0
+                    temperature = response.hourly.temperature_2m?.getOrNull(idx),
+                    windSpeed = response.hourly.windspeed_10m?.getOrNull(idx),
+                    windDirection = response.hourly.winddirection_10m?.getOrNull(idx)?.toInt(),
+                    precipitation = response.hourly.precipitation?.getOrNull(idx),
+                    cloudCover = response.hourly.cloudcover?.getOrNull(idx)?.toInt(),
+                    visibility = response.hourly.visibility?.getOrNull(idx)
                 )
             }
         } catch (e: Exception) {

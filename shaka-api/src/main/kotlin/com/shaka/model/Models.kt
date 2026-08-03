@@ -222,14 +222,20 @@ data class RegionInfo(
     val centerLon: Double = 0.0
 )
 
+/**
+ * Internal weather snapshot. Every field is nullable: null = genuinely
+ * unavailable. Never substitute fabricated defaults (25°C / 10 km/h / 0° /
+ * 50% cloud) — they rendered identical "real-looking" conditions across every
+ * spot during the Jun 2026 outage and made missing wind look like ~5.4 kts.
+ */
 @Serializable
 data class WeatherData(
-    val temperature: Double,
-    val windSpeed: Double,
-    val windDirection: Int,
-    val precipitation: Double,
-    val cloudCover: Int,
-    val visibility: Double
+    val temperature: Double?,
+    val windSpeed: Double?,      // km/h
+    val windDirection: Int?,     // degrees, meteorological FROM
+    val precipitation: Double?,
+    val cloudCover: Int?,
+    val visibility: Double?
 )
 
 @Serializable

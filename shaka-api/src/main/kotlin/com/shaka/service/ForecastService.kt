@@ -155,7 +155,7 @@ class ForecastService {
                             visibility = visibilityStr,
                             waterTemp = formatWaterTemp(sst),
                             swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
-                            wind = SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(weather.windSpeed), SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())),
+                            wind = weather.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } } ?: "Unavailable",
                             secondarySwell = secSwell?.let { "${it.toInt()}ft @ ${secPeriod?.toInt() ?: 0}s ${secDir ?: ""}" },
                             exposureBearing = cached?.exposure?.bearing,
                             exposureWidth = cached?.exposure?.width,
@@ -163,8 +163,8 @@ class ForecastService {
                             swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
                             swellPeriodSec = ocean.wavePeriod,
                             swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                            windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
-                            windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                            windSpeedKts = weather.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
+                            windDirectionCardinal = weather.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
                             waterTempC = sst
                         )
                     )
@@ -328,13 +328,13 @@ class ForecastService {
                         visibility = "Check conditions",
                         waterTemp = formatWaterTemp(sst),
                         swell = "${ocean.waveHeight.toInt()}-${(ocean.waveHeight + 1).toInt()}ft @ ${ocean.wavePeriod.toInt()}s",
-                        wind = SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(weather.windSpeed), SpotDataCache.degreesToCardinal(weather.windDirection.toDouble())),
+                        wind = weather.windSpeed?.let { ws -> weather.windDirection?.let { wd -> SpotDataCache.formatWindLabel(SpotDataCache.kmhToKnots(ws), SpotDataCache.degreesToCardinal(wd.toDouble())) } } ?: "Unavailable",
                         secondarySwell = secSwell2?.let { "${it.toInt()}ft @ ${secPeriod2?.toInt() ?: 0}s ${secDir2 ?: ""}" },
                         swellHeightFt = SpotDataCache.metersToFeet(ocean.waveHeight),
                         swellPeriodSec = ocean.wavePeriod,
                         swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
-                        windSpeedKts = SpotDataCache.kmhToKnots(weather.windSpeed),
-                        windDirectionCardinal = SpotDataCache.degreesToCardinal(weather.windDirection.toDouble()),
+                        windSpeedKts = weather.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
+                        windDirectionCardinal = weather.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
                         waterTempC = sst
                     )
                 )
