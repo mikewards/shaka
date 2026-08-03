@@ -88,7 +88,11 @@ class ForecastService {
                     swellDirection = cached.swell.value.direction,
                     windSpeedKts = cached.wind.value.speedKnots,
                     windDirectionCardinal = cached.wind.value.direction,
-                    waterTempC = sst
+                    waterTempC = sst,
+                    windDirectionDeg = cached.wind.value.directionDeg,
+                    windValidAt = cached.wind.dataValidAt?.toEpochMilli(),
+                    windKind = "hourlyForecast",
+                    windSource = "open-meteo"
                 )
             )
         }
@@ -165,7 +169,10 @@ class ForecastService {
                             swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
                             windSpeedKts = weather.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
                             windDirectionCardinal = weather.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
-                            waterTempC = sst
+                            waterTempC = sst,
+                            windDirectionDeg = weather.windDirection,
+                            windKind = if (weather.windSpeed != null) "dailySummary" else null,
+                            windSource = if (weather.windSpeed != null) "open-meteo" else null
                         )
                     )
                 }
@@ -256,7 +263,11 @@ class ForecastService {
                     swellDirection = swellDir,
                     windSpeedKts = wd.speedKts,
                     windDirectionCardinal = windDir,
-                    waterTempC = sstC
+                    waterTempC = sstC,
+                    windDirectionDeg = wd.directionDeg,
+                    windValidAt = wd.epochMs,
+                    windKind = "dailySummary",  // near-noon sample representing the day
+                    windSource = "open-meteo"
                 )
             )
         }
@@ -335,7 +346,10 @@ class ForecastService {
                         swellDirection = SpotDataCache.degreesToCardinal(ocean.waveDirection.toDouble()),
                         windSpeedKts = weather.windSpeed?.let { SpotDataCache.kmhToKnots(it) },
                         windDirectionCardinal = weather.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
-                        waterTempC = sst
+                        waterTempC = sst,
+                        windDirectionDeg = weather.windDirection,
+                        windKind = if (weather.windSpeed != null) "dailySummary" else null,
+                        windSource = if (weather.windSpeed != null) "open-meteo" else null
                     )
                 )
             }

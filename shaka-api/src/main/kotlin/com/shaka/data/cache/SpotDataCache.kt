@@ -132,7 +132,10 @@ object SpotDataCache {
     data class WindInfo(
         val speedKnots: Double,         // Wind speed in knots
         val direction: String,          // Cardinal direction
-        val gustKnots: Double? = null   // Gust speed if available
+        val gustKnots: Double? = null,  // Gust speed if available
+        // Meteorological FROM bearing. Nullable: rows rehydrated from the DB
+        // predate this field; the hourly derive tick repopulates it in memory.
+        val directionDeg: Int? = null
     )
     
     /**
@@ -3052,7 +3055,8 @@ object SpotDataCache {
         val info = WindInfo(
             speedKnots = lerp(a.speedKts, b.speedKts),
             direction = degreesToCardinal(near.directionDeg.toDouble()),
-            gustKnots = lerpN(a.gustKts, b.gustKts)
+            gustKnots = lerpN(a.gustKts, b.gustKts),
+            directionDeg = near.directionDeg
         )
         return info to near.epochMs
     }

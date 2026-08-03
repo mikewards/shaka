@@ -33,7 +33,18 @@ data class SpotConditions(
     val waterTempC: Double? = null,
     // Actual retrieval timestamps (epoch millis) for the Data Sources flyout.
     val swellRetrievedAt: Long? = null,
-    val windRetrievedAt: Long? = null
+    val windRetrievedAt: Long? = null,
+    // ---- Numeric wind contract (additive on /v1) ----
+    // Clients should prefer these over the preformatted `wind` string and the
+    // string-only cardinal (both kept for released apps; deprecated).
+    /** Meteorological FROM bearing, degrees in [0, 360). */
+    val windDirectionDeg: Int? = null,
+    /** Epoch millis of the model hour this wind value represents (NOT fetch time). */
+    val windValidAt: Long? = null,
+    /** Reading kind: "live" | "hourlyForecast" | "dailySummary". */
+    val windKind: String? = null,
+    /** Upstream source id, e.g. "open-meteo". */
+    val windSource: String? = null
 )
 
 @Serializable
@@ -366,7 +377,11 @@ data class LiveWindResponse(
     val windSpeedKts: Double,
     val windDirectionCardinal: String,
     val gustKts: Double?,
-    val retrievedAt: Long
+    val retrievedAt: Long,
+    // Numeric wind contract (additive): FROM bearing + kind/source labels.
+    val windDirectionDeg: Int? = null,
+    val windKind: String? = null,    // always "live" on this endpoint
+    val windSource: String? = null   // "open-meteo"
 )
 
 /**

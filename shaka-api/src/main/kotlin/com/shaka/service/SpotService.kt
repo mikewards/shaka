@@ -305,7 +305,11 @@ class SpotService {
                         windDirectionCardinal = windDir,
                         waterTempC = sst,
                         swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
-                        windRetrievedAt = cached?.wind?.fetchedAt?.toEpochMilli()
+                        windRetrievedAt = cached?.wind?.fetchedAt?.toEpochMilli(),
+                        windDirectionDeg = cached?.wind?.value?.directionDeg ?: weather?.windDirection,
+                        windValidAt = cached?.wind?.dataValidAt?.toEpochMilli(),
+                        windKind = if (windKts != null) "hourlyForecast" else null,
+                        windSource = if (windKts != null) "open-meteo" else null
                     )
                 },
                 gearRecommendations = generateGearRecs(sst, spot.depth),
@@ -572,7 +576,11 @@ class SpotService {
                     windDirectionCardinal = windDir,
                     waterTempC = sst,
                     swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
-                    windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
+                    windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli(),
+                    windDirectionDeg = effectiveWind?.value?.directionDeg ?: weather?.windDirection,
+                    windValidAt = effectiveWind?.dataValidAt?.toEpochMilli(),
+                    windKind = if (windKts != null) "hourlyForecast" else null,
+                    windSource = if (windKts != null) "open-meteo" else null
                 )
             },
             forecast = emptyList(),
@@ -630,7 +638,8 @@ class SpotService {
         val info = SpotDataCache.WindInfo(
             speedKnots = SpotDataCache.kmhToKnots(live.speedKmh),
             direction = SpotDataCache.degreesToCardinal(live.directionDeg.toDouble()),
-            gustKnots = live.gustKmh?.let { SpotDataCache.kmhToKnots(it) }
+            gustKnots = live.gustKmh?.let { SpotDataCache.kmhToKnots(it) },
+            directionDeg = live.directionDeg
         )
         liveWindCache[key] = now to info
         return info.toLiveWindResponse(now)
@@ -640,7 +649,10 @@ class SpotService {
         windSpeedKts = speedKnots,
         windDirectionCardinal = direction,
         gustKts = gustKnots,
-        retrievedAt = retrievedAt.toEpochMilli()
+        retrievedAt = retrievedAt.toEpochMilli(),
+        windDirectionDeg = directionDeg,
+        windKind = "live",
+        windSource = "open-meteo"
     )
 
     /**
@@ -1610,7 +1622,7 @@ class SpotService {
     private fun formatWaterTemp(sstCelsius: Double?): String {
         if (sstCelsius == null) return "Unavailable"
         val f = ((sstCelsius * 9.0 / 5) + 32).toInt()
-        return "${sstCelsius.toInt()}°C / ${f}°F"
+        return "${sstCelsius.toInt()}?C / ${f}?F"
     }
 
     private fun generateGearRecs(waterTempC: Double?, depthM: Int): List<String> {
@@ -1648,7 +1660,7 @@ class SpotService {
         if (ocean != null && ocean.waveHeight > 1.5) risks += "Rough surf conditions"
         if ((weather?.precipitation ?: 0.0) > 2) risks += "Rain may reduce visibility"
         // Skip the cold-water risk when temp is unknown ? never score against a
-        // fabricated default (previously a hardcoded 15°C tripped this).
+        // fabricated default (previously a hardcoded 15?C tripped this).
         val waterTemp = ocean?.waterTemperature
         if (waterTemp != null && waterTemp < 20) risks += "Cold water - hypothermia risk"
 
@@ -1907,7 +1919,11 @@ class SpotService {
                     ?: weather?.windDirection?.let { SpotDataCache.degreesToCardinal(it.toDouble()) },
                 waterTempC = sst,
                 swellRetrievedAt = cached?.swell?.fetchedAt?.toEpochMilli(),
-                windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli()
+                windRetrievedAt = effectiveWind?.fetchedAt?.toEpochMilli(),
+                windDirectionDeg = effectiveWind?.value?.directionDeg ?: weather?.windDirection,
+                windValidAt = effectiveWind?.dataValidAt?.toEpochMilli(),
+                windKind = if (effectiveWind != null || weather?.windSpeed != null) "hourlyForecast" else null,
+                windSource = if (effectiveWind != null || weather?.windSpeed != null) "open-meteo" else null
             ),
             forecast = emptyList(),
             gearRecommendations = generateGearRecs(sst, 10).map { item ->
@@ -2195,7 +2211,8 @@ class SpotService {
                     SpotDataCache.updateWind(spotId, SpotDataCache.CachedValue(
                         value = SpotDataCache.WindInfo(
                             speedKnots = SpotDataCache.kmhToKnots(ws),
-                            direction = SpotDataCache.degreesToCardinal(wd.toDouble())
+                            direction = SpotDataCache.degreesToCardinal(wd.toDouble()),
+                            directionDeg = wd
                         ), fetchedAt = now
                     ))
                 }
