@@ -228,8 +228,10 @@ class SpotService {
 
             val sst = resolveSST(cached?.sst?.value, spot.coordinates.lat, spot.coordinates.lon)
             
-            // Data freshness from cache
-            val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
+            // Data freshness from cache. Wind is the fastest-moving condition we
+            // display, so it anchors the "updated X ago" label. Tide fetchedAt is
+            // months old by design (full-year precompute) and must never feed this.
+            val dataUpdatedMinutesAgo = cached?.wind?.minutesSinceFetch()?.toInt()
             val satelliteDataDate = cached?.sst?.dataDateString()
             
             // Build satellite readings from cache - colors for display, NOAA ERDDAP for actual chlorophyll
@@ -484,8 +486,8 @@ class SpotService {
         
         val sst = resolveSST(cached?.sst?.value, lat, lon)
         
-        // Data freshness from cache
-        val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
+        // Data freshness from cache (wind-anchored; see getSpotSummaries).
+        val dataUpdatedMinutesAgo = cached?.wind?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
         // Build satellite readings - colors for display, NOAA ERDDAP for actual chlorophyll
@@ -1820,8 +1822,8 @@ class SpotService {
         
         val sst = resolveSST(cached?.sst?.value, lat, lon)
         
-        // Data freshness from cache
-        val dataUpdatedMinutesAgo = cached?.tide?.minutesSinceFetch()?.toInt()
+        // Data freshness from cache (wind-anchored; see getSpotSummaries).
+        val dataUpdatedMinutesAgo = cached?.wind?.minutesSinceFetch()?.toInt()
         val satelliteDataDate = cached?.sst?.dataDateString()
 
         // Build satellite readings - colors for display, NOAA ERDDAP for actual chlorophyll
