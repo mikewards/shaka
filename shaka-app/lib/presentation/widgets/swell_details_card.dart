@@ -265,7 +265,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
     final windValue = windSpeedKts != null
         ? WindFormat.label(windSpeedKts, windCardinal, _units.system)
         : c.wind;
-    items.add((widget.liveWind != null ? 'Wind (live)' : 'Wind', windValue,
+    // Kind honesty: say whether the row shows the live reading or the
+    // snapshot forecast value.
+    final windLabel = widget.liveWind != null
+        ? 'Wind (live)'
+        : (c.windKind != null && c.windKind != 'live')
+            ? 'Wind (forecast)'
+            : 'Wind';
+    items.add((windLabel, windValue,
         windDir != null ? _WindBadge(degrees: windDir) : null));
 
     if (c.exposureBearing != null) {

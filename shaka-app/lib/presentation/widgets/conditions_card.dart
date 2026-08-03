@@ -84,6 +84,11 @@ class ConditionsCard extends StatelessWidget {
   final int? liveWindRetrievedAt;
   final bool liveWindLoading;
 
+  // Spot-local time metadata (from SpotHourlyResponse) so the snapshot wind
+  // label can state its valid time in the SPOT's timezone.
+  final int? utcOffsetMinutes;
+  final String? timezoneAbbr;
+
   // Dark theme colors
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
@@ -96,6 +101,8 @@ class ConditionsCard extends StatelessWidget {
     this.liveWindDirectionCardinal,
     this.liveWindRetrievedAt,
     this.liveWindLoading = false,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   @override
@@ -229,7 +236,8 @@ class ConditionsCard extends StatelessWidget {
   /// Build the Wind row, preferring the near-real-time live reading when it has
   /// arrived. Never swaps the value silently: shows a "checking..." cue while
   /// the live fetch is in flight and a "Live" indicator (with a brief highlight)
-  /// once it resolves.
+  /// once it resolves. Snapshot readings state their kind + valid time so a
+  /// forecast value is never mistaken for a live one.
   Widget _buildWindRow(UnitPreferenceService units) {
     final cachedValue = conditions.windSpeedKts != null
         ? UnitConverter.formatWind(conditions.windSpeedKts, conditions.windDirectionCardinal, units.system)
@@ -244,7 +252,50 @@ class ConditionsCard extends StatelessWidget {
       showLive: hasLive,
       highlightOnChange: hasLive && effectiveValue != cachedValue,
       liveRetrievedAt: liveWindRetrievedAt,
+      snapshotLabel: _snapshotWindLabel(),
     );
+  }
+
+  /// Kind + valid-time label for the snapshot wind reading, e.g.
+  /// "Forecast · valid 11:00 AM HST". Falls back to the retrieval age when the
+  /// payload predates the numeric wind contract, and to null (no label) when
+  /// nothing honest can be said.
+  String? _snapshotWindLabel() {
+    final validAt = conditions.windValidAt;
+    final kind = conditions.windKind;
+    if (validAt != null && (kind == null || kind != 'live')) {
+      return 'Forecast \u00b7 valid ${_spotLocalTime(validAt)}';
+    }
+    if (kind == 'live') {
+      // Snapshot marked live server-side (derived within the hour).
+      final ra = conditions.windRetrievedAt;
+      return ra != null ? 'Live \u00b7 ${_relativeAge(ra)}' : null;
+    }
+    final ra = conditions.windRetrievedAt;
+    return ra != null ? 'Updated ${_relativeAge(ra)}' : null;
+  }
+
+  String _spotLocalTime(int epochMs) {
+    final offset = utcOffsetMinutes;
+    final dt = offset != null
+        ? DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true)
+            .add(Duration(minutes: offset))
+        : DateTime.fromMillisecondsSinceEpoch(epochMs).toLocal();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    final abbr = offset != null && timezoneAbbr != null ? ' $timezoneAbbr' : '';
+    return '$hour12:$minute $ampm$abbr';
+  }
+
+  static String _relativeAge(int epochMs) {
+    final diff =
+        DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(epochMs));
+    final mins = diff.inMinutes;
+    if (mins <= 0) return 'just now';
+    if (mins < 60) return '${mins}m ago';
+    final hrs = diff.inHours;
+    return hrs == 1 ? '1h ago' : '${hrs}h ago';
   }
 
   void _showAllSourcesInfo(BuildContext context) {
@@ -506,12 +557,17 @@ class _WindConditionRow extends StatefulWidget {
   final bool highlightOnChange;
   final int? liveRetrievedAt;
 
+  /// Kind + valid-time label shown when the row displays the snapshot value
+  /// (e.g. "Forecast · valid 11:00 AM HST").
+  final String? snapshotLabel;
+
   const _WindConditionRow({
     required this.value,
     required this.loading,
     required this.showLive,
     required this.highlightOnChange,
     this.liveRetrievedAt,
+    this.snapshotLabel,
   });
 
   @override
@@ -660,6 +716,12 @@ class _WindConditionRowState extends State<_WindConditionRow>
             ),
           ),
         ],
+      );
+    }
+    if (widget.snapshotLabel != null) {
+      return Text(
+        widget.snapshotLabel!,
+        style: const TextStyle(color: AppColors.darkTextHint, fontSize: 10),
       );
     }
     return const SizedBox.shrink();

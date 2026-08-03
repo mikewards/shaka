@@ -87,49 +87,70 @@ class _WindChartCardState extends State<WindChartCard> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_hasData) ...[
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: _windColor.withOpacity(0.5),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text('Loading...', style: TextStyle(color: _dimText, fontSize: 13)),
-          ] else if (hp != null) ...[
-            WindArrow(fromDegrees: hp.directionDeg, color: _windColor, size: 14),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                _headerText(hp),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              if (!_hasData) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _windColor.withOpacity(0.5),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text('Loading...',
+                    style: TextStyle(color: _dimText, fontSize: 13)),
+              ] else if (hp != null) ...[
+                WindArrow(
+                    fromDegrees: hp.directionDeg, color: _windColor, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _headerText(hp),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showWindInfo(context);
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Data sources',
+                        style: TextStyle(
+                            color: AppColors.darkTextHint, fontSize: 11)),
+                    SizedBox(width: 4),
+                    Icon(Icons.info_outline,
+                        size: 12, color: AppColors.darkTextHint),
+                  ],
                 ),
               ),
-            ),
-          ],
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _showWindInfo(context);
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Data sources',
-                    style:
-                        TextStyle(color: AppColors.darkTextHint, fontSize: 11)),
-                SizedBox(width: 4),
-                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
-              ],
-            ),
+            ],
           ),
+          // Kind + valid-time honesty: the header value is a forecast sample,
+          // not a live reading. State which hour it represents.
+          if (_hasData && hp != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                widget.isToday
+                    ? 'Forecast \u00b7 nearest hour ${_formatTime(hp.epochMs)}'
+                    : 'Forecast \u00b7 peak at ${_formatTime(hp.epochMs)}',
+                style: const TextStyle(
+                    color: AppColors.darkTextHint, fontSize: 10),
+              ),
+            ),
         ],
       ),
     );
@@ -192,12 +213,16 @@ class _WindChartCardState extends State<WindChartCard> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
       child: Row(
         children: [
-          _footerChip('Peak', _formatTime(peak.epochMs),
+          _footerChip(
+              'Peak',
+              _formatTime(peak.epochMs),
               UnitConverter.formatWindSpeed(peak.speedKts, _units.system),
               _windColor),
           const SizedBox(width: 8),
           if (gustPeak != null)
-            _footerChip('Gust', _formatTime(gustPeak.epochMs),
+            _footerChip(
+                'Gust',
+                _formatTime(gustPeak.epochMs),
                 UnitConverter.formatWindSpeed(gustPeak.gustKts!, _units.system),
                 _lightText)
           else
@@ -281,8 +306,8 @@ class _WindChartCardState extends State<WindChartCard> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close,
-                        color: AppColors.darkTextMuted),
+                    icon:
+                        const Icon(Icons.close, color: AppColors.darkTextMuted),
                   ),
                 ],
               ),
@@ -414,12 +439,12 @@ class _WindCurvePainter extends CustomPainter {
     }
 
     final n = points.length;
-    final px = List<double>.generate(n, (i) => xOf(points[i].epochMs.toDouble()));
+    final px =
+        List<double>.generate(n, (i) => xOf(points[i].epochMs.toDouble()));
 
     // Gust curve first (lighter, dashed), so the speed line sits on top.
     if (hasGust) {
-      final gy = List<double>.generate(
-          n, (i) => yOf(gust[i] ?? speed[i]));
+      final gy = List<double>.generate(n, (i) => yOf(gust[i] ?? speed[i]));
       final gustPath = _smoothPath(px, gy, n);
       canvas.drawPath(
         _dashPath(gustPath),

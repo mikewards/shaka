@@ -489,6 +489,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 liveWindDirectionCardinal: _liveWind?.windDirectionCardinal,
                 liveWindRetrievedAt: _liveWind?.retrievedAt,
                 liveWindLoading: _liveWindLoading,
+                utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+                timezoneAbbr: _hourly?.timezoneAbbr,
               ),
 
         const SizedBox(height: 20),
@@ -1427,6 +1429,8 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                 liveWindDirectionCardinal: _liveWind?.windDirectionCardinal,
                 liveWindRetrievedAt: _liveWind?.retrievedAt,
                 liveWindLoading: _liveWindLoading,
+                utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+                timezoneAbbr: _hourly?.timezoneAbbr,
               ),
               const SizedBox(height: 20),
               // Swell details (expandable)
