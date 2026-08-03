@@ -215,9 +215,12 @@ def scale_to_uint8(data, vmin, vmax, nan_value=127.5):
     return result
 
 
-def make_mask(data):
-    """Alpha channel: fully opaque everywhere (land polygon handles masking)."""
-    return np.full(data.shape, 255, dtype=np.uint8)
+def make_mask(nodata):
+    """Alpha channel: 0 on no-data cells (WeatherLayers nodata convention),
+    255 elsewhere. Alpha=0 makes pickObject return nothing there instead of a
+    quantization phantom: zero-filled land decoded as ~0.166 m/s "wind"
+    because uint8 has no exact zero in a symmetric [-30, 30] range."""
+    return np.where(nodata, 0, 255).astype(np.uint8)
 
 
 def process_scalar(ds, var_name, time_idx, scale):
@@ -232,7 +235,7 @@ def process_scalar(ds, var_name, time_idx, scale):
         data = np.flipud(data)
 
     r = scale_to_uint8(data, scale[0], scale[1], nan_value=0)
-    alpha = make_mask(data)
+    alpha = make_mask(np.isnan(data))
     g = np.zeros_like(r)
     b = np.zeros_like(r)
     return np.stack([r, g, b, alpha], axis=-1)
@@ -248,18 +251,24 @@ def process_vector(ds, u_name, v_name, time_idx, scale, land_zero_mask=None):
     u = u_da.values.astype(np.float32)
     v = v_da.values.astype(np.float32)
 
+    # No-data = model NaN or land cells. Land cells also stay zero-filled in
+    # the RGB channels so decoders that ignore alpha (released app builds)
+    # keep seeing a benign near-zero instead of garbage.
+    nodata = np.isnan(u) | np.isnan(v)
     if land_zero_mask is not None:
+        nodata = nodata | land_zero_mask
         u = np.where(land_zero_mask, 0.0, u)
         v = np.where(land_zero_mask, 0.0, v)
 
     if ds.latitude.values[0] < ds.latitude.values[-1]:
         u = np.flipud(u)
         v = np.flipud(v)
+        nodata = np.flipud(nodata)
 
     r = scale_to_uint8(u, scale[0], scale[1])
     g = scale_to_uint8(v, scale[0], scale[1])
     b = g.copy()  # B channel is ignored for vector, duplicate V
-    alpha = make_mask(u) & make_mask(v)
+    alpha = make_mask(nodata)
     return np.stack([r, g, b, alpha], axis=-1)
 
 
