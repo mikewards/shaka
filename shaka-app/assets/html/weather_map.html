@@ -298,11 +298,14 @@
         layers: [],
         onClick: function(info) {
           if (info && info.raster && info.raster.value !== undefined) {
-            // Vector land cells are zero-filled by the pipeline; with NEAREST
-            // picking an exactly-zero magnitude means "no data here" (land),
-            // not a real reading — suppress instead of showing 0.0 kts.
-            var isVector = LAYERS[activeLayerKey] && LAYERS[activeLayerKey].imageType === 'VECTOR';
-            if (isVector && Math.abs(info.raster.value) < 0.005) return;
+            // Land / no-data: new frames use alpha=0 (no raster picked at
+            // all); old zero-filled frames decode "0" as ~half a uint8
+            // quantization step (wind: 0.166 m/s magnitude), so gate on 1.5
+            // steps of the layer's unscale range (0.005 never fired).
+            var cfgActive = LAYERS[activeLayerKey];
+            var isVector = cfgActive && cfgActive.imageType === 'VECTOR';
+            var qStep = cfgActive ? (cfgActive.imageUnscale[1] - cfgActive.imageUnscale[0]) / 255 : 0;
+            if (isVector && Math.abs(info.raster.value) < qStep * 1.5) return;
             _probeJustFired = true;
             _post('ProbeChannel', {
               lat: info.coordinate ? info.coordinate[1] : null,

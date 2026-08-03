@@ -450,11 +450,17 @@
       var center = map.getCenter();
 
       var info = overlay.pickObject({ x: cx, y: cy, radius: 1 });
-      // Vector land cells are zero-filled by the pipeline; with NEAREST
-      // picking an exactly-zero magnitude means "no data here" (land cell),
-      // not a real reading.
-      var isVector = LAYERS[activeLayerKey] && LAYERS[activeLayerKey].imageType === 'VECTOR';
-      var landZero = isVector && info && info.raster && Math.abs(info.raster.value) < 0.005;
+      // Land / no-data handling, two frame generations:
+      //  - New frames encode land as alpha=0 (WeatherLayers nodata) and
+      //    pickObject returns no raster there.
+      //  - Old frames zero-fill land with alpha=255, but uint8 quantization
+      //    decodes "0" as ~half a step off zero (wind: 0.118 m/s per
+      //    component -> 0.166 m/s magnitude), so compare against 1.5
+      //    quantization steps, not an absolute epsilon (0.005 never fired).
+      var cfgActive = LAYERS[activeLayerKey];
+      var isVector = cfgActive && cfgActive.imageType === 'VECTOR';
+      var qStep = cfgActive ? (cfgActive.imageUnscale[1] - cfgActive.imageUnscale[0]) / 255 : 0;
+      var landZero = isVector && info && info.raster && Math.abs(info.raster.value) < qStep * 1.5;
       if (info && info.raster && info.raster.value !== undefined && !landZero) {
         _post('ProbeChannel', {
           lat: center.lat,
