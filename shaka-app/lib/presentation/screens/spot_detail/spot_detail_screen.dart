@@ -503,7 +503,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         // Swell details (expandable)
         _buildSectionHeader('SWELL & WIND'),
         const SizedBox(height: 10),
-        SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
+        SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates, liveWind: _liveWind),
         const SizedBox(height: 20),
 
         // Tides (expandable, only when data available)
@@ -1420,7 +1420,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
               // Swell details (expandable)
               _buildSectionHeader('SWELL & WIND'),
               const SizedBox(height: 10),
-              SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates),
+              SwellDetailsCard(conditions: spot.conditions, coordinates: spot.coordinates, liveWind: _liveWind),
               const SizedBox(height: 20),
               // Satellite Visibility (collapsed label, expandable details)
               if (spot.satelliteReadings != null && spot.satelliteReadings!.hasAnyData) ...[

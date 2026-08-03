@@ -106,10 +106,15 @@ class SwellDetailsCard extends StatefulWidget {
   final SpotConditions conditions;
   final Coordinates? coordinates;
 
+  /// Near-real-time wind fetched by the detail screen; when present the wind
+  /// row and the compass wind indicator show it instead of the snapshot.
+  final LiveWind? liveWind;
+
   const SwellDetailsCard({
     super.key,
     required this.conditions,
     this.coordinates,
+    this.liveWind,
   });
 
   /// Pre-warm satellite tiles into Flutter's image cache (fire-and-forget).
@@ -253,11 +258,14 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
       }
     }
 
-    final windDir = _parseWindDirection(c.wind);
-    final windValue = widget.conditions.windSpeedKts != null
-        ? UnitConverter.formatWind(widget.conditions.windSpeedKts, widget.conditions.windDirectionCardinal, _units.system)
+    final windDir = _windDirectionDegrees();
+    final windSpeedKts = widget.liveWind?.windSpeedKts ?? c.windSpeedKts;
+    final windCardinal =
+        windDir != null ? WindFormat.cardinal(windDir) : c.windDirectionCardinal;
+    final windValue = windSpeedKts != null
+        ? WindFormat.label(windSpeedKts, windCardinal, _units.system)
         : c.wind;
-    items.add(('Wind', windValue,
+    items.add((widget.liveWind != null ? 'Wind (live)' : 'Wind', windValue,
         windDir != null ? _WindBadge(degrees: windDir) : null));
 
     if (c.exposureBearing != null) {
@@ -326,8 +334,8 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
                                 swells: compassSwells,
                                 exposureBearing: c.exposureBearing?.toDouble(),
                                 exposureWidth: c.exposureWidth?.toDouble(),
-                                windDirection: _parseWindDirection(c.wind),
-                                windLabel: _formatWindLabel(c.wind, _units.system),
+                                windDirection: _windDirectionDegrees(),
+                                windLabel: _compassWindLabel(),
                                 unitSystem: _units.system,
                               ),
                             ),
@@ -436,6 +444,37 @@ class _SwellDetailsCardState extends State<SwellDetailsCard> {
         ],
       ),
     );
+  }
+
+  /// Wind FROM bearing for the badge and compass indicator. Preference order:
+  /// live reading -> numeric snapshot field -> cardinal string -> parsing the
+  /// legacy preformatted `wind` string (last resort for old cached payloads).
+  double? _windDirectionDegrees() {
+    final live = widget.liveWind;
+    if (live?.windDirectionDeg != null) return live!.windDirectionDeg!.toDouble();
+    if (live?.windDirectionCardinal != null) {
+      final deg = WindFormat.cardinalToDegrees(live!.windDirectionCardinal!);
+      if (deg != null) return deg;
+    }
+    final c = widget.conditions;
+    if (c.windDirectionDeg != null) return c.windDirectionDeg!.toDouble();
+    if (c.windDirectionCardinal != null) {
+      final deg = WindFormat.cardinalToDegrees(c.windDirectionCardinal!);
+      if (deg != null) return deg;
+    }
+    return _parseWindDirection(c.wind);
+  }
+
+  /// Compact speed label for the compass wind pill, from numeric data when
+  /// available (live first), falling back to parsing the legacy string.
+  String? _compassWindLabel() {
+    final kts = widget.liveWind?.windSpeedKts ?? widget.conditions.windSpeedKts;
+    if (kts != null) {
+      return _units.system == UnitSystem.metric
+          ? '${WindFormat.knotsToKmh(kts).round()}km/h'
+          : '${kts.round()}kts';
+    }
+    return _formatWindLabel(widget.conditions.wind, _units.system);
   }
 
   static double? _parseWindDirection(String wind) {
