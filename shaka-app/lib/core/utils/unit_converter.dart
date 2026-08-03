@@ -103,7 +103,19 @@ class UnitConverter {
 
   // --- Chart values (m/s source) ---
 
+  /// Metric wind is km/h app-wide (conditions, charts, forecasts); the ocean
+  /// map probe must match — m/s here made the same wind read ~3.6x smaller
+  /// than every other surface.
   static String formatChartWind(double valueMs, UnitSystem system) {
+    if (system == UnitSystem.imperial) {
+      return '${(valueMs * _msToKts).toStringAsFixed(1)} kts';
+    }
+    return '${WindFormat.msToKmh(valueMs).round()} km/h';
+  }
+
+  /// Ocean currents keep m/s in metric (domain convention; km/h currents
+  /// would be misleading next to other current charts).
+  static String formatChartCurrent(double valueMs, UnitSystem system) {
     if (system == UnitSystem.imperial) {
       return '${(valueMs * _msToKts).toStringAsFixed(1)} kts';
     }
@@ -139,6 +151,9 @@ class UnitConverter {
       system == UnitSystem.metric ? 'm' : 'ft';
 
   static String chartWindUnit(UnitSystem system) =>
+      system == UnitSystem.metric ? 'km/h' : 'kts';
+
+  static String chartCurrentUnit(UnitSystem system) =>
       system == UnitSystem.metric ? 'm/s' : 'kts';
 
   static String chartWaveUnit(UnitSystem system) =>

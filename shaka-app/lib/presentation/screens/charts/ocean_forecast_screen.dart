@@ -62,8 +62,9 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   static String _unitForLayer(String key, UnitSystem system) {
     switch (key) {
       case 'wind':
-      case 'currents':
         return UnitConverter.chartWindUnit(system);
+      case 'currents':
+        return UnitConverter.chartCurrentUnit(system);
       case 'waves':
         return UnitConverter.chartWaveUnit(system);
       case 'sst':
@@ -316,8 +317,10 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     String formatted;
     switch (_activeLayer) {
       case 'wind':
-      case 'currents':
         formatted = UnitConverter.formatChartWind(_probeValue!, system);
+        break;
+      case 'currents':
+        formatted = UnitConverter.formatChartCurrent(_probeValue!, system);
         break;
       case 'waves':
         formatted = UnitConverter.formatChartWaveHeight(_probeValue!, system);

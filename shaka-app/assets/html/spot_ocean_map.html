@@ -87,6 +87,8 @@
       var isMetric = (currentUnitSystem === 'metric');
       switch (layerKey) {
         case 'wind':
+          if (!isMetric) return (value * 1.94384).toFixed(1) + ' kts';
+          return Math.round(value * 3.6) + ' km/h'; // metric wind is km/h app-wide
         case 'currents':
           if (!isMetric) return (value * 1.94384).toFixed(1) + ' kts';
           return value.toFixed(1) + ' m/s';

@@ -337,8 +337,10 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     String formatted;
     switch (_activeLayer) {
       case 'wind':
-      case 'currents':
         formatted = UnitConverter.formatChartWind(_probeValue!, system);
+        break;
+      case 'currents':
+        formatted = UnitConverter.formatChartCurrent(_probeValue!, system);
         break;
       case 'waves':
         formatted =
