@@ -46,9 +46,14 @@ class OpenMeteoClient {
                 parameter("timezone", "auto")
             }.body()
 
+            // Same date handling as getMarineData: current hour only when the
+            // requested date IS spot-local today; otherwise the day's noon
+            // sample. Previously this always indexed the current hour, so a
+            // request for tomorrow silently returned tomorrow-at-current-hour.
             val spotZone = try { java.time.ZoneId.of(response.timezone) } catch (_: Exception) { java.time.ZoneId.systemDefault() }
-            val currentHour = java.time.LocalTime.now(spotZone).hour
-            val idx = currentHour.coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
+            val spotNow = java.time.LocalDateTime.now(spotZone)
+            val idx = (if (date == spotNow.toLocalDate().toString()) spotNow.hour else 12)
+                .coerceAtMost((response.hourly.temperature_2m?.size ?: 1) - 1)
 
             WeatherData(
                 temperature = response.hourly.temperature_2m?.getOrNull(idx) ?: 25.0,
