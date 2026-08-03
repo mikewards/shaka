@@ -38,6 +38,16 @@ class SpotConditions {
   // Actual retrieval timestamps (epoch millis) for the Data Sources flyout.
   final int? swellRetrievedAt;
   final int? windRetrievedAt;
+  // Numeric wind contract (additive on /v1). Prefer these over the
+  // preformatted `wind` string and string-only cardinal.
+  /// Meteorological FROM bearing, degrees in [0, 360).
+  final int? windDirectionDeg;
+  /// Epoch millis of the model hour this wind value represents (not fetch time).
+  final int? windValidAt;
+  /// "live" | "hourlyForecast" | "dailySummary".
+  final String? windKind;
+  /// Upstream source id, e.g. "open-meteo".
+  final String? windSource;
 
   const SpotConditions({
     required this.visibility,
@@ -59,6 +69,10 @@ class SpotConditions {
     this.waterTempC,
     this.swellRetrievedAt,
     this.windRetrievedAt,
+    this.windDirectionDeg,
+    this.windValidAt,
+    this.windKind,
+    this.windSource,
   });
 
   factory SpotConditions.fromJson(Map<String, dynamic> json) {
@@ -82,6 +96,10 @@ class SpotConditions {
       waterTempC: (json['waterTempC'] as num?)?.toDouble(),
       swellRetrievedAt: (json['swellRetrievedAt'] as num?)?.toInt(),
       windRetrievedAt: (json['windRetrievedAt'] as num?)?.toInt(),
+      windDirectionDeg: (json['windDirectionDeg'] as num?)?.toInt(),
+      windValidAt: (json['windValidAt'] as num?)?.toInt(),
+      windKind: json['windKind'] as String?,
+      windSource: json['windSource'] as String?,
     );
   }
 }
@@ -93,12 +111,20 @@ class LiveWind {
   final String? windDirectionCardinal;
   final double? gustKts;
   final int retrievedAt;
+  /// Meteorological FROM bearing in degrees (numeric contract; prefer over
+  /// the string cardinal when present).
+  final int? windDirectionDeg;
+  final String? windKind;
+  final String? windSource;
 
   const LiveWind({
     required this.windSpeedKts,
     this.windDirectionCardinal,
     this.gustKts,
     required this.retrievedAt,
+    this.windDirectionDeg,
+    this.windKind,
+    this.windSource,
   });
 
   factory LiveWind.fromJson(Map<String, dynamic> json) {
@@ -107,6 +133,9 @@ class LiveWind {
       windDirectionCardinal: json['windDirectionCardinal'] as String?,
       gustKts: (json['gustKts'] as num?)?.toDouble(),
       retrievedAt: (json['retrievedAt'] as num).toInt(),
+      windDirectionDeg: (json['windDirectionDeg'] as num?)?.toInt(),
+      windKind: json['windKind'] as String?,
+      windSource: json['windSource'] as String?,
     );
   }
 }
