@@ -40,6 +40,14 @@ class OceanForecastScreen extends StatefulWidget {
   final Uint8List? prefetchedWindBytes;
   final String? prefetchedWindTimestamp;
 
+  /// Spot's current UTC offset in minutes (from SpotHourlyResponse). When
+  /// present, frame timestamps and wind-probe valid times use SPOT-local time;
+  /// when null they fall back to device-local (legacy / charts-hub entry).
+  final int? utcOffsetMinutes;
+
+  /// Short zone label ("HST", "PDT") appended to displayed frame times.
+  final String? timezoneAbbr;
+
   const OceanForecastScreen({
     super.key,
     this.initialLat,
@@ -48,6 +56,8 @@ class OceanForecastScreen extends StatefulWidget {
     this.prefetchedCatalogJson,
     this.prefetchedWindBytes,
     this.prefetchedWindTimestamp,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   @override
@@ -296,18 +306,31 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     }
   }
 
+  /// Frame timestamp in SPOT-local time with a zone label ("Aug 3 14:00 PDT")
+  /// when the offset is known; device-local without a label otherwise.
   String _formatTimestamp(String ts) {
     try {
-      final dt = DateTime.parse(ts);
-      final local = dt.toLocal();
-      final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      final day = local.day;
-      final month = months[local.month - 1];
-      final hour = local.hour.toString().padLeft(2, '0');
-      return '$month $day ${hour}:00';
+      final parsed = DateTime.parse(ts);
+      final local = widget.utcOffsetMinutes != null
+          ? parsed.toUtc().add(Duration(minutes: widget.utcOffsetMinutes!))
+          : parsed.toLocal();
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      final abbr =
+          widget.utcOffsetMinutes != null && widget.timezoneAbbr != null
+              ? ' ${widget.timezoneAbbr}'
+              : '';
+      return '${months[local.month - 1]} ${local.day} ${local.hour.toString().padLeft(2, '0')}:00$abbr';
     } catch (_) {
       return ts;
     }
+  }
+
+  DateTime? _frameValidAt() {
+    if (_timestamps.isEmpty || _timeIndex >= _timestamps.length) return null;
+    return DateTime.tryParse(_timestamps[_timeIndex]);
   }
 
   String _formatProbeValue() {
@@ -341,10 +364,21 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
     return formatted;
   }
 
+  String? _windProbeAttribution() {
+    if (_activeLayer != 'wind') return null;
+    return WindFormat.mapWindAttribution(
+      validAtUtc: _frameValidAt(),
+      utcOffsetMinutes: widget.utcOffsetMinutes,
+      timezoneAbbr: widget.timezoneAbbr,
+    );
+  }
+
   Widget _buildProbeChip() {
     final text = _formatProbeValue();
+    final attribution = _windProbeAttribution();
+    final key = attribution == null ? text : '$text|$attribution';
     return Container(
-      key: ValueKey('probe_$text'),
+      key: ValueKey('probe_$key'),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.7),
@@ -353,14 +387,30 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
           color: (_kLayers[_activeLayer]?.color ?? Colors.cyan).withOpacity(0.5),
         ),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+          if (attribution != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              attribution,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -514,7 +564,7 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
-                          width: 72,
+                          width: widget.timezoneAbbr != null ? 100 : 72,
                           child: Text(
                             _timeIndex < _timestamps.length
                                 ? _formatTimestamp(_timestamps[_timeIndex])
