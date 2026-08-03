@@ -360,10 +360,10 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     return formatted;
   }
 
-  /// Points the arrow AT the posted bearing. The map HTML normalizes the
-  /// probe direction per layer convention (wind = meteorological FROM,
-  /// currents = oceanographic TO), so the cardinal text and this arrow always
-  /// agree — the old +180° here made the arrow contradict the text.
+  /// Probe direction arrow. The map HTML posts wind as meteorological FROM
+  /// and currents as oceanographic TO, so wind renders downwind (industry
+  /// convention: Windy/Windguru/Surfline — cardinal text names the source,
+  /// arrow shows where it blows) and currents point along the flow as-is.
   Widget _buildDirectionArrow(double degrees, Color color) {
     return Container(
       width: 22,
@@ -373,9 +373,11 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
         color: color.withOpacity(0.2),
         shape: BoxShape.circle,
       ),
-      child: Transform.rotate(
-        angle: degrees * pi / 180,
-        child: Icon(Icons.navigation, size: 13, color: color),
+      child: WindArrow(
+        fromDegrees: degrees,
+        pointsDownwind: _activeLayer == 'wind',
+        color: color,
+        size: 13,
       ),
     );
   }
