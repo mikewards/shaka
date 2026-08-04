@@ -2989,6 +2989,18 @@ object SpotDataCache {
         }
     }
 
+    /**
+     * Newest in-memory hourly-series fetch time across all spots. After boot,
+     * [loadHourlySeriesFromDatabase] restores persisted fetch times, so this
+     * tells the prefetch job whether the previous process fetched recently
+     * (deploy-decoupling guard).
+     */
+    fun newestHourlySeriesFetchedAt(): Instant? =
+        cache.values.asSequence()
+            .flatMap { sequenceOf(it.windSeries?.fetchedAt, it.swellSeries?.fetchedAt) }
+            .filterNotNull()
+            .maxOrNull()
+
     /** Re-derive current-hour snapshots for every spot holding a series (hourly tick). */
     fun deriveAllCurrentHourSnapshots(): Int {
         var derived = 0

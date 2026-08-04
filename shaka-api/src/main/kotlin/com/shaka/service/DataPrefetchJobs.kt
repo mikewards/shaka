@@ -54,6 +54,11 @@ class DataPrefetchJobs(
         // hundred KB; quota weight is per location either way.
         const val WEATHER_BATCH_LOCATIONS = 50
 
+        // Deploy-decoupling guard: skip the boot-time immediate hourly
+        // swell/wind refetch when the persisted series is fresher than this,
+        // so redeploys stop swapping in a new model run off-cadence.
+        val FRESH_SERIES_SKIP_WINDOW: java.time.Duration = java.time.Duration.ofMinutes(30)
+
         // Cache staleness thresholds
         const val TIDE_STALE_HOURS = 2      // Refetch if older than 2h
         const val WEATHER_STALE_HOURS = 4   // Refetch if older than 4h  
@@ -547,6 +552,26 @@ class DataPrefetchJobs(
      * hour's predicted wind, keeping the swell table self-contained.
      */
     suspend fun prefetchHourlySwellWind() = withContext(Dispatchers.IO) {
+        // Deploy decoupling (Aug 2026): this job's runImmediately boot pass
+        // refetched a fresh Open-Meteo model run on EVERY push, so users saw
+        // wind/swell numbers jump with each deploy (Avalon "5 SSW -> 3 WNW").
+        // When the persisted series (restored at boot) is fresher than the
+        // guard window, skip the pass; values then change only on the regular
+        // 6h cadence plus the hourly in-memory tick that advances "now".
+        // First-boot-ever has no series and still fetches immediately; the
+        // scheduled 6-hourly runs always find ~6h-old data and never skip.
+        val newestFetch = SpotDataCache.newestHourlySeriesFetchedAt()
+        if (newestFetch != null &&
+            java.time.Duration.between(newestFetch, Instant.now()) < FRESH_SERIES_SKIP_WINDOW
+        ) {
+            logger.info(
+                "Hourly swell/wind prefetch skipped: series fetched at $newestFetch " +
+                    "is fresher than ${FRESH_SERIES_SKIP_WINDOW.toMinutes()}m (deploy-decoupling guard)"
+            )
+            MonitoringService.reportRun("hourly_swell_wind", 0, 0, emptyList(), 0)
+            return@withContext
+        }
+
         val curatedSpots = spotDb.getAllSpots().map {
             WeatherSpot(it.id, it.coordinates.lat, it.coordinates.lon, it.name)
         }
