@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/utils/wind_format.dart';
 import '../../../data/services/unit_preference_service.dart';
+import '../../widgets/ocean_map_wind_hint.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -529,6 +530,14 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // One-line offshore-model caption (wind layer only)
+                  if (_activeLayer == 'wind' &&
+                      !_isLoading &&
+                      _errorMessage == null) ...[
+                    const OceanMapWindHint(),
+                    const SizedBox(height: 6),
+                  ],
+
                   // Time controls
                   if (_timestamps.isNotEmpty) ...[
                     Row(
