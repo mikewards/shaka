@@ -69,6 +69,53 @@ class WindFormat {
     final speed = speedLabel(speedKts, system);
     return cardinal != null ? '$speed $cardinal' : speed;
   }
+
+  // --- Ocean-map wind attribution (compact, single-line) ---
+
+  /// Compact source tag for the weather-CDN wind raster (ECMWF IFS 0.25°).
+  static const String mapWindSource = 'ECMWF';
+
+  /// One-line caption for wind map surfaces: the raster is a coarse offshore
+  /// model, so sheltered/lee spots can read differently than the spot forecast.
+  static const String mapWindHint =
+      'Offshore model — sheltered spots may differ';
+
+  /// Compact spot-local clock: "2 PM PDT", "2:30 PM PDT". Minutes only when
+  /// nonzero. Falls back to device-local with no zone label when
+  /// [utcOffsetMinutes] is null.
+  static String compactClock(
+    DateTime utc, {
+    int? utcOffsetMinutes,
+    String? timezoneAbbr,
+  }) {
+    final dt = utcOffsetMinutes != null
+        ? utc.toUtc().add(Duration(minutes: utcOffsetMinutes))
+        : utc.toLocal();
+    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minutes =
+        dt.minute == 0 ? '' : ':${dt.minute.toString().padLeft(2, '0')}';
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    final abbr = utcOffsetMinutes != null && timezoneAbbr != null
+        ? ' $timezoneAbbr'
+        : '';
+    return '$hour12$minutes $ampm$abbr';
+  }
+
+  /// Compact one-line attribution for a map wind probe: "ECMWF · 2 PM PDT".
+  /// Falls back to just the source tag when the frame time is unknown.
+  static String mapWindAttribution({
+    DateTime? validAtUtc,
+    int? utcOffsetMinutes,
+    String? timezoneAbbr,
+  }) {
+    if (validAtUtc == null) return mapWindSource;
+    final clock = compactClock(
+      validAtUtc,
+      utcOffsetMinutes: utcOffsetMinutes,
+      timezoneAbbr: timezoneAbbr,
+    );
+    return '$mapWindSource \u00b7 $clock';
+  }
 }
 
 /// The single wind/flow direction arrow.

@@ -92,6 +92,62 @@ void main() {
     });
   });
 
+  group('map wind attribution (compact, single-line)', () {
+    final utc = DateTime.utc(2026, 8, 3, 21); // 2:00 PM PDT
+
+    test('compactClock drops :00 minutes and appends zone', () {
+      expect(
+        WindFormat.compactClock(utc, utcOffsetMinutes: -420, timezoneAbbr: 'PDT'),
+        '2 PM PDT',
+      );
+      expect(
+        WindFormat.compactClock(DateTime.utc(2026, 8, 3, 21, 30),
+            utcOffsetMinutes: -420, timezoneAbbr: 'PDT'),
+        '2:30 PM PDT',
+      );
+      expect(
+        WindFormat.compactClock(DateTime.utc(2026, 8, 3, 19),
+            utcOffsetMinutes: -600, timezoneAbbr: 'HST'),
+        '9 AM HST',
+      );
+      // Midnight and noon render as 12, not 0.
+      expect(
+        WindFormat.compactClock(DateTime.utc(2026, 8, 3, 7),
+            utcOffsetMinutes: -420, timezoneAbbr: 'PDT'),
+        '12 AM PDT',
+      );
+      expect(
+        WindFormat.compactClock(DateTime.utc(2026, 8, 3, 19),
+            utcOffsetMinutes: -420, timezoneAbbr: 'PDT'),
+        '12 PM PDT',
+      );
+    });
+
+    test('compactClock falls back to device-local without zone label', () {
+      final label = WindFormat.compactClock(utc);
+      // Device zone varies; assert shape "H[:MM] AM/PM" with no trailing abbr.
+      expect(label, matches(RegExp(r'^\d{1,2}(:\d{2})? (AM|PM)$')));
+    });
+
+    test('mapWindAttribution is short: "ECMWF · 2 PM PDT"', () {
+      expect(
+        WindFormat.mapWindAttribution(
+          validAtUtc: utc,
+          utcOffsetMinutes: -420,
+          timezoneAbbr: 'PDT',
+        ),
+        'ECMWF · 2 PM PDT',
+      );
+      expect(WindFormat.mapWindAttribution(), 'ECMWF');
+    });
+
+    test('hint copy is one short grammatical line', () {
+      expect(WindFormat.mapWindHint, 'Offshore model — sheltered spots may differ');
+      expect(WindFormat.mapWindHint.contains('\n'), isFalse);
+      expect(WindFormat.mapWindHint.length, lessThan(50));
+    });
+  });
+
   group('WindArrow rotation', () {
     Future<double> pumpAndReadAngle(WidgetTester tester, WindArrow arrow) async {
       await tester.pumpWidget(
