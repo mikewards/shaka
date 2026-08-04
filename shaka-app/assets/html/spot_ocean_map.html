@@ -231,6 +231,17 @@
       return weatherTileBase || weatherCdnUrl || (baseUrl + '/v1/weather');
     }
 
+    // Frame URLs carry the catalog's per-run version so each pipeline run
+    // produces fresh cache keys (frames sit behind a 6h edge/client TTL under
+    // stable filenames; without ?v= an overwrite stays invisible until the
+    // TTL expires). Old catalogs without a version fall back to bare URLs.
+    var catalogVersion = '';
+
+    function _frameUrl(key, ts) {
+      var url = _tileBase() + '/' + key + '/' + ts + '.webp';
+      return catalogVersion ? url + '?v=' + encodeURIComponent(catalogVersion) : url;
+    }
+
     function _catalogIsStale(data) {
       var g = data && data.generatedAt;
       if (!g) return true; // no age info — do not trust the CDN copy
@@ -344,6 +355,7 @@
 
     function loadCatalog(catalogData) {
       catalog = catalogData.variables || catalogData;
+      catalogVersion = (catalogData && catalogData.version) || '';
       var available = [];
       var keys = Object.keys(catalog);
       for (var i = 0; i < keys.length; i++) {
@@ -491,7 +503,7 @@
         nextImage = null;
         return;
       }
-      var url = _tileBase() + '/' + key + '/' + timestamps[idx] + '.webp';
+      var url = _frameUrl(key, timestamps[idx]);
       try {
         currentImage = await WeatherLayers.loadTextureData(url);
         _textureCache[cacheKey] = currentImage;
@@ -511,7 +523,7 @@
         nextImage = _textureCache[cacheKey];
         return;
       }
-      var url = _tileBase() + '/' + key + '/' + timestamps[nextIdx] + '.webp';
+      var url = _frameUrl(key, timestamps[nextIdx]);
       try {
         nextImage = await WeatherLayers.loadTextureData(url);
         _textureCache[cacheKey] = nextImage;
@@ -708,7 +720,7 @@
           var idx = _findNowIndex(ts);
           var cacheKey = key + '/' + ts[idx];
           if (_textureCache[cacheKey]) return;
-          var url = _tileBase() + '/' + key + '/' + ts[idx] + '.webp';
+          var url = _frameUrl(key, ts[idx]);
           WeatherLayers.loadTextureData(url).then(function(img) {
             _textureCache[cacheKey] = img;
           }).catch(function() {});
