@@ -69,67 +69,6 @@ class WindFormat {
     final speed = speedLabel(speedKts, system);
     return cardinal != null ? '$speed $cardinal' : speed;
   }
-
-  // --- Ocean-map wind (ECMWF 0.25° raster) attribution ---
-
-  /// Source label for the weather-CDN wind layer. Matches Phase 3 kind honesty:
-  /// the map is a coarse offshore model, not the spot's nearshore forecast.
-  static const String mapWindSource = 'ECMWF offshore model';
-
-  /// Subtle caption shown on wind-layer map surfaces so sheltered/lee spots
-  /// (e.g. Casino Point) aren't read as a contradiction of the spot forecast.
-  static const String mapWindHint =
-      'Offshore model (25 km) — sheltered spots may differ from the spot forecast';
-
-  /// Spot-local wall clock for map/probe labels, e.g. "2:00 PM PDT".
-  /// When [utcOffsetMinutes] is null, falls back to device-local with no zone.
-  static String spotLocalClock(
-    DateTime utc, {
-    int? utcOffsetMinutes,
-    String? timezoneAbbr,
-  }) {
-    final dt = utcOffsetMinutes != null
-        ? utc.toUtc().add(Duration(minutes: utcOffsetMinutes))
-        : utc.toLocal();
-    final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    final abbr =
-        utcOffsetMinutes != null && timezoneAbbr != null ? ' $timezoneAbbr' : '';
-    return '$hour12:$minute $ampm$abbr';
-  }
-
-  /// Kind + valid-time attribution for a map wind probe, e.g.
-  /// "ECMWF offshore model · valid 2:00 PM PDT". Pair with the speed/cardinal
-  /// line (Phase 3 two-line style) or join with " · " for a single chip line.
-  static String mapWindAttribution({
-    DateTime? validAtUtc,
-    int? utcOffsetMinutes,
-    String? timezoneAbbr,
-  }) {
-    if (validAtUtc == null) return mapWindSource;
-    final clock = spotLocalClock(
-      validAtUtc,
-      utcOffsetMinutes: utcOffsetMinutes,
-      timezoneAbbr: timezoneAbbr,
-    );
-    return '$mapWindSource \u00b7 valid $clock';
-  }
-
-  /// Full single-line probe label:
-  /// "11.4 kts W · ECMWF offshore model · valid 2:00 PM PDT".
-  static String mapProbeWindLabel({
-    required String speedAndCardinal,
-    DateTime? validAtUtc,
-    int? utcOffsetMinutes,
-    String? timezoneAbbr,
-  }) {
-    return '$speedAndCardinal \u00b7 ${mapWindAttribution(
-      validAtUtc: validAtUtc,
-      utcOffsetMinutes: utcOffsetMinutes,
-      timezoneAbbr: timezoneAbbr,
-    )}';
-  }
 }
 
 /// The single wind/flow direction arrow.

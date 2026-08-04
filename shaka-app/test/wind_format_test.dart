@@ -92,46 +92,6 @@ void main() {
     });
   });
 
-  group('map wind attribution (ECMWF offshore)', () {
-    test('spotLocalClock uses offset + zone abbr', () {
-      final utc = DateTime.utc(2026, 8, 3, 21); // 2:00 PM PDT
-      expect(
-        WindFormat.spotLocalClock(utc,
-            utcOffsetMinutes: -420, timezoneAbbr: 'PDT'),
-        '2:00 PM PDT',
-      );
-    });
-
-    test('spotLocalClock falls back to device-local without zone', () {
-      final utc = DateTime.utc(2026, 8, 3, 21);
-      final label = WindFormat.spotLocalClock(utc);
-      // Device zone varies; just assert shape "H:MM AM/PM" with no trailing abbr.
-      expect(label, matches(RegExp(r'^\d{1,2}:\d{2} (AM|PM)$')));
-    });
-
-    test('mapWindAttribution and mapProbeWindLabel', () {
-      final utc = DateTime.utc(2026, 8, 3, 21);
-      expect(
-        WindFormat.mapWindAttribution(
-          validAtUtc: utc,
-          utcOffsetMinutes: -420,
-          timezoneAbbr: 'PDT',
-        ),
-        'ECMWF offshore model · valid 2:00 PM PDT',
-      );
-      expect(
-        WindFormat.mapProbeWindLabel(
-          speedAndCardinal: '11.4 kts W',
-          validAtUtc: utc,
-          utcOffsetMinutes: -420,
-          timezoneAbbr: 'PDT',
-        ),
-        '11.4 kts W · ECMWF offshore model · valid 2:00 PM PDT',
-      );
-      expect(WindFormat.mapWindAttribution(), 'ECMWF offshore model');
-    });
-  });
-
   group('WindArrow rotation', () {
     Future<double> pumpAndReadAngle(WidgetTester tester, WindArrow arrow) async {
       await tester.pumpWidget(
