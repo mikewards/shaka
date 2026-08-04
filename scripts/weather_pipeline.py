@@ -458,8 +458,16 @@ def run_pipeline(output_dir, days):
 
     # Wrapped catalog shape: generatedAt powers the client-side CDN staleness
     # fallback. Consumers accept both shapes (data.variables || data).
+    #
+    # version: frames are re-uploaded under stable filenames with a 6h
+    # edge/client TTL, so overwrites stay invisible until caches expire
+    # (Aug 2026 coastline incident). Clients append ?v=<version> to frame
+    # URLs, giving every run never-before-seen cache keys; the catalog itself
+    # (max-age=300) then bounds propagation of a new generation to ~5 minutes.
+    now_utc = datetime.now(timezone.utc)
     catalog_doc = {
-        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatedAt": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "version": now_utc.strftime("%Y%m%dT%H%M%SZ"),
         "variables": catalog,
     }
     catalog_path = output / "catalog.json"

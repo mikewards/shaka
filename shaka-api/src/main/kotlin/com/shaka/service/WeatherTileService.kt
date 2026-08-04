@@ -19,6 +19,9 @@ data class VariableInfo(
 @Serializable
 data class WeatherCatalog(
     val generatedAt: String = "",
+    // Cache-busting token the pipeline stamps per run; clients append it to
+    // frame URLs (?v=...). Must survive the API fallback re-serialization.
+    val version: String = "",
     val variables: Map<String, VariableInfo> = emptyMap(),
 )
 
