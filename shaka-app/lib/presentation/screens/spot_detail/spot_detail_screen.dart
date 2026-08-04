@@ -574,8 +574,6 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                         initialLat: spot.coordinates.lat,
                         initialLon: spot.coordinates.lon,
                         spotName: spot.name,
-                        utcOffsetMinutes: _hourly?.utcOffsetMinutes,
-                        timezoneAbbr: _hourly?.timezoneAbbr,
                       ),
                     ),
                   );

@@ -359,11 +359,6 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     }
   }
 
-  DateTime? _frameValidAt() {
-    if (_timestamps.isEmpty || _timeIndex >= _timestamps.length) return null;
-    return DateTime.tryParse(_timestamps[_timeIndex]);
-  }
-
   String _formatProbeValue() {
     if (_probeValue == null) return '';
     final system = UnitPreferenceService().system;
@@ -396,15 +391,6 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     return formatted;
   }
 
-  String? _windProbeAttribution() {
-    if (_activeLayer != 'wind') return null;
-    return WindFormat.mapWindAttribution(
-      validAtUtc: _frameValidAt(),
-      utcOffsetMinutes: widget.utcOffsetMinutes,
-      timezoneAbbr: widget.timezoneAbbr,
-    );
-  }
-
   /// Probe direction arrow. The map HTML posts wind as meteorological FROM
   /// and currents as oceanographic TO, so wind renders downwind (industry
   /// convention: Windy/Windguru/Surfline — cardinal text names the source,
@@ -431,7 +417,6 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
   Widget build(BuildContext context) {
     final layerColor = _kLayers[_activeLayer]?.color ?? Colors.cyan;
     final mapHeight = MediaQuery.of(context).size.height * 0.48;
-    final windAttr = _windProbeAttribution();
 
     return Container(
       margin: const EdgeInsets.only(top: 20, bottom: 24),
@@ -461,40 +446,22 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                 ),
                 const Spacer(),
                 if (_probeValue != null) ...[
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: layerColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: layerColor.withOpacity(0.4)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _formatProbeValue(),
-                            style: TextStyle(
-                              color: layerColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          if (windAttr != null)
-                            Text(
-                              windAttr,
-                              style: TextStyle(
-                                color: layerColor.withOpacity(0.75),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.right,
-                            ),
-                        ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: layerColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: layerColor.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      _formatProbeValue(),
+                      style: TextStyle(
+                        color: layerColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
