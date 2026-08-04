@@ -239,12 +239,29 @@ class _WindChartCardState extends State<WindChartCard> {
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Text(time, style: TextStyle(color: _lightText, fontSize: 12)),
             const SizedBox(width: 6),
-            Text(value,
-                style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+            // One flexible text so the chip can never overflow its border:
+            // the value leads (kept whole in practice), the muted
+            // zone-suffixed time trails and gives way first when space runs
+            // out on narrow devices.
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                      text: value,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
+                  TextSpan(
+                      text: ' \u00b7 $time',
+                      style: TextStyle(color: _lightText, fontSize: 12)),
+                ]),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
@@ -253,20 +270,15 @@ class _WindChartCardState extends State<WindChartCard> {
 
   /// Footer time in SPOT-local time (with zone label) when the offset is
   /// known, else device-local. A Hawaii spot browsed from NY must say
-  /// "Peak 2:00 PM HST", not the meaningless device-local hour.
+  /// "Peak 2 PM HST", not the meaningless device-local hour. Uses the
+  /// compact clock (minutes only when nonzero) so the zone suffix fits the
+  /// footer chips.
   String _formatTime(int epochMs) {
-    final offset = widget.utcOffsetMinutes;
-    final dt = offset != null
-        ? DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true)
-            .add(Duration(minutes: offset))
-        : DateTime.fromMillisecondsSinceEpoch(epochMs);
-    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    final abbr = offset != null && widget.timezoneAbbr != null
-        ? ' ${widget.timezoneAbbr}'
-        : '';
-    return '$h:$m $ampm$abbr';
+    return WindFormat.compactClock(
+      DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true),
+      utcOffsetMinutes: widget.utcOffsetMinutes,
+      timezoneAbbr: widget.timezoneAbbr,
+    );
   }
 
   void _showWindInfo(BuildContext context) {
