@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/live_wind_service.dart';
+import '../../data/services/unit_preference_service.dart';
 
 /// Upgrades a snapshot wind display to the near-real-time reading in place.
 ///
@@ -50,4 +52,43 @@ class _LiveWindValueState extends State<LiveWindValue> {
 
   @override
   Widget build(BuildContext context) => widget.builder(context, _live);
+}
+
+/// Compact current-wind text for rows that claim to show "now" (e.g. the
+/// forecast Today card): renders the shared near-real-time reading with a
+/// " · Live" tag, falling back to the server's snapshot string (a forecast
+/// sample) until the live fetch resolves.
+class CurrentWindText extends StatelessWidget {
+  final String spotId;
+
+  /// Snapshot/forecast string shown until (or if) no live reading exists.
+  final String fallback;
+
+  final TextStyle? style;
+
+  const CurrentWindText({
+    super.key,
+    required this.spotId,
+    required this.fallback,
+    this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final units = UnitPreferenceService();
+    return LiveWindValue(
+      spotId: spotId,
+      builder: (context, live) => ListenableBuilder(
+        listenable: units,
+        builder: (context, _) => Text(
+          live != null
+              ? '${WindFormat.label(live.windSpeedKts, live.windDirectionCardinal, units.system)} \u00b7 Live'
+              : fallback,
+          style: style,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
 }

@@ -4,8 +4,11 @@ import 'package:shaka/core/utils/unit_converter.dart';
 import 'package:shaka/core/utils/wind_format.dart';
 import 'package:shaka/data/models/spot_models.dart';
 import 'package:shaka/data/services/unit_preference_service.dart';
+import 'package:shaka/data/services/live_wind_service.dart';
 import 'package:shaka/presentation/widgets/conditions_card.dart';
+import 'package:shaka/presentation/widgets/live_wind_value.dart';
 import 'package:shaka/presentation/widgets/swell_details_card.dart';
+import 'package:shaka/presentation/widgets/wind_chart_card.dart';
 
 /// Cross-surface consistency test (Phase 4 of the wind audit): ONE fixture
 /// reading rendered through every wind surface must produce the same numbers.
@@ -115,6 +118,82 @@ void main() {
       ));
       expect(find.text('Wind (live)'), findsOneWidget);
       expect(find.text('14 kts W'), findsOneWidget);
+    });
+  });
+
+  group('one current number across surfaces (live-preferred)', () {
+    // The Aug 2026 "4 or 5?!" / "2 or 3?!" incidents: surfaces claiming to
+    // show "now" disagreed by a rounding step because some read the live
+    // reading and others the nearest-hour forecast sample. Everything that
+    // says "now" must resolve the SAME LiveWindService reading.
+    const spotId = 'test-avalon';
+    const live = LiveWind(
+      windSpeedKts: 5.13,
+      windDirectionCardinal: 'SSW',
+      windDirectionDeg: 209,
+      gustKts: 5.24,
+      retrievedAt: 0,
+      windKind: 'live',
+    );
+
+    setUp(() => LiveWindService.instance.debugSeed(spotId, live));
+    tearDown(() => LiveWindService.instance.debugClear());
+
+    testWidgets('spot-card path renders the seeded live reading',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: LiveWindValue(
+          spotId: spotId,
+          builder: (context, resolved) => Text(
+            WindFormat.speedLabel(
+                resolved?.windSpeedKts, UnitSystem.imperial),
+            textDirection: TextDirection.ltr,
+          ),
+        ),
+      ));
+      expect(find.text('5 kts'), findsOneWidget);
+    });
+
+    testWidgets('forecast Today row renders the same live reading, tagged',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+          body: CurrentWindText(spotId: spotId, fallback: '3 kts WNW'),
+        ),
+      ));
+      expect(find.text('5 kts SSW \u00b7 Live'), findsOneWidget);
+      expect(find.text('3 kts WNW'), findsNothing);
+    });
+
+    testWidgets(
+        'wind chart "now" headline uses the same reading, not the '
+        'nearest-hour sample', (tester) async {
+      // Hourly curve whose nearest-hour sample would round to "4 kts G4 SSW"
+      // — the exact disagreement the user caught.
+      final now = DateTime.now();
+      final points = [
+        for (int h = -2; h <= 2; h++)
+          WindHourlyPoint(
+            epochMs: now.add(Duration(hours: h)).millisecondsSinceEpoch,
+            speedKts: 3.73,
+            directionDeg: 208,
+            gustKts: 4.48,
+          ),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: WindChartCard(
+                points: points, isToday: true, spotId: spotId),
+          ),
+        ),
+      ));
+      expect(find.text('5 kts SSW'), findsOneWidget,
+          reason: 'headline must be the shared current reading');
+      expect(find.text('4 kts G4 SSW'), findsNothing,
+          reason: 'nearest-hour sample must not masquerade as now');
+      expect(find.textContaining('Live \u00b7'), findsOneWidget,
+          reason: 'kind label must say the headline is live');
     });
   });
 }

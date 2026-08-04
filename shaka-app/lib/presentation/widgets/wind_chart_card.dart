@@ -7,6 +7,7 @@ import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'chart_common.dart';
+import 'live_wind_value.dart';
 
 /// Intraday wind curve for a single spot-local day, styled to match the tide
 /// chart: primary wind-speed curve, a lighter gust curve, and the wind
@@ -14,6 +15,12 @@ import 'chart_common.dart';
 class WindChartCard extends StatefulWidget {
   final List<WindHourlyPoint> points;
   final bool isToday;
+
+  /// When set (and [isToday]), the header's "now" value comes from the same
+  /// shared near-real-time reading as the spot cards and conditions row —
+  /// ONE agreed current number everywhere. The curve itself stays hourly
+  /// forecast; that's its purpose.
+  final String? spotId;
 
   /// Spot's current UTC offset in minutes (from SpotHourlyResponse). When
   /// present the time axis and footer times render in SPOT-local time; when
@@ -28,6 +35,7 @@ class WindChartCard extends StatefulWidget {
     super.key,
     required this.points,
     this.isToday = true,
+    this.spotId,
     this.utcOffsetMinutes,
     this.timezoneAbbr,
   });
@@ -65,24 +73,34 @@ class _WindChartCardState extends State<WindChartCard> {
     return ListenableBuilder(
       listenable: _units,
       builder: (context, _) {
-        return Container(
-          decoration: BoxDecoration(
-            color: _cardColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _borderColor),
-          ),
-          child: Column(
-            children: [
-              _buildHeader(),
-              if (_hasData) _buildExpandedContent(),
-            ],
-          ),
-        );
+        if (widget.spotId != null && widget.isToday) {
+          return LiveWindValue(
+            spotId: widget.spotId!,
+            builder: (context, live) => _buildCard(live),
+          );
+        }
+        return _buildCard(null);
       },
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildCard(LiveWind? live) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(live),
+          if (_hasData) _buildExpandedContent(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(LiveWind? live) {
     final hp = _highlightPoint;
 
     return Padding(
@@ -106,11 +124,13 @@ class _WindChartCardState extends State<WindChartCard> {
                     style: TextStyle(color: _dimText, fontSize: 13)),
               ] else if (hp != null) ...[
                 WindArrow(
-                    fromDegrees: hp.directionDeg, color: _windColor, size: 14),
+                    fromDegrees: live?.windDirectionDeg ?? hp.directionDeg,
+                    color: _windColor,
+                    size: 14),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    _headerText(hp),
+                    live != null ? _liveHeaderText(live) : _headerText(hp),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -138,15 +158,18 @@ class _WindChartCardState extends State<WindChartCard> {
               ),
             ],
           ),
-          // Kind + valid-time honesty: the header value is a forecast sample,
-          // not a live reading. State which hour it represents.
+          // Kind honesty: with a live reading the headline is the shared
+          // current value (same number as the cards); otherwise it's a
+          // forecast sample and states which hour it represents.
           if (_hasData && hp != null)
             Padding(
               padding: const EdgeInsets.only(top: 3),
               child: Text(
-                widget.isToday
-                    ? 'Forecast \u00b7 nearest hour ${_formatTime(hp.epochMs)}'
-                    : 'Forecast \u00b7 peak at ${_formatTime(hp.epochMs)}',
+                live != null
+                    ? 'Live \u00b7 ${_formatTime(live.retrievedAt)}'
+                    : widget.isToday
+                        ? 'Forecast \u00b7 nearest hour ${_formatTime(hp.epochMs)}'
+                        : 'Forecast \u00b7 peak at ${_formatTime(hp.epochMs)}',
                 style: const TextStyle(
                     color: AppColors.darkTextHint, fontSize: 10),
               ),
@@ -164,6 +187,19 @@ class _WindChartCardState extends State<WindChartCard> {
     final gust = WindFormat.gustSuffix(hp.speedKts, hp.gustKts, _units.system);
     final prefix = widget.isToday ? '' : 'Peak ';
     return '$prefix$speed$gust $dir';
+  }
+
+  /// Headline from the shared near-real-time reading — identical formatting
+  /// path as the forecast sample so the number matches the other surfaces.
+  String _liveHeaderText(LiveWind live) {
+    final speed =
+        UnitConverter.formatWindSpeed(live.windSpeedKts, _units.system);
+    final gust =
+        WindFormat.gustSuffix(live.windSpeedKts, live.gustKts, _units.system);
+    final dir = live.windDirectionDeg != null
+        ? WindFormat.cardinal(live.windDirectionDeg!)
+        : (live.windDirectionCardinal ?? '');
+    return '$speed$gust $dir'.trimRight();
   }
 
   Widget _buildExpandedContent() {

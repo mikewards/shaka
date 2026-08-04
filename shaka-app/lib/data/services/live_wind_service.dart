@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../api/shaka_api_client.dart';
 import '../models/spot_models.dart';
 
@@ -34,6 +35,18 @@ class LiveWindService {
     final cached = peek(spotId);
     if (cached != null) return Future.value(cached);
     return _inFlight[spotId] ??= _fetch(spotId);
+  }
+
+  /// Seed a reading directly (tests only) so widgets resolve it without I/O.
+  @visibleForTesting
+  void debugSeed(String spotId, LiveWind wind) {
+    _cache[spotId] = _Entry(wind, DateTime.now());
+  }
+
+  @visibleForTesting
+  void debugClear() {
+    _cache.clear();
+    _inFlight.clear();
   }
 
   Future<LiveWind?> _fetch(String spotId) async {

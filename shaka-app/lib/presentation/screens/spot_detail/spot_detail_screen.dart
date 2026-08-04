@@ -10,6 +10,7 @@ import '../../../data/models/spot_models.dart';
 import '../../../data/services/live_wind_service.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/conditions_card.dart';
+import '../../widgets/live_wind_value.dart';
 import '../../widgets/satellite_readings_card.dart';
 import '../../widgets/swell_details_card.dart';
 import '../../widgets/tide_chart_card.dart';
@@ -532,6 +533,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
           WindChartCard(
             points: todayHourly.wind,
             isToday: true,
+            spotId: _cacheId,
             utcOffsetMinutes: _hourly?.utcOffsetMinutes,
             timezoneAbbr: _hourly?.timezoneAbbr,
           ),
@@ -698,6 +700,7 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       widgets.add(WindChartCard(
         points: hourly.wind,
         isToday: isToday,
+        spotId: _cacheId,
         utcOffsetMinutes: _hourly?.utcOffsetMinutes,
         timezoneAbbr: _hourly?.timezoneAbbr,
       ));
@@ -791,7 +794,34 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
                   _buildForecastCondition(Icons.waves,
                       day.conditions.swell.split('@').first.trim()),
                   const SizedBox(width: 10),
-                  _buildForecastCondition(Icons.air, day.conditions.wind),
+                  // Today's wind is a CURRENT surface: it reads the same
+                  // shared near-real-time value as the spot cards and chart
+                  // header (live-preferred, snapshot forecast as fallback).
+                  // Future days keep the server's forecast sample.
+                  if (isToday)
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.air,
+                              color: AppColors.darkTextMuted, size: 14),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: CurrentWindText(
+                              spotId: _cacheId,
+                              fallback: day.conditions.wind,
+                              style: const TextStyle(
+                                color: AppColors.darkTextSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    _buildForecastCondition(Icons.air, day.conditions.wind),
                 ],
               ),
             ),
