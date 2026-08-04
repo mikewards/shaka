@@ -223,6 +223,47 @@ def make_mask(nodata):
     return np.where(nodata, 0, 255).astype(np.uint8)
 
 
+# WeatherLayers' CUBIC interpolation samples a 4x4 texel kernel and discards
+# any fragment whose kernel touches an alpha=0 texel, so a hard alpha edge at
+# the coastline erases up to 2 grid cells of OCEAN rendering along every
+# coast (~17 km on the 1/12-deg CMEMS grids, ~50 km on 0.25-deg wind).
+DILATE_CELLS = 2
+
+
+def dilate_valid(fields, valid, cells=DILATE_CELLS):
+    """Grey-dilate valid data into adjacent no-data cells.
+
+    Each pass fills no-data cells that have at least one valid 8-neighbour
+    with the mean of those neighbours, and marks them valid. A `cells`-wide
+    rim of copied ocean values on the land side gives every ocean-side CUBIC
+    sample a fully valid kernel, so data renders up to the true coastline
+    (land itself stays covered by the app's opaque land polygon). Cells
+    further inland remain no-data, so probes deep on land read nothing.
+
+    np.roll wraps at array edges: correct for longitude on global grids,
+    negligible at the pole rows. Returns (filled_fields, filled_valid).
+    """
+    fields = [f.copy() for f in fields]
+    filled = valid.copy()
+    for _ in range(cells):
+        fm = filled.astype(np.float32)
+        cnt = np.zeros(filled.shape, dtype=np.float32)
+        sums = [np.zeros(f.shape, dtype=np.float32) for f in fields]
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                cnt += np.roll(np.roll(fm, dy, axis=0), dx, axis=1)
+                for i, f in enumerate(fields):
+                    contrib = np.where(filled, f, 0.0).astype(np.float32)
+                    sums[i] += np.roll(np.roll(contrib, dy, axis=0), dx, axis=1)
+        ring = (~filled) & (cnt > 0)
+        for i in range(len(fields)):
+            fields[i] = np.where(ring, sums[i] / np.maximum(cnt, 1.0), fields[i])
+        filled = filled | ring
+    return fields, filled
+
+
 def process_scalar(ds, var_name, time_idx, scale):
     """Process a scalar variable into an RGBA PNG array."""
     da = ds[var_name].isel(time=time_idx)
@@ -234,8 +275,10 @@ def process_scalar(ds, var_name, time_idx, scale):
     if ds.latitude.values[0] < ds.latitude.values[-1]:
         data = np.flipud(data)
 
+    (data,), valid = dilate_valid([data], ~np.isnan(data))
+
     r = scale_to_uint8(data, scale[0], scale[1], nan_value=0)
-    alpha = make_mask(np.isnan(data))
+    alpha = make_mask(~valid)
     g = np.zeros_like(r)
     b = np.zeros_like(r)
     return np.stack([r, g, b, alpha], axis=-1)
@@ -251,19 +294,28 @@ def process_vector(ds, u_name, v_name, time_idx, scale, land_zero_mask=None):
     u = u_da.values.astype(np.float32)
     v = v_da.values.astype(np.float32)
 
-    # No-data = model NaN or land cells. Land cells also stay zero-filled in
-    # the RGB channels so decoders that ignore alpha (released app builds)
-    # keep seeing a benign near-zero instead of garbage.
+    # No-data = model NaN or land cells (wind has real land values, but the
+    # ocean map masks them so the field reads as ocean-only).
     nodata = np.isnan(u) | np.isnan(v)
     if land_zero_mask is not None:
         nodata = nodata | land_zero_mask
-        u = np.where(land_zero_mask, 0.0, u)
-        v = np.where(land_zero_mask, 0.0, v)
 
     if ds.latitude.values[0] < ds.latitude.values[-1]:
         u = np.flipud(u)
         v = np.flipud(v)
         nodata = np.flipud(nodata)
+
+    # Coastal rim: copy ocean values 2 cells into land so CUBIC rendering
+    # reaches the coastline (see dilate_valid).
+    (u, v), valid = dilate_valid([u, v], ~nodata)
+    nodata = ~valid
+
+    # Remaining deep-land cells zero-fill in RGB so decoders that ignore
+    # alpha (released app builds) see a benign near-zero instead of garbage.
+    # Requires exact=True on the WebP save, otherwise libwebp discards RGB
+    # under alpha=0 and land decodes as scale-minimum (-30 m/s "wind").
+    u = np.where(nodata, 0.0, u)
+    v = np.where(nodata, 0.0, v)
 
     r = scale_to_uint8(u, scale[0], scale[1])
     g = scale_to_uint8(v, scale[0], scale[1])
@@ -389,7 +441,10 @@ def run_pipeline(output_dir, days):
                             ds, vconfig["vars"][0], t_idx, vconfig["scale"],
                         )
                     img = Image.fromarray(rgba, "RGBA")
-                    img.save(str(webp_path), format="WEBP", lossless=True, method=0)
+                    # exact=True: preserve RGB under alpha=0 (zero-filled
+                    # land), otherwise libwebp discards it for compression.
+                    img.save(str(webp_path), format="WEBP", lossless=True,
+                             method=0, exact=True)
                     timestamps.append(ts_safe)
                 except Exception as e:
                     print(f"  Error processing {var_key} t={t_idx}: {e}")
