@@ -159,18 +159,11 @@ class _WindChartCardState extends State<WindChartCard> {
   String _headerText(WindHourlyPoint hp) {
     final speed = UnitConverter.formatWindSpeed(hp.speedKts, _units.system);
     final dir = WindFormat.cardinal(hp.directionDeg);
-    final gust = hp.gustKts != null && hp.gustKts! > hp.speedKts
-        ? ' G${_speedNum(hp.gustKts!)}'
-        : '';
+    // Suffix is empty when the gust wouldn't display above the speed
+    // ("4 kts G4" is noise, not information).
+    final gust = WindFormat.gustSuffix(hp.speedKts, hp.gustKts, _units.system);
     final prefix = widget.isToday ? '' : 'Peak ';
     return '$prefix$speed$gust $dir';
-  }
-
-  String _speedNum(double kts) {
-    final v = _units.system == UnitSystem.metric
-        ? UnitConverter.knotsToKmh(kts)
-        : kts;
-    return v.round().toString();
   }
 
   Widget _buildExpandedContent() {

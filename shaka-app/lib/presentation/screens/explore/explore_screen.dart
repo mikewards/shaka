@@ -13,7 +13,9 @@ import '../../../data/services/map_background_service.dart';
 import '../../../data/services/map_home_service.dart';
 import '../../../data/services/unit_preference_service.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../../core/utils/wind_format.dart';
 import '../../widgets/background_picker.dart';
+import '../../widgets/live_wind_value.dart';
 import '../../utils/tier_pill_painter.dart';
 import '../../widgets/score_tier_pill.dart';
 import '../../widgets/set_map_home_dialog.dart';
@@ -1968,24 +1970,32 @@ class _SpotMarkerCard extends StatelessWidget {
                               const SizedBox(width: 6),
                             ],
                             if (spot.wind != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: AppColors.darkTextHint),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.air, size: 11, color: AppColors.darkTextMuted),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      spot.windSpeedKts != null
-                                          ? UnitConverter.formatWind(spot.windSpeedKts, null, system)
-                                          : spot.wind!,
-                                      style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
-                                    ),
-                                  ],
+                              // Same near-real-time source as the detail
+                              // screen (upgrades in place from the snapshot),
+                              // so tapping through never changes the number.
+                              LiveWindValue(
+                                spotId: spot.id,
+                                builder: (context, live) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: AppColors.darkTextHint),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.air, size: 11, color: AppColors.darkTextMuted),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        live != null
+                                            ? WindFormat.speedLabel(live.windSpeedKts, system)
+                                            : spot.windSpeedKts != null
+                                                ? UnitConverter.formatWind(spot.windSpeedKts, null, system)
+                                                : spot.wind!,
+                                        style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 10),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                           ],

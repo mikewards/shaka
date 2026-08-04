@@ -92,6 +92,30 @@ void main() {
     });
   });
 
+  group('gust suffix — hidden unless it DISPLAYS above the speed', () {
+    test('raw gust above speed but same rounded number is hidden', () {
+      // The Avalon Bank case: speed 3.73 -> "4", gust 4.48 -> "4". Printing
+      // "4 kts G4" is noise even though raw gust > raw speed.
+      expect(WindFormat.gustSuffix(3.73, 4.48, UnitSystem.imperial), '');
+    });
+
+    test('shown when the rounded gust exceeds the rounded speed', () {
+      expect(WindFormat.gustSuffix(4.4, 6.6, UnitSystem.imperial), ' G7');
+      expect(WindFormat.gustSuffix(12.0, 18.2, UnitSystem.imperial), ' G18');
+    });
+
+    test('null gust is empty', () {
+      expect(WindFormat.gustSuffix(5.0, null, UnitSystem.imperial), '');
+    });
+
+    test('metric compares converted display values', () {
+      // 10 kts = 18.52 -> 19 km/h; 10.4 kts = 19.26 -> 19 km/h: hidden.
+      expect(WindFormat.gustSuffix(10.0, 10.4, UnitSystem.metric), '');
+      // 12 kts = 22.2 -> 22 km/h: shown.
+      expect(WindFormat.gustSuffix(10.0, 12.0, UnitSystem.metric), ' G22');
+    });
+  });
+
   group('map wind attribution (compact, single-line)', () {
     final utc = DateTime.utc(2026, 8, 3, 21); // 2:00 PM PDT
 

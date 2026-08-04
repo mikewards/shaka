@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/animations.dart';
 import '../../core/utils/unit_converter.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
+import 'live_wind_value.dart';
 import 'shaka_score_badge.dart';
 
 /// Spot card with clean, Square-inspired styling.
@@ -64,7 +66,7 @@ class SpotCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Conditions as clean rows
-            _ConditionSummary(conditions: spot.conditions),
+            _ConditionSummary(spotId: spot.id, conditions: spot.conditions),
 
             const SizedBox(height: 16),
 
@@ -86,9 +88,10 @@ class SpotCard extends StatelessWidget {
 
 /// Compact condition summary for spot cards
 class _ConditionSummary extends StatelessWidget {
+  final String spotId;
   final SpotConditions conditions;
 
-  const _ConditionSummary({required this.conditions});
+  const _ConditionSummary({required this.spotId, required this.conditions});
 
   @override
   Widget build(BuildContext context) {
@@ -129,12 +132,21 @@ class _ConditionSummary extends StatelessWidget {
                 ),
               ),
               _Divider(),
+              // Current wind reads the same near-real-time source as the
+              // detail screen (upgrading in place from the cached snapshot),
+              // so the card and the detail never show different numbers.
               Expanded(
-                child: _MiniCondition(
-                  label: 'Wind',
-                  value: conditions.windSpeedKts != null
-                      ? UnitConverter.formatWindSpeed(conditions.windSpeedKts, units.system)
-                      : _extractWind(conditions.wind),
+                child: LiveWindValue(
+                  spotId: spotId,
+                  builder: (context, live) => _MiniCondition(
+                    label: 'Wind',
+                    value: live != null
+                        ? WindFormat.speedLabel(live.windSpeedKts, units.system)
+                        : conditions.windSpeedKts != null
+                            ? UnitConverter.formatWindSpeed(
+                                conditions.windSpeedKts, units.system)
+                            : _extractWind(conditions.wind),
+                  ),
                 ),
               ),
             ],

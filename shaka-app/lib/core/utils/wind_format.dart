@@ -70,6 +70,18 @@ class WindFormat {
     return cardinal != null ? '$speed $cardinal' : speed;
   }
 
+  /// " G18" gust suffix, or '' when the gust would not DISPLAY higher than
+  /// the speed. Raw gust is almost always ≥ raw speed; comparing the rounded
+  /// display numbers avoids noise like "4 kts G4" (speed 3.7, gust 4.5).
+  static String gustSuffix(
+      double speedKts, double? gustKts, UnitSystem system) {
+    if (gustKts == null) return '';
+    int display(double kts) =>
+        system == UnitSystem.metric ? knotsToKmh(kts).round() : kts.round();
+    final gust = display(gustKts);
+    return gust > display(speedKts) ? ' G$gust' : '';
+  }
+
   // --- Ocean-map wind attribution (compact, single-line) ---
 
   /// Compact source tag for the weather-CDN wind raster (ECMWF IFS 0.25°).

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/api/shaka_api_client.dart';
 import '../../../data/models/spot_models.dart';
+import '../../../data/services/live_wind_service.dart';
 import '../../bloc/search_bloc.dart';
 import '../../widgets/conditions_card.dart';
 import '../../widgets/satellite_readings_card.dart';
@@ -173,7 +174,9 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
       if (!mounted) return;
       setState(() => _liveWindLoading = true);
       try {
-        final live = await _apiClient.getLiveWind(_cacheId);
+        // Shared service (not a direct client call) so the detail screen and
+        // the spot cards resolve the same cached reading.
+        final live = await LiveWindService.instance.get(_cacheId);
         if (mounted) {
           setState(() {
             _liveWind = live;
