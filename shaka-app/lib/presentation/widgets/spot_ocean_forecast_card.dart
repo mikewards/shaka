@@ -11,7 +11,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/unit_converter.dart';
 import '../../core/utils/wind_format.dart';
 import '../../data/services/unit_preference_service.dart';
-import 'ocean_map_wind_hint.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -664,18 +663,6 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                           ],
                         ),
                       ),
-                    ),
-
-                  // One-time offshore-model hint (wind layer only)
-                  if (_activeLayer == 'wind' &&
-                      _mapDayNote == null &&
-                      !_isLoading &&
-                      _errorMessage == null)
-                    const Positioned(
-                      top: 8,
-                      left: 8,
-                      right: 8,
-                      child: OceanMapWindHint(),
                     ),
 
                   // Time controls overlay at bottom
