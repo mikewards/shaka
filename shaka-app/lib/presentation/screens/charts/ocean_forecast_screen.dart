@@ -10,6 +10,7 @@ import '../../../core/utils/unit_converter.dart';
 import '../../../core/utils/wind_format.dart';
 import '../../../data/services/unit_preference_service.dart';
 import '../../widgets/ocean_map_wind_hint.dart';
+import '../../widgets/ocean_probe_chip.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -378,47 +379,12 @@ class _OceanForecastScreenState extends State<OceanForecastScreen> {
   Widget _buildProbeChip() {
     final text = _formatProbeValue();
     final attribution = _windProbeAttribution();
-    return Container(
+    return OceanProbeChip(
       key: ValueKey('probe_$text|${attribution ?? ''}'),
-      constraints: const BoxConstraints(maxWidth: 220),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (_kLayers[_activeLayer]?.color ?? Colors.cyan).withOpacity(0.5),
-        ),
-      ),
-      // Value plus (wind only) a compact source line. Both are single-line
-      // with ellipsis so the chip can never wrap into a tall stack.
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          if (attribution != null)
-            Text(
-              attribution,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.65),
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.2,
-              ),
-            ),
-        ],
-      ),
+      value: text,
+      attribution: attribution,
+      accent: _kLayers[_activeLayer]?.color ?? Colors.cyan,
+      onMap: true,
     );
   }
 

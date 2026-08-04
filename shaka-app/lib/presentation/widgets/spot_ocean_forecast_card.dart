@@ -12,6 +12,7 @@ import '../../core/utils/unit_converter.dart';
 import '../../core/utils/wind_format.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'ocean_map_wind_hint.dart';
+import 'ocean_probe_chip.dart';
 
 const _kApiBase = 'https://shaka-production.up.railway.app';
 const _kWeatherCdnBase = 'https://shaka-weather-cdn.kcwn89.workers.dev';
@@ -452,59 +453,29 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
               children: [
                 Icon(Icons.public, color: layerColor, size: 18),
                 const SizedBox(width: 8),
-                const Text(
-                  'Ocean Forecast',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                // The TITLE is the element that yields when space runs out.
+                // The probe chip keeps its intrinsic width — a Spacer +
+                // Flexible pair here split the slack 50/50 and squeezed the
+                // chip into "7.5 kt…" even with room to spare.
+                const Expanded(
+                  child: Text(
+                    'Ocean Forecast',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 if (_probeValue != null) ...[
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: layerColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: layerColor.withOpacity(0.4)),
-                      ),
-                      // Value plus (wind only) a compact source line. Both
-                      // are single-line with ellipsis so the chip can never
-                      // wrap into a tall stack in this header row.
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            _formatProbeValue(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: layerColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          if (_windProbeAttribution() != null)
-                            Text(
-                              _windProbeAttribution()!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: layerColor.withOpacity(0.75),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  OceanProbeChip(
+                    value: _formatProbeValue(),
+                    attribution: _windProbeAttribution(),
+                    accent: layerColor,
+                    maxWidth: 190,
                   ),
                   if (_probeDirection != null &&
                       (_activeLayer == 'wind' || _activeLayer == 'currents'))
