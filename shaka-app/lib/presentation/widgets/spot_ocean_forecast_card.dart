@@ -359,6 +359,21 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
     }
   }
 
+  DateTime? _frameValidAt() {
+    if (_timestamps.isEmpty || _timeIndex >= _timestamps.length) return null;
+    return DateTime.tryParse(_timestamps[_timeIndex]);
+  }
+
+  /// "ECMWF · 2 PM PDT" under the wind probe value; null on other layers.
+  String? _windProbeAttribution() {
+    if (_activeLayer != 'wind' || _probeValue == null) return null;
+    return WindFormat.mapWindAttribution(
+      validAtUtc: _frameValidAt(),
+      utcOffsetMinutes: widget.utcOffsetMinutes,
+      timezoneAbbr: widget.timezoneAbbr,
+    );
+  }
+
   String _formatProbeValue() {
     if (_probeValue == null) return '';
     final system = UnitPreferenceService().system;
@@ -446,22 +461,47 @@ class _SpotOceanForecastCardState extends State<SpotOceanForecastCard> {
                 ),
                 const Spacer(),
                 if (_probeValue != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: layerColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: layerColor.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      _formatProbeValue(),
-                      style: TextStyle(
-                        color: layerColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: layerColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: layerColor.withOpacity(0.4)),
+                      ),
+                      // Value plus (wind only) a compact source line. Both
+                      // are single-line with ellipsis so the chip can never
+                      // wrap into a tall stack in this header row.
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            _formatProbeValue(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: layerColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          if (_windProbeAttribution() != null)
+                            Text(
+                              _windProbeAttribution()!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: layerColor.withOpacity(0.75),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
