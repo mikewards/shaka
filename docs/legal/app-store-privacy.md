@@ -69,5 +69,5 @@ Purchases, Sensitive Info, Audio/Photos/Video, and Other Data are **not** collec
 - Device ID purpose "legal record-keeping" matches the `legal_acceptances` server
   record described in the Privacy Policy and `data-practices.md`.
 - No IP address is captured for the acceptance record, so no IP/coarse-location data
-  type is declared on that basis. (If Mike later decides to capture IP at acceptance,
+  type is declared on that basis. (If we later decide to capture IP at acceptance,
   add an Identifiers/Diagnostics IP entry here and in the Privacy Policy.)

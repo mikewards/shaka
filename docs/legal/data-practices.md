@@ -4,11 +4,11 @@ Internal, non-public reference. This is the factual basis for the Privacy Policy
 Terms of Service, and the App Store Connect "App Privacy" answers. Everything here
 was verified against the codebase. Keep this in sync whenever data handling changes.
 
-Owner: Mike Ward (individual, not a company)
+Owner: independent individual developer (not a company)
 Governing law: California, USA
 Effective date of current legal docs: 2026-06-16
-Public support contact: **PLACEHOLDER_SUPPORT_EMAIL** (TODO: Mike must set a real,
-monitored address before App Store submission — Apple requires a working contact.)
+Public support contact: **shakaplans@protonmail.com** (must stay monitored — Apple
+requires a working contact address.)
 
 ---
 
@@ -95,10 +95,10 @@ monitored address before App Store submission — Apple requires a working conta
 
 ---
 
-## Uncertainties / TODOs for Mike (resolve before submission)
+## Uncertainties / TODOs (resolve before submission)
 
-- **(a) Support email.** Replace every `PLACEHOLDER_SUPPORT_EMAIL` with a real,
-  monitored address.
+- **(a) Support email — done.** Set to `shakaplans@protonmail.com` in the Terms,
+  Privacy Policy, and hosted HTML. Keep the mailbox monitored.
 - **(b) Railway access logs.** The hosting/proxy layer may log standard access
   metadata (IP, path, status). Confirm and disclose as hosting-provider logging.
 - **(c) Sentry `sendDefaultPii`.** Sentry can attach the client IP by default.

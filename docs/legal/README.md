@@ -10,7 +10,7 @@ what they are generated from. Keep them in sync.
 - [app-store-privacy.md](app-store-privacy.md) — exact App Store Connect "App Privacy"
   answers (must match the Privacy Policy).
 - [data-practices.md](data-practices.md) — internal inventory of real data practices
-  and open questions for Mike. Not published.
+  and open questions. Not published.
 
 ## Hosting (public URLs)
 Served by the Railway API as static HTML (see `shaka-api/src/main/resources/legal/` and
@@ -29,7 +29,7 @@ Enter the Privacy Policy URL in App Store Connect.
   re-prompted to accept.
 
 ## Before submission — required TODOs
-- Replace every `PLACEHOLDER_SUPPORT_EMAIL` with a real, monitored support address.
+- Confirm the public support address `shakaplans@protonmail.com` is monitored.
 - Resolve the open questions in [data-practices.md](data-practices.md)
   (Railway access logs; Sentry `sendDefaultPii`).
 

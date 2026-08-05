@@ -3,7 +3,7 @@
 **Effective date: June 16, 2026**
 
 Shaka ("Shaka," "we," "us") is a recreational ocean and dive-conditions app for
-spearfishing and freediving, owned and operated by Mike Ward, an individual. This
+spearfishing and freediving, independently owned and operated. This
 policy explains what data the app handles and why. We have written it to match what
 the app actually does.
 
@@ -104,5 +104,4 @@ We may update this policy. When we make material changes we will update the effe
 date and, where appropriate, prompt you in the app to review the updated terms.
 
 ## Contact
-Questions or privacy requests: **PLACEHOLDER_SUPPORT_EMAIL**
-(Shaka is operated by Mike Ward.)
+Questions or privacy requests: **shakaplans@protonmail.com**

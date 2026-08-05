@@ -2,9 +2,9 @@
 
 **Effective date: June 16, 2026**
 
-These Terms of Service ("Terms") are a binding agreement between you and Mike Ward,
-the individual who owns and operates the Shaka mobile application ("Shaka," "we,"
-"us"). Read them carefully. **By tapping "I Agree" on first launch, and by using
+These Terms of Service ("Terms") are a binding agreement between you and the
+operator of the Shaka mobile application ("Shaka," "we," "us"). Read them
+carefully. **By tapping "I Agree" on first launch, and by using
 Shaka, you accept these Terms and our Privacy Policy.** If you do not agree, do not
 use the app.
 
@@ -90,7 +90,7 @@ apply to you; in that case the limitations apply to the maximum extent permitted
 ## 9. Intellectual property
 
 Shaka, including its name, design, scoring methodology, and original content, is owned
-by Mike Ward and protected by applicable law. These Terms grant you no ownership
+by us and protected by applicable law. These Terms grant you no ownership
 rights. Third-party data and trademarks remain the property of their respective owners.
 
 ## 10. Termination
@@ -125,5 +125,4 @@ between you and us regarding Shaka and supersede any prior understandings.
 
 ## 14. Contact
 
-Questions about these Terms: **PLACEHOLDER_SUPPORT_EMAIL**
-(Shaka is operated by Mike Ward.)
+Questions about these Terms: **shakaplans@protonmail.com**
