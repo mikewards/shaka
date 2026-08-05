@@ -3,13 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/unit_converter.dart';
+import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
+import 'chart_scrub.dart';
 
 class TideChartCard extends StatefulWidget {
   final TideChartData? tide;
 
-  const TideChartCard({super.key, this.tide});
+  /// Spot zone for header/scrub time readouts (spot-local when known,
+  /// device-local fallback) — same convention as the wind chart.
+  final int? utcOffsetMinutes;
+  final String? timezoneAbbr;
+
+  const TideChartCard({
+    super.key,
+    this.tide,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
+  });
 
   @override
   State<TideChartCard> createState() => _TideChartCardState();
@@ -17,6 +29,10 @@ class TideChartCard extends StatefulWidget {
 
 class _TideChartCardState extends State<TideChartCard> {
   final _units = UnitPreferenceService();
+
+  /// Scrubbed instant (null = default "now"/summary header). See
+  /// [ChartTimeScrubber].
+  int? _scrubMs;
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _tideColor = AppColors.chartTide;
@@ -71,59 +87,113 @@ class _TideChartCardState extends State<TideChartCard> {
   Widget _buildHeader() {
     final tide = widget.tide;
     final stageText = tide?.currentStage ?? '';
-    final heightText = tide?.currentHeightFt != null
-        ? '${UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)} ${_capitalize(stageText)}'
-        : (_hasData ? _summaryText() : '');
+    // LABELING INTEGRITY: a scrubbed readout is the predicted curve sample at
+    // that instant, labeled with its time — never presented as "now".
+    final heightText = _scrubMs != null
+        ? _scrubText(_scrubMs!)
+        : tide?.currentHeightFt != null
+            ? '${UnitConverter.formatTideHeight(tide!.currentHeightFt, _units.system)} ${_capitalize(stageText)}'
+            : (_hasData ? _summaryText() : '');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_hasData) ...[
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: _tideColor.withOpacity(0.5),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Loading...',
-              style: TextStyle(color: _dimText, fontSize: 13),
-            ),
-          ] else if (heightText.isNotEmpty) ...[
-            Expanded(
-              child: Text(
-                heightText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              if (!_hasData) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _tideColor.withOpacity(0.5),
+                  ),
                 ),
-              ),
-            ),
-          ],
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _showTideInfo(context);
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                const SizedBox(width: 6),
                 Text(
-                  'Data sources',
-                  style: TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+                  'Loading...',
+                  style: TextStyle(color: _dimText, fontSize: 13),
                 ),
-                SizedBox(width: 4),
-                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
+              ] else if (heightText.isNotEmpty) ...[
+                Expanded(
+                  child: Text(
+                    heightText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
-            ),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showTideInfo(context);
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Data sources',
+                      style:
+                          TextStyle(color: AppColors.darkTextHint, fontSize: 11),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.info_outline,
+                        size: 12, color: AppColors.darkTextHint),
+                  ],
+                ),
+              ),
+            ],
           ),
+          // Time readout, matching the wind chart: which instant the header
+          // value represents, live-updating while the user scrubs.
+          if (_hasData && (_scrubMs != null || tide?.currentHeightFt != null))
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: ChartScrubLabel(
+                text: _scrubMs != null
+                    ? 'Predicted \u00b7 ${_formatClock(_scrubMs!)}'
+                    : 'Now \u00b7 ${_formatClock(DateTime.now().millisecondsSinceEpoch)}',
+                scrubbed: _scrubMs != null,
+                onReset: () => setState(() => _scrubMs = null),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  /// Predicted curve sample at the scrubbed instant: height interpolates
+  /// linearly between curve points (matching the chart's now-dot); the
+  /// stage comes from the local slope.
+  String _scrubText(int ms) {
+    final points = widget.tide!.points;
+    final epochs = [for (final p in points) p.epochMs];
+    final heightFt = ChartScrubMath.lerpAt(
+        epochs, [for (final p in points) p.heightFt], ms)!;
+    final i = ChartScrubMath.nearestIndex(epochs, ms);
+    final prev = points[i > 0 ? i - 1 : i];
+    final next = points[i + 1 < points.length ? i + 1 : i];
+    final slope = next.heightFt - prev.heightFt;
+    final stage = slope > 0.001
+        ? ' Rising'
+        : slope < -0.001
+            ? ' Falling'
+            : '';
+    return '${UnitConverter.formatTideHeight(heightFt, _units.system)}$stage';
+  }
+
+  /// Header/scrub clock in spot-local time (with zone) when the offset is
+  /// known, else device-local — same convention as the wind chart.
+  String _formatClock(int epochMs) {
+    return WindFormat.compactClock(
+      DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true),
+      utcOffsetMinutes: widget.utcOffsetMinutes,
+      timezoneAbbr: widget.timezoneAbbr,
     );
   }
 
@@ -136,17 +206,27 @@ class _TideChartCardState extends State<TideChartCard> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: SizedBox(
             height: 160,
-            child: CustomPaint(
-              size: const Size(double.infinity, 160),
-              painter: _TideCurvePainter(
-                points: tide.points,
-                extremes: tide.extremes,
-                unitSystem: _units.system,
-                tideColor: _tideColor,
-                highColor: _highColor,
-                lowColor: _lowColor,
-                nowColor: _nowColor,
-                dimText: _dimText,
+            child: ChartTimeScrubber(
+              firstMs: tide.points.first.epochMs,
+              lastMs: tide.points.last.epochMs,
+              // The tide painter draws "Now" whenever it falls in range, so
+              // gate the snap the same way (today's chart in practice).
+              snapToMs: DateTime.now().millisecondsSinceEpoch,
+              value: _scrubMs,
+              onChanged: (ms) => setState(() => _scrubMs = ms),
+              child: CustomPaint(
+                size: const Size(double.infinity, 160),
+                painter: _TideCurvePainter(
+                  points: tide.points,
+                  extremes: tide.extremes,
+                  unitSystem: _units.system,
+                  tideColor: _tideColor,
+                  highColor: _highColor,
+                  lowColor: _lowColor,
+                  nowColor: _nowColor,
+                  dimText: _dimText,
+                  scrubMs: _scrubMs,
+                ),
               ),
             ),
           ),
@@ -395,6 +475,7 @@ class _TideCurvePainter extends CustomPainter {
   final Color lowColor;
   final Color nowColor;
   final Color dimText;
+  final int? scrubMs;
 
   _TideCurvePainter({
     required this.points,
@@ -405,6 +486,7 @@ class _TideCurvePainter extends CustomPainter {
     required this.lowColor,
     required this.nowColor,
     required this.dimText,
+    this.scrubMs,
   });
 
   @override
@@ -621,9 +703,30 @@ class _TideCurvePainter extends CustomPainter {
       )..layout();
       tp.paint(canvas, Offset(nx - tp.width / 2, topPad - tp.height - 2));
     }
+
+    // Scrubbed-time marker: solid line, distinct from the dashed Now line.
+    final sMs = scrubMs;
+    if (sMs != null && sMs >= firstMs && sMs <= lastMs) {
+      final sv = ChartScrubMath.lerpAt(
+          [for (final p in points) p.epochMs],
+          [for (final p in points) p.heightFt],
+          sMs);
+      ChartScrubMarker.draw(
+        canvas,
+        size,
+        x: xOf(sMs.toDouble()),
+        y: sv != null ? yOf(sv) : null,
+        color: tideColor,
+        topPad: topPad,
+        bottomPad: bottomPad,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _TideCurvePainter old) =>
-      points != old.points || extremes != old.extremes || unitSystem != old.unitSystem;
+      points != old.points ||
+      extremes != old.extremes ||
+      unitSystem != old.unitSystem ||
+      scrubMs != old.scrubMs;
 }

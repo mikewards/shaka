@@ -516,7 +516,11 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         if (spot.tide != null && spot.tide!.points.isNotEmpty) ...[
           _buildSectionHeader('TIDES'),
           const SizedBox(height: 10),
-          TideChartCard(tide: spot.tide!),
+          TideChartCard(
+            tide: spot.tide!,
+            utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+            timezoneAbbr: _hourly?.timezoneAbbr,
+          ),
           const SizedBox(height: 20),
         ],
 
@@ -524,7 +528,12 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
         if (todayHourly != null && todayHourly.swell.isNotEmpty) ...[
           _buildSectionHeader('SWELL'),
           const SizedBox(height: 10),
-          SwellChartCard(points: todayHourly.swell, isToday: true),
+          SwellChartCard(
+            points: todayHourly.swell,
+            isToday: true,
+            utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+            timezoneAbbr: _hourly?.timezoneAbbr,
+          ),
           const SizedBox(height: 20),
         ],
         if (todayHourly != null && todayHourly.wind.isNotEmpty) ...[
@@ -689,11 +698,20 @@ class _SpotDetailScreenState extends State<SpotDetailScreen>
     ];
 
     if (tide != null && tide.points.isNotEmpty) {
-      widgets.add(TideChartCard(tide: tide));
+      widgets.add(TideChartCard(
+        tide: tide,
+        utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+        timezoneAbbr: _hourly?.timezoneAbbr,
+      ));
       widgets.add(const SizedBox(height: 16));
     }
     if (hourly != null && hourly.swell.isNotEmpty) {
-      widgets.add(SwellChartCard(points: hourly.swell, isToday: isToday));
+      widgets.add(SwellChartCard(
+        points: hourly.swell,
+        isToday: isToday,
+        utcOffsetMinutes: _hourly?.utcOffsetMinutes,
+        timezoneAbbr: _hourly?.timezoneAbbr,
+      ));
       widgets.add(const SizedBox(height: 16));
     }
     if (hourly != null && hourly.wind.isNotEmpty) {

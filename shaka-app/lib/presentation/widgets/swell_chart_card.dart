@@ -7,6 +7,7 @@ import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'chart_common.dart';
+import 'chart_scrub.dart';
 
 /// Intraday swell curve for a single spot-local day, styled to match the tide
 /// chart. When [isToday] is true (and "now" falls within the day) a live "Now"
@@ -15,10 +16,17 @@ class SwellChartCard extends StatefulWidget {
   final List<SwellHourlyPoint> points;
   final bool isToday;
 
+  /// Spot zone for header/scrub time readouts (spot-local when known,
+  /// device-local fallback) — same convention as the wind chart.
+  final int? utcOffsetMinutes;
+  final String? timezoneAbbr;
+
   const SwellChartCard({
     super.key,
     required this.points,
     this.isToday = true,
+    this.utcOffsetMinutes,
+    this.timezoneAbbr,
   });
 
   @override
@@ -27,6 +35,9 @@ class SwellChartCard extends StatefulWidget {
 
 class _SwellChartCardState extends State<SwellChartCard> {
   final _units = UnitPreferenceService();
+
+  /// Scrubbed instant (null = default header). See [ChartTimeScrubber].
+  int? _scrubMs;
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _swellColor = AppColors.chartSwell;
@@ -76,61 +87,115 @@ class _SwellChartCardState extends State<SwellChartCard> {
 
   Widget _buildHeader() {
     final hp = _highlightPoint;
-    final headerText = hp == null
-        ? ''
-        : () {
-            final h = UnitConverter.formatChartWaveHeight(
-                UnitConverter.feetToMeters(hp.effectiveHeightFt), _units.system);
-            final dir = WindFormat.cardinal(hp.directionDeg);
-            final prefix = widget.isToday ? '' : 'Peak ';
-            return '$prefix$h @ ${hp.periodSec.round()}s $dir';
-          }();
+    // LABELING INTEGRITY: a scrubbed readout is the forecast sample at that
+    // instant, labeled with its time — never presented as "now".
+    final headerText = _scrubMs != null
+        ? _scrubText(_scrubMs!)
+        : hp == null
+            ? ''
+            : () {
+                final h = UnitConverter.formatChartWaveHeight(
+                    UnitConverter.feetToMeters(hp.effectiveHeightFt),
+                    _units.system);
+                final dir = WindFormat.cardinal(hp.directionDeg);
+                final prefix = widget.isToday ? '' : 'Peak ';
+                return '$prefix$h @ ${hp.periodSec.round()}s $dir';
+              }();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_hasData) ...[
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: _swellColor.withOpacity(0.5),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text('Loading...', style: TextStyle(color: _dimText, fontSize: 13)),
-          ] else ...[
-            Expanded(
-              child: Text(
-                headerText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              if (!_hasData) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _swellColor.withOpacity(0.5),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text('Loading...',
+                    style: TextStyle(color: _dimText, fontSize: 13)),
+              ] else ...[
+                Expanded(
+                  child: Text(
+                    headerText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _showSwellInfo(context);
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Data sources',
+                        style: TextStyle(
+                            color: AppColors.darkTextHint, fontSize: 11)),
+                    SizedBox(width: 4),
+                    Icon(Icons.info_outline,
+                        size: 12, color: AppColors.darkTextHint),
+                  ],
                 ),
               ),
-            ),
-          ],
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _showSwellInfo(context);
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Data sources',
-                    style:
-                        TextStyle(color: AppColors.darkTextHint, fontSize: 11)),
-                SizedBox(width: 4),
-                Icon(Icons.info_outline, size: 12, color: AppColors.darkTextHint),
-              ],
-            ),
+            ],
           ),
+          // Time readout, matching the wind chart: which instant the header
+          // value represents, live-updating while the user scrubs.
+          if (_hasData && hp != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: ChartScrubLabel(
+                text: _scrubMs != null
+                    ? 'Forecast \u00b7 ${_formatClock(_scrubMs!)}'
+                    : widget.isToday
+                        ? 'Forecast \u00b7 nearest hour ${_formatClock(hp.epochMs)}'
+                        : 'Forecast \u00b7 peak at ${_formatClock(hp.epochMs)}',
+                scrubbed: _scrubMs != null,
+                onReset: () => setState(() => _scrubMs = null),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  /// Forecast sample at the scrubbed instant: height and period interpolate
+  /// linearly between hourly samples (matching the chart's now-dot),
+  /// direction takes the nearest sample.
+  String _scrubText(int ms) {
+    final points = widget.points;
+    final epochs = [for (final p in points) p.epochMs];
+    final heightFt = ChartScrubMath.lerpAt(
+        epochs, [for (final p in points) p.effectiveHeightFt], ms)!;
+    final periodSec = ChartScrubMath.lerpAt(
+        epochs, [for (final p in points) p.periodSec], ms)!;
+    final dir =
+        points[ChartScrubMath.nearestIndex(epochs, ms)].directionDeg;
+    final h = UnitConverter.formatChartWaveHeight(
+        UnitConverter.feetToMeters(heightFt), _units.system);
+    return '$h @ ${periodSec.round()}s ${WindFormat.cardinal(dir)}';
+  }
+
+  /// Header/scrub clock in spot-local time (with zone) when the offset is
+  /// known, else device-local — same convention as the wind chart.
+  String _formatClock(int epochMs) {
+    return WindFormat.compactClock(
+      DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true),
+      utcOffsetMinutes: widget.utcOffsetMinutes,
+      timezoneAbbr: widget.timezoneAbbr,
     );
   }
 
@@ -142,15 +207,25 @@ class _SwellChartCardState extends State<SwellChartCard> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: SizedBox(
             height: 160,
-            child: CustomPaint(
-              size: const Size(double.infinity, 160),
-              painter: _SwellCurvePainter(
-                points: widget.points,
-                unitSystem: _units.system,
-                swellColor: _swellColor,
-                nowColor: _nowColor,
-                dimText: _dimText,
-                showNow: widget.isToday,
+            child: ChartTimeScrubber(
+              firstMs: widget.points.first.epochMs,
+              lastMs: widget.points.last.epochMs,
+              snapToMs: widget.isToday
+                  ? DateTime.now().millisecondsSinceEpoch
+                  : null,
+              value: _scrubMs,
+              onChanged: (ms) => setState(() => _scrubMs = ms),
+              child: CustomPaint(
+                size: const Size(double.infinity, 160),
+                painter: _SwellCurvePainter(
+                  points: widget.points,
+                  unitSystem: _units.system,
+                  swellColor: _swellColor,
+                  nowColor: _nowColor,
+                  dimText: _dimText,
+                  showNow: widget.isToday,
+                  scrubMs: _scrubMs,
+                ),
               ),
             ),
           ),
@@ -285,6 +360,7 @@ class _SwellCurvePainter extends CustomPainter {
   final Color nowColor;
   final Color dimText;
   final bool showNow;
+  final int? scrubMs;
 
   _SwellCurvePainter({
     required this.points,
@@ -293,6 +369,7 @@ class _SwellCurvePainter extends CustomPainter {
     required this.nowColor,
     required this.dimText,
     required this.showNow,
+    this.scrubMs,
   });
 
   double _yValue(double ft) =>
@@ -465,11 +542,28 @@ class _SwellCurvePainter extends CustomPainter {
         tp.paint(canvas, Offset(nx - tp.width / 2, topPad - tp.height - 2));
       }
     }
+
+    // Scrubbed-time marker: solid line, distinct from the dashed Now line.
+    final sMs = scrubMs;
+    if (sMs != null && sMs >= firstMs && sMs <= lastMs) {
+      final sv = ChartScrubMath.lerpAt(
+          [for (final p in points) p.epochMs], values, sMs);
+      ChartScrubMarker.draw(
+        canvas,
+        size,
+        x: xOf(sMs.toDouble()),
+        y: sv != null ? yOf(sv) : null,
+        color: swellColor,
+        topPad: topPad,
+        bottomPad: bottomPad,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_SwellCurvePainter old) =>
       old.points != points ||
       old.unitSystem != unitSystem ||
-      old.showNow != showNow;
+      old.showNow != showNow ||
+      old.scrubMs != scrubMs;
 }

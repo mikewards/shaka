@@ -7,6 +7,7 @@ import '../../core/utils/wind_format.dart';
 import '../../data/models/spot_models.dart';
 import '../../data/services/unit_preference_service.dart';
 import 'chart_common.dart';
+import 'chart_scrub.dart';
 import 'live_wind_value.dart';
 
 /// Intraday wind curve for a single spot-local day, styled to match the tide
@@ -46,6 +47,10 @@ class WindChartCard extends StatefulWidget {
 
 class _WindChartCardState extends State<WindChartCard> {
   final _units = UnitPreferenceService();
+
+  /// Scrubbed instant (null = default "now"/peak header). See
+  /// [ChartTimeScrubber] for the shared behavior contract.
+  int? _scrubMs;
   static const _cardColor = AppColors.darkSurface;
   static const _borderColor = AppColors.darkBorder;
   static const _windColor = AppColors.chartWind;
@@ -102,6 +107,19 @@ class _WindChartCardState extends State<WindChartCard> {
 
   Widget _buildHeader(LiveWind? live) {
     final hp = _highlightPoint;
+    final scrub = _scrubMs != null ? _scrubSample(_scrubMs!) : null;
+    // LABELING INTEGRITY: a scrubbed readout is a forecast sample at that
+    // instant — it must never present itself (or the live reading) as "now".
+    final headline = scrub != null
+        ? scrub.text
+        : live != null
+            ? _liveHeaderText(live)
+            : hp != null
+                ? _headerText(hp)
+                : '';
+    final arrowDeg = scrub?.directionDeg ??
+        live?.windDirectionDeg ??
+        hp?.directionDeg;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -124,13 +142,13 @@ class _WindChartCardState extends State<WindChartCard> {
                     style: TextStyle(color: _dimText, fontSize: 13)),
               ] else if (hp != null) ...[
                 WindArrow(
-                    fromDegrees: live?.windDirectionDeg ?? hp.directionDeg,
+                    fromDegrees: arrowDeg ?? hp.directionDeg,
                     color: _windColor,
                     size: 14),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    live != null ? _liveHeaderText(live) : _headerText(hp),
+                    headline,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -158,20 +176,22 @@ class _WindChartCardState extends State<WindChartCard> {
               ),
             ],
           ),
-          // Kind honesty: with a live reading the headline is the shared
-          // current value (same number as the cards); otherwise it's a
-          // forecast sample and states which hour it represents.
+          // Kind honesty: scrubbed = forecast sample at the scrubbed time;
+          // live = the shared current value (same number as the cards);
+          // otherwise a forecast sample stating which hour it represents.
           if (_hasData && hp != null)
             Padding(
               padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                live != null
-                    ? 'Live \u00b7 ${_formatTime(live.retrievedAt)}'
-                    : widget.isToday
-                        ? 'Forecast \u00b7 nearest hour ${_formatTime(hp.epochMs)}'
-                        : 'Forecast \u00b7 peak at ${_formatTime(hp.epochMs)}',
-                style: const TextStyle(
-                    color: AppColors.darkTextHint, fontSize: 10),
+              child: ChartScrubLabel(
+                text: scrub != null
+                    ? 'Forecast \u00b7 ${_formatTime(_scrubMs!)}'
+                    : live != null
+                        ? 'Live \u00b7 ${_formatTime(live.retrievedAt)}'
+                        : widget.isToday
+                            ? 'Forecast \u00b7 nearest hour ${_formatTime(hp.epochMs)}'
+                            : 'Forecast \u00b7 peak at ${_formatTime(hp.epochMs)}',
+                scrubbed: scrub != null,
+                onReset: () => setState(() => _scrubMs = null),
               ),
             ),
         ],
@@ -187,6 +207,25 @@ class _WindChartCardState extends State<WindChartCard> {
     final gust = WindFormat.gustSuffix(hp.speedKts, hp.gustKts, _units.system);
     final prefix = widget.isToday ? '' : 'Peak ';
     return '$prefix$speed$gust $dir';
+  }
+
+  /// Forecast sample at the scrubbed instant: speed and gust interpolate
+  /// linearly between the hourly samples (matching the chart's now-dot),
+  /// direction takes the nearest sample.
+  ({String text, int directionDeg}) _scrubSample(int ms) {
+    final points = widget.points;
+    final epochs = [for (final p in points) p.epochMs];
+    final speed = ChartScrubMath.lerpAt(
+        epochs, [for (final p in points) p.speedKts], ms)!;
+    final gust = ChartScrubMath.lerpAt(
+        epochs, [for (final p in points) p.gustKts], ms);
+    final dir = points[ChartScrubMath.nearestIndex(epochs, ms)].directionDeg;
+    final speedText = UnitConverter.formatWindSpeed(speed, _units.system);
+    final gustText = WindFormat.gustSuffix(speed, gust, _units.system);
+    return (
+      text: '$speedText$gustText ${WindFormat.cardinal(dir)}',
+      directionDeg: dir,
+    );
   }
 
   /// Headline from the shared near-real-time reading — identical formatting
@@ -210,16 +249,26 @@ class _WindChartCardState extends State<WindChartCard> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: SizedBox(
             height: 160,
-            child: CustomPaint(
-              size: const Size(double.infinity, 160),
-              painter: _WindCurvePainter(
-                points: widget.points,
-                unitSystem: _units.system,
-                windColor: _windColor,
-                nowColor: _nowColor,
-                dimText: _dimText,
-                showNow: widget.isToday,
-                utcOffsetMinutes: widget.utcOffsetMinutes,
+            child: ChartTimeScrubber(
+              firstMs: widget.points.first.epochMs,
+              lastMs: widget.points.last.epochMs,
+              snapToMs: widget.isToday
+                  ? DateTime.now().millisecondsSinceEpoch
+                  : null,
+              value: _scrubMs,
+              onChanged: (ms) => setState(() => _scrubMs = ms),
+              child: CustomPaint(
+                size: const Size(double.infinity, 160),
+                painter: _WindCurvePainter(
+                  points: widget.points,
+                  unitSystem: _units.system,
+                  windColor: _windColor,
+                  nowColor: _nowColor,
+                  dimText: _dimText,
+                  showNow: widget.isToday,
+                  utcOffsetMinutes: widget.utcOffsetMinutes,
+                  scrubMs: _scrubMs,
+                ),
               ),
             ),
           ),
@@ -392,6 +441,7 @@ class _WindCurvePainter extends CustomPainter {
   final Color dimText;
   final bool showNow;
   final int? utcOffsetMinutes;
+  final int? scrubMs;
 
   _WindCurvePainter({
     required this.points,
@@ -401,6 +451,7 @@ class _WindCurvePainter extends CustomPainter {
     required this.dimText,
     required this.showNow,
     this.utcOffsetMinutes,
+    this.scrubMs,
   });
 
   /// Hour-of-day for an instant in SPOT-local time when the offset is known,
@@ -596,6 +647,22 @@ class _WindCurvePainter extends CustomPainter {
         tp.paint(canvas, Offset(nx - tp.width / 2, topPad - tp.height - 2));
       }
     }
+
+    // Scrubbed-time marker: solid line, distinct from the dashed Now line.
+    final sMs = scrubMs;
+    if (sMs != null && sMs >= firstMs && sMs <= lastMs) {
+      final sv = ChartScrubMath.lerpAt(
+          [for (final p in points) p.epochMs], speed, sMs);
+      ChartScrubMarker.draw(
+        canvas,
+        size,
+        x: xOf(sMs.toDouble()),
+        y: sv != null ? yOf(sv) : null,
+        color: windColor,
+        topPad: topPad,
+        bottomPad: bottomPad,
+      );
+    }
   }
 
   Path _smoothPath(List<double> px, List<double> py, int n) {
@@ -651,5 +718,6 @@ class _WindCurvePainter extends CustomPainter {
       old.points != points ||
       old.unitSystem != unitSystem ||
       old.showNow != showNow ||
-      old.utcOffsetMinutes != utcOffsetMinutes;
+      old.utcOffsetMinutes != utcOffsetMinutes ||
+      old.scrubMs != scrubMs;
 }
